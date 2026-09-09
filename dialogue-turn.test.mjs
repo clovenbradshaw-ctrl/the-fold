@@ -72,7 +72,7 @@ test("the address check BY REFERENT: a draft that never names the asked-about re
   assert.equal(ok.addressed[0].reasked, false, "a draft that names the referent is not re-asked");
   let calls = 0;
   const absent = await runHolonicTask({ task: "What does the book say about Marmeladov?", chunks, call: async (m) => { calls++; return "The novel is about guilt."; }, ...organs });
-  assert.match(absent.output, /no referent named "Marmeladov"/, "the record states the absence itself");
+  assert.doesNotMatch(absent.output, /no referent named/i, "the absence is declared a VOID on the ledger, never appended to the visible answer — apparatus jargon a real chatbot reader has no way to parse (2026-09-09 fix)");
   assert.equal(absent.addressed[0].resolvedOn, "absence");
   assert.equal(absent.addressed[0].reasked, false, "no re-ask on a name the material never mentions");
 });

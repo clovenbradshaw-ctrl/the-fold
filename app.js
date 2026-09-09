@@ -92,7 +92,7 @@ import { stripPastTurnBoundary, turnBoundaryIndex } from "./turn-boundary.js";
 
 import { MAX_CORRECTIONS, needsDecomposition, PASSAGES_PER_PART, runHolonicTask, SEARCHED_VOID_PREFIX, S1_SYSTEM_PROMPT, buildPlanPrompt, parsePlan, PLAN_SCHEMA, PLAN_MAX_TOKENS, PLAN_SYSTEM_PROMPT, depthBudgets, todayLine } from "./holon.js";
 
-import { MODEL_PICKER, ROUTE_KINDS, routeModel, isPinnedModel, S1_MODEL, S2_MODEL, resolveNamedModel } from "./model-routing.js";
+import { MODEL_PICKER, ROUTE_KINDS, routeModel, isPinnedModel, resolveNamedModel } from "./model-routing.js";
 
 import { renderBlocksInto } from "./render.js";
 
@@ -293,11 +293,15 @@ import { mentionBook, makeActivationRetrieval } from "./activation-retrieval.js"
 // second reconciliation.
 import * as nativeTaskLog from "/engine-v7/kernel/task-log.js";
 import { adaptTaskLog } from "./consequence.js";
-// The shim's target renamed 2026-09-08 (eoreader7 organs/hyperlexicon.js ->
-// organs/notes-text.js, exported member makeHyperlexicon -> makeNotesText);
-// aliased back to this file's own established local name (used ~30 places
-// below) so nothing else in this file needs to change.
-import { makeNotesText as makeHyperlexicon } from "./hyperlexicon.js";
+// The organ's real name is still makeHyperlexicon — organs/hyperlexicon.js's
+// own header (2026-09-02) settled this as the byte-compatible text face of
+// kernel/notes.js, "the API IS BYTE-COMPATIBLE for every existing caller...
+// makeHyperlexicon(taskLog)". A prior pass here assumed a further rename to
+// organs/notes-text.js / makeNotesText that was never carried out anywhere
+// in eoreader7 (checked: no notes-text.js exists, and ~50 other consumers —
+// tests, capacities.js, corroboration.js, derivation.js — all still import
+// makeHyperlexicon) and had broken module loading. Reverted to the real name.
+import { makeHyperlexicon } from "./hyperlexicon.js";
 import { depthLine, DEPTH_NAMES } from "./depth.js";
 // The watcher over the gap between S1 (runFastPass) and S2 (holonicTurn) —
 // metacognition.js, P72. Same taskLog bundle as buildLog/store/grid below,
@@ -4819,7 +4823,19 @@ function guardedSend(question) {
 async function send(question) {
   state.busy = true;
   turnSeq += 1;
-  $("send").disabled = true;
+  // Deliberately NOT `$("send").disabled = true` (found live, QA battery
+  // 2026-09-09): `$("composer").onsubmit` already branches on `state.busy`
+  // to QUEUE a message rather than send it immediately — `state.queue`,
+  // the "queued" tag, `drainQueue()` in `releaseBusy()` below, all real,
+  // wired, working. But a keyboard Enter reaches that branch through
+  // `requestSubmit()` (which does not consult a submit button's own
+  // `disabled` state), while a mouse click on a disabled `#send` never
+  // fires `submit` at all — so the one visible, obvious way to send a
+  // message was silently unable to reach a feature that already worked
+  // for anyone who happened to press Enter instead. The button now stays
+  // clickable through a busy turn; other elements already carry the
+  // "working" signal (the status line's "writing: …", the model chip's
+  // pulsing dot), so this loses no disclosure.
 
   // A task rather than a question. Two doors, per the canon in eochatX's
   // eo-holonic-plan.ts: `/task` is the explicit one, and the mechanical gate
@@ -6455,20 +6471,28 @@ async function runFastPass(question, model) {
 async function twoPassTurn(question) {
   addMessage("user", question);
   logAct("asked", { text: question });
-  // Fixed, task-fit models (model-routing.js), each falling back to the
-  // fastest offered picker rung if not actually pulled — never routeModel's
-  // ordinary FLAT/DEEP split, which routes on TURN KIND (plain vs. deep
-  // work) and has no notion of "which pass" at all.
-  // ...and a model the person pinned through a room outranks even those: the
-  // specialists are a choice about which LOCAL model fits a pass, and a room
-  // mouth is not local at all. A pin outranks the specialist ladder — found
-  // independently twice, same failure: 2026-09-06 (the pinned turn's own
-  // attribution line and its self-citation disagreed about which model
-  // spoke) and again 2026-09-08 (picking a room mouth and being answered by
-  // gemma2:2b anyway).
+  // REVERTED 2026-09-09 (live QA battery, user direction): both passes are
+  // back to the SAME picker-selected model, not model-routing.js's S1_MODEL/
+  // S2_MODEL specialists. Found live: the composer's model chip read
+  // "gemma2:2b" while an ordinary "Hi!" was answered by
+  // hf.co/allenai/OLMo-2-0425-1B-Instruct-GGUF — a model that appears
+  // nowhere in the composer at all — because the 2026-09-01 amendment (see
+  // model-routing.js's own header) made S1/S2 spend the specialist constant
+  // for their job instead of the picker's single choice. The chip is the
+  // one place a person is told who they are talking to (the UX pass above:
+  // "picking a model IS connecting to it... the single source of truth");
+  // a fixed answering model that never appears there breaks that contract
+  // for nearly every ordinary turn (S1 answers alone whenever the gate
+  // stays off — most of plain chat). This is the same "picker is
+  // authoritative" rule isPinnedModel already enforces for a room mouth,
+  // widened to the ordinary local case instead of carving it out as the
+  // one exception. `resolveNamedModel` still guards a stale/unpulled
+  // selection by falling back to the fastest offered rung, so this cannot
+  // name a model that would fail on first use.
   const pinned = isPinnedModel(state.model) ? state.model : null;
-  const s1Model = pinned ?? resolveNamedModel(S1_MODEL, { available: state.availableModels, offered: state.offeredModels });
-  const s2Model = pinned ?? resolveNamedModel(S2_MODEL, { available: state.availableModels, offered: state.offeredModels });
+  const picked = pinned ?? resolveNamedModel(state.model, { available: state.availableModels, offered: state.offeredModels });
+  const s1Model = picked;
+  const s2Model = picked;
 
   // SEARCH BEFORE ANSWERING (user direction 2026-08-26: "let's have it do
   // the searching before it answers, and only respond to truly trivial
@@ -7616,7 +7640,45 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // verdict vocabulary behind it. Plain mode does not ask for it, so it
       // is never computed — off means not run, not run-and-hidden.
       makeRelationReader: state.grounded ? relationsFor : null,
-      witnessSentences: state.grounded ? witnessSentencesFor : null,
+      // FOUND LIVE (2026-09-09): checking on, nothing attached, "What's your
+      // favorite season and why?" — the turn's own void-brief had already
+      // decided, before any draft existed, that this question "does not open
+      // a slot to fill... there is no shape here for me to check an answer
+      // against" (noSlotLine, said via `think()` above the moment `voidDigest`
+      // is set to "no-slot"). The witness tier ran anyway — gated only on
+      // `state.grounded` and `passages.length` in holon.js's `runPart`, with
+      // no notion of whether the QUESTION asked for anything checkable — and
+      // asked about literally every sentence the answer split into
+      // (witness-sentences.js's `endsFor` needs two content words, not a
+      // claim), so a purely subjective answer's fragments ("the crisp air,
+      // the cozy sweaters... it's just perfect") each came back "refused"
+      // and were convicted with a "∅ no passage states this" badge plus a
+      // "gemma2:2b — no source states this" ground chip (taggedProse,
+      // ground-ladder.js's `groundLine` at tier "self"/refused). This is the
+      // same failure CLAUDE.md's two 2026-08-17 amendments already named and
+      // closed for a build turn's own prose and for holon.js's `inspect()`:
+      // "a checking organ may say 'I have nothing to compare this against'
+      // (withhold), or 'I compared it and it failed' (convict). It may never
+      // manufacture the second out of the first." `voidDigest === "no-slot"`
+      // IS that withholding — already decided by this same instrument before
+      // the model ever drafted — so it is reused here rather than a second
+      // mechanism invented to say the same thing twice: a turn whose own
+      // question opens no checkable slot never populates a witness report to
+      // convict its own prose. Scoped to the witness tier alone, not
+      // `makeRelationReader` above: the relation tier only ever flags a real
+      // subject-verb-object claim it extracted, so it never misfired on this
+      // specimen's fragments in the first place (no ⇄/∅ relation badge drew
+      // on any of them) — only the witness tier, which asks about every
+      // sentence unconditionally, needed standing down. A question that DOES
+      // open a slot is untouched; so, disclosed, is a manner/reason question
+      // ("why"/"how") with real material attached — `declaredSlotShape`
+      // (web-claim.js) returns `headPhrase: null` for those BY DESIGN (an
+      // explanation is not a filler), so they read as "no-slot" here too and
+      // lose the witness tier's paraphrase-catching fallback, while the
+      // relation tier's own SVO-level checking — untouched by this gate —
+      // keeps checking whatever claims it can actually extract from a real
+      // explanation.
+      witnessSentences: state.grounded && voidDigest !== "no-slot" ? witnessSentencesFor : null,
       // The link tier (links.js): a cited URL is fetched through the SAME
       // standing web consent proof-seeking already asks for — an automatic
       // crossing the instrument decided to make, not a click the reader

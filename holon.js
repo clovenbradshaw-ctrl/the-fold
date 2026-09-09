@@ -3003,7 +3003,6 @@ export async function runPart({
   // reader sees (user, 2026-09-07: "awareness in a way that makes future
   // mistakes less likely").
   const absence = qRefs ? absenceOf(qRefs, chunks.length ? chunks : passages, { vocabulary: conversationIndex?.vocabulary ?? null }) : { absent: [], unestablished: [], line: "" };
-  const absent = absence.line;
   const voidsDeclared = [];
   if (absence.absent.length && hyperlexicon?.declareVoid && beliefNotes) {
     const sourcesRead = [...new Set((chunks.length ? chunks : passages).map((c) => c?.source ?? String(c?.ref ?? "").split("#")[0]).filter(Boolean))];
@@ -3237,7 +3236,21 @@ export async function runPart({
   const expectationError = expectation.claims.length ? errorOf(expectation, dialogueClaims, referentIndex) : null;
   const selfRows = transcript.length ? selfContradictions(dialogueClaims, transcript, referentIndex) : [];
   if (position) text = `${position.text}\n\n${text}`.trim();
-  if (absent) text = `${text}\n\n${absent}`.trim();
+  // `absent` (absence.line, computed above) is deliberately never appended
+  // to `text` — the comment at its own computation site says so outright:
+  // an absent name is declared a VOID on the ledger, "awareness that
+  // changes what the mouth is given, not a line the reader sees." Found
+  // live (QA battery, 2026-09-09): a plain opinion question ("Are you a
+  // fan of Google or Microsoft?") answered normally, then appended
+  // `The loaded sources establish no referent named "Google", "Microsoft".`
+  // as a raw trailing sentence in the chat bubble — apparatus jargon a
+  // real chatbot user has no way to parse, on a turn with nothing attached
+  // to begin with. This line predates the void-declaration mechanism a few
+  // lines up and was never removed when that mechanism made it redundant;
+  // `addressed.absent`/`addressed.unestablished` a few lines above still
+  // carry the same information as typed metadata for the record/thinking
+  // panel, which is the "record-only" pattern the very next comment block
+  // describes for the sibling `owned` case.
   // THE RECORD OWNS ITS CORRECTIONS (user, 2026-09-07: "I just want it to learn and own its mistakes"): a correction learned in this conversation and in scope of this question is said on the answer, in the record's own words — what was held, what the sources say.
   // Record-only (user, 2026-09-07: "we don't need apologies, just awareness in a way that makes future mistakes less likely"): the awareness is the corrected fact handed back in scope and the guard that catches a repeat; `owned` names them on the record, the answer is not decorated.
   const owned = ownedRows(learnedRows, { since: learnedSince });

@@ -13664,9 +13664,79 @@ async function renderResearchedSection(list) {
         <div class="sources-file-meta">${esc(host)} · ${(e.textChars ?? 0).toLocaleString()} chars${e.challenge ? " · ⚠ challenge page" : ""}</div>
       </div>`;
     row.title = "Read during research for a turn, never attached as material — click to open what was actually read.";
-    row.onclick = () => window.open(pageFaceUrl(EXPLORE_BASE, e.textPath), "_blank", "noopener");
+    row.onclick = () => openResearchedPage(e);
     list.append(row);
   }
+}
+
+/**
+ * A RESEARCHED row's own in-app viewer — the house convention (Explore's
+ * preview.js: "a preview never starts a read... peeking costs a stat and a
+ * decode", applied here to a saved web page rather than a file). This used
+ * to be `window.open(pageFaceUrl(...), "_blank", "noopener")`, which reads
+ * as safe (a `_blank` target, `noopener` set) but is NOT: found live,
+ * 2026-09-09 — clicking a RESEARCHED row navigated the ACTIVE tab to the
+ * saved page's raw text file rather than opening a second one, taking the
+ * whole SPA's in-memory state with it (conversations reset to a blank
+ * "Conversation 1"). `window.open` with a `_blank` target is a real
+ * navigation request the browser is free to satisfy however it judges
+ * best, popup-blocked or not — never something this instrument gets to
+ * assume opens elsewhere. The fix is the SAME move `reopen()` and
+ * `openSourceViewer()` already make for every other "let me see the bytes"
+ * moment in this app: reuse the existing `#source-viewer` dialog, fetch and
+ * decode into it, never hand the browser a URL to act on for the primary
+ * click. A genuine "leave the instrument" door stays available, but as an
+ * ordinary `<a target="_blank" rel="noopener noreferrer">` a reader clicks
+ * on purpose — the same disclosed-and-deliberate shape `reopen()`'s own
+ * papers link and the web view's `saved.href` already use elsewhere.
+ */
+async function openResearchedPage(e) {
+  const host = hostOf(e.finalUrl ?? e.url);
+  const name = e.title || host;
+  mirrorTermRecord("source-open", { path: e.textPath, via: "chat" }); // the same record every other open lands on
+  $("source-viewer-name").textContent = name;
+  const meta = $("source-viewer-meta");
+  meta.textContent = "";
+  meta.append(
+    `${host} · ${(e.textChars ?? 0).toLocaleString()} chars${e.challenge ? " · ⚠ challenge page" : ""} — read during research, never attached as material `,
+  );
+  const liveUrl = e.finalUrl ?? e.url;
+  if (liveUrl) {
+    const a = document.createElement("a");
+    a.href = liveUrl;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = "↗ open the live page";
+    a.title = "opens in your own browser — leaves this instrument";
+    meta.append(a);
+  }
+  $("source-viewer-mode").style.display = "";
+  const body = $("source-viewer-body");
+  body.textContent = "";
+  const loading = document.createElement("p");
+  loading.className = "muted";
+  loading.textContent = "reading the saved page…";
+  body.append(loading);
+  $("source-viewer").showModal();
+
+  let text = "";
+  try {
+    let res;
+    try { res = await fetch(pageFaceUrl(EXPLORE_BASE, e.textPath)); }
+    catch { res = await fetch(pageFaceUrl(location.origin, e.textPath)); }
+    if (res?.ok) text = await res.text();
+  } catch { /* the dialog says so below, rather than throwing */ }
+  const info = { name, text: text.trim() ? text : "(could not read the saved page — the explore server may not be reachable)", ext: "txt" };
+  const modeEl = $("source-viewer-mode");
+  modeEl.querySelectorAll(".seg").forEach((b) => b.classList.toggle("active", b.dataset.mode === "read"));
+  modeEl.onclick = (ev) => {
+    const btn = ev.target.closest("[data-mode]");
+    if (!btn) return;
+    modeEl.querySelectorAll(".seg").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    renderSourceViewerMode(btn.dataset.mode, info);
+  };
+  renderSourceViewerMode("read", info);
 }
 
 /**

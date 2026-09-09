@@ -1249,6 +1249,7 @@ const state = {
    */
   hyperlexiconLog: null,
   huntUrls: {},
+  lastSearchSpans: [],
   lastPiece: null,
   obligations: null, // the obligation ledger (obligation.js) — per conversation, see PER_CONVO
 
@@ -5869,13 +5870,14 @@ async function boundTurn(question, typed) {
 
   const divB = document.createElement("div");
   divB.className = "prose";
+  const boundMarks = [];
   if (parsed.degraded) divB.textContent = flat;
   else
     for (const s of parsed.sentences) {
       const p = document.createElement("p");
       p.className = "para";
       p.append(
-        ...taggedProse(s.prose, passages, classifySentences(s.prose, boundAttr, boundGrounding.findings).filter((e) => findSentence(s.prose, e.text))),
+        ...taggedProse(s.prose, passages, classifySentences(s.prose, boundAttr, boundGrounding.findings).filter((e) => findSentence(s.prose, e.text)), boundMarks),
       );
       for (const [val, kind] of [[s.name, "name"], [s.figure, "figure"]]) {
         if (!val) continue;
@@ -5895,6 +5897,7 @@ async function boundTurn(question, typed) {
       }
       divB.append(p);
     }
+  renderMarksStrip(divB, boundMarks);
 
   const compare = document.createElement("p");
   compare.className = "fold-note";
@@ -6459,8 +6462,11 @@ async function runFastPass(question, model) {
   // every sentence is model-ground and wears the dotted underline — a
   // fast-pass answer no longer ships unclassified.
   if (text) {
-    try { body.replaceChildren(...taggedProse(text, [], classifySentences(text, [], []))); }
-    catch { body.textContent = text; }
+    try {
+      const fastMarks = [];
+      body.replaceChildren(...taggedProse(text, [], classifySentences(text, [], []), fastMarks));
+      renderMarksStrip(body, fastMarks);
+    } catch { body.textContent = text; }
   } else body.textContent = "(no reply)";
   return { node, text, sent };
 }
@@ -7199,6 +7205,12 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
         });
       }
       for (const pg of preflight.pages ?? []) if (pg?.name && pg.url) state.huntUrls[pg.name] = pg.url;
+      // The combined-snippet digest's own per-result provenance, held for
+      // reopen()'s "web:search-results#a-b" branch (below) to resolve a
+      // span back to the real page it came from — this turn's own hunt
+      // only, matching state.lastGround's own "the latest turn's own"
+      // convention elsewhere in this file.
+      state.lastSearchSpans = preflight.spans ?? [];
       if (preflight.chunks.length) {
         // Long-form UNIONS what was found with what is attached; an ordinary
         // preflight only ever runs with nothing attached, so `live` is empty
@@ -7437,7 +7449,21 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
             // answer from a true-but-unmeant one (wikidata.js::coverageOf).
             const best = [...seek.perTerm].sort((a, b) => (b.coverage?.ratio ?? 0) - (a.coverage?.ratio ?? 0))[0];
             if (!best?.bound?.length) {
-              think(`Nobody is on record holding that during any period ${anchorTerm} is recorded for.`);
+              // Was "Nobody is on record holding that during any period X
+              // is recorded for" — an office/tenure template (succession,
+              // "who holds X during a period") applied unconditionally,
+              // even when slotTerm names a fixed, single-valued attribute
+              // with no holders or terms at all. Found live, 2026-09-09:
+              // "What is the capital of Peru?" reached this exact branch
+              // and got a "holding a period" sentence about a geography
+              // fact, a category error — "holding a capital during a
+              // period" presupposes an office this slot was never one.
+              // Nothing upstream can tell an office slot from a fixed
+              // attribute (declaredSlotShape is deliberately a defeasible
+              // proxy with no such distinction — P4/P23's own standing rule
+              // against hand-picked classifiers), so the fix is a
+              // category-neutral withhold that reads correctly either way.
+              think(`Nothing on the public record binds a "${slotTerm}" to ${anchorTerm}.`);
             } else if (!(best.coverage?.ratio > 0)) {
               // Bound, but the terms do not account for the span — so the set
               // is not closed and must not be stated as though it were.
@@ -8580,6 +8606,22 @@ function chipText(ref) {
   return refLabel(ref) ?? ref;
 }
 
+/**
+ * A "web:search-results#a-b" address, resolved back to the real page it
+ * came from — `{ url, title, host }`, or null when the ref is not this
+ * family, no span was kept, or the offsets fall in the separator between
+ * two snippets. `state.lastSearchSpans` (gatherPreflightMaterial, above)
+ * is this turn's own hunt only, matching every other "lastX" turn-scoped
+ * field in this file.
+ */
+function searchSpanSource(ref) {
+  const m = /^web:search-results#(\d+)-(\d+)$/.exec(String(ref ?? ""));
+  if (!m) return null;
+  const [, start, end] = m.map(Number);
+  const span = (state.lastSearchSpans ?? []).find((s) => start < s.end && end > s.start);
+  return span ? { url: span.url, title: span.title, host: span.host } : null;
+}
+
 /** Bold, italic, and inline code in a run of prose, nothing more. The model
  * writes markdown because it was told to; the reader should see bold as bold.
  * Refs were already split out before this runs (refNodes splits first), and a
@@ -8642,6 +8684,115 @@ function refNodes(text, known) {
 }
 
 /**
+ * Opens the detail a sentence's `.mark-ref` (or the bottom `.marks-strip`'s
+ * own chip) points at — every item this sentence collected, each with its
+ * full detail text (what used to live in a chip's `title` attribute, read
+ * only on hover, easy to miss entirely on a touch device) and, where the
+ * original chip was clickable, the same action reachable from a real
+ * button rather than a click on running prose.
+ */
+function openMarkDetail(entry) {
+  $("mark-detail-title").textContent = entry.tier ? `Ground — ${entry.tier}` : "Marks";
+  $("mark-detail-sentence").textContent = `“${entry.sentence}”`;
+  const body = $("mark-detail-body");
+  body.replaceChildren();
+  for (const item of entry.items) {
+    const div = document.createElement("div");
+    div.className = "mark-detail-item";
+    const label = document.createElement("p");
+    label.className = "mark-detail-label";
+    label.textContent = item.label;
+    div.append(label);
+    if (item.detail) {
+      const p = document.createElement("p");
+      p.className = "mark-detail-text";
+      p.textContent = item.detail;
+      div.append(p);
+    }
+    if (item.addresses?.length) {
+      const addr = document.createElement("p");
+      addr.className = "mark-detail-addr";
+      addr.textContent = item.addresses.join(", ");
+      div.append(addr);
+      // A "web:search-results#a-b" address names bytes, not a page a
+      // reader would recognize — resolved to the real page it came from,
+      // right here, so seeing that doesn't need a second click into
+      // reopen()'s own dialog (found live, 2026-09-09, user direction:
+      // "this needs to disclose more where it really came from").
+      for (const a of item.addresses) {
+        const found = searchSpanSource(a);
+        if (!found) continue;
+        const from = document.createElement("p");
+        from.className = "mark-detail-addr";
+        from.append(`from: ${found.title ?? found.host} (${found.host})`);
+        if (found.url) {
+          from.append(" ");
+          const link = document.createElement("a");
+          link.href = found.url;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          link.textContent = "↗";
+          link.title = "the page this snippet came from — opens in your own browser, leaves this instrument";
+          from.append(link);
+        }
+        div.append(from);
+      }
+    }
+    if (item.action) {
+      const btn = document.createElement("button");
+      btn.className = "mark-chip";
+      btn.textContent = item.actionLabel ?? "Open";
+      btn.onclick = () => { $("mark-detail").close(); item.action(); };
+      div.append(btn);
+    }
+    body.append(div);
+  }
+  $("mark-detail").showModal();
+}
+
+/** Registers one sentence's collected marks into the shared `marks` list for
+ * this message and returns the small inline button a reader clicks to open
+ * them — the whole footprint left in the reading flow once a mark exists,
+ * everything else moved to the strip at the bottom (found live, 2026-09-09:
+ * a ground-chip/ref/edge-badge trio on nearly every sentence read as prose
+ * interrupted by pill buttons every few words). */
+function markRef(marks, entry) {
+  marks.push(entry);
+  const warn = entry.items.some((i) => i.warn);
+  const m = document.createElement("button");
+  m.className = `mark-ref${entry.tier ? ` tier-${entry.tier}` : ""}${warn ? " warn" : ""}`;
+  m.textContent = String(marks.length);
+  m.title = entry.items.map((i) => i.label).join(" · ");
+  m.onclick = (e) => { e.stopPropagation(); openMarkDetail(entry); };
+  // A resolving web-proof check finds and updates the matching item's own
+  // label/detail by proof key (renderGrounding's onVerdict, elsewhere) —
+  // it needs the live entry object, not just this button's own text (which
+  // is only ever a number now), so the hover title still refreshes without
+  // opening the modal.
+  m._entry = entry;
+  return m;
+}
+
+/** The strip every sentence's `.mark-ref` points into — one row at the
+ * bottom of a message, everything the sentence-level chips used to say,
+ * still all present and still one click away, just not standing in the
+ * reader's way to get to it. A no-op when the message earned no marks. */
+function renderMarksStrip(container, marks) {
+  if (!marks.length) return;
+  const strip = document.createElement("div");
+  strip.className = "marks-strip";
+  marks.forEach((entry, i) => {
+    const warn = entry.items.some((it) => it.warn);
+    const chip = document.createElement("button");
+    chip.className = `mark-chip${warn ? " warn" : ""}`;
+    chip.textContent = `${i + 1} · ${entry.tier ?? entry.items[0]?.label ?? "mark"}`;
+    chip.onclick = () => openMarkDetail(entry);
+    strip.append(chip);
+  });
+  container.append(strip);
+}
+
+/**
  * Prose with every sentence standing on its named ground (provenance.js):
  * material-ground sentences read plain and carry their address; model-ground
  * sentences carry a quiet dotted underline — the model's own voice, typed as
@@ -8649,8 +8800,15 @@ function refNodes(text, known) {
  * whose figures or names the material does not hold carries the warning
  * stripe, whichever ground it stands on. All of it read off checks the turn
  * already ran — this function draws, it does not measure.
+ *
+ * `marks` is the shared collector for the whole message (renderTaggedBlocks
+ * passes one array across every block so the strip at the bottom lists
+ * every sentence's marks in reading order): each sentence that earns at
+ * least one mark gets ONE small `.mark-ref` button, never a chip per
+ * finding — the chips themselves render once, in the strip, and again on
+ * demand in the detail modal a click opens.
  */
-function taggedProse(text, offered, classified = []) {
+function taggedProse(text, offered, classified = [], marks = []) {
   const known = new Set(offered.map((p) => p.ref ?? p));
   const full = String(text);
   const out = [];
@@ -8702,6 +8860,17 @@ function taggedProse(text, offered, classified = []) {
     // own testimony (measured 2026-09-06, an answer from another machine
     // captioned with the local model of the turn before it), so `turnSeq` is
     // checked too, not just presence.
+    // Every mark this sentence earns lands here first, and ONLY here — the
+    // sentence itself gets one small numbered `.mark-ref` if this is
+    // non-empty (markRef, below), never a chip per finding. Everything a
+    // chip used to say (the tier line, the void/contradiction detail, the
+    // exact address) is preserved verbatim as an item's `label`/`detail`/
+    // `addresses`; a chip's own `onclick` becomes an item's `action`,
+    // reachable from a real button in the detail modal instead of a click
+    // on running prose.
+    const sentMarks = [];
+    let tier = null;
+
     if (state.grounded && state.lastGround && state.lastGround.turnSeq === turnSeq) {
       const wrow = (state.lastWitness ?? []).find((r) => r.sentence === entry.text) ?? null;
       // The sentence's own edges (classifySentences rides each relation claim
@@ -8710,12 +8879,14 @@ function taggedProse(text, offered, classified = []) {
       const own = (entry.edges ?? []).map((c) => ({ ...c, sentence: entry.text }));
       const g = groundOf(entry.text, { ...state.lastGround, claims: [...own, ...(state.lastGround.claims ?? []).filter((c) => c.sentence === entry.text)], witness: wrow });
       sent.dataset.groundTier = g.tier;
-      const gc = document.createElement("button");
-      gc.className = `ground-chip tier-${g.tier}`;
-      gc.textContent = `◎ ${groundLine(g)}`;
-      gc.title = `${g.detail}${g.addresses?.length ? ` — ${g.addresses.join(", ")}` : ""}. Press to search the material.`;
-      gc.onclick = () => groundHunt(entry.text);
-      sent.append(gc);
+      tier = g.tier;
+      sentMarks.push({
+        label: `◎ ${groundLine(g)}`,
+        detail: g.detail,
+        addresses: g.addresses,
+        action: () => groundHunt(entry.text),
+        actionLabel: "Search the material",
+      });
     }
 
     // Where this app attached the address itself, say so in the tag. A
@@ -8724,48 +8895,37 @@ function taggedProse(text, offered, classified = []) {
     // Runs of same-address sentences carry ONE chip (showChip; undefined
     // means show, for callers that never set it).
     if (entry.ref && entry.showChip !== false) {
-      const b = document.createElement("button");
-      b.className = "ref attached";
       const label = refLabel(entry.ref);
-      b.textContent = chipText(entry.ref);
-      b.title = label
-        ? `${entry.ref} — attached by this app against a measured null. Press to read the bytes.`
-        : "Attached by this app against a measured null. Press to read the bytes.";
-      b.onclick = () => reopen(entry.ref);
-      sent.append(b);
+      sentMarks.push({
+        label: `${chipText(entry.ref)} — attached`,
+        detail: label
+          ? `${entry.ref} — attached by this app against a measured null.`
+          : "Attached by this app against a measured null.",
+        action: () => reopen(entry.ref),
+        actionLabel: "Read the bytes",
+      });
     }
 
-    // The relation tier's verdicts, in-line: a contradicted or unbound edge
-    // gets a badge on the sentence that states it — the verdict must be
-    // readable WITHOUT clicking anything (measured in the field: ~1% of
-    // readers ever click a citation, so a flag that lives behind a click
-    // does not exist). Bound edges stay quiet here — support is the normal
-    // case, counted in the tally and detailed in the grounding disclosure.
-    // The sentence witness (holon.js → witness-sentences.js) speaks first:
-    // a sentence a passage STATES keeps no ∅ badge from the relation tier
-    // (the paraphrase wall, answered); a sentence the witness was asked
-    // about and REFUSED gets its own badge, whether or not the relation
-    // tier ever extracted a claim from it.
+    // The relation tier's verdicts: a contradicted or unbound edge earns a
+    // mark on the sentence that states it — never silent, only moved off
+    // the running prose. Bound edges stay quiet here — support is the
+    // normal case, counted in the tally and detailed in the grounding
+    // disclosure. The sentence witness (holon.js → witness-sentences.js)
+    // speaks first: a sentence a passage STATES keeps no ∅ mark from the
+    // relation tier (the paraphrase wall, answered); a sentence the witness
+    // was asked about and REFUSED gets its own mark, whether or not the
+    // relation tier ever extracted a claim from it.
     // `state.lastWitness`, like `state.lastGround` above, is set unconditionally
     // every turn — gated here for the identical reason.
     const wit = (state.lastWitness ?? []).find((r) => r.sentence === entry.text) ?? null;
     if (state.grounded && wit?.witness === "refused") {
-      const badge = document.createElement("button");
-      badge.className = "edge-badge unbound witness-refused";
       // Every ∅ cites its void (P106): when a gap the reader DECLARED is in
       // scope for this sentence, the mark names it — with its scope — so an
       // honest absence reads differently from the mouth's own "no mention".
       const gap = voidInScope(entry.text, voidsNow(), { question: state.lastAsked ?? "", sameForm: sameFormOrgan });
-      if (gap) {
-        badge.classList.add("cites-void");
-        badge.textContent = `∅ open gap on the record: ${gap.subject} —${gap.verb}→ ?`;
-        badge.title = `${gap.id} — declared by the reader over ${gap.scope?.sources?.length ?? "?"} source(s), ${gap.scope?.read ?? "?"} of ${gap.scope?.total ?? "?"} parts read; cancelled by the first arrival that fills it. Press to search the material.`;
-      } else {
-        badge.textContent = "∅ no passage states this";
-        badge.title = `Asked the witness whether any retrieved passage states this sentence (${wit.why}); none was pointed at. Silence from the material, not a contradiction — and no declared gap is in scope for it. Press to search the material.`;
-      }
-      badge.onclick = () => groundHunt(entry.text);
-      sent.append(badge);
+      sentMarks.push(gap
+        ? { label: `∅ open gap on the record: ${gap.subject} —${gap.verb}→ ?`, detail: `${gap.id} — declared by the reader over ${gap.scope?.sources?.length ?? "?"} source(s), ${gap.scope?.read ?? "?"} of ${gap.scope?.total ?? "?"} parts read; cancelled by the first arrival that fills it.`, action: () => groundHunt(entry.text), actionLabel: "Search the material", warn: true }
+        : { label: "∅ no passage states this", detail: `Asked the witness whether any retrieved passage states this sentence (${wit.why}); none was pointed at. Silence from the material, not a contradiction — and no declared gap is in scope for it.`, action: () => groundHunt(entry.text), actionLabel: "Search the material", warn: true });
     }
     // One verdict per sentence: once the witness has spoken (stated or
     // refused), the relation tier's own ∅ is redundant — measured live, a
@@ -8773,43 +8933,47 @@ function taggedProse(text, offered, classified = []) {
     // material", the same silence said twice. A contradiction still draws:
     // that is a different fact, and a stronger one.
     for (const c of (entry.edges ?? []).filter((c) => c.verdict === "contradicted" || (c.verdict === "unbound" && !wit))) {
-      const badge = document.createElement("button");
-      badge.className = `edge-badge ${c.verdict}`;
-      // The badge names the exact words it means — a blanket "never says
+      // The mark names the exact words it means — a blanket "never says
       // this" on the sentence tars its backed halves too (measured live:
       // the model's gloss "significant battle" flagged a sentence whose
       // 70,000 stood perfectly on the material).
       const disputed = `${c.label} ${c.end2}`.trim();
       const disputedShort = disputed.length > 32 ? `${disputed.slice(0, 29)}…` : disputed;
-      badge.textContent =
-        c.verdict === "contradicted"
-          ? `⇄ material says otherwise: “${disputedShort}”`
-          : `∅ not in the material: “${disputedShort}”`;
-      // The same key proofTargets dedupes on, so a finished web check can
-      // find this badge and COMPOSE with it — "not in the material" and
-      // "stated by 2 of 3 web pages" are one epistemic state, not two
-      // verdicts that never meet (measured live: the web corroborated the
-      // very assertion the badge was still flagging).
-      badge.dataset.proofKey = [c.end1, c.label, c.end2]
-        .flatMap((s) => String(s).split(/\s+/))
-        .filter((w) => w.length > 2)
-        .join(" ")
-        .toLowerCase();
       // c.bound / c.nearest are hypergraph.js's own edgeFace() arrays, so
       // near carries the same neutral arrangement fields as c does.
       const near = c.verdict === "contradicted" ? c.bound?.[0] : c.nearest?.[0];
-      badge.title =
-        `${c.end1} —${c.label}${c.polarity === "-" ? " (negated)" : ""}→ ${c.end2}: ` +
-        (c.verdict === "contradicted"
-          ? `the material binds this edge with the OPPOSITE polarity.`
-          : `every word is in the material, but the text never binds this edge.`) +
-        (near ? ` It binds: ${near.end1} —${near.label}→ ${near.end2}. Press to read that passage.` : " Press to search the material.");
-      badge.onclick = () => {
-        const ref = near?.refs?.[0];
-        if (ref) reopen(ref);
-        else groundHunt(`${c.end1} ${c.label} ${c.end2}`);
-      };
-      sent.append(badge);
+      sentMarks.push({
+        label: c.verdict === "contradicted" ? `⇄ material says otherwise: “${disputedShort}”` : `∅ not in the material: “${disputedShort}”`,
+        detail:
+          `${c.end1} —${c.label}${c.polarity === "-" ? " (negated)" : ""}→ ${c.end2}: ` +
+          (c.verdict === "contradicted"
+            ? `the material binds this edge with the OPPOSITE polarity.`
+            : `every word is in the material, but the text never binds this edge.`) +
+          (near ? ` It binds: ${near.end1} —${near.label}→ ${near.end2}.` : ""),
+        // The same key proofTargets dedupes on, so a finished web check can
+        // find this mark and COMPOSE with it — "not in the material" and
+        // "stated by 2 of 3 web pages" are one epistemic state, not two
+        // verdicts that never meet (measured live: the web corroborated the
+        // very assertion the badge was still flagging). Carried on the item
+        // itself now (proofTargets reads the DOM node's dataset elsewhere;
+        // see renderTaggedBlocks/renderAnswer for where this still needs a
+        // real element — dataset is set on the .mark-ref below, not here).
+        proofKey: [c.end1, c.label, c.end2].flatMap((s) => String(s).split(/\s+/)).filter((w) => w.length > 2).join(" ").toLowerCase(),
+        action: () => { const ref = near?.refs?.[0]; if (ref) reopen(ref); else groundHunt(`${c.end1} ${c.label} ${c.end2}`); },
+        actionLabel: near ? "Read that passage" : "Search the material",
+        warn: true,
+      });
+    }
+
+    if (sentMarks.length) {
+      const ref = markRef(marks, { sentence: entry.text, tier, items: sentMarks });
+      // proofTargets locates a live-updatable node by walking the DOM for
+      // this exact key (see its own caller) — carried forward from the old
+      // per-badge dataset so an in-flight web check can still find and
+      // update this sentence's mark when it resolves.
+      const proofKey = sentMarks.find((m) => m.proofKey)?.proofKey;
+      if (proofKey) ref.dataset.proofKey = proofKey;
+      sent.append(ref);
     }
     out.push(sent);
     cursor = end;
@@ -8861,16 +9025,20 @@ function taggedProse(text, offered, classified = []) {
  */
 function renderTaggedBlocks(container, text, offered, classified) {
   const doc = container.ownerDocument ?? document;
+  // One shared collector across every block in this container, so the
+  // strip rendered at the end lists every sentence's marks in the order a
+  // reader actually reads them, whichever block each one fell in.
+  const marks = [];
   for (const block of parseBlocks(text)) {
     if (block.type === "heading") {
       const h = doc.createElement(["h3", "h4", "h5"][block.level - 1]);
-      h.append(...taggedProse(block.text, offered, classified));
+      h.append(...taggedProse(block.text, offered, classified, marks));
       container.appendChild(h);
     } else if (block.type === "list") {
       const list = doc.createElement(block.ordered ? "ol" : "ul");
       for (const item of block.items) {
         const li = doc.createElement("li");
-        li.append(...taggedProse(item, offered, classified));
+        li.append(...taggedProse(item, offered, classified, marks));
         list.appendChild(li);
       }
       container.appendChild(list);
@@ -8883,16 +9051,17 @@ function renderTaggedBlocks(container, text, offered, classified) {
       const q = doc.createElement("blockquote");
       block.lines.forEach((line, i) => {
         if (i) q.appendChild(doc.createElement("br"));
-        q.append(...taggedProse(line, offered, classified));
+        q.append(...taggedProse(line, offered, classified, marks));
       });
       container.appendChild(q);
     } else {
       const para = doc.createElement("div");
       para.className = "para";
-      para.append(...taggedProse(block.lines.join(" "), offered, classified));
+      para.append(...taggedProse(block.lines.join(" "), offered, classified, marks));
       container.appendChild(para);
     }
   }
+  renderMarksStrip(container, marks);
 }
 
 /** A build's own words, for the router's definite-phrase check: its caption
@@ -10226,10 +10395,25 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
   // Dropping titles from the joined MATERIAL sidesteps the whole open class
   // at once rather than enumerating it — the snippets alone already carry
   // the facts this digest exists for.
-  const digest = (search.results ?? [])
-    .map((r) => r?.snippet?.trim())
-    .filter(Boolean)
-    .join("\n");
+  // Which byte range of the combined digest came from which actual result
+  // — found live 2026-09-09, user direction: a "web:search-results#0-2593"
+  // address disclosed nothing about where it really came from, because the
+  // digest above was built by a bare join with no per-snippet bookkeeping.
+  // Built the same way the digest itself is (cumulative offset as each
+  // snippet is appended, "\n" separators counted), so a span never claims
+  // bytes it does not own.
+  const snippetSpans = [];
+  let digestCursor = 0;
+  const digestParts = [];
+  for (const r of search.results ?? []) {
+    const snippet = r?.snippet?.trim();
+    if (!snippet) continue;
+    if (digestParts.length) { digestParts.push("\n"); digestCursor += 1; }
+    snippetSpans.push({ start: digestCursor, end: digestCursor + snippet.length, url: r.url, title: r.title ?? null, host: hostOf(r.url) });
+    digestParts.push(snippet);
+    digestCursor += snippet.length;
+  }
+  const digest = digestParts.join("");
   if (digest) chunks.push(...chunkSource("web:search-results", digest));
   // The digest is turn-scoped and was never kept, so a copy-check after the
   // fact could not compare against it (measured 2026-09-05, the essay's
@@ -10318,6 +10502,11 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
   return {
     chunks,
     pages,
+    // The combined-snippet digest's own per-result provenance (above) — a
+    // "web:search-results#a-b" address resolves through this, never
+    // through `pages` (which only ever names FULLY fetched pages, a
+    // disjoint address family: "web:<host>-i#a-b").
+    spans: snippetSpans,
     // The hunt's own record, for the caller's ledger: how many pages were
     // actually read, against what ceiling, and WHY the reading stopped —
     // "settled" (the material converged and said so) or "ceiling" (belief
@@ -10696,8 +10885,9 @@ function renderProofResult(slot, out) {
  * so every line under it keeps running exactly as before — the ledger
  * notes, the proof-seeking `run()` calls this function hands to the
  * automatic background walk at the bottom, and that walk's own `onVerdict`
- * callback (which updates the `.edge-badge` marks live in the ANSWER's own
- * prose, not in this panel) — with nothing left to append it to. This is
+ * callback (which updates the matching `.mark-ref`'s item data live in the
+ * ANSWER's own prose, not in this panel — see markRef/renderMarksStrip,
+ * 2026-09-09) — with nothing left to append it to. This is
  * the same "hidden drawing, never a hidden finding" posture the build-turn
  * gate below already uses, generalized to the whole panel: the checks still
  * run and still land on the append-only record: only the drawing stopped.
@@ -10991,21 +11181,34 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
       // (it reads as confirmation) once a witness has actually read them.
       onVerdict: (out, testimony) => {
         if (out.verdict !== "web-corroborated" && out.verdict !== "web-uncorroborated") return;
-        for (const b of node.querySelectorAll(".edge-badge")) {
+        // The visible chip this composed into was moved off the sentence
+        // and into the marks strip/modal (2026-09-09) — `.edge-badge` no
+        // longer renders inline, so this now finds the sentence's
+        // `.mark-ref` marker and mutates the ACTUAL item object it points
+        // at (carried on the button as `_entry`, markRef above), not just
+        // a DOM node's text. The modal reads `entry.items` live, so
+        // whatever a reader opens after this resolves already shows the
+        // composed result; the marker's own hover title is refreshed too,
+        // so even an unopened marker reflects it without a click.
+        for (const b of node.querySelectorAll(".mark-ref")) {
           if (b.dataset.proofKey !== key) continue;
+          const item = b._entry?.items.find((it) => it.proofKey === key);
+          if (!item) continue;
           const webBit =
             testimony?.verdict === "contradicts"
               ? ` · a reader over ${testimony.host} says otherwise`
               : out.verdict === "web-corroborated"
                 ? ` · web: stated by ${out.stating.length} of ${out.consulted} page(s)`
                 : ` · web: 0 of ${out.consulted} page(s)`;
-          b.textContent = b.textContent.replace(/ · (web:|a reader over).*$/, "") + webBit;
+          item.label = item.label.replace(/ · (web:|a reader over).*$/, "") + webBit;
+          item.detail =
+            (item.detail ?? "") +
+            (testimony?.verdict === "contradicts"
+              ? ` A reader over ${testimony.host} says otherwise: "${testimony.because}"`
+              : ` Web check: ${out.sentence}.`);
           b.classList.toggle("web-backed", out.verdict === "web-corroborated" && testimony?.verdict !== "contradicts");
           b.classList.toggle("witness-contradicted", testimony?.verdict === "contradicts");
-          b.title +=
-            testimony?.verdict === "contradicts"
-              ? ` A reader over ${testimony.host} says otherwise: "${testimony.because}"`
-              : ` Web check: ${out.sentence}.`;
+          b.title = b._entry.items.map((i) => i.label).join(" · ");
         }
       },
     });
@@ -11451,7 +11654,13 @@ function reopen(ref) {
   const papers = $("reopen-papers");
   if (papers) {
     const prov = state.provenance[String(ref).split("#")[0]];
-    papers.hidden = !prov;
+    // "web:search-results#a-b" carries no `state.provenance` entry — it is
+    // a combined digest of many results, not one identified document — so
+    // its own real page is resolved separately (found live, 2026-09-09,
+    // user direction: "this needs to disclose more where it really came
+    // from" — the address alone named nothing a reader could recognize).
+    const found = !prov ? searchSpanSource(ref) : null;
+    papers.hidden = !prov && !found;
     papers.textContent = "";
     if (prov) {
       papers.append(`papers: ${prov.line}`);
@@ -11463,6 +11672,18 @@ function reopen(ref) {
         a.rel = "noopener noreferrer";
         a.textContent = "↗";
         a.title = "the publisher's official copy — opens in your own browser, leaves this instrument";
+        papers.append(a);
+      }
+    } else if (found) {
+      papers.append(`from this search result: ${found.title ?? found.host} (${found.host})`);
+      if (found.url) {
+        papers.append(" ");
+        const a = document.createElement("a");
+        a.href = found.url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = "↗";
+        a.title = "the page this snippet came from — opens in your own browser, leaves this instrument";
         papers.append(a);
       }
     }
@@ -13226,7 +13447,7 @@ function syncModelPick() {
 // backdrop (or press Escape, which <dialog> gives natively) and it goes. The
 // ✕ in each sheet's head is the third way, and the only one that is visible:
 // Escape is not discoverable and a backdrop click is a guess.
-for (const id of ["reopen", "model-menu", "fold-view", "memory-menu", "attach-menu", "picker", "paste", "attach-sheet", "source-viewer", "matrix-login", "pool", "room", "workspace"]) {
+for (const id of ["reopen", "model-menu", "fold-view", "memory-menu", "attach-menu", "picker", "paste", "attach-sheet", "source-viewer", "mark-detail", "matrix-login", "pool", "room", "workspace"]) {
   const dlg = $(id);
   dlg?.addEventListener("click", (e) => {
     if (e.target === dlg) dlg.close();
@@ -13245,6 +13466,7 @@ for (const [btn, dlg] of [
   ["reopen-x", "reopen"],
   ["attach-sheet-x", "attach-sheet"],
   ["source-viewer-x", "source-viewer"],
+  ["mark-detail-x", "mark-detail"],
 ])
   $(btn).onclick = () => $(dlg).close();
 

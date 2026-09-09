@@ -276,7 +276,9 @@
       body.marks-off .msg .body .crown-line,
       body.marks-off .msg .body .grounds,
       body.marks-off .msg .body .grounding-strip,
-      body.marks-off .msg .body .proof-panel { display: none; }
+      body.marks-off .msg .body .proof-panel,
+      body.marks-off .msg .body .mark-ref,
+      body.marks-off .msg .body .marks-strip { display: none; }
       body.marks-off .sent[data-ground="model"],
       body.marks-off .sent.claims {
         border-bottom: 0;
@@ -552,6 +554,69 @@
         vertical-align: baseline;
       }
       .edge-badge.contradicted { font-weight: 600; }
+      /* Marks moved out of the reading flow (found live, 2026-09-09): a
+         ground-chip/ref/edge-badge trio on nearly every sentence made a
+         checked answer read as prose interrupted by pill buttons every few
+         words. `.mark-ref` is the whole inline footprint now — one small
+         numbered marker per sentence that carries at least one mark,
+         matching a footnote's own visual weight, never a chip's. Its tier
+         colors mirror `.ground-chip`'s (above) so the same color still
+         means the same thing at a glance. */
+      .mark-ref {
+        font: inherit;
+        font-size: 0.62em;
+        line-height: 1;
+        padding: 0.05em 0.4em;
+        margin-left: 0.15em;
+        border: 1px solid var(--line, #ccc);
+        border-radius: 1em;
+        background: transparent;
+        color: var(--muted, #666);
+        cursor: pointer;
+        vertical-align: super;
+      }
+      .mark-ref.tier-bound, .mark-ref.tier-witnessed, .mark-ref.tier-recorded { border-color: #4a9; color: #287; }
+      .mark-ref.tier-derived { border-style: dashed; }
+      .mark-ref.tier-contested, .mark-ref.warn { border-color: #c73; color: #a52; }
+      .mark-ref.tier-named { border-style: dotted; }
+      .mark-ref.tier-self { border-color: #b8b; color: #857; }
+      .mark-ref.web-backed { border-style: solid; opacity: 0.85; }
+      .mark-ref.witness-contradicted { border-color: var(--warn); color: var(--warn); }
+      /* The strip every .mark-ref points into: one compact row at the
+         bottom of the message, everything the sentence-level chips used to
+         say, still all present, just not standing in the reader's way to
+         get to it. */
+      .marks-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 10px;
+        padding-top: 8px;
+        border-top: 1px solid var(--line, #eee);
+      }
+      .marks-strip .mark-chip {
+        font: inherit;
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 1px 7px;
+        border-radius: 8px;
+        border: 1px solid var(--line, #ccc);
+        background: transparent;
+        color: var(--muted, #666);
+        cursor: pointer;
+      }
+      .marks-strip .mark-chip.warn { border-color: var(--warn); color: var(--warn); }
+      #mark-detail .mark-detail-sentence {
+        font-style: italic;
+        color: var(--muted);
+        padding: 0 16px;
+        margin: 0 0 10px;
+      }
+      #mark-detail .mark-detail-item { padding: 10px 16px; border-top: 1px solid var(--line); }
+      #mark-detail .mark-detail-item:first-child { border-top: 0; }
+      #mark-detail .mark-detail-label { font-family: var(--mono); font-size: 12px; font-weight: 600; margin: 0 0 4px; }
+      #mark-detail .mark-detail-text { margin: 0 0 8px; }
+      #mark-detail .mark-detail-addr { font-family: var(--mono); font-size: 11px; color: var(--muted); word-break: break-all; }
       .claim-row .ref, .proof-row .ref { margin-left: 6px; }
       .proof-slot { margin-left: 8px; }
       .proof-verdict.web-corroborated { color: var(--accent); }
@@ -2826,6 +2891,24 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
       <div class="sheet-body">
         <div id="source-viewer-body" class="source-viewer-body"></div>
       </div>
+      <form method="dialog" class="sheet-foot">
+        <span class="spacer"></span>
+        <button>Close</button>
+      </form>
+    </dialog>
+
+    <dialog id="mark-detail">
+      <div class="sheet-head">
+        <div>
+          <h3 id="mark-detail-title">Ground</h3>
+          <p class="sub">What this sentence's marks say — the same detail a hover title used to hold, before the marks moved off the sentence.</p>
+        </div>
+        <button type="button" class="sheet-close" id="mark-detail-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <p class="mark-detail-sentence" id="mark-detail-sentence"></p>
+      <div class="sheet-body flush" id="mark-detail-body"></div>
       <form method="dialog" class="sheet-foot">
         <span class="spacer"></span>
         <button>Close</button>

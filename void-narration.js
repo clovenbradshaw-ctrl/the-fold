@@ -143,8 +143,17 @@ function cardinalityPara(brief) {
 
 /** The doubts, as doubts. Six open questions is a real state to be in and
  * saying so plainly is the point — a void that quietly defaulted its own
- * unanswered halves is what produced every confident wrong answer here. */
-function openPara(brief) {
+ * unanswered halves is what produced every confident wrong answer here.
+ *
+ * No longer called from narrateVoid (2026-09-09): briefFor's own
+ * declareVoid call never sets admits/relation/composition/admission, so
+ * this paragraph named the same undeclared fields, in the same words, on
+ * every grounded turn regardless of the question's own difficulty — fixed
+ * boilerplate dressed as fresh reasoning. Exported (not deleted) so it
+ * stays real, tested code, reachable again once a caller genuinely varies
+ * which of these fields it declares.
+ */
+export function openPara(brief) {
   const open = brief.declaration?.undeclared ?? [];
   if (!open.length) return `Every part of this is pinned down — there is nothing about the shape I am still guessing at.`;
   const qs = open.map((u) => OPEN_QUESTIONS[u.field]).filter(Boolean);
@@ -313,9 +322,21 @@ export function narrateVoid(brief, { phase = "question", previous = null } = {})
   const digest = digestOf(brief, phase);
   if (previous !== null && previous === digest) return null;
 
+  // openPara used to run at the question phase too, but briefFor's own
+  // declareVoid call (void-brief.js) never sets admits/relation/composition/
+  // admission — only slot/anchor/extent/dimension/cardinality — so openPara's
+  // "What I still cannot say: ..." paragraph named the SAME undeclared
+  // fields, in the same words, on every single grounded turn regardless of
+  // the question's own difficulty (found live, 2026-09-09, on "What is the
+  // capital of Peru?": several dense paragraphs of caution appropriate to a
+  // genuinely ambiguous question, fixed boilerplate carrying zero
+  // per-question information). That directly violates this file's own
+  // stated design ("a pass that learned nothing returns null rather than
+  // saying the same things again") — openingPara and cardinalityPara both
+  // genuinely vary per question and stay.
   const paras =
     phase === "question"
-      ? [openingPara(brief), cardinalityPara(brief), openPara(brief)]
+      ? [openingPara(brief), cardinalityPara(brief)]
       : [extentPara(brief), namedPara(brief), standingPara(brief), revisionPara(brief)];
 
   const text = paras.filter(Boolean).join("\n\n");

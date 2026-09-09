@@ -132,6 +132,11 @@ export class FoldMatrix {
     /** Per room: what this browser knows of the pool — offers from state,
      * and what its own jobs measured of each worker. Memory only. */
     this.pools = {};
+    /** Homeserver base URLs that have already proved they do not serve
+     * presence (a 404/403 on every member asked) — see `presenceMap`.
+     * Memory only, and keyed by homeserver rather than by room: presence
+     * support is a fact about the server, not about any one room on it. */
+    this.presenceUnsupported = new Set();
     this.sentJobs = new Set();
     this.saving = Promise.resolve();
     const raw = storage.get();
@@ -433,6 +438,32 @@ export class FoldMatrix {
     return Promise.all(list.map(async (m) => { const k = keys.get(m.user_id); return { user: m.user_id, membership: m.membership, fingerprint: k?.pub ? await fingerprint(k.pub) : null, proof: k?.proof ? "proof" : k ? "none" : null, hasKey: !!k?.pub && covered.has(`${m.user_id} ${k.pub}`) }; }));
   }
   /**
+   * Presence for a list of users, memoized per homeserver once the server
+   * has proved (a 404/403 on every user asked) that it does not serve
+   * presence at all — many servers, including this project's own
+   * `matrix-fake-homeserver.mjs`, disable or never implement it.
+   *
+   * Without this, every `access()` — and `access()` runs on every turn via
+   * `renderRoomChip()` — re-asked the identical, identically-failing
+   * `/presence/<user>/status` request for every member, forever: a
+   * homeserver that answers "I don't do that" once does not stop being
+   * asked, so the browser console fills with the same 404 on a fixed
+   * schedule for the life of the session (found live, battery-testing
+   * the room feature against the fake homeserver on :8448). The typed gap
+   * `presenceOf` already returns for that case is reused verbatim, so a
+   * caller sees no difference from the real request having been made.
+   */
+  async presenceMap(users) {
+    const base = this.data.session?.hs ?? null;
+    if (base && this.presenceUnsupported.has(base)) {
+      return new Map(users.map((u) => [u, { user: u, state: "unknown", lastActiveMs: null, currentlyActive: null, gap: "this homeserver does not report presence" }]));
+    }
+    const h = this.http();
+    const results = await Promise.all(users.map((u) => h.presenceOf(u)));
+    if (base && results.length && results.every((p) => p.gap === "this homeserver does not report presence")) this.presenceUnsupported.add(base);
+    return new Map(results.map((p) => [p.user, p]));
+  }
+  /**
    * Who has access to a room, as a surface can draw it: every member with
    * their key standing, whether they are ME, whether they are offering a
    * machine, and their presence.
@@ -449,9 +480,7 @@ export class FoldMatrix {
     const me = this.data.session?.user ?? null;
     let offers = new Map();
     try { offers = new Map((await this.mouths(roomId)).map((o) => [o.user, o])); } catch { /* an unreachable room leaves the column empty, never wrong */ }
-    const presences = withPresence
-      ? new Map((await Promise.all(list.map((m) => this.http().presenceOf(m.user)))).map((p) => [p.user, p]))
-      : new Map();
+    const presences = withPresence ? await this.presenceMap(list.map((m) => m.user)) : new Map();
     return list.map((m) => {
       const p = presences.get(m.user) ?? { state: "unknown", lastActiveMs: null, gap: "not asked" };
       const offer = offers.get(m.user) ?? null;

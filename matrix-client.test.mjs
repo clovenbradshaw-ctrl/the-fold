@@ -585,3 +585,21 @@ test("members: who is in the room, each key's fingerprint, and who holds a wrap;
   assert.ok(["@carol:fake.test", "@frank:fake.test", "@eve:fake.test"].every((u) => list.find((m) => m.user === u)?.hasKey), JSON.stringify(list.map((m) => [m.user, m.hasKey])));
   assert.ok(list.some((m) => m.user === "@bob:fake.test" && m.membership === "leave"), JSON.stringify(list.map((m) => [m.user, m.membership])));
 });
+
+test("presence: a homeserver that does not serve it (this adversary never implements the route) is asked once per member, never again — access() must not repeat an identical 404 forever", async () => {
+  const presenceRequests = () => hs.log.filter((l) => l.path.startsWith("/_matrix/client/v3/presence/")).length;
+  const before = presenceRequests();
+  const first = await alice.access(room);
+  assert.ok(first.length > 0);
+  assert.ok(first.every((m) => m.presence === "unknown" && m.presenceGap === "this homeserver does not report presence"), JSON.stringify(first.map((m) => [m.user, m.presence, m.presenceGap])));
+  const afterFirst = presenceRequests();
+  assert.ok(afterFirst > before, "the first call actually asks the homeserver, once per member, before anything is learned about it");
+  // Two more calls, same room, same never-implemented homeserver: the typed
+  // gap already established stands in for the request, so no further
+  // `/presence/<user>/status` line reaches the homeserver — this is the
+  // repro from the battery run (a fresh 404 pair every turn) closed at its
+  // source rather than only muted.
+  await alice.access(room);
+  await alice.access(room);
+  assert.equal(presenceRequests(), afterFirst, "no new presence requests once this homeserver has proved it does not serve them");
+});

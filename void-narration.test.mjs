@@ -12,7 +12,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { narrateVoid, noSlotLine, VOID_PHASES } from "./void-narration.js";
+import { narrateVoid, noSlotLine, openPara, VOID_PHASES } from "./void-narration.js";
 import { briefFor, observedFillers, possessorIn, ofObjectIn, extentFor } from "./void-brief.js";
 import { declaredSlotShape } from "./web-claim.js";
 import { successionFillers } from "./succession.js";
@@ -252,7 +252,11 @@ test("a genuinely plural question is told it cannot be closed by one name", () =
 });
 
 test("the open questions are asked as questions a person would ask, not as field names", () => {
-  const { text } = ask(brief(VP, []), { phase: "question" });
+  // openPara no longer fires from narrateVoid's question phase (2026-09-09
+  // — its content never varied by question, see narrateVoid's own comment)
+  // but stays real, tested code for when a caller genuinely declares
+  // admits/relation/composition/admission conditionally — called directly.
+  const text = openPara(brief(VP, []));
   assert.match(text, /what kind of thing belongs in it/);
   assert.match(text, /how wide it is/);
   // `declareVoid`'s own record-facing phrasing must NOT leak through.

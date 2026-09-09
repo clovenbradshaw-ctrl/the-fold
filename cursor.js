@@ -34,26 +34,32 @@
 //
 // The third is a MERGE, and it is why this file exists.
 //
-// ── THE DEFECT THIS RECOVERS FROM ─────────────────────────────────────────
+// ── THE DEFECT THIS RECOVERED FROM, AND ITS REPAIR (P156 → P165) ──────────
 //
-// `discoverReferents` detects merges and records them:
-// `merges.push({ kept: referentId, folded, witness: surface })`
-// (surfaces.js:1083), returned at surfaces.js:1165 as `{ events, gaps,
-// merges }`. The perceiver's cache reads `events` and `gaps` and NEVER
-// `merges` (recursive.js:297–303). Verified: the only `.merges` consumer in
-// either repo is an unrelated one in clearance.js. So the record is computed
-// and thrown away, and the projection's own header — "a node at cursor 500
-// may be two nodes at cursor 200, and scrubbing the cursor SHOWS that" —
-// is left to the reader of two node lists to notice.
+// As found (P156): `discoverReferents` detected merges and recorded them —
+// `merges.push({ kept, folded, witness })` — and the perceiver's cache read
+// `events` and `gaps` and never `merges`. The record was computed and thrown
+// away, so the projection's own header — "a node at cursor 500 may be two
+// nodes at cursor 200, and scrubbing the cursor SHOWS that" — was left to the
+// reader of two node lists to notice. Seen live then: `ref:auto:vasili` went
+// dormant while `ref:auto:prince_vasili_kuragin` alone gained surfaces — a
+// merge sitting in the residue with nothing naming it. `supersessions`
+// recovered it by inference (dormancy plus surface capture) and marked every
+// row `inferred`, because a reconstruction is not the record (guard G14).
 //
-// Seen live in the same run: `ref:auto:prince_vasili_kuragin` is the ONE node
-// whose surfaces grew, while `ref:auto:vasili` went dormant. That is the
-// merge, sitting in the residue with nothing naming it.
+// As repaired (P165, eoreader7): the perceiver now lands `EOReferentMerge@1`
+// in the observation where a merge or a refresh reassignment is decided —
+// {kept, folded, witness, encounterRef} — and `projectHypergraph` carries it
+// additively as `merges`, the folded node never deleted (the fold is
+// upsert-only; cursor scrubbing replays the past). Re-run on the same 120 KB
+// at four cursors under the rule as it was (`addresses: "founder"`): 8
+// supersessions, all from the record, 0 inferred, all 8 folded ids still in
+// the node set. Under the default birth rule (P168) no reassignment occurs
+// and the record is empty — nothing to infer either.
 //
-// So `supersessions` below RECOVERS the merge by inference — dormancy plus
-// surface capture — and says so. It is a reconstruction, weaker than the
-// record that was discarded, and is reported as `inferred` rather than as
-// testimony. The real repair is upstream: stop dropping `merges`.
+// So `supersessions` below reads THE RECORD FIRST (`inferred: false`, with
+// witness) and falls back to inference only for dormant nodes the record
+// does not mention — those rows stay `inferred: true`, per G14.
 
 /** What a node is doing at the last cursor. Three states, and they are not degrees of one thing. */
 export const STATES = Object.freeze({ LIVE: "live", DORMANT: "dormant", SUPERSEDED: "superseded" });

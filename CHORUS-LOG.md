@@ -261,6 +261,7 @@ fast: 82 files · 51 affected test files, 568 cases pass · full `npm test` on t
 | Alexander | II.10 | app.js (main's three PRs re-applied over the branch's), matrix-client.test.mjs pool test (#145's assertions with the gate kept) | upheld | the composition is proven by the suite, not by the clean apply |
 | Simon/Chekhov | — | the 71 commits' new modules | noted | reviewed at their own commits (entries above); the merge adds no module |
 clean: Dijkstra, Holmes, Pearl, Ostrom, Frankfurt — nothing in the merge's own hunks.
+
 ## 2026-09-07 — the shared cut at its ladder's top; beings folded by the reader's own merges; the Lens bounds the sentences (staged: reading-log.js, activation-retrieval.js, resolutions.js, holon.js, app.js + tests)
 - chorus-fast: PASS — 286/286 across 18 affected files; citations resolve (P38 P9 S17 S80); pre-existing duplicate headers P115/P116/P117/P19 and S17 warned (renumber in its own commit, not this one).
 - Feynman (activation-retrieval.js:125, `resolutions >= 2`): the ladder's own level at which the Lens is handed (0/1/2/3 declared in resolutions.js), not a tuned number — no change.
@@ -293,3 +294,23 @@ A compliance review (2026-09-07, this session) found ten defects across P162–P
 deferred-with-reason: inline top-N literals (three names for a ground, three fresh referents, two addresses per note line) are display truncation, not a judgment about material (P9's own scope is a judgment "wearing the clothes of a setting") — reviewed, left as prose-documented magic numbers rather than extracted into named constants that would conflate unrelated concerns under one name. `individuation.js::place()`'s throw on a lost hypothesis (eoreader7) is reachable only through an update that changes an occurrence's own encounter id, judged unreachable in practice; disclosed, not hardened this pass.
 
 false-positive-on-review: none.
+
+## 2026-09-08 — paired-improvement: the driver's claims over the engine unchanged, 5 arms 56/56 (eval/paired-improvement-assay.mjs, untracked)
+
+Constitution: FOLD-CONSTITUTION (+ POLICIES/CLAUDE as standing). Lenses in-session over the driver; the rerun is a pure `tee` capture, diffed line for line against the record the entry rests on.
+
+| persona | cell | citation | file:line | verdict | summary |
+|---|---|---|---|---|---|
+| Diaconis | II.10 | driver exit gate (`passes === total ? 0 : 1`) | eval/paired-improvement-assay.mjs:265-266 | clean | rerun 56/56, exit=0; the result file is a pure tee capture, never hand-appended |
+| I.5 | FOLD-CONSTITUTION I.5 | the driver's header | eval/paired-improvement-assay.mjs:253 | fixed | the header now names the breadth each arm claims (against whose engine) — previously left implicit |
+| Diaconis | II.10 | helper cluster | eval/paired-improvement-assay.mjs:45-47 | noted | `graphOf`/`reassignmentRows`/`countOf` defined, self-referencing, never invoked; noted, not removed |
+| Diaconis | II.10 | Arm B per-schema counts; Arm D referent faces | eval/paired-improvement-assay.mjs | deferred-with-reason | would pass vacuously on an empty engine, but that branch is unreachable for these deterministic inputs; no guard added |
+
+clean: nothing struck. deferred-with-reason: the one observation above. false-positive-on-review: none.
+
+## 2026-09-08 — chat-derailing bugs from a live QA battery fixed; composer memory/attach controls merged; generated widgets made theme-aware (staged: widget.js, app.js, holon.js, matrix-client.js, matrix.js, artifact.js, answer-record.js, index.html + tests)
+- Six issues found by a live automated casual-chat battery, each diagnosed, fixed and verified live: widget.js's router counting a code-piece build's own boilerplate as routing evidence; bare anaphora routing to a workspace-wide stale build with no discourse connection to the current conversation; a stale S1 draft bubble left stacked under S2's real answer plus raw chat-template control tokens leaking into a reply; the grounding/citation pipeline firing on plain small talk with nothing attached; the assistant declining to ever commit to an opinion or recommendation; no prompt stating the current date, so a stale fact could ship with no hedge; Matrix presence polling re-asking an identical, identically-404ing question every turn.
+- Composer: the standalone Attach button and the attachments/priors/cross-conversation switches merged into one dialog, styled like every other menu; the checking-mode toggle now retroactively hides already-rendered marks live.
+- The "thinking" disclosure shows plain-language narration by default, with the raw AnswerRecord JSON and verbatim prompt payloads demoted to a nested "view raw" panel.
+- artifact.js: model-generated HTML/JS widgets adapt to dark mode via a mechanical color-inversion filter, computed by the parent and handed in — never asking the model to write theme-aware CSS.
+- 1974 tests, 1962 passing; the 12 failures are pre-existing or trace to a concurrent session's in-progress hyperlexicon.js -> notes-text.js rename, deliberately left untouched by this entry's own commit.

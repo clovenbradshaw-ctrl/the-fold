@@ -64,18 +64,46 @@ export function traceReading({ passages = [], question = "", used = [] } = {}) {
 }
 
 /**
+ * A ref's plain-word name for a sentence a person reads — never this
+ * instrument's own address. FOUND LIVE (2026-09-09): this file's header
+ * above says the line this function builds is "the sentence a person needs
+ * ... and never as apparatus", but `traceLine` was rendering the raw ref
+ * itself — "web:usinsider.com-1#36-98" — straight into the chat bubble. A
+ * byte range (`#36-98`) is this instrument's own retrieval addressing,
+ * meaningless to a reader who never asked to see an offset, on every ref
+ * shape; a fetched web page's ref additionally carries `web:` (this app's
+ * source-kind prefix) and a trailing `-<index>` (source.js/app.js's own
+ * disambiguator for reading the same host twice in one turn — never part of
+ * a real hostname), so "web:usinsider.com-1#36-98" reads as "usinsider.com"
+ * — the site name a person actually recognizes — same as CLAUDE.md's
+ * sibling fix this same session, which stopped a different address string
+ * ("no referent named X") from reaching the chat text at all. This one CAN
+ * be made to read like the disclosure it was always meant to be, so it
+ * stays visible rather than being withheld.
+ */
+const humanRef = (ref) => {
+  const noRange = String(ref ?? "").replace(/#\d+-\d+$/, "");
+  const web = noRange.match(/^web:(.+)-(\d+)$/);
+  return web ? web[1] : noRange.replace(/^web:/, "");
+};
+
+/**
  * traceLine(trace) → the sentence a person needs and the fold never wrote:
  * what else was looked at, and that it did not bear. Said only when something
  * WAS excluded, and never as apparatus — it is a fact about the search.
+ * Named by `humanRef`, not by address; two refs that read the same site (or
+ * the same source) more than once collapse to one name rather than repeating
+ * it, so the count in "was"/"were" tracks what is actually shown.
  */
 export function traceLine(trace = []) {
   const apart = trace.filter((t) => t.verdict !== VERDICT.BORE);
   if (!apart.length) return "";
-  const silent = apart.filter((t) => t.verdict === VERDICT.CHECKED_SILENT);
+  const namesOf = (rows) => [...new Set(rows.map((t) => humanRef(t.ref)))];
+  const silent = namesOf(apart.filter((t) => t.verdict === VERDICT.CHECKED_SILENT));
   const parts = [];
-  if (silent.length) parts.push(`${silent.map((t) => t.ref).join(", ")} ${silent.length === 1 ? "was" : "were"} read and ${silent.length === 1 ? "speaks" : "speak"} of the same things without answering this`);
-  const away = apart.filter((t) => t.verdict === VERDICT.CHECKED_APART);
-  if (away.length) parts.push(`${away.map((t) => t.ref).join(", ")} ${away.length === 1 ? "was" : "were"} read and ${away.length === 1 ? "is" : "are"} about something else`);
+  if (silent.length) parts.push(`${silent.join(", ")} ${silent.length === 1 ? "was" : "were"} read and ${silent.length === 1 ? "speaks" : "speak"} of the same things without answering this`);
+  const away = namesOf(apart.filter((t) => t.verdict === VERDICT.CHECKED_APART));
+  if (away.length) parts.push(`${away.join(", ")} ${away.length === 1 ? "was" : "were"} read and ${away.length === 1 ? "is" : "are"} about something else`);
   return `Also looked at: ${parts.join("; ")}.`;
 }
 

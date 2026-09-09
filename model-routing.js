@@ -60,6 +60,14 @@ export const ROUTE_KINDS = Object.freeze({
  * local rung would quietly move the work back onto this machine — measured
  * 2026-09-06, when a turn taken under a room mouth ran entirely on the local
  * model and only the turn's own attribution line showed it.
+ *
+ * (Independently re-found 2026-09-08, same failure, converging on the same
+ * fix: a room mouth outranks every rung of this ladder — see P129's own
+ * `isPinnedModel` upstream. That pass's own regex was a looser
+ * `name.startsWith("room:")`; kept here as this one instead, since it also
+ * requires the full `@who:server model` shape rather than any string merely
+ * prefixed "room:", and additionally skips a pinned entry when it turns up
+ * inside `offered` itself, which the looser version did not.)
  */
 export const isPinnedModel = (name) => typeof name === "string" && /^room:@[^:\s]+:\S+\s+\S/.test(name);
 

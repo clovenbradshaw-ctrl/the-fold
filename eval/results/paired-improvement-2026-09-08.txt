@@ -1,0 +1,11 @@
+paired-improvement — the driver's claims over the engine unchanged: 5 arms, 56 checks
+
+breadth — Arm A: pg2600 founder (first 60k chars), reassignment vs merge; Arm B/D: 6-sentence history straight vs resumed; Arm C: adjudicated identity corpus; S24: caseless Hebrew control
+
+— Arm A — reassignment separates live beings; a merge unions them (pg2600 founder) — 22/22 passed —
+— Arm B — resumption reproduces the fold, byte-identical — 7/7 passed —
+— Arm C — adjudicated identity controls — 17/17 passed —
+— Arm D — history and dmd controls: straight vs resumed — 7/7 passed —
+— S24 control — a caseless script establishes no referent — 3/3 passed —
+
+paired-improvement assay: 56/56 passed

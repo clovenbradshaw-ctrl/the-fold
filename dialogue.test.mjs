@@ -49,6 +49,19 @@ test("anaphora across turns: a pronoun binds to the last answer's REFERENT IDS i
   assert.deepEqual(bindAnaphora("Why did he do it?", null, index).ids, []);
 });
 
+test("a partitive quantifier over the sources ('either of them') is not a person anaphor — it never binds to the last answer's referent, even though a bare pronoun in the same slot still does (2026-09-08 battery: a fresh, self-contained question was hijacked toward the previous one's incidental name)", () => {
+  const quantified = bindAnaphora("Did either of them mention Sonia?", LAST, index);
+  assert.deepEqual(quantified.ids, [], "'either of them' names the sources, not a being the last answer happened to name");
+  assert.deepEqual(quantified.pronouns, [], "the quantified 'them' is stripped before the pronoun scan");
+  // The same slot, no quantifier: an ordinary pronoun still binds exactly as before.
+  const bare = bindAnaphora("What did they do?", LAST, index);
+  assert.ok(bare.ids.length >= 2, "a bare pronoun with no quantifier still anaphora-binds");
+  // A quantifier over an ESTABLISHED name in the same question is untouched —
+  // this only strips the pronoun the quantifier itself governs.
+  const mixed = bindAnaphora("Did either of them mention him?", LAST, index);
+  assert.ok(mixed.ids.length >= 2, "a genuine pronoun elsewhere in the sentence still binds");
+});
+
 test("addressed BY IDENTITY: an answer that says 'Rodion' has named Raskolnikov; one that never names the asked-about has not — and an unestablished name is a typed absence the record states", () => {
   const q = referentsOf("What does the book say about Raskolnikov?", index);
   assert.equal(addressedBy("Rodion Raskolnikov listened with a sick sensation.", q, index).all, true, "another spelling of the same referent counts");

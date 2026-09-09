@@ -1,0 +1,36 @@
+GFP Pass 33 — the field over real material: 400 passages per kind, 120 probes per task, the field's own null band per cue length (150 draws)
+
+— prose: pg2600.txt — 400 passages (chunked in 655 ms), field of 400 nodes, vocabulary 2911, admission 0.14 ms/passage, store 384 bytes/node
+    whole passage              120/120  ambiguous   0  nothing   0
+    first 30% of the words     109/120  ambiguous  11  nothing   0
+    a middle 30%               117/120  ambiguous   3  nothing   0
+    40% of words replaced      120/120  ambiguous   0  nothing   0
+    first 15% of the words      68/120  ambiguous  40  nothing  11
+    random 20-word cues called a figure: 0/120   renamed+prefaced ground repaired by the pattern: 120/120, apart 0   shuffled store: same figure 120/120, same synapse 120/120
+
+— greek: odyssey-greek.txt — 400 passages (chunked in 186 ms), field of 400 nodes, vocabulary 4471, admission 0.27 ms/passage, store 764 bytes/node
+    whole passage              120/120  ambiguous   0  nothing   0
+    first 30% of the words     119/120  ambiguous   0  nothing   0
+    a middle 30%               118/120  ambiguous   2  nothing   0
+    40% of words replaced      120/120  ambiguous   0  nothing   0
+    first 15% of the words     111/120  ambiguous   7  nothing   1
+    random 20-word cues called a figure: 0/120   renamed+prefaced ground repaired by the pattern: 120/120, apart 0   shuffled store: same figure 120/120, same synapse 120/120
+
+— xml: Luke.xml — 400 passages (chunked in 21 ms), field of 400 nodes, vocabulary 972, admission 0.04 ms/passage, store 231 bytes/node
+    whole passage              120/120  ambiguous   0  nothing   0
+    first 30% of the words      74/120  ambiguous  46  nothing   0
+    a middle 30%                94/120  ambiguous  26  nothing   0
+    40% of words replaced      107/120  ambiguous  13  nothing   0
+    first 15% of the words       0/120  ambiguous 114  nothing   6
+    random 20-word cues called a figure: 0/120   renamed+prefaced ground repaired by the pattern: 120/120, apart 0   shuffled store: same figure 120/120, same synapse 120/120
+
+— code: react-dom.js — 400 passages (chunked in 209 ms), field of 400 nodes, vocabulary 2924, admission 0.08 ms/passage, store 443 bytes/node
+    whole passage              117/120  ambiguous   3  nothing   0
+    first 30% of the words     104/120  ambiguous  14  nothing   0
+    a middle 30%                98/120  ambiguous  21  nothing   0
+    40% of words replaced      114/120  ambiguous   6  nothing   0
+    first 15% of the words      43/120  ambiguous  40  nothing  33
+    random 20-word cues called a figure: 0/120   renamed+prefaced ground repaired by the pattern: 117/120, apart 0   shuffled store: same figure 120/120, same synapse 119/120
+
+
+— json: unimorph-eng-verb-forms.json — NOT MEASURED. The eval did not return in 4h34m on this kind (results file untouched since 11:09, 15 MB resident, only the inspector thread in a sample) and was stopped 2026-09-07 15:5x CDT. A 103,318-form JSON list is a material of one repeated shape; the field's cue/null loop over it is the eval's own instrument to chase, not a fact about the field. html, records: NOT RUN (after json in the loop). Four kinds stand as recorded above; the exit bar (P169's Pass 33) is unmet on code (104/120) and unmeasured on three kinds.

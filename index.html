@@ -280,9 +280,12 @@
       body.marks-off .msg .body .crown-line,
       body.marks-off .msg .body .grounds,
       body.marks-off .msg .body .grounding-strip,
-      body.marks-off .msg .body .proof-panel { display: none; }
+      body.marks-off .msg .body .proof-panel,
+      body.marks-off .msg .body .mark-ref,
+      body.marks-off .msg .body .marks-strip { display: none; }
       body.marks-off .sent[data-ground="model"],
-      body.marks-off .sent.claims {
+      body.marks-off .sent.claims,
+      body.marks-off .sent.self-cited {
         border-bottom: 0;
         text-decoration: none;
         cursor: auto;
@@ -424,8 +427,6 @@
       .icon-group button { border: 0; border-radius: 0; background: transparent; line-height: 0; padding: 6px 9px; }
       .icon-group button + button { border-left: 1px solid var(--line); }
       .icon-group button:hover { background: var(--accent-soft); }
-      #marks-toggle { color: var(--accent); }
-      #marks-toggle[aria-pressed="false"] { color: var(--muted); }
       #theme-toggle { color: var(--muted); }
       /* Not connected is quiet; connected takes the accent. Two states only —
          a service either has an account here or it does not, and there is no
@@ -532,6 +533,14 @@
          (`.show-ground`, app.js) — quiet by default, one press away, never
          gone from the record. */
       .msg.show-ground .sent[data-ground="model"] { border-bottom: 1px dotted var(--muted); }
+      /* The model citing itself (ground-ladder tier "self") is not a
+         citation — nothing read placed the sentence, so a numbered marker
+         would point at nothing. Underlined instead, in the tier's own
+         color (matching .mark-ref.tier-self below), with the explanation
+         one click away in the mark detail modal rather than beside it.
+         Same show-ground gate as the rule above — this is the identical
+         per-sentence ground disclosure, one tier over. */
+      .msg.show-ground .sent.self-cited { border-bottom: 1px dotted #b8b; cursor: pointer; }
       .msg.show-ground .sent.claims {
         text-decoration: underline wavy var(--warn);
         text-decoration-thickness: 1px;
@@ -566,6 +575,78 @@
         vertical-align: baseline;
       }
       .edge-badge.contradicted { font-weight: 600; }
+      /* Marks moved out of the reading flow (found live, 2026-09-09): a
+         ground-chip/ref/edge-badge trio on nearly every sentence made a
+         checked answer read as prose interrupted by pill buttons every few
+         words. `.mark-ref` is the whole inline footprint now — one small
+         numbered marker per sentence that carries at least one mark,
+         matching a footnote's own visual weight, never a chip's. Its tier
+         colors mirror `.ground-chip`'s (above) so the same color still
+         means the same thing at a glance. */
+      .mark-ref {
+        font: inherit;
+        font-size: 0.62em;
+        line-height: 1;
+        padding: 0.05em 0.4em;
+        margin-left: 0.15em;
+        border: 1px solid var(--line, #ccc);
+        border-radius: 1em;
+        background: transparent;
+        color: var(--muted, #666);
+        cursor: pointer;
+        vertical-align: super;
+      }
+      .mark-ref.tier-bound, .mark-ref.tier-witnessed, .mark-ref.tier-recorded { border-color: #4a9; color: #287; }
+      .mark-ref.tier-derived { border-style: dashed; }
+      .mark-ref.tier-contested, .mark-ref.warn { border-color: #c73; color: #a52; }
+      .mark-ref.tier-named { border-style: dotted; }
+      .mark-ref.tier-self { border-color: #b8b; color: #857; }
+      .mark-ref.web-backed { border-style: solid; opacity: 0.85; }
+      .mark-ref.witness-contradicted { border-color: var(--warn); color: var(--warn); }
+      /* Found live, 2026-09-09, user direction: the automatic web-proof
+         walk (autorun, below) runs AFTER the whole answer already reads as
+         settled — every sentence's marker already showing its tier — so a
+         mark whose claim is still being checked looked identical to one
+         that was already final, and the "checking claims online · N/M"
+         line above the composer was the only sign anything was still
+         happening. `.checking` names it on the mark itself, at the exact
+         sentence it concerns. */
+      .mark-ref.checking { animation: chip-pulse 1.2s ease-in-out infinite; }
+      /* The strip every .mark-ref points into: one compact row at the
+         bottom of the message, everything the sentence-level chips used to
+         say, still all present, just not standing in the reader's way to
+         get to it. */
+      .marks-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 10px;
+        padding-top: 8px;
+        border-top: 1px solid var(--line, #eee);
+      }
+      .marks-strip .mark-chip {
+        font: inherit;
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 1px 7px;
+        border-radius: 8px;
+        border: 1px solid var(--line, #ccc);
+        background: transparent;
+        color: var(--muted, #666);
+        cursor: pointer;
+      }
+      .marks-strip .mark-chip.warn { border-color: var(--warn); color: var(--warn); }
+      #mark-detail .mark-detail-sentence {
+        font-style: italic;
+        color: var(--muted);
+        padding: 0 16px;
+        margin: 0 0 10px;
+      }
+      #mark-detail .mark-detail-item { padding: 10px 16px; border-top: 1px solid var(--line); }
+      #mark-detail .mark-detail-item:first-child { border-top: 0; }
+      #mark-detail .mark-detail-label { font-family: var(--mono); font-size: 12px; font-weight: 600; margin: 0 0 4px; }
+      #mark-detail .mark-detail-text { margin: 0 0 8px; }
+      #mark-detail .mark-detail-addr { font-family: var(--mono); font-size: 11px; color: var(--muted); word-break: break-all; }
       .claim-row .ref, .proof-row .ref { margin-left: 6px; }
       .proof-slot { margin-left: 8px; }
       .proof-verdict.web-corroborated { color: var(--accent); }
@@ -1127,21 +1208,22 @@
          says "link" when colour alone cannot be relied on. */
       .msg .body a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
       .msg .body a:hover { text-decoration-thickness: 2px; }
-      /* Two unrelated features share the class name ".who" — the room's
-         circular presence avatar (line ~467: 22x22px, border-radius:999px,
-         white text on a filled circle) and this one, the plain role label
-         above a chat bubble. `.msg .who` is more specific and wins the
-         properties it sets, but it never SET display/width/height/shape,
-         so a message label was inheriting the avatar's circle shape and
-         being squeezed into a 22px badge next to the bubble (caught live,
-         2026-09-09: "the user content looks bad"). Reset explicitly here
-         rather than renaming either class — the avatar feature is untouched. */
-      .msg .who {
+      /* FOUND LIVE, independently, on both sides of this merge the same
+         day (2026-09-08/09): this used to be `.msg .who`, sharing its
+         class with the room-member avatar badge (`.who` above — a 22px
+         circle, inline-flex, a colored presence ring). `.msg .who` set
+         only font-size/text-transform/letter-spacing/color/margin-bottom,
+         so every property it left unset — display, width, height,
+         border-radius, box-shadow — still came from the avatar rule at
+         the SAME specificity fight CSS runs per property, not per block.
+         The visible result: "you" squeezed into a 22px circular badge
+         instead of sitting as its own line above the bubble, while
+         "model" looked fine only because assistant .body is block-level
+         and forces a line break regardless. Renamed rather than patched
+         with resets, since a future edit to the avatar rule would leak
+         again the same way. */
+      .msg .role-tag {
         display: block;
-        width: auto;
-        height: auto;
-        border-radius: 0;
-        box-shadow: none;
         font-size: 11px;
         font-weight: 400;
         text-transform: uppercase;
@@ -1437,6 +1519,64 @@
       #gh-content { width: 100%; font: 12px/1.5 var(--mono); resize: vertical; }
       #gh-code { font: 12px/1.5 var(--mono); }
       #gh-note { white-space: pre-wrap; }
+      /* An attachment says the same four things wherever it appears — who
+         you are there, what it holds, what the host learns, who else can
+         see it — so the room and the repo can be read against each other
+         rather than each in its own vocabulary. */
+      .attachment-card {
+        display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px;
+        margin: 2px 0 14px; padding: 10px 12px;
+        border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+      }
+      .attachment-card dt { font: 11px/1.5 var(--mono); color: var(--muted); }
+      /* ── the GitHub pane, laid out as a sync/connection pane ──────────────
+         One account line, one destination, one primary act, detail folded
+         away. The panel is only 320-430px wide, so every row is built to
+         wrap gracefully rather than to fit exactly once. */
+      .gh-account {
+        display: flex; align-items: baseline; gap: 8px;
+        padding: 0 0 10px; margin-bottom: 14px; border-bottom: 1px solid var(--line);
+      }
+      #gh-who { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .gh-block { margin: 0 0 18px; }
+      .gh-block > h3 {
+        margin: 0 0 8px; font: 600 11px/1.4 var(--sans);
+        letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+      }
+      .gh-dest { display: flex; gap: 6px; align-items: center; }
+      #gh-repo-pick { flex: 1 1 auto; min-width: 0; font-size: 12.5px; }
+      #gh-repo-refresh { flex: none; padding: 6px 9px; color: var(--muted); }
+      /* What the destination MEANS — the line that turns a repo name into a
+         mode: your own log, a space anyone can open, or someone else's
+         ground. Public is a colour, not an alarm: it is a way to share. */
+      .gh-mode { margin: 8px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+      .gh-mode b { font-weight: 600; color: var(--ink); }
+      .gh-mode[data-mode="public"] b { color: var(--accent); }
+      .gh-mode[data-mode="propose"] b { color: var(--think); }
+      .gh-actions { display: flex; align-items: center; gap: 12px; margin: 12px 0 0; }
+      .gh-actions .primary { flex: none; }
+      #gh-details { margin: 10px 0 0; }
+      #gh-details > summary { font-size: 12px; color: var(--muted); cursor: pointer; }
+      #gh-details > summary:hover { color: var(--accent); }
+      .gh-invite { display: flex; gap: 6px; margin: 8px 0 6px; }
+      .gh-invite input { flex: 1 1 auto; min-width: 0; font-size: 12.5px; }
+      .gh-invite button { flex: none; }
+      /* Facts about who can read what — one line each, because they are
+         separate facts and a paragraph hides that. */
+      .gh-fact { margin: 0 0 3px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+      .gh-fact:last-child { margin-bottom: 0; }
+      .gh-sharelink { margin: 10px 0 0; padding: 10px 0 0; border-top: 1px solid var(--line); }
+      .gh-sharelink button { font-size: 12px; margin-bottom: 6px; }
+      .gh-quiet > summary { font-size: 12px; color: var(--muted); cursor: pointer; }
+      .gh-quiet > summary:hover { color: var(--accent); }
+      .attachment-card dd { margin: 0; font-size: 12.5px; line-height: 1.5; }
+      /* The exposure of one particular save, at the moment of saving. */
+      .gh-exposure {
+        border-left: 2px solid var(--line); padding: 2px 0 2px 10px;
+        margin: 6px 0 10px;
+      }
+      .gh-exposure p { margin: 0 0 4px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+      .gh-exposure p.gh-exposure-warn { color: var(--warn); font-weight: 600; }
       .log-tbl {
         border-collapse: collapse; margin: 0 0 14px;
         font-family: var(--sans); font-size: 13px; max-width: 720px;
@@ -1573,6 +1713,12 @@
       .msg .body .prose:last-child { margin-bottom: 0; }
       .msg .body .prose strong { font-weight: 700; }
       .msg .body .prose em { font-style: italic; }
+      /* The draft, streamed before the correction loop and proof-seeking
+         have had their say — the same "not settled" signal `.thinking`
+         already carries, so a reader never mistakes a still-checkable
+         draft for the locked-in answer (found live, 2026-09-09). Cleared
+         the moment `renderAnswer` draws the real, checked text. */
+      .msg .body .prose.draft-pending { color: var(--muted); }
       .msg .body .prose code {
         font-family: var(--mono);
         font-size: 12px;
@@ -1623,6 +1769,24 @@
          same posture the build editor itself already takes regardless of
          the page's own light/dark toggle. */
       .artifact pre.code-highlight { background: #1e1e1e; color: #d4d4d4; }
+      /* A markdown build (the /facts document) read as a document, not a
+         code box — the page's own body font and reading measure, real
+         paragraph and heading spacing. */
+      .artifact-doc {
+        padding: 18px 20px;
+        font-size: 15px;
+        line-height: 1.65;
+        max-width: 68ch;
+        background: var(--bg);
+      }
+      .artifact-doc h1, .artifact-doc h2, .artifact-doc h3 {
+        margin: 1.1em 0 0.4em;
+        line-height: 1.3;
+      }
+      .artifact-doc h1:first-child, .artifact-doc h2:first-child, .artifact-doc h3:first-child { margin-top: 0; }
+      .artifact-doc p { margin: 0 0 0.9em; }
+      .artifact-doc hr { border: 0; border-top: 1px solid var(--line); margin: 1.2em 0; }
+      .artifact-doc em { color: var(--muted); }
       .artifact iframe {
         display: block;
         width: 100%;
@@ -1719,6 +1883,14 @@
         line-height: 1.5;
         color: var(--muted);
       }
+      /* callTreeFor's map of what was prompted (2026-09-09): the turn's own
+         phases (holonicTurn's `phaseLabel`, already computed for the status
+         line — nothing new measured), each call nested under the phase
+         active when it was sent. Monospace so the ├─/└─ connectors — this
+         app's own house glyphs — actually line up; `.fold-note`'s ordinary
+         proportional face would not. */
+      .fold-tree-head { font-family: var(--mono); }
+      .fold-tree-leaf { font-family: var(--mono); margin-left: 1.2em; }
       /* The crown line (crownTestimony): the checked statement itself, in
          prose — the answer's visible grounding, so it reads at answer
          weight, not meter weight. `.bad` marks DISAGREE/CONTRADICTED, the
@@ -1921,28 +2093,6 @@
         flex-wrap: nowrap;
       }
       .composer-bar .spacer { flex: 1; min-width: 0; }
-      /* Adding and switching are one group because they are one subject. */
-      .attach-group {
-        display: inline-flex;
-        align-items: center;
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        overflow: hidden;
-        flex: 0 0 auto;
-      }
-      .attach-group .attach {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        border: 0;
-        border-radius: 0;
-        background: transparent;
-        color: var(--accent);
-        font-size: 13px;
-        padding: 6px 12px;
-      }
-      .attach-group .attach:hover { background: var(--accent-soft); }
-      .attach-group .switch { padding: 0 11px 0 8px; border-left: 1px solid var(--line); }
       /* What is answering, on the composer. Quiet by default — it is a label
          far more often than it is a control — and it carries the working dot
          because "is it thinking" is a fact about the model. */
@@ -2059,9 +2209,33 @@
       .switch-cycle:hover { background: var(--accent-soft); }
       .switch-cycle[data-mode="background"],
       .switch-cycle[data-mode="foreground"] { color: var(--accent); }
-      /* The add-material menu: three doors, named, no taxonomy to learn. */
-      #attach-menu { width: min(380px, 92vw); }
-      #attach-menu .sheet-body button {
+      /* The composer's trigger for dialog#memory-menu — the merged
+         Attach + memory control (2026-09-08). Cloned from .attach-group's
+         own pill (border, radius, accent) now that there is no sibling
+         switch left to justify the wrapping group: one button, one pill. */
+      #memory-open {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: transparent;
+        color: var(--accent);
+        font-size: 13px;
+        padding: 6px 12px;
+        flex: 0 0 auto;
+        cursor: pointer;
+      }
+      #memory-open:hover { background: var(--accent-soft); }
+      #memory-open .ph { color: var(--accent); }
+      /* The add-material menu, and the memory menu beside it: every row —
+         act or lever — is icon, title, subtitle, one visual language so a
+         menu that does things to this conversation never looks like two
+         different kinds of control. Named on `.sheet-row` rather than typed
+         per dialog, so the next menu built this way inherits it for free. */
+      #attach-menu, #memory-menu { width: min(380px, 92vw); }
+      #attach-menu .sheet-body .sheet-row,
+      #memory-menu .sheet-body .sheet-row {
         display: flex;
         align-items: center;
         gap: 12px;
@@ -2072,11 +2246,23 @@
         background: transparent;
         padding: 12px 16px;
         font-size: 13.5px;
+        cursor: pointer;
       }
-      #attach-menu .sheet-body button + button { border-top: 1px solid var(--line); }
-      #attach-menu .sheet-body button:hover { background: var(--accent-soft); color: var(--accent); }
-      #attach-menu .sheet-body button .ph { color: var(--accent); }
-      #attach-menu button small { display: block; color: var(--muted); font-size: 11.5px; font-weight: 400; }
+      #attach-menu .sheet-body .sheet-row + .sheet-row,
+      #memory-menu .sheet-body .sheet-row + .sheet-row { border-top: 1px solid var(--line); }
+      #attach-menu .sheet-body .sheet-row:hover,
+      #memory-menu .sheet-body .sheet-row:hover { background: var(--accent-soft); color: var(--accent); }
+      #attach-menu .sheet-body .sheet-row .ph,
+      #memory-menu .sheet-body .sheet-row .ph { color: var(--accent); }
+      .sheet-row small { display: block; color: var(--muted); font-size: 11.5px; font-weight: 400; }
+      /* A toggle row is a lever, not an act: it keeps the sheet-row voice
+         (icon, title, subtitle, divider, hover) but ends in the SAME switch
+         track every other lever in this app already uses, pinned right by
+         the spacer between the subtitle and the input — reusing .switch
+         rather than a bespoke checkbox, so a lever here is never a
+         different KIND of thing from "web" or "checking" a few pixels away. */
+      #memory-menu .sheet-toggle.switch { color: var(--ink); }
+      #memory-menu .sheet-toggle .spacer { flex: 1; }
       /* A note nobody needs twice becomes a mark you can ask. The text is the
          title attribute — the browser's own tooltip, no JS, no layout cost —
          and the mark is only ever adjacent to the thing it explains. */
@@ -2151,6 +2337,40 @@
         font-size: 13px;
       }
       .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+      /* Holograph and GitHub grew the tab bar from five panes to seven, and
+         the narrow layout broke: the 900px rule above (line ~943) already
+         declares `.tabs { flex-wrap: nowrap; ... }` for the single-column,
+         tabs-at-the-bottom layout, but the plain, unconditional `.tabs` /
+         `.tabs button` rules just above this comment set flex-wrap: wrap
+         and other conflicting values — same selector specificity, later in
+         this sheet, so THEY win at every width the 900px query also
+         matches, and seven tabs wrap into a ragged, half-empty second row
+         with the panel-collapse chevron stranded in it (that chevron also
+         has nothing to do below 900px, since `main` is already one column
+         there — its own `.fold-side` rule loses the flex fight too, for
+         the same reason: `.tabs button` outranks a bare class). Fixed here,
+         after those rules, so this wins the cascade at both the phone and
+         tablet widths the 900px breakpoint covers. Matches `.threads`'
+         already-shipped pattern one section up for the identical problem:
+         natural-width tabs that scroll sideways with a hidden scrollbar,
+         rather than wrapping or being squeezed to nothing. */
+      @media (max-width: 900px) {
+        .tabs {
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          scrollbar-width: none;
+          justify-content: flex-start;
+          padding: 0 4px;
+          border-bottom: none;
+        }
+        .tabs::-webkit-scrollbar { display: none; }
+        .tabs button {
+          flex: 0 0 auto;
+          white-space: nowrap;
+          padding: 11px 14px;
+        }
+        .fold-side { display: none; }
+      }
       /* The Sources pane: a file-manager view of imported documents. */
       #pane-explore { display: none; height: 100%; flex-direction: column; gap: 0; overflow: hidden; }
       #pane-explore.on { display: flex; }
@@ -2170,7 +2390,9 @@
         font-size: 13px; flex: 1; min-width: 0;
       }
       .sources-actions select,
-      .sources-actions button { font-size: 12px; color: var(--muted); white-space: nowrap; }
+      .sources-actions button { font-size: 12px; white-space: nowrap; }
+      .sources-actions select,
+      .sources-actions button:not(.primary) { color: var(--muted); }
       .explore-subnav { display: flex; gap: 2px; border: 1px solid var(--line); border-radius: 6px; padding: 2px; flex: none; }
       /* #more-subnav groups the four instrument-facing panes behind the
          "More" tab (above). Shown only while one of the four is the active
@@ -2187,13 +2409,74 @@
          instead, so the state to draw is aria-selected. */
       .more-subnav .seg[aria-selected="true"] { background: var(--accent); color: var(--panel); font-weight: 600; }
       .priors-panel { flex: 1; overflow-y: auto; padding: 14px 0 0; min-height: 0; }
-      .priors-genre {
-        display: flex; align-items: center; justify-content: space-between;
-        gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--line);
-      }
-      .priors-genre-name { font-size: 13px; }
-      .priors-genre-count { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
       .priors-empty { color: var(--muted); font-size: 13px; padding: 20px 4px; }
+      /* Toolbar: the corpus-wide summary plus the two bulk doors (all on /
+         all off) — both write the SAME root ("") ledger entry a per-row
+         toggle would at any other path, just at the top of the ancestry. */
+      .priors-toolbar { display: flex; align-items: center; gap: 8px; padding: 0 4px 12px; flex-wrap: wrap; }
+      .priors-toolbar .priors-summary { flex: 1 1 auto; min-width: 160px; color: var(--muted); font-size: 13px; }
+      .priors-toolbar button { font-size: 12px; white-space: nowrap; }
+      .priors-gap { font-size: 12px; color: var(--warn); padding: 6px 4px; }
+      /* Rows: name is the only flexible column — meta and the toggle are
+         fixed-width and right-anchored, so they land in real columns no
+         matter how long a genre or document name is (rather than floating
+         wherever justify-content:space-between happened to leave them). */
+      .priors-row {
+        display: flex; align-items: center; gap: 8px;
+        padding: 7px 6px; border-radius: 7px;
+      }
+      .priors-row:hover { background: var(--accent-soft); }
+      .priors-arrow {
+        flex: 0 0 16px; border: none; background: none; padding: 0;
+        color: var(--muted); cursor: pointer; font-size: 11px; text-align: center;
+      }
+      .priors-arrow:disabled { visibility: hidden; }
+      .priors-name {
+        flex: 1 1 auto; min-width: 0; border: none; background: none; padding: 0;
+        text-align: left; cursor: pointer; font-size: 13px; color: var(--ink);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .priors-name:hover { color: var(--accent); }
+      .priors-doc .priors-name { font-family: var(--mono); font-size: 12px; }
+      .priors-meta {
+        flex: 0 0 158px; text-align: right; font-family: var(--mono);
+        font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .priors-toggle {
+        flex: 0 0 58px; text-align: center; font: 10.5px/1 var(--mono);
+        letter-spacing: 0.04em; cursor: pointer; border: 1px solid var(--line);
+        border-radius: 6px; padding: 5px 0; background: none; color: var(--muted);
+      }
+      .priors-toggle.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+      .priors-toggle.declared::before { content: "●"; font-size: 8px; margin-right: 4px; vertical-align: 1px; }
+      .priors-toggle:hover { border-color: var(--accent); }
+      .priors-toggle:disabled { opacity: 0.5; cursor: default; }
+      /* The focused document: papers (its publisher's own frontmatter) plus
+         its own text, read in place — no second reader, no separate page. */
+      .priors-card {
+        border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+        margin: 4px 4px 14px; background: var(--panel);
+      }
+      .priors-card-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+      .priors-card-head .name { font-size: 14px; font-weight: 700; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .priors-card-head button { flex: none; }
+      .priors-papers { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 6px 0 10px; }
+      .priors-paper-row { display: contents; }
+      .priors-paper-row .k { font: 11px/1.6 var(--mono); color: var(--muted); }
+      .priors-paper-row .v { font-size: 12.5px; color: var(--ink); word-break: break-word; }
+      .priors-paper-row a.v { color: var(--accent); text-decoration: none; }
+      .priors-paper-row a.v:hover { text-decoration: underline; }
+      .priors-card-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .priors-card-foot .meta {
+        font: 11px/1 var(--mono); color: var(--muted); flex: 1;
+        text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .priors-card-text {
+        max-height: 320px; overflow-y: auto; border-top: 1px solid var(--line);
+        padding-top: 10px; margin-top: 4px; font: 13px/1.6 var(--mono);
+        white-space: pre-wrap; word-break: break-word;
+      }
       .sources-list {
         flex: 1; overflow-y: auto; padding: 14px 0 0; min-height: 0;
       }
@@ -2237,6 +2520,21 @@
       .sources-file-actions button:hover { color: var(--warn); border-color: var(--warn); }
       .sources-file-muted { opacity: 0.45; }
       .sources-file-muted .sources-file-icon { background: var(--muted); }
+      /* Research pages a turn fetched to CHECK an answer, never attached —
+         a distinct section under the real file list (found live,
+         2026-09-09: a reader had no way to see what was actually read
+         short of clicking one citation at a time). Muted icon color and no
+         action buttons mark it read-only at a glance; opening one leaves
+         this instrument (a real saved page, same as "＋ Add → already
+         here"), so no mute/remove belongs here. */
+      .sources-section-head {
+        font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em;
+        color: var(--muted); padding: 12px 12px 4px; text-transform: uppercase;
+      }
+      .sources-file-research .sources-file-icon {
+        background: transparent; border: 1px solid var(--line, #ccc);
+        color: var(--muted); font-size: 10px; font-weight: 700;
+      }
       .source-viewer-body {
         font: 13px/1.6 var(--mono); white-space: pre-wrap; word-break: break-word;
         margin: 0; overflow: auto; max-height: 65vh;
@@ -2623,7 +2921,7 @@
         .threads { padding: 6px 12px 0; }
         .threads .thread-tab { min-height: 42px; }
         header { padding: 8px 12px; }
-        #marks-toggle, #matrix-toggle, #github-toggle, #theme-toggle { min-width: 44px; min-height: 40px; }
+        #matrix-toggle, #github-toggle, #theme-toggle { min-width: 44px; min-height: 40px; }
         #access-cluster { min-height: 40px; }
         /* The composer bar in two rows: what you attach and what answers on
            the first, the switches and Send on the second. The one-row rule
@@ -2632,8 +2930,7 @@
            being squeezed to nothing — the row wrapped is the row read. */
         .composer-bar { flex-wrap: wrap; row-gap: 8px; }
         .composer-bar .spacer { display: none; }
-        .attach-group { order: 1; }
-        .attach-group .attach { min-height: 40px; padding: 6px 12px; }
+        #memory-open { order: 1; min-height: 40px; padding: 6px 12px; }
         .model-pick { order: 2; flex: 1 1 auto; min-height: 40px; font-size: 13px; justify-content: flex-start; }
         .model-pick #model-name { max-width: none; }
         #attach-strip { order: 3; flex: 1 1 100%; }
@@ -2749,10 +3046,10 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
            the point of this instrument and they are also, sometimes, in the
            way of simply reading the answer. Off hides the drawing, never the
            finding — every mark is still in the turn's "thinking", and the
-           tally still counts what the marks would have shown. -->
-      <button id="marks-toggle" type="button" aria-pressed="true" title="Checking — read every answer against your material and look up what nothing backs. The findings list under &quot;thinking&quot;; they are not drawn over the answer. Off is a plain chatbot: the model answers and nothing is verified.">
-        <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M225.86,102.82c-3.77-3.94-7.67-8-9.14-11.57-1.36-3.27-1.44-8.69-1.52-13.94-.15-9.76-.31-20.82-8-28.51s-18.75-7.85-28.51-8c-5.25-.08-10.67-.16-13.94-1.52-3.56-1.47-7.63-5.37-11.57-9.14C146.28,23.51,138.44,16,128,16s-18.27,7.51-25.18,14.14c-3.94,3.77-8,7.67-11.57,9.14C88,40.64,82.56,40.72,77.31,40.8c-9.76.15-20.82.31-28.51,8S41,67.55,40.8,77.31c-.08,5.25-.16,10.67-1.52,13.94-1.47,3.56-5.37,7.63-9.14,11.57C23.51,109.72,16,117.56,16,128s7.51,18.27,14.14,25.18c3.77,3.94,7.67,8,9.14,11.57,1.36,3.27,1.44,8.69,1.52,13.94.15,9.76.31,20.82,8,28.51s18.75,7.85,28.51,8c5.25.08,10.67.16,13.94,1.52,3.56,1.47,7.63,5.37,11.57,9.14C109.72,232.49,117.56,240,128,240s18.27-7.51,25.18-14.14c3.94-3.77,8-7.67,11.57-9.14,3.27-1.36,8.69-1.44,13.94-1.52,9.76-.15,20.82-.31,28.51-8s7.85-18.75,8-28.51c.08-5.25.16-10.67,1.52-13.94,1.47-3.56,5.37-7.63,9.14-11.57C232.49,146.28,240,138.44,240,128S232.49,109.73,225.86,102.82Zm-11.55,39.29c-4.79,5-9.75,10.17-12.38,16.52-2.52,6.1-2.63,13.07-2.73,19.82-.1,7-.21,14.33-3.32,17.43s-10.39,3.22-17.43,3.32c-6.75.1-13.72.21-19.82,2.73-6.35,2.63-11.52,7.59-16.52,12.38S132,224,128,224s-9.15-4.92-14.11-9.69-10.17-9.75-16.52-12.38c-6.1-2.52-13.07-2.63-19.82-2.73-7-.1-14.33-.21-17.43-3.32s-3.22-10.39-3.32-17.43c-.1-6.75-.21-13.72-2.73-19.82-2.63-6.35-7.59-11.52-12.38-16.52S32,132,32,128s4.92-9.15,9.69-14.11,9.75-10.17,12.38-16.52c2.52-6.1,2.63-13.07,2.73-19.82.1-7,.21-14.33,3.32-17.43S70.51,56.9,77.55,56.8c6.75-.1,13.72-.21,19.82-2.73,6.35-2.63,11.52-7.59,16.52-12.38S124,32,128,32s9.15,4.92,14.11,9.69,10.17,9.75,16.52,12.38c6.1,2.52,13.07,2.63,19.82,2.73,7,.1,14.33.21,17.43,3.32s3.22,10.39,3.32,17.43c.1,6.75.21,13.72,2.73,19.82,2.63,6.35,7.59,11.52,12.38,16.52S224,124,224,128,219.08,137.15,214.31,142.11ZM173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34Z"/></svg>
-      </button>
+           tally still counts what the marks would have shown.
+           Moved off the header and onto the composer as a per-conversation
+           switch (#use-checking, above, next to web) — see that switch's
+           own comment for why. -->
       <!-- The two accounts this instrument connects to, where accounts live:
            the top right. Each is one press to sign in when it is not
            connected, and a jump to its own rows in Resources when it is. The
@@ -2791,21 +3088,6 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
           <p id="status-line" class="status-line" aria-live="polite" hidden></p>
           <textarea id="input" placeholder="Ask something…" title="Enter to send, Shift+Enter for a newline" rows="1"></textarea>
           <div class="composer-bar">
-            <!-- One control, because it is one subject: the paperclip adds
-                 attachments and the switch beside it decides whether they are
-                 read. The switch only appears once there is something for it
-                 to govern — a lever over an empty set is furniture. -->
-            <div class="attach-group">
-              <button type="button" class="attach" id="attach" title="Attach — upload, pick from what is already here, or paste (dropping a file anywhere works too)">
-                <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M209.66,122.34a8,8,0,0,1,0,11.32l-82.05,82a56,56,0,0,1-79.2-79.21L147.67,35.73a40,40,0,1,1,56.61,56.55L105,193A24,24,0,1,1,71,159L154.3,74.38A8,8,0,1,1,165.7,85.6L82.39,170.31a8,8,0,1,0,11.27,11.36L192.93,81A24,24,0,1,0,159,47L59.76,147.68a40,40,0,1,0,56.53,56.62l82.06-82A8,8,0,0,1,209.66,122.34Z"/></svg>
-                <span id="attach-label">Attach</span>
-              </button>
-              <label class="switch bare" id="attach-switch" hidden title="Whether attachments are read at all. Off answers this question without them — nothing is removed and nothing is lost.">
-                <input type="checkbox" id="use-attachments" checked />
-                <span class="track" aria-hidden="true"></span>
-                <span class="sr-only">use attachments</span>
-              </label>
-            </div>
             <!-- What is answering, next to what is being asked. It was a chip
                  in the header opening a dialog — two moves and a different
                  corner of the screen to change the one setting a person
@@ -2816,30 +3098,70 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
               <span class="caret" aria-hidden="true">⌄</span>
             </button>
             <div id="attach-strip" aria-label="Attachments"></div>
+            <!-- Checking used to be one header icon shared by every open
+                 conversation — a plain-answers chat and a checked one could
+                 not coexist, and switching tabs never changed what it showed
+                 (found live, 2026-09-09, user direction: "put the grounding
+                 toggle as an option within the specific chat, and scope it
+                 to per chat"). It is a composer switch now, exactly like
+                 web/attachments below it, and `grounded` joined PER_CONVO
+                 (app.js) so each conversation keeps its own — switching
+                 tabs resyncs this checkbox and body.marks-off together
+                 (syncGroundedUI). What a BRAND NEW conversation starts at
+                 is still the one standing preference, fold-marks. -->
+            <label class="switch" title="Checking — read every answer against your material and look up what nothing backs. The findings list under &quot;thinking&quot;; they are not drawn over the answer. Off is a plain chatbot: the model answers and nothing is verified. Per conversation — each tab keeps its own.">
+              <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M225.86,102.82c-3.77-3.94-7.67-8-9.14-11.57-1.36-3.27-1.44-8.69-1.52-13.94-.15-9.76-.31-20.82-8-28.51s-18.75-7.85-28.51-8c-5.25-.08-10.67-.16-13.94-1.52-3.56-1.47-7.63-5.37-11.57-9.14C146.28,23.51,138.44,16,128,16s-18.27,7.51-25.18,14.14c-3.94,3.77-8,7.67-11.57,9.14C88,40.64,82.56,40.72,77.31,40.8c-9.76.15-20.82.31-28.51,8S41,67.55,40.8,77.31c-.08,5.25-.16,10.67-1.52,13.94-1.47,3.56-5.37,7.63-9.14,11.57C23.51,109.72,16,117.56,16,128s7.51,18.27,14.14,25.18c3.77,3.94,7.67,8,9.14,11.57,1.36,3.27,1.44,8.69,1.52,13.94.15,9.76.31,20.82,8,28.51s18.75,7.85,28.51,8c5.25.08,10.67.16,13.94,1.52,3.56,1.47,7.63,5.37,11.57,9.14C109.72,232.49,117.56,240,128,240s18.27-7.51,25.18-14.14c3.94-3.77,8-7.67,11.57-9.14,3.27-1.36,8.69-1.44,13.94-1.52,9.76-.15,20.82-.31,28.51-8s7.85-18.75,8-28.51c.08-5.25.16-10.67,1.52-13.94,1.47-3.56,5.37-7.63,9.14-11.57C232.49,146.28,240,138.44,240,128S232.49,109.73,225.86,102.82Zm-11.55,39.29c-4.79,5-9.75,10.17-12.38,16.52-2.52,6.1-2.63,13.07-2.73,19.82-.1,7-.21,14.33-3.32,17.43s-10.39,3.22-17.43,3.32c-6.75.1-13.72.21-19.82,2.73-6.35,2.63-11.52,7.59-16.52,12.38S132,224,128,224s-9.15-4.92-14.11-9.69-10.17-9.75-16.52-12.38c-6.1-2.52-13.07-2.63-19.82-2.73-7-.1-14.33-.21-17.43-3.32s-3.22-10.39-3.32-17.43c-.1-6.75-.21-13.72-2.73-19.82-2.63-6.35-7.59-11.52-12.38-16.52S32,132,32,128s4.92-9.15,9.69-14.11,9.75-10.17,12.38-16.52c2.52-6.1,2.63-13.07,2.73-19.82.1-7,.21-14.33,3.32-17.43S70.51,56.9,77.55,56.8c6.75-.1,13.72-.21,19.82-2.73,6.35-2.63,11.52-7.59,16.52-12.38S124,32,128,32s9.15,4.92,14.11,9.69,10.17,9.75,16.52,12.38c6.1,2.52,13.07,2.63,19.82,2.73,7,.1,14.33.21,17.43,3.32s3.22,10.39,3.32,17.43c.1,6.75.21,13.72,2.73,19.82,2.63,6.35,7.59,11.52,12.38,16.52S224,124,224,128,219.08,137.15,214.31,142.11ZM173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34Z"/></svg>
+              <span class="switch-label">checking</span>
+              <input type="checkbox" id="use-checking" checked />
+              <span class="track" aria-hidden="true"></span>
+            </label>
             <label class="switch" title="Whether claims your attachments don't back are looked up online. One recorded search per claim, then up to 3 page reads.">
               <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,24h0A104,104,0,1,0,232,128,104.12,104.12,0,0,0,128,24Zm88,104a87.61,87.61,0,0,1-3.33,24H174.16a157.44,157.44,0,0,0,0-48h38.51A87.61,87.61,0,0,1,216,128ZM102,168H154a115.11,115.11,0,0,1-26,45A115.27,115.27,0,0,1,102,168Zm-3.9-16a140.84,140.84,0,0,1,0-48h59.88a140.84,140.84,0,0,1,0,48ZM40,128a87.61,87.61,0,0,1,3.33-24H81.84a157.44,157.44,0,0,0,0,48H43.33A87.61,87.61,0,0,1,40,128ZM154,88H102a115.11,115.11,0,0,1,26-45A115.27,115.27,0,0,1,154,88Zm52.33,0H170.71a135.28,135.28,0,0,0-22.3-45.6A88.29,88.29,0,0,1,206.37,88ZM107.59,42.4A135.28,135.28,0,0,0,85.29,88H49.63A88.29,88.29,0,0,1,107.59,42.4ZM49.63,168H85.29a135.28,135.28,0,0,0,22.3,45.6A88.29,88.29,0,0,1,49.63,168Zm98.78,45.6a135.28,135.28,0,0,0,22.3-45.6h35.66A88.29,88.29,0,0,1,148.41,213.6Z"/></svg>
               <span class="switch-label">web</span>
               <input type="checkbox" id="use-web" checked />
               <span class="track" aria-hidden="true"></span>
             </label>
-            <label class="switch" title="Ranke — chase notes read off a fetched page to the sources that page cites (any outbound link) or quotes without a source. Off by default: each run is fetches and searches. Explicit: /ranke <maxFetches> [maxSearches].">
+            <!-- Not composer furniture: a bare "primary" switch with no room
+                 for its own explanation read as unlabeled clutter (user
+                 direction, 2026-09-08 — "i dont know what it does"). The
+                 Resources tab's "primary sources" row already names it in
+                 full and toggles the same state; this stays wired, hidden,
+                 so that row's click-through keeps working. -->
+            <label class="switch" id="ranke-switch" hidden title="Ranke — chase notes read off a fetched page to the sources that page cites (any outbound link) or quotes without a source. Off by default: each run is fetches and searches. Explicit: /ranke <maxFetches> [maxSearches].">
               <span class="switch-label">primary</span>
               <input type="checkbox" id="use-ranke" />
               <span class="track" aria-hidden="true"></span>
             </label>
-            <!-- Per QUESTION, like the two switches beside it, and for the
-                 same reason: whether this one is answered knowing what the
-                 workspace's other conversations found is decided where the
-                 question is asked, never in a sheet somewhere. It appears
-                 only once there IS another conversation to reach — a lever
-                 over an empty set is furniture, the attachments switch's own
-                 rule. Workspaces themselves never see each other; that is
-                 what a workspace is, not something to switch. -->
-            <label class="switch" id="workspace-switch" hidden title="Whether this question may reach what was said in the workspace's other conversations. Off answers it from this chat alone — nothing is deleted, and the next question can have it back.">
-              <span class="switch-label">workspace</span>
-              <input type="checkbox" id="use-workspace" checked />
-              <span class="track" aria-hidden="true"></span>
-            </label>
+            <!-- ONE control for everything this question may draw on beyond
+                 the model itself — merged from what were three separate
+                 things (the paperclip Attach button, and a dropdown holding
+                 attachments/priors/cross-conversation) into one, all called
+                 "memory" (user direction, 2026-09-08). It opens the SAME
+                 sheet component every other menu in this app already uses
+                 (dialog#memory-menu, below, beside dialog#attach-menu) rather
+                 than a hand-rolled popover — a corner-anchored dropdown read
+                 as a cheaper, different kind of control next to the app's
+                 real dialogs, which is the opposite of elegant. Attaching is
+                 still a first-class, one-click action, not buried: the
+                 paperclip icon rides the trigger itself, and "Add
+                 attachment" is the sheet's own first row. Origin's own
+                 standalone #workspace-switch (same feature — P178 — built
+                 independently as a bare composer switch) is superseded by
+                 this merge: the identical id="workspace-switch"/
+                 id="use-workspace" pair already lives inside dialog#memory-
+                 menu below, and keeping both would duplicate those ids on
+                 the page. #priors-mode (below) is NOT the same feature under
+                 a shared word: it is the live_priors reference-corpus dial
+                 (state.priorsMode — off/background/foreground, whether
+                 corpus documents are checked against or attached as
+                 sources), distinct from this sheet's own #use-priors
+                 (whether the reader's received linguistic priors sharpen
+                 this question's checking) — so it stays its own composer
+                 control rather than folding into this menu. -->
+            <button type="button" id="memory-open" title="Attach material, or set what this question may draw on beyond the model's own answer.">
+              <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M209.66,122.34a8,8,0,0,1,0,11.32l-82.05,82a56,56,0,0,1-79.2-79.21L147.67,35.73a40,40,0,1,1,56.61,56.55L105,193A24,24,0,1,1,71,159L154.3,74.38A8,8,0,1,1,165.7,85.6L82.39,170.31a8,8,0,1,0,11.27,11.36L192.93,81A24,24,0,1,0,159,47L59.76,147.68a40,40,0,1,0,56.53,56.62l82.06-82A8,8,0,0,1,209.66,122.34Z"/></svg>
+              <span>memory</span>
+            </button>
             <button type="button" class="switch-cycle" id="priors-mode" title="Priors"></button>
             <button type="submit" class="primary" id="send" disabled>Send</button>
           </div>
@@ -3077,40 +3399,56 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
               <p class="empty">Loading…</p>
             </div>
             <div id="github-body" hidden>
-              <section class="github-section">
-                <h3>Repo</h3>
-                <div class="github-row">
-                  <input id="gh-owner" placeholder="owner" autocomplete="off" spellcheck="false" />
-                  <input id="gh-repo" placeholder="repo" autocomplete="off" spellcheck="false" />
+              <!-- Deliberately not a GitHub console. A person here wants
+                   their work kept somewhere safe and, sometimes, shown to
+                   someone — not branches, paths and pull requests. So: who
+                   you are, where it goes, one button, and who can see it.
+                   The mechanics (a branch, a PR to approve) still happen;
+                   they are just not this pane's vocabulary. -->
+              <!-- Prior art for this shape is a sync/connection pane, not a
+                   git client: an account line, ONE destination, a single
+                   primary act whose label says what it does, and the detail
+                   folded away. What the destination MEANS is a mode with a
+                   name — a private log, a published space anyone can open,
+                   or someone else's ground you propose to — because "public"
+                   is a way to share a space, not an error to warn about. -->
+              <header class="gh-account">
+                <span id="gh-who">Signed in</span>
+                <button type="button" id="gh-disconnect" class="linkish">sign out</button>
+              </header>
+
+              <section class="gh-block">
+                <h3>Where your work lives</h3>
+                <div class="gh-dest">
+                  <select id="gh-repo-pick" aria-label="repository"></select>
+                  <button type="button" id="gh-repo-refresh" title="refresh the list" aria-label="refresh the list">↻</button>
                 </div>
-                <div class="github-row">
-                  <input id="gh-path" placeholder="path/to/file.md" autocomplete="off" spellcheck="false" />
+                <p class="gh-mode" id="gh-mode"></p>
+                <div class="gh-actions">
+                  <button type="button" id="gh-save" class="primary">Save my work</button>
+                  <button type="button" id="gh-load" class="linkish">load what's there</button>
                 </div>
+                <details id="gh-details">
+                  <summary id="gh-details-summary">what would be saved</summary>
+                  <div id="gh-proposal"></div>
+                </details>
               </section>
-              <section class="github-section">
-                <h3>One file</h3>
-                <div class="github-row">
-                  <button type="button" id="gh-pull">Pull</button>
-                  <button type="button" id="gh-push">Push</button>
+
+              <section class="gh-block">
+                <h3>Who can open it</h3>
+                <p class="gh-mode" id="gh-reach"></p>
+                <div class="gh-invite">
+                  <input id="gh-share-who" placeholder="GitHub username" autocomplete="off" spellcheck="false" />
+                  <button type="button" id="gh-share">Invite</button>
                 </div>
-                <textarea id="gh-content" rows="12" spellcheck="false" placeholder="pulled/edited content"></textarea>
+                <div id="gh-shared-with" class="log-note"></div>
               </section>
-              <section class="github-section">
-                <h3>Skills</h3>
-                <div class="github-row">
-                  <button type="button" id="gh-skills-push">Push skills to GitHub</button>
-                  <button type="button" id="gh-skills-pull">Pull skills from GitHub</button>
-                </div>
-              </section>
-              <section class="github-section">
-                <h3>History</h3>
-                <div class="github-row">
-                  <button type="button" id="gh-history-push">Push history to GitHub</button>
-                  <button type="button" id="gh-history-pull">Pull history from GitHub</button>
-                </div>
-              </section>
+
               <div id="gh-note" class="log-note"></div>
-              <button type="button" id="gh-disconnect" class="linkish">disconnect</button>
+              <details class="gh-block gh-quiet">
+                <summary>Use a different account or token</summary>
+                <div id="gh-token-slot"></div>
+              </details>
             </div>
           </div>
 
@@ -3178,6 +3516,52 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
       </div>
     </dialog>
 
+    <!-- Everything this question may draw on beyond the model itself, one
+         sheet, in the same voice as every other menu here — icon, title,
+         subtitle, dividers, the same hover. "Add attachment" is the first
+         row and the only one that is an act rather than a lever; it closes
+         this sheet and opens the Attach door below it, the same
+         sheet-closes-before-the-next-one-opens rule #attach-sheet-add
+         already follows. The three toggle rows are switches, not buttons —
+         reusing .switch's own track exactly, so a lever here looks like
+         every other lever in this app, never a bespoke one. Each stays
+         hidden until there is something for it to govern. -->
+    <dialog id="memory-menu">
+      <div class="sheet-head">
+        <h3>Memory</h3>
+        <button type="button" class="sheet-close" id="memory-menu-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="sheet-body flush">
+        <button type="button" class="sheet-row" id="memory-add-attachment">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M209.66,122.34a8,8,0,0,1,0,11.32l-82.05,82a56,56,0,0,1-79.2-79.21L147.67,35.73a40,40,0,1,1,56.61,56.55L105,193A24,24,0,1,1,71,159L154.3,74.38A8,8,0,1,1,165.7,85.6L82.39,170.31a8,8,0,1,0,11.27,11.36L192.93,81A24,24,0,1,0,159,47L59.76,147.68a40,40,0,1,0,56.53,56.62l82.06-82A8,8,0,0,1,209.66,122.34Z"/></svg>
+          <span>Add attachment<small>upload, browse what's already here, or paste</small></span>
+        </button>
+        <label class="switch sheet-toggle sheet-row" id="attach-switch" hidden title="Whether attachments are read at all. Off answers this question without them — nothing is removed and nothing is lost.">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-32-80a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,136Zm0,32a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,168Z"/></svg>
+          <span>Attachments<small>read what's attached to this question</small></span>
+          <span class="spacer"></span>
+          <input type="checkbox" id="use-attachments" checked />
+          <span class="track" aria-hidden="true"></span>
+        </label>
+        <label class="switch sheet-toggle sheet-row" title="Whether the reader's received linguistic priors (part-of-speech vocabulary, verb forms, determiners, negation) sharpen this question's checking. Off reads the material without them — a plainer reading, never a different one drawn from elsewhere.">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,48H160a40,40,0,0,0-32,16A40,40,0,0,0,96,48H24a8,8,0,0,0-8,8V200a8,8,0,0,0,8,8H96a24,24,0,0,1,24,24,8,8,0,0,0,16,0,24,24,0,0,1,24-24h72a8,8,0,0,0,8-8V56A8,8,0,0,0,232,48ZM96,192H32V64H96a24,24,0,0,1,24,24V200A39.81,39.81,0,0,0,96,192Zm128,0H160a39.81,39.81,0,0,0-24,8V88a24,24,0,0,1,24-24h64Z"/></svg>
+          <span>Priors<small>received language priors sharpen checking</small></span>
+          <span class="spacer"></span>
+          <input type="checkbox" id="use-priors" checked />
+          <span class="track" aria-hidden="true"></span>
+        </label>
+        <label class="switch sheet-toggle sheet-row" id="workspace-switch" hidden title="Whether this question may reach what was said in the workspace's other conversations. Off answers it from this chat alone — nothing is deleted, and the next question can have it back.">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M244.8,150.4a8,8,0,0,1-11.2-1.6A51.6,51.6,0,0,0,192,128a8,8,0,0,1-7.37-4.89,8,8,0,0,1,0-6.22A8,8,0,0,1,192,112a24,24,0,1,0-23.24-30,8,8,0,1,1-15.5-4A40,40,0,1,1,219,117.51a67.94,67.94,0,0,1,27.43,21.68A8,8,0,0,1,244.8,150.4ZM190.92,212a8,8,0,1,1-13.84,8,57,57,0,0,0-98.16,0,8,8,0,1,1-13.84-8,72.06,72.06,0,0,1,33.74-29.92,48,48,0,1,1,58.36,0A72.06,72.06,0,0,1,190.92,212ZM128,176a32,32,0,1,0-32-32A32,32,0,0,0,128,176ZM72,120a8,8,0,0,0-8-8A24,24,0,1,1,87.24,82a8,8,0,1,0,15.5-4A40,40,0,1,0,37,117.51,67.94,67.94,0,0,0,9.6,139.19a8,8,0,1,0,12.8,9.61A51.6,51.6,0,0,1,64,128,8,8,0,0,0,72,120Z"/></svg>
+          <span>Cross-conversation<small>reach other conversations in this workspace</small></span>
+          <span class="spacer"></span>
+          <input type="checkbox" id="use-workspace" checked />
+          <span class="track" aria-hidden="true"></span>
+        </label>
+      </div>
+    </dialog>
+
     <!-- Three doors, all the same act. Upload reaches the OS picker; "already
          here" lists the library and the pages the web organ already saved, so
          material that is on this machine never has to be found twice; paste
@@ -3190,15 +3574,15 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
         </button>
       </div>
       <div class="sheet-body flush">
-        <button type="button" id="attach-upload">
+        <button type="button" class="sheet-row" id="attach-upload">
           <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0ZM93.66,77.66,120,51.31V144a8,8,0,0,0,16,0V51.31l26.34,26.35a8,8,0,0,0,11.32-11.32l-40-40a8,8,0,0,0-11.32,0l-40,40A8,8,0,0,0,93.66,77.66Z"/></svg>
           <span>Upload files<small>from this computer</small></span>
         </button>
-        <button type="button" id="attach-existing">
+        <button type="button" class="sheet-row" id="attach-existing">
           <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M245,110.64A16,16,0,0,0,232,104H216V88a16,16,0,0,0-16-16H130.67L102.94,51.2a16.14,16.14,0,0,0-9.6-3.2H40A16,16,0,0,0,24,64V208h0a8,8,0,0,0,8,8H211.1a8,8,0,0,0,7.59-5.47l28.49-85.47A16.05,16.05,0,0,0,245,110.64ZM93.34,64,123.2,86.4A8,8,0,0,0,128,88h72v16H69.77a16,16,0,0,0-15.18,10.94L40,158.7V64Zm112,136H43.1l26.67-80H232Z"/></svg>
           <span>Already here<small>your files, saved web pages, and priors in play</small></span>
         </button>
-        <button type="button" id="attach-paste">
+        <button type="button" class="sheet-row" id="attach-paste">
           <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M168,152a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,152Zm-8-40H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16Zm56-64V216a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V48A16,16,0,0,1,56,32H92.26a47.92,47.92,0,0,1,71.48,0H200A16,16,0,0,1,216,48ZM96,64h64a32,32,0,0,0-64,0ZM200,48H173.25A47.93,47.93,0,0,1,176,64v8a8,8,0,0,1-8,8H88a8,8,0,0,1-8-8V64a47.93,47.93,0,0,1,2.75-16H56V216H200Z"/></svg>
           <span>Paste text<small>added as its own attachment</small></span>
         </button>
@@ -3244,6 +3628,24 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
       <div class="sheet-body">
         <div id="source-viewer-body" class="source-viewer-body"></div>
       </div>
+      <form method="dialog" class="sheet-foot">
+        <span class="spacer"></span>
+        <button>Close</button>
+      </form>
+    </dialog>
+
+    <dialog id="mark-detail">
+      <div class="sheet-head">
+        <div>
+          <h3 id="mark-detail-title">Ground</h3>
+          <p class="sub">What this sentence's marks say — the same detail a hover title used to hold, before the marks moved off the sentence.</p>
+        </div>
+        <button type="button" class="sheet-close" id="mark-detail-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <p class="mark-detail-sentence" id="mark-detail-sentence"></p>
+      <div class="sheet-body flush" id="mark-detail-body"></div>
       <form method="dialog" class="sheet-foot">
         <span class="spacer"></span>
         <button>Close</button>

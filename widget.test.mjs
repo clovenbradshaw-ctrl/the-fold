@@ -27,6 +27,7 @@ import { makeBuildLog } from "./build-log.js";
 import { tokenize } from "./source.js";
 import * as enginePriors from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
 import { makeWidgetRouter } from "./widget.js";
+import { skeletonFor } from "./code-piece.js";
 
 // The router bound to the engine's REAL prior register — the same closed
 // classes the page gets from /engine. No stub carries these walls either.
@@ -334,6 +335,206 @@ test("iterationTell: the html document's own wrapper tags never count as a conte
   assert.equal(routeMessage("the clear button is broken", builds).n, 1);
 });
 
+test("iterationTell: code-piece.js's own python scaffold never counts as a content match", () => {
+  // Found live in a battery-tested conversation: a workspace carried two
+  // leftover code-piece builds from earlier sessions — a coin-flip
+  // simulator and an "adds up the first 10 even numbers" script — and
+  // ordinary small talk kept re-zeroing one of them. "one more random
+  // one" (idle filler in a favorite-season question) routed onto the
+  // coin-flip build, and "what did I say my dog's name was" routed onto
+  // the unrelated even-numbers build. Neither message is about code.
+  // Both false positives trace to code-piece.js's OWN generated
+  // scaffold: `skeletonFor`'s header always writes `import random` /
+  // `import sys` regardless of the task, and `main()`'s own per-step
+  // witness line always reads `type(rN).__name__` — so "random" and
+  // "name" (from `__name__`) are contributed by EVERY python code-piece
+  // build's bytes by construction, the same non-discriminating-token
+  // shape the html wrapper test above already pins for `<html>`/`<head>`/
+  // `<body>`. Built from the REAL generator (`skeletonFor`), not a
+  // hand-typed approximation, so this test tracks the scaffold's actual
+  // shape if it ever changes.
+  const coinFlip = skeletonFor("python", "simulates 20 coin flips and counts heads vs tails", [
+    "simulates 20 coin flips",
+    "counts heads vs tails",
+  ]);
+  const coinFlipKnown = `python: simulates 20 coin flips and counts heads vs tails\n${coinFlip.code}`;
+  assert.match(coinFlipKnown, /import random/, "the fixture actually carries the scaffold this test is about");
+  assert.equal(iterationTell("one more random one", coinFlipKnown), null);
+
+  const evenSum = skeletonFor("python", "adds up the first 10 even numbers and prints the sum", [
+    "adds up the first 10 even numbers",
+    "prints the sum",
+  ]);
+  const evenSumKnown = `python: adds up the first 10 even numbers and prints the sum\n${evenSum.code}`;
+  assert.match(evenSumKnown, /__name__/, "the fixture actually carries the scaffold this test is about");
+  assert.equal(iterationTell("what did I say my dog's name was again?", evenSumKnown), null);
+
+  // The affordance is narrower, never absent: real task vocabulary the
+  // model actually wrote into the function names still resolves.
+  assert.equal(iterationTell("the coin flip simulation is broken", coinFlipKnown), "resolved");
+  assert.equal(iterationTell("fix adds_up_first_even", evenSumKnown), "resolved");
+
+  // The SECOND source, routeMessage's own build shape (buildWords'
+  // caption + "\n" + code), stays refused too.
+  const builds = [{ n: 6, type: "code", lang: "python", text: coinFlipKnown }];
+  assert.equal(routeMessage("one more random one", builds), null);
+});
+
+test("iterationTell/routeMessage: a bare numeral shared with the build's own bytes is never content evidence", () => {
+  // Found live in the SAME battery this file's scaffold test above already
+  // documents, one channel further: the leftover "adds up the first 10
+  // even numbers" build (fold 7) does not need the MODEL to have filled in
+  // its numbers to collide — `skeletonFor`'s own generated `main()` writes
+  // an EVA witness line PER STEP ("[step 1 ...]", "[step 2 ...]"), so a
+  // two-step build's bytes carry the digits "1" and "2" by construction,
+  // before a single line of the actual feature is ever written. A document
+  // question naming two speakers by number, "what are Human 1 and Human 2
+  // talking about in this chat?", shared nothing else with the build but
+  // matched on exactly those two digits and was routed into fold 7's
+  // code-revision pipeline instead of answering the question — raw
+  // apparatus (a `{find, add}` patch request, an autorun traceback) landing
+  // in the visible chat reply, with zero relation to the diet/chat/etc.
+  // material actually attached. A bare number is exactly the "referent-less
+  // single-token" case P31 (CLAUDE.md) already refused as EVIDENCE for
+  // grounding; this is the same refusal, one organ over.
+  const evenSum = skeletonFor("python", "adds up the first 10 even numbers and prints the sum", [
+    "adds up the first 10 even numbers",
+    "prints the sum",
+  ]);
+  const known = `python: adds up the first 10 even numbers and prints the sum\n${evenSum.code}`;
+  assert.match(known, /\[step 1 /, "the fixture actually carries the per-step digit this test is about");
+  assert.match(known, /\[step 2 /, "the fixture actually carries the per-step digit this test is about");
+
+  // A message with no anaphor in it at all — the numeral is the ONLY thing
+  // that ever overlapped, so fixing it alone must be enough here.
+  assert.equal(iterationTell("did Human 1 say they still keep in touch with the people they met?", known), null);
+  // Not narrowed into silence: a numeral alone never counts, but a message
+  // whose OTHER words share the build's real vocabulary still resolves.
+  assert.equal(iterationTell("fix adds_up_first_even, it returned 1 instead of the sum", known), "resolved");
+
+  const builds = [{ n: 7, type: "code", lang: "python", text: known }];
+  assert.equal(routeMessage("did Human 1 say they still keep in touch with the people they met?", builds), null);
+
+  // "in this chat" carries a SECOND, independent tell this test does not
+  // own — "this" read pronominally with no POS prior loaded (the fall-open
+  // behavior anaphoraTell's own header documents, exercised here with the
+  // default `makeWidgetRouter(enginePriors)` this whole file uses, same as
+  // every other bare-router test above). The numeral fix closes its own
+  // channel regardless: swap the digits for words and the message no
+  // longer resolves. The full repro — both digits AND "this chat" in one
+  // message, against attached material — is the next test's.
+  assert.equal(iterationTell("what are the two speakers talking about?", known), null);
+});
+
+test("routeMessage: a bare anaphor is not evidence for a leftover build once material is attached", () => {
+  // The THIRD channel the same battery hit, closing the reported bug: a
+  // genuinely anaphoric "that" ("does THAT sound like a healthy diet to
+  // you?", asking about attached material) carries no byte evidence at all
+  // — anaphoraTell reads only the message's own grammar — so it landed on
+  // whichever code build merely happened to be live (fold 7, a leftover
+  // from an unrelated earlier session; state.builds is the instrument's,
+  // not one conversation's), even though the pronoun plainly pointed at
+  // the material, not at a stray Python script. `hasMaterial` (the
+  // caller's own liveSources/liveChunks reading, threaded in from app.js —
+  // this module never reads state itself) narrows exactly that one channel.
+  const builds = [{ n: 7, type: "code", lang: "python", text: "python: adds up the first 10 even numbers\ndef f():\n    return 0\n" }];
+
+  // With no material attached, the affordance is unchanged: a bare anaphor
+  // still routes exactly as every existing anaphora test above expects.
+  assert.equal(routeMessage("does that sound right to you?", builds)?.n, 7);
+  assert.equal(routeMessage("it's broken", builds, { hasMaterial: false })?.n, 7);
+
+  // With material attached, the SAME message no longer routes by anaphora
+  // alone — the pronoun is at least as likely to point at the material.
+  assert.equal(routeMessage("does that sound like a healthy diet to you?", builds, { hasMaterial: true }), null);
+  assert.equal(routeMessage("it's broken", builds, { hasMaterial: true }), null);
+  // "this chat" carries the same unresolved-pronoun tell (no POS prior in
+  // this file's own default router) — closed the identical way.
+  assert.equal(routeMessage("what are Human 1 and Human 2 talking about in this chat?", builds, { hasMaterial: true }), null);
+
+  // The affordance narrows, it does not vanish: real evidence tying the
+  // message to THIS build — its own bytes, or an explicit build number —
+  // still routes with material attached.
+  assert.equal(routeMessage("adds_up_first_even is broken", builds, { hasMaterial: true })?.n, 7);
+  assert.equal(routeMessage("build 7 is broken", builds, { hasMaterial: true })?.n, 7);
+});
+
+test("routeMessage: bare anaphora needs the build to be salient in THIS conversation's own discourse, not merely to exist in the workspace", () => {
+  // `hasMaterial` (the test just above) closes the channel only when
+  // material is attached. The SAME false positive was still reachable
+  // with NOTHING attached at all: ordinary casual chat carrying a bare
+  // "it"/"this"/"that" with no real referent still fired `anaphoraTell`
+  // on grammar alone and reached whichever code build merely happened to
+  // sit in `state.builds` — the instrument's own workspace-wide log
+  // (CLAUDE.md: deliberately not per conversation), not this
+  // conversation's. Confirmed live in the earlier QA pass: "one more
+  // random one" and "what did I say my dog's name was again?" both
+  // incorrectly matched a leftover coin-flip/even-numbers build through
+  // this exact channel; "hey! how's it going" (an expletive "it") is the
+  // plainer case this test isolates, since the other two ALSO happen to
+  // be closed by the unrelated python-scaffold-stripping fix above
+  // (stripPyScaffold) regardless of this gate.
+  const coinFlip = skeletonFor("python", "simulates 20 coin flips and counts heads vs tails", [
+    "simulates 20 coin flips",
+    "counts heads vs tails",
+  ]);
+  const coinFlipKnown = `python: simulates 20 coin flips and counts heads vs tails\n${coinFlip.code}`;
+  const builds = [{ n: 6, type: "code", lang: "python", text: coinFlipKnown }];
+
+  // WITHOUT this fix (no `discourse` supplied at all — an older caller, or
+  // every other test in this file), the affordance is unchanged: a bare
+  // "it" still routes to whichever build merely exists. This is the
+  // regression surface the fix below closes, pinned here so it stays
+  // visible as the "before" half of the story.
+  assert.equal(routeMessage("hey! how's it going", builds)?.n, 6);
+
+  // A brand-new, unrelated conversation supplies its own recent discourse
+  // (even an explicitly empty string, for the very first message) — and
+  // none of it mentions the leftover coin-flip build, so the candidate is
+  // refused. This is the actual reported bug, closed: casual small talk
+  // in a fresh conversation no longer hijacks a stale, unrelated build.
+  assert.equal(routeMessage("hey! how's it going", builds, { discourse: "" }), null);
+
+  const seasonChat = "user: what's your favorite season?\nassistant: I don't have a favorite one, but autumn is popular for its colors.";
+  assert.equal(routeMessage("hey! how's it going", builds, { discourse: seasonChat }), null);
+  // The other two reported false positives, run through the same gate —
+  // still null (the stripPyScaffold fix above already refuses these on a
+  // different channel; this asserts the overall no-hijack behavior holds
+  // with discourse locality checked too, not just when it is absent).
+  assert.equal(routeMessage("one more random one", builds, { discourse: seasonChat }), null);
+  const dogChat = "user: my dog's name is Biscuit.\nassistant: Biscuit is a great name!";
+  assert.equal(routeMessage("what did I say my dog's name was again?", builds, { discourse: dogChat }), null);
+
+  // The affordance narrows, it does not vanish: THIS conversation's own
+  // recent discourse actually carrying the build's own words still routes
+  // it, even with no material attached — a genuine "does it still work"
+  // question about a build just discussed.
+  const codeChat = `user: simulate 20 coin flips and count heads vs tails\nassistant: ${coinFlip.code}`;
+  assert.equal(routeMessage("does it still work?", builds, { discourse: codeChat })?.n, 6);
+});
+
+test("routeMessage: the flagship same-conversation iteration is unaffected by discourse locality", () => {
+  // The wall this fix must not break, stated in the caller's own terms
+  // (app.js pushes the model's reply — code included — into state.history
+  // VERBATIM the moment a build is produced, so the very next turn's
+  // discourse already carries the just-built widget's own bytes): a build
+  // made THIS turn, in THIS conversation, iterated on immediately by bare
+  // complaint must still route, exactly as every anaphora test above (with
+  // no `discourse` option at all) already expects.
+  const builds = [{ n: 1, type: "code", lang: "html", text: 'html\n<div id="counter">0</div><button>+1</button>' }];
+  const discourse =
+    "user: make me a counter widget in html\n" +
+    'assistant: html\n<div id="counter">0</div><button>+1</button>';
+
+  assert.equal(routeMessage("it's broken", builds, { discourse })?.n, 1);
+  assert.equal(routeMessage("make it blue", builds, { discourse })?.n, 1);
+
+  // And a build from an OLDER exchange in a DIFFERENT conversation — the
+  // regression this whole fix targets — stays refused even though the
+  // grammar of the complaint is identical.
+  assert.equal(routeMessage("it's broken", builds, { discourse: "user: what's the capital of France?\nassistant: Paris." }), null);
+});
+
 test("iterationTell: a non-Latin message is no longer short-circuited to null before resolvesInto runs (P62)", () => {
   // Before `forms`/`clauseForms` were widened past ASCII, a message written
   // wholly in a non-Latin script tokenized to [], and iterationTell's own
@@ -551,6 +752,54 @@ test("a definite phrase the artifact does not contain does not route — the sta
   // wall, never a derivation) — the typed limit, stated.
   assert.equal(iterationTell("the colors are wrong", 'html\n<b style="color:#fff">x</b>'), "resolved");
   assert.equal(iterationTell("the colours are wrong", 'html\n<b style="color:#fff">x</b>'), null);
+});
+
+test("anaphora reads the surrounding tokens: a bare demonstrative followed by a noun is a determiner, not a pointer", () => {
+  // Found live: a brand-new conversation with no code build of its own,
+  // sharing a browser with an unrelated leftover build from an earlier
+  // session, had "what is this app, in one sentence?" fire tell:"anaphora"
+  // against that stale build — "this" alone was enough, unconditionally,
+  // because ANAPHORIC_PRONOUNS's own header says a consumer must read the
+  // surrounding tokens and this one never did. `known` here deliberately
+  // shares no word with any of these messages, so a "resolved" tell is
+  // never in play — this isolates the anaphora path alone.
+  const known = 'python\ndef adds_up_first_even():\n    pass\n';
+
+  // No POS classifier injected (the default router, exactly as every
+  // other test in this file uses it): behavior is UNCHANGED from before
+  // this fix existed — every bare demonstrative still counts.
+  for (const m of ["what is this app, in one sentence?", "what is this widget, in one sentence?"])
+    assert.equal(iterationTell(m, known), "anaphora", `no POS classifier: ${m}`);
+
+  // With a POS classifier injected, a demonstrative immediately followed
+  // by a confident NOUN reads as a determiner phrase and no longer counts.
+  const posPrior = { forms: { app: [{ upos: "NOUN", count: 10, share: 1 }] } };
+  const stubClassify = (word, { posPrior: p }) => {
+    const cands = p?.forms?.[String(word ?? "").toLowerCase()];
+    return cands ? { surface: word, found: true, total: cands.reduce((n, c) => n + c.count, 0), candidates: cands } : { surface: word, found: false, total: 0, candidates: [] };
+  };
+  const stubDominant = (classified, { minShare = 0.5 } = {}) => {
+    const top = classified?.candidates?.[0];
+    return top && top.share >= minShare ? top : null;
+  };
+  const routed = makeWidgetRouter(enginePriors, { classifyWord: stubClassify, dominantClass: stubDominant, posPrior: () => posPrior });
+
+  assert.equal(routed.iterationTell("what is this app, in one sentence?", known), null, "a known noun after the demonstrative — determiner use");
+  // "widget" carries no entry in this stub prior (the real treebank's own
+  // gap, measured live: it has no "app" or "widget" either) — an
+  // out-of-vocabulary word still reads as the noun, not the pronoun's own
+  // predicate, because a genuinely novel VERB right after a bare
+  // demonstrative is rare next to a genuinely novel NOUN there.
+  assert.equal(routed.iterationTell("what is this widget, in one sentence?", known), null, "an unknown word after the demonstrative — still read as a noun");
+
+  // Genuine anaphora is unaffected: a KNOWN non-noun after the
+  // demonstrative (a verb, an adjective) still reports pronominal, and a
+  // demonstrative with nothing following it still does too.
+  const posPrior2 = { forms: { app: [{ upos: "NOUN", count: 10, share: 1 }], is: [{ upos: "AUX", count: 10, share: 1 }], bigger: [{ upos: "ADJ", count: 10, share: 1 }] } };
+  const routed2 = makeWidgetRouter(enginePriors, { classifyWord: stubClassify, dominantClass: stubDominant, posPrior: () => posPrior2 });
+  assert.equal(routed2.iterationTell("this is broken", known), "anaphora", "a known verb after the demonstrative — still pronominal");
+  assert.equal(routed2.iterationTell("make this bigger", known), "anaphora", "a known adjective after the demonstrative — still pronominal");
+  assert.equal(routed2.iterationTell("fix it, it's broken", known), "anaphora", "nothing follows — still pronominal");
 });
 
 test("the closed classes come from the engine's register, never from this repo", () => {

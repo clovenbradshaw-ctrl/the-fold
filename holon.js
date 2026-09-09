@@ -35,7 +35,7 @@
 // one turn without re-checking anything.
 
 import { buildSourceBlock, checkCitations, foldTypography, openQuestions, retrieve, tokenize } from "./source.js";
-import { distinctSources, proposeCandidates, textFeatures } from "./corroboration.js";
+import { distinctSources, proposeCandidates, sourceOfWitness, textFeatures } from "./corroboration.js";
 import { checkGrounding, extractCheckableAtoms, unsupportedClaims, CLAIM_STOPWORDS } from "./grounding.js";
 import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { editPiece } from "./piece-edit.js";
@@ -122,6 +122,41 @@ function clausePinsAnchor(clause) {
   return /\b[A-Z][a-z]+\b/.test(rest);
 }
 
+/** The substantive (>= MIN_CLAUSE_WORDS) clauses inside one span of text. Shared by the gate's own clause count and by the framing check below, so both count a clause the same way. */
+function substantiveClauses(text) {
+  return String(text || "")
+    .split(CLAUSE_SPLIT_RE)
+    .map((c) => c.trim())
+    .filter((c) => c.split(/\s+/).filter(Boolean).length >= MIN_CLAUSE_WORDS);
+}
+
+/**
+ * True when `q` is a lone trailing interrogative sentence preceded only by
+ * pure framing — declarative scene-setting that carries no multi-clause work
+ * of its own ("I'm researching X for Y. Who/when/why ...?"). Measured live
+ * (2026-09-09): "I'm researching the Panama Canal's history for a
+ * documentary script. Who built the canal, when was it completed, and why
+ * did the earlier French attempt fail?" is ONE compound question wearing a
+ * one-clause preamble — the multi-sentence check above can't tell that from
+ * genuinely stepped imperative work ("Compare the 1805 and 1812 campaigns.
+ * Cite the figures for each army, name the commanding generals, and note
+ * the dates of the major battles. Which mattered more?"), where the middle
+ * sentence pins three anchored clauses in its own right. The test: every
+ * sentence before the last must fall short of the same
+ * MIN_SUBSTANTIVE_CLAUSES bar the gate already uses for real work, and the
+ * last sentence must itself be the single-interrogative-sentence shape the
+ * gate already exempts.
+ */
+function isFramedSingleQuestion(q) {
+  if (!q.endsWith("?")) return false;
+  const sentences = q.split(SENTENCE_SPLIT_RE).filter(Boolean);
+  const last = sentences[sentences.length - 1] || "";
+  const lead = sentences.slice(0, -1);
+  if (!lead.length) return false;
+  if (!last.endsWith("?") || /[.!?]\s+\S/.test(last)) return false;
+  return lead.every((s) => substantiveClauses(s).length < MIN_SUBSTANTIVE_CLAUSES);
+}
+
 /**
  * True when the question itself has the shape of several dependent parts.
  * Cheap-bails on the first check — a greeting or single-sentence ask never
@@ -144,10 +179,14 @@ export function needsDecomposition(question) {
   // (imperative, multi-sentence, genuinely dependent parts), so a single
   // interrogative sentence never plans.
   if (q.endsWith("?") && !/[.!?]\s+\S/.test(q)) return false;
-  const clauses = q
-    .split(CLAUSE_SPLIT_RE)
-    .map((c) => c.trim())
-    .filter((c) => c.split(/\s+/).filter(Boolean).length >= MIN_CLAUSE_WORDS);
+  // A framing sentence in front of the question ("I'm researching X for Y.
+  // Who ...?") makes the text multi-sentence on its face, but the question
+  // itself is still the single interrogative sentence the rule above means
+  // to exempt — see isFramedSingleQuestion for the measured failure this
+  // pins and why it can't be told apart from genuine stepped work by
+  // sentence count alone.
+  if (isFramedSingleQuestion(q)) return false;
+  const clauses = substantiveClauses(q);
   if (clauses.length < MIN_SUBSTANTIVE_CLAUSES) return false;
   // The clause-count shortcut holds only for MULTI-SENTENCE work — steps
   // stated as steps. Inside one sentence, a comma count is LENGTH, not
@@ -476,8 +515,40 @@ export const EXECUTE_SYSTEM_PROMPT =
 // and a model ordered to "say what the part would need" on "hi" says "the
 // question is: hi". This prompt is the one place chat is allowed to be chat:
 // no material framing, no citation grammar, just a reply to a person.
+// FOUND LIVE (2026-09-08): asked "what can you help me with?" with nothing
+// attached, a small model answered as an email-management app — not a lie
+// exactly, just an ungrounded guess at its own nature, the same L5 failure
+// this file already refuses for every OTHER fact ("a compliance-critical
+// fact is never left to the model's own instruction-following") applied to
+// the one fact this prompt had never actually stated. CONSTITUTION_PROMPT's
+// own "mouth of a careful instrument" line is metaphor, not a plain
+// self-description a small model can answer "what are you" from — and it
+// is not even reached on this path (CHAT_SYSTEM_PROMPT is the whole system
+// message for plain conversation). One true, plain sentence, in the same
+// register as everything else here — no apparatus vocabulary
+// (firewall.test.mjs checks this string too).
+//
+// BATTERY-TESTED 2026-09-08: the same "friendly reply" instruction, with
+// nothing telling it to ever land, left gemma2:2b free to hover forever.
+// "ok controversial question: is a hot dog a sandwich?" got "Ooh, that's a
+// classic debate! Tell me what side you're on. 🌭 🥪 🤔" — no stance, the
+// question bounced straight back; "cats or dogs?" the same shape a turn
+// later. Separately, a three-turn restaurant ask (occasion, then city, then
+// party size, each supplied in its own turn) never once got a place, a
+// neighborhood, or even a cuisine — only a fourth clarifying question ("What
+// kinda vibe? Barbecue, burgers, trendy spots?") once every fact already
+// asked for was on the table. Reproduced with checking off, this prompt
+// alone, real chat history: the model is not withholding for lack of
+// material — there is no material framing on this path to withhold under —
+// it is doing exactly what "reply the way a person would" left open, which
+// is treat a direct ask as another invitation to ask its own. The fix is
+// not "sound more confident" (S1_SYSTEM_PROMPT's hedge stays a hedge,
+// LEVELS.md's own "model is just the mouth" rule still holds — this asks
+// for an actual answer, never a performed certainty); it is a floor under
+// how long "getting to know you" is allowed to run before it has to spend
+// what it already has. One clause, stated as behavior, not as tone.
 export const CHAT_SYSTEM_PROMPT =
-  "A friendly conversation. Reply directly, briefly, and naturally, the way a person would. Do not repeat back what was just said; say something new.";
+  "You are The Fold, a local reading and research assistant that works from whatever a person gives you. A friendly conversation. Reply directly, briefly, and naturally, the way a person would. Do not repeat back what was just said; say something new. Asked for your own opinion, a preference, or a concrete suggestion, give one plainly — pick a side, name a real option — rather than turning the question back around; once someone has already told you what they need to, answer from that instead of asking them to repeat it in a different shape.";
 
 // S1's own face: think out loud, give a first take, not a finished answer.
 // The hedge IS the character — it makes S2's arrival feel natural ("I
@@ -507,6 +578,32 @@ export const S1_SYSTEM_PROMPT =
 // the model needs is that the emptiness is real and is not its to fill.
 export const SEARCHED_VOID_PREFIX = "Nothing could be found on this. The emptiness is real and confirmed — say so plainly; it is not yours to fill in.";
 
+// THE SAME VOID, ONE DOOR OVER: a source can be ATTACHED to the conversation
+// while this turn's own retrieval comes back with nothing FROM it — the
+// attachments switch off, every source muted, or a genuinely empty draw
+// (retrieve() has no relevance floor, P4, so an empty result means `live`
+// itself was empty, not that nothing scored). Before this, that turn fell
+// straight into the plain-conversation branch below with nothing to say so:
+// CHAT_SYSTEM_PROMPT reads exactly like a bare "hi" with nothing ever given,
+// and the hyperlexicon's own cross-turn ledger (ledgerSuffix, a few lines
+// down) — ACCUMULATED FROM EARLIER, UNRELATED READING, app-wide and never
+// scoped to what is attached now (P57) — became the only thing on the page
+// that looked like "what you were given." Measured live: a gym-workout
+// dialogue attached and asked to be summarized in one sentence, with this
+// turn's own retrieval empty, came back answering entirely about a stray
+// single-witness note from a completely unrelated earlier reading ("Ships
+// can stay safe in the harbor during a storm") — the ledger's own honest
+// hedging ("one account's claim, not a settled one") was not enough to stop
+// a small model from treating it as the material, because nothing told it
+// there WAS other material it was missing. Same posture as
+// SEARCHED_VOID_PREFIX just above: information, not an instruction — the
+// honesty framing already in CHAT_SYSTEM_PROMPT covers what to DO with it.
+// FIREWALL-CLEAN ON PURPOSE (firewall.js's APPARATUS_TERMS bars "material"/
+// "retrieved"/"document" from anything model-facing): phrased as "what's
+// attached" and "came up", never as a report on this instrument's own
+// retrieval step.
+export const UNRETRIEVED_MATERIAL_PREFIX = "Something is attached to this conversation, but none of it came up for this question. Anything below is from separate, earlier reading — not the attachment — so say plainly that what's attached doesn't answer this, rather than answering from that instead.";
+
 // The System 1 / System 2 pass: first-person framing so S2 understands it's
 // following up on its OWN initial reaction, not investigating someone else's.
 // Measured against gemma2:2b: "A faster, unchecked first pass already answered
@@ -517,6 +614,24 @@ export const SEARCHED_VOID_PREFIX = "Nothing could be found on this. The emptine
 // runPart/runHolonicTask is byte-identical to before this existed.
 export const priorPassFor = (text) =>
   `Your first take was: "${String(text ?? "").trim()}" — check it against what you find. Confirm, extend, or correct it. Don't restate what you said; answer the question from what the checking turns up. If your first take was right, you can say so briefly and move on — don't make a ceremony of it.`;
+
+// The turn's own date, as a bare fact — never an instruction about what to
+// do with it (the same posture priorPassFor/SEARCHED_VOID_PREFIX already
+// hold: information, not behavior stacked on top; LEVELS.md's "model is
+// just the mouth" rule — this states a fact the model can reason from, it
+// never tells the model HOW to reason or asks it to hedge). ISO date only
+// (YYYY-MM-DD), the same format this repo's own giver stamps already use
+// (app.js: `new Date().toISOString().slice(0, 10)`) — unambiguous and
+// locale-free, unlike a formatted month name a small model might itself
+// mis-render. `now` accepts anything `Date` accepts (a Date, an ISO
+// string, epoch millis); `null`/invalid input returns "" so a caller that
+// passes nothing changes nothing.
+export function todayLine(now) {
+  if (now == null) return "";
+  const d = now instanceof Date ? now : new Date(now);
+  if (Number.isNaN(d.getTime())) return "";
+  return `Today's date is ${d.toISOString().slice(0, 10)}.`;
+}
 
 // When priorPass exists (S2 following S1), frame the system prompt so the
 // model understands it's continuing its own thinking, not starting fresh.
@@ -726,17 +841,36 @@ function landCompletenessBelief(grid, gridLog, runCapacity, landAct, { claim, so
 export function buildCorrectionPrompt(part, sourceBlock, draft, failures, mode = "unsupported") {
   // Three failures, three rewrite instructions — each names exactly what
   // went wrong, because "try again" teaches nothing.
+  // FOUND LIVE (2026-09-08): every mode below said "the question"/"it" and
+  // never the question's own words — the same class of gap "incomplete"'s
+  // own history already fixed twice ("give the model nothing left to hunt
+  // for, instead of asking it not to hunt"), just not yet paid here.
+  // Measured on a real specimen: asked who founded a company and when
+  // ("who founded the company and when?"), the material verbatim answering
+  // it in its first sentence, a first draft correctly copied that sentence
+  // — REFUSED here as reproduction — and the rewrite this prompt asked for
+  // ("answer the question... about it") paraphrased a DIFFERENT, unrelated
+  // part of the same passage instead (nothing about a founder or a date),
+  // because nothing in the instruction re-anchored the model to WHICH
+  // question "it" meant once the draft it was reacting to was gone.
+  // `part.description` (unlike `part.label`, a generic placeholder like
+  // "the question") is the operator's own words for a flat turn — quoting
+  // it plainly here costs nothing new (the model was already asked this
+  // question, in this same conversation) and closes the drift the pronoun
+  // left open.
+  const asked = String(part.description ?? "").trim();
+  const askedLine = asked ? ` The question was: "${asked}"` : "";
   if (mode === "reproduction") {
     return (
-      `Your draft for "${part.label}" copies the passage word for word. Copying is not answering. ` +
-      `Answer the question in your own words — a short paragraph saying what the passage shows about it, ` +
+      `Your draft for "${part.label}" copies the passage word for word. Copying is not answering.${askedLine} ` +
+      `Answer that question in your own words — a short paragraph saying what the passage shows about it, ` +
       `quoting at most one sentence.\n\nThe draft:\n${draft}\n\n${sourceBlock ?? ""}`
     );
   }
   if (mode === "echo") {
     return (
-      `Your draft for "${part.label}" restates the prompt instead of answering it. ` +
-      `Answer it from the material in your own words; ` +
+      `Your draft for "${part.label}" restates the prompt instead of answering it.${askedLine} ` +
+      `Answer that from the material in your own words; ` +
       `if the material does not answer it, say so plainly.\n\nThe draft:\n${draft}\n\n${sourceBlock ?? ""}`
     );
   }
@@ -744,7 +878,7 @@ export function buildCorrectionPrompt(part, sourceBlock, draft, failures, mode =
     return (
       `Your draft for "${part.label}" describes the passage instead of answering the question — ` +
       `sentences like "this passage details…" or "it highlights…" are about the material, not an ` +
-      `answer drawn from it. State the answer directly, in your own words, using what the passage says.\n\n` +
+      `answer drawn from it.${askedLine} State the answer directly, in your own words, using what the passage says.\n\n` +
       `The draft:\n${draft}\n\n${sourceBlock ?? ""}`
     );
   }
@@ -1065,6 +1199,31 @@ export async function runPart({
   // only reaches the chat branch below (a part that HAS passages already
   // knows the surf turned something up; this is specifically the void).
   searchedVoid = null,
+  // Whether the PERSON has material attached at all (app.js's own
+  // `Object.keys(state.sources).length > 0`), independent of whatever this
+  // turn's own `chunks`/`passages` happened to filter down to — threaded
+  // straight through, task-wide, for the identical reason `searchedVoid`
+  // is. UNRETRIEVED_MATERIAL_PREFIX's own header (above) says why this is
+  // a distinct fact from "chunks is non-empty": `false` (every existing
+  // caller) is byte-identical to before this existed.
+  sourcesAttached = false,
+  // THE TURN'S OWN DATE — a fact, never an instruction (P55's posture,
+  // exactly like searchedVoid and answerShape above). Found live
+  // (2026-09-08, battery-tested "Rapid topic hopping"): asked about "the
+  // new iphone" with nothing attached, a small model answered from its own
+  // training with no way to know that training might be stale, because
+  // nothing in any prompt this instrument builds had ever told it what
+  // "now" even is — the model cannot reason about currency of a "current/
+  // latest/new X" question against a date it was never given. This does
+  // not replace checking: a claim the material states or contradicts is
+  // still corrected exactly as before. It is the one fact that lets the
+  // model's OWN reasoning notice a "new/current/latest" question might be
+  // asking about something past its own training, on the turns where no
+  // material settles it either way. Flat only (searchedVoid's own scope):
+  // a decomposed piece section states its date if it ever needs to, this
+  // is for the ordinary chat question. `null` — every existing caller —
+  // is byte-identical to before this existed.
+  now = null,
   // HOW BIG THE ANSWER SHOULD BE, measured before the model drafts — never
   // a length the model guesses at (2026-08-27, user direction: "the vast
   // majority of 'reasoning' [should] be mechanical, and the result of the
@@ -1390,7 +1549,36 @@ export async function runPart({
     ? `Still reading: ${hyperlexiconUnread.map((u) => `${u.name} — ${u.read} of ${u.total} passages so far`).join("; ")}. What follows is from the part already read.`
     : null;
   // The ledger's notes folded ONCE with their standing; the ledger block, the lens and the paradigm all read these rows.
-  const foldedNotes = (hyperlexicon && beliefNotes) ? (hyperlexicon.foldWithStanding ? hyperlexicon.foldWithStanding(beliefNotes) : hyperlexicon.foldHyperlexicon(beliefNotes).map((n) => ({ ...n, sources: distinctSources(n.witnesses).size, standing: distinctSources(n.witnesses).size >= 2 ? "corroborated" : "single-witness", kinds: {} }))) : [];
+  const foldedNotesRaw = (hyperlexicon && beliefNotes) ? (hyperlexicon.foldWithStanding ? hyperlexicon.foldWithStanding(beliefNotes) : hyperlexicon.foldHyperlexicon(beliefNotes).map((n) => ({ ...n, sources: distinctSources(n.witnesses).size, standing: distinctSources(n.witnesses).size >= 2 ? "corroborated" : "single-witness", kinds: {} }))) : [];
+  // SCOPED TO WHAT THIS TURN HAS IN PLAY (attachment/mute isolation bug,
+  // 2026-09-08 battery). `beliefNotes` is the app-wide, cross-session ledger
+  // (P57/P98) — a note it carries can be from a source read in an unrelated
+  // earlier conversation, or from a source this very conversation has since
+  // muted (reading-on-arrival admits a source's claims the moment it is
+  // attached, and mute is deliberately a RETRIEVAL concept, so silencing a
+  // source afterward never retracts what was already heard from it). Nothing
+  // upstream of this line ever re-checks a note's witnesses against what is
+  // actually live, so a note stood on nothing but a silenced or long-gone
+  // source rode both the ledger block and resolutionBlocks' "cited on this
+  // ground" line unchanged. Measured live: two files explicitly unchecked
+  // before any question was asked, a third file attached and enabled, and
+  // the answer's own grounding line still read "Cited on this ground so
+  // far: 1 place in pasted-2.txt" — pasted-2.txt was one of the two muted
+  // files, never touched by this turn's own retrieval.
+  //
+  // Gated on `sourcesAttached`, not on `live.length`, to leave P84 (harbor-
+  // note incident, above) untouched: a genuinely bare conversation with
+  // nothing ever attached still stands on earlier reading (`live` is `[]`
+  // there too, and nothing this turn could silence). Once something IS
+  // attached, a note is offered only when at least one of its witnesses
+  // names a source this turn actually holds live — corroboration from a
+  // source outside that set is real and stays on the note (`sources`/
+  // `standing` untouched), but a note with no live witness at all is not
+  // this turn's to surface.
+  const liveNoteSources = new Set(live.map((c) => c.source));
+  const foldedNotes = sourcesAttached
+    ? foldedNotesRaw.filter((n) => (n.witnesses ?? []).some((w) => liveNoteSources.has(sourceOfWitness(w))))
+    : foldedNotesRaw;
   const ledgerBlock = (() => {
     if (!hyperlexicon || !beliefNotes) return readingNote;
     const shown = new Set((factBlock?.allLines ?? []).map((l) => l.toLowerCase()));
@@ -1970,6 +2158,22 @@ export async function runPart({
   const priorPassSuffix = flat && priorPass ? ` ${priorPassFor(priorPass)}` : "";
   const s2Frame = priorPass ? S2_FRAME_PREFIX : "";
   const searchedVoidSuffix = flat && searchedVoid ? ` ${searchedVoid}` : "";
+  // UNRETRIEVED_MATERIAL_PREFIX's own header explains the incident this
+  // closes. Gated on `sourcesAttached` (app.js's own `Object.keys(state.
+  // sources).length > 0`, threaded straight through exactly as
+  // `searchedVoid` is) rather than on `live`/`chunks`: `live` here is
+  // ALREADY the attachments-toggle-and-mute-filtered view (app.js's own
+  // `liveChunks()`), so it reads exactly like "nothing was ever attached"
+  // in precisely the cases this disclosure exists for — the attachments
+  // switch off, every source muted, or a source added a moment too late to
+  // make this turn's own `state.chunks` read. `sourcesAttached` answers a
+  // different question ("does the person think something is here") and is
+  // computed once, from the raw source map, independent of what this turn
+  // happened to filter. Flat only, same reach as searchedVoidSuffix.
+  const unretrievedSuffix = flat && !passages.length && sourcesAttached ? ` ${UNRETRIEVED_MATERIAL_PREFIX}` : "";
+  // Flat only, same reach as searchedVoid/priorPassSuffix — todayLine's own
+  // header carries the full reasoning.
+  const todaySuffix = flat && now != null ? ` ${todayLine(now)}` : "";
   // Stated as a FACT about the answer's shape, in the positive, never as a
   // prohibition ("do not write more than…"). Tonight's own measurement is
   // why: a reasoning model spent visible tokens working out how to comply
@@ -2116,7 +2320,7 @@ export async function runPart({
     : activated
       ? (passages.length ? snipBlock(passages.map((p) => ({ ref: p.ref, start: 0, end: String(p.text ?? "").length, text: String(p.text ?? "") }))) : null)
       : (passages.length ? turnSnipBlock(prosePassages.length ? prosePassages : passages, question) || null : null);
-  // COMPRESSION (P171): a higher holon stands in for the lower material it
+  // COMPRESSION (P179): a higher holon stands in for the lower material it
   // was computed from — a Lens line for the sentence it was read from, a
   // Paradigm line for every occurrence of a recurring act. So at level 2
   // and above the raw passages LEAVE the prompt: the blocks replace them and
@@ -2207,33 +2411,74 @@ export async function runPart({
   // at all (found by the P84 pin: the materialless path sent none of it).
   // It rides the system message as a fact the model receives (P55's
   // posture), never as an instruction about the apparatus.
-  const ledgerSuffix = modelLoopTuned.ledgerBlock ? `\n\n${modelLoopTuned.ledgerBlock}` : "";
-  const resolutionSuffix = modelLoopTuned.resolutionText ? `\n\n${modelLoopTuned.resolutionText}` : "";
-  const modelLoopShape = passages.length ? (flat ? "flat-material" : "execute-part") : (chatHistory.length ? "chat-history" : "chat-bare");
-  const executeMessages = passages.length
-    ? flat
+  //
+  // WITHHELD, NOT DELETED, on the one narrower path UNRETRIEVED_MATERIAL_
+  // PREFIX names: `unretrievedSuffix` is non-empty only when something IS
+  // attached and this turn's own retrieval still came back with nothing
+  // from it. `sourcesAttached`'s own header already explains why that is a
+  // DIFFERENT fact from "nothing was ever given" — this is the mechanical
+  // half of the same fix, added after the disclosure alone was measured
+  // live and found NOT ENOUGH: gemma2:2b, told in as many words that
+  // nothing below the harbor note was the attachment, still answered "We've
+  // been chatting about harbor safety for kids" — L5 again, one level up
+  // ("a compliance-critical fact is never left to the model's own
+  // instruction-following"), applied to a fact stated in the prompt rather
+  // than a fact checked after the draft. The ledger itself is untouched —
+  // this only withholds what THIS prompt offers; the note stays on
+  // `state.hyperlexiconLog` exactly as before, and reaches every other
+  // question (a decomposed part, a turn with real material, or a genuinely
+  // bare chat with nothing attached at all) exactly as before. Model-loop
+  // tuned (modelLoopTuned.ledgerBlock), same as every other ingredient here.
+  const ledgerSuffix = (!unretrievedSuffix && modelLoopTuned.ledgerBlock) ? `\n\n${modelLoopTuned.ledgerBlock}` : "";
+  // `resolution` is computed once, above (before modelLoopIngredients) —
+  // reused here, never recomputed.
+  const resolutionSuffix = resolution?.text ? `\n\n${resolution.text}` : "";
+  // Shape follows the SAME branch origin/main's fix now uses (`flat` first,
+  // never `passages.length` first) — a decomposed part is "execute-part"
+  // regardless of whether its own retrieval came back empty; only a FLAT
+  // turn's three shapes depend on passages/chatHistory.
+  const modelLoopShape = flat ? (passages.length ? "flat-material" : (chatHistory.length ? "chat-history" : "chat-bare")) : "execute-part";
+  // A DECOMPOSED part (!flat) always builds its prompt from its own label/
+  // description via buildExecutePrompt — even when this part's own
+  // retrieval came back with nothing. buildExecutePrompt already has the
+  // honest branch for that (`"No material matched this part. Say what the
+  // part would need and stop; do not invent content."`), still scoped to
+  // THIS part alone. Before this fix, a part with zero passages fell all
+  // the way through to the bare-chat branches below, which hand the model
+  // `task` — the WHOLE original, un-decomposed question — as its only user
+  // content. Measured live (2026-09-09): a "Who built the canal, when was
+  // it completed, and why did the earlier French attempt fail?" plan, once
+  // a part's own narrower retrieval query missed the fetched material,
+  // answered that part from training knowledge against the FULL compound
+  // question — which is exactly why sections came back re-answering the
+  // entire original ask instead of their own labeled slice. The bare-chat
+  // branches (`task`, no part scoping at all) are for a FLAT turn — a plain
+  // chat question that was never decomposed — where `task` legitimately IS
+  // the whole ask.
+  const executeMessages = flat
+    ? passages.length
       ? [
           {
             role: "system",
-            content: [modelLoopTuned.s2Frame + modelLoopTuned.flatExecuteSystemPrompt + modelLoopTuned.shapeSuffix + modelLoopTuned.notesSuffix + modelLoopTuned.priorPassSuffix, draftMaterial].join("\n\n") + modelLoopTuned.chatContext + resolutionSuffix,
+            content: [modelLoopTuned.s2Frame + modelLoopTuned.flatExecuteSystemPrompt + modelLoopTuned.shapeSuffix + modelLoopTuned.notesSuffix + modelLoopTuned.priorPassSuffix + todaySuffix, draftMaterial].join("\n\n") + modelLoopTuned.chatContext + resolutionSuffix,
           },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task || `${part.label}. ${part.description}` },
         ]
-      : [
-          { role: "system", content: EXECUTE_SYSTEM_PROMPT + resolutionSuffix },
-          { role: "user", content: buildExecutePrompt(part, draftMaterial, discourse, piece) },
-        ]
-    : chatHistory.length
-      ? [
-          { role: "system", content: `${modelLoopTuned.s2Frame}${modelLoopTuned.chatSystemPrompt}${modelLoopTuned.searchedVoidSuffix}${modelLoopTuned.notesSuffix}${modelLoopTuned.priorPassSuffix}${modelLoopTuned.chatContext}${ledgerSuffix}${resolutionSuffix}` },
-          ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
-          { role: "user", content: task },
-        ]
-      : [
-          { role: "system", content: `${modelLoopTuned.s2Frame}${modelLoopTuned.chatSystemPrompt}${modelLoopTuned.searchedVoidSuffix}${modelLoopTuned.notesSuffix}${modelLoopTuned.priorPassSuffix}${ledgerSuffix}` },
-          { role: "user", content: `${task}${modelLoopTuned.chatContext}` },
-        ];
+      : chatHistory.length
+        ? [
+            { role: "system", content: `${modelLoopTuned.s2Frame}${modelLoopTuned.chatSystemPrompt}${modelLoopTuned.searchedVoidSuffix}${unretrievedSuffix}${modelLoopTuned.notesSuffix}${modelLoopTuned.priorPassSuffix}${todaySuffix}${modelLoopTuned.chatContext}${ledgerSuffix}${resolutionSuffix}` },
+            ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
+            { role: "user", content: task },
+          ]
+        : [
+            { role: "system", content: `${modelLoopTuned.s2Frame}${modelLoopTuned.chatSystemPrompt}${modelLoopTuned.searchedVoidSuffix}${unretrievedSuffix}${modelLoopTuned.notesSuffix}${modelLoopTuned.priorPassSuffix}${todaySuffix}${ledgerSuffix}` },
+            { role: "user", content: `${task}${modelLoopTuned.chatContext}` },
+          ]
+    : [
+        { role: "system", content: EXECUTE_SYSTEM_PROMPT + resolutionSuffix },
+        { role: "user", content: buildExecutePrompt(part, draftMaterial, discourse, piece) },
+      ];
   // Pipeline-stage snapshot (v2): what actually ran this part, read off
   // runPart's own bindings — never a second computation of it. `depth`
   // itself is not in scope here (runHolonicTask converts it to these
@@ -2916,7 +3161,6 @@ export async function runPart({
   // reader sees (user, 2026-09-07: "awareness in a way that makes future
   // mistakes less likely").
   const absence = qRefs ? absenceOf(qRefs, chunks.length ? chunks : passages, { vocabulary: conversationIndex?.vocabulary ?? null }) : { absent: [], unestablished: [], line: "" };
-  const absent = absence.line;
   const voidsDeclared = [];
   if (absence.absent.length && hyperlexicon?.declareVoid && beliefNotes) {
     const sourcesRead = [...new Set((chunks.length ? chunks : passages).map((c) => c?.source ?? String(c?.ref ?? "").split("#")[0]).filter(Boolean))];
@@ -3150,14 +3394,24 @@ export async function runPart({
   const expectationError = expectation.claims.length ? errorOf(expectation, dialogueClaims, referentIndex) : null;
   const selfRows = transcript.length ? selfContradictions(dialogueClaims, transcript, referentIndex) : [];
   if (position) text = `${position.text}\n\n${text}`.trim();
-  // The line is a check AGAINST something, so it only means anything when
-  // something was actually given — caught live (user, 2026-09-09): with
-  // nothing attached at all, `absenceOf` was declaring every name in a
-  // plain factual question "absent," which is trivially true of an empty
-  // check and reads as noise, not a finding. The void declaration above
-  // (record-only, per its own comment: "awareness... not a line the reader
-  // sees") is untouched either way — this only gates what reaches the text.
-  if (absent && (chunks.length || passages.length)) text = `${text}\n\n${absent}`.trim();
+  // `absent` (absence.line, computed above) is deliberately never appended
+  // to `text` — the comment at its own computation site says so outright:
+  // an absent name is declared a VOID on the ledger, "awareness that
+  // changes what the mouth is given, not a line the reader sees." Found
+  // live (QA battery, 2026-09-09): a plain opinion question ("Are you a
+  // fan of Google or Microsoft?") answered normally, then appended
+  // `The loaded sources establish no referent named "Google", "Microsoft".`
+  // as a raw trailing sentence in the chat bubble — apparatus jargon a
+  // real chatbot user has no way to parse, on a turn with nothing attached
+  // to begin with. This line predates the void-declaration mechanism a few
+  // lines up and was never removed when that mechanism made it redundant;
+  // `addressed.absent`/`addressed.unestablished` a few lines above still
+  // carry the same information as typed metadata for the record/thinking
+  // panel, which is the "record-only" pattern the very next comment block
+  // describes for the sibling `owned` case. (A narrower fix landed on the
+  // other side of this same merge, same day — gate the line on whether
+  // material existed at all, rather than dropping it outright. Superseded:
+  // this full removal already subsumes it, and is the more coherent rule.)
   // THE RECORD OWNS ITS CORRECTIONS (user, 2026-09-07: "I just want it to learn and own its mistakes"): a correction learned in this conversation and in scope of this question is said on the answer, in the record's own words — what was held, what the sources say.
   // Record-only (user, 2026-09-07: "we don't need apologies, just awareness in a way that makes future mistakes less likely"): the awareness is the corrected fact handed back in scope and the guard that catches a repeat; `owned` names them on the record, the answer is not decorated.
   const owned = ownedRows(learnedRows, { since: learnedSince });
@@ -3303,6 +3557,14 @@ export async function runHolonicTask({
   // says why) — a task-wide fact, since a preflight search runs once,
   // before the plan, never per-part.
   searchedVoid = null,
+  // runPart's own header (UNRETRIEVED_MATERIAL_PREFIX) says why this is not
+  // the same fact as `chunks.length`: task-wide, threaded straight through
+  // for the identical reason searchedVoid is.
+  sourcesAttached = false,
+  // The turn's own date (runPart's own header carries the full reasoning),
+  // task-wide for the identical reason searchedVoid is: threaded straight
+  // through, never recomputed per part. null → byte-identical to before.
+  now = null,
   // The measured answer size (void-narration.js::answerShapeLine), task-wide
   // for the identical reason searchedVoid is: the void is declared once per
   // TURN, before any part runs. null → byte-identical to before.
@@ -3523,6 +3785,8 @@ export async function runHolonicTask({
       // when planMode is "flat".
       flat: planMode === "flat",
       searchedVoid,
+      sourcesAttached,
+      now,
       answerShape,
       readerNotes,
       priorPass,

@@ -4758,16 +4758,44 @@ async function factsTurn(argstr, typed) {
       "/facts <n> — compose the top n most-corroborated facts on this workspace's hyperlexicon into one grounded document (crown.js's own model-free sentence render, joined by compose.js — never a model drafting prose). <n> is yours to declare (P9), e.g. /facts 20. A claim never checked against a loaded source before is checked now, against every loaded source; an already-checked claim is read back, not re-spent (P30). Lands as a build in Folds, named \"Grounded facts\" — export it from there. Call again any time (from this chat or another conversation in the same workspace) to revise the same document; every real change is logged as a new version, and an unchanged regeneration appends nothing.",
     );
   const log = state.hyperlexiconLog;
-  const notes = log && hyperlexiconFor.foldWithStanding ? hyperlexiconFor.foldWithStanding(log) : [];
-  if (!notes.length) return usageTurn(typed, "the hyperlexicon is empty — nothing has been heard yet in this workspace, so there is no fact to compose.");
+  const allNotes = log && hyperlexiconFor.foldWithStanding ? hyperlexiconFor.foldWithStanding(log) : [];
+  if (!allNotes.length) return usageTurn(typed, "the hyperlexicon is empty — nothing has been heard yet in this workspace, so there is no fact to compose.");
   const names = Object.keys(state.sources);
   if (!names.length) return usageTurn(typed, "no sources loaded — a fact is composed by checking it against what is loaded, and nothing is.");
+
+  // The hyperlexicon is per-WORKSPACE, so it holds every fact ever heard in
+  // this workspace — including from unrelated earlier turns, other
+  // conversations, and old attachments long since removed. Composing the
+  // globally-most-witnessed claims regardless of topic was a real, found
+  // bug (found live, 2026-09-09, user direction "get it to start working"):
+  // the top-ranked claim in a workspace that had also tested a "favorite
+  // color" question was "Colors make the world interesting and full of
+  // life," witnessed only by old web pages — checked here against
+  // Marie-Curie material it shares nothing with, and of course reading
+  // undetermined every time, honestly, but uselessly. Scope to claims this
+  // reader actually heard FROM one of the sources loaded RIGHT NOW — a
+  // witness/span whose ref names a currently-loaded source — before
+  // ranking by standing. A workspace with real cross-source facts still
+  // composes those; a workspace whose only overlap is stale unrelated
+  // material honestly reports it has nothing current to compose, rather
+  // than silently substituting noise.
+  const nameSet = new Set(names);
+  const refOf = (w) => String(w ?? "").split("~")[0].split("#")[0];
+  const notes = allNotes.filter((note) =>
+    (note.witnesses ?? []).some((w) => nameSet.has(refOf(w))) ||
+    (note.spans ?? []).some((s) => nameSet.has(refOf(s?.ref ?? s?.at))),
+  );
+  if (!notes.length)
+    return usageTurn(
+      typed,
+      `the hyperlexicon holds ${allNotes.length} fact(s), but none of them were heard from what is loaded now (${names.join(", ")}) — only from other material this workspace read earlier. Attach the source(s) these facts should come from, or ask a grounded question against ${names.join(", ")} first so it has something of its own to compose.`,
+    );
 
   addMessage("user", typed);
   const node = addMessage("assistant", "");
   const body = node.querySelector(".body");
-  const slice = notes.slice(0, n); // foldWithStanding's own order: most-witnessed first — a declared order, never invented (compose.js's own rule)
-  body.textContent = `composing: checking ${slice.length} of ${notes.length} fact(s) against ${names.length} source(s)…`;
+  const slice = notes.slice(0, n); // foldWithStanding's own order (post-filter): most-witnessed first — a declared order, never invented (compose.js's own rule)
+  body.textContent = `composing: checking ${slice.length} of ${notes.length} fact(s) heard from ${names.join(", ")}…`;
 
   const items = [];
   let step = 0;
@@ -4775,7 +4803,15 @@ async function factsTurn(argstr, typed) {
     step += 1;
     $("status").textContent = `composing facts · ${step}/${slice.length}`;
     const claim = { end1: note.subject, label: note.verb, end2: note.object };
-    const claimId = await grid.mintClaimId(claim);
+    // mintClaimId's own required parameter names (grid.js) — subject/verb/
+    // object, not end1/label/end2. Found live, 2026-09-09: passing `claim`
+    // directly here (rather than remapped, as crownTestimony already does
+    // correctly a few hundred lines down) minted every claim the identical
+    // id — the hash of {subject: undefined, verb: undefined, object:
+    // undefined} normalizes to the same empty string regardless of input —
+    // so every claim's `perSourceReadings` silently read back every OTHER
+    // claim's history too, merged into one shared, meaningless verdict.
+    const claimId = await grid.mintClaimId({ subject: claim.end1, verb: claim.label, object: claim.end2 });
     let readings = perSourceReadings(grid, state.gridLog, claimId);
     if (!readings.length) {
       // Never checked before — check it now, the same per-source evaluate

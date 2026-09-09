@@ -49,6 +49,19 @@ test("the markdown reads as prose with numbered footnotes of verbatim spans and 
   assert.equal(r.notes, 2, "one note per distinct span, shared by identical spans");
 });
 
+test("named-tier footnotes read as complete English, never a bare 'claim not' fragment glued to what follows", () => {
+  const sections = [{ label: "Opening", sentences: [
+    { text: "Chris Carter believed in aliens.", ground: { tier: "named", cell: "SIG·Ground", phrase: "names established, claim not placed at", addresses: ["web:en.wikipedia.org-0#100-260"], names: ["Chris Carter"] } },
+  ] }];
+  const r = exportPiece({ title: "T", model: "gemma2:2b", sections, passages, urls });
+  // the per-sentence footnote (fn): "claim not" completed with "placed" before the colon that introduces the evidence
+  assert.match(r.md, /\[\^1\]: names established here, the claim not placed: “Chris Carter” — web:en\.wikipedia\.org-0/);
+  // the standing legend (keyLine): "claim not" completed with "placed" before the sentence's own period
+  assert.match(r.md, /n names established, claim not placed\./);
+  // the html notes list carries the identical fix
+  assert.match(r.html, /<li id="note-1">names established here, the claim not placed: <q>Chris Carter<\/q>/);
+});
+
 test("P122: a section's snip check rides the export — a check line under the section in md and html, the object in the sidecar", () => {
   const passages = new Map([["h.txt#0-60", { ref: "h.txt#0-60", text: "The harbor light was built in 1841 by Ada Rowe." }]]);
   const sc = { snips: 3, atoms: 4, supported: 3, flagged: 1, asked: true, outcomes: [{ sentence: "x", outcome: "refused", because: "still" }], contradictions: [], after: { flagged: 1, supported: 3, atoms: 4 }, flags: [{ sentence: "The light was built in 1847.", flags: [{ kind: "year", value: "1847", reason: "absent" }], contradiction: { ref: "h.txt#0-60", start: 0, end: 47, snipYears: ["1841"] } }] };

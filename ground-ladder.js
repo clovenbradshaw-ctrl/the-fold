@@ -117,7 +117,17 @@ export function groundOf(sentence, ctx = {}) {
     const names = namesIn(sentence);
     const established = [];
     for (const nm of names) { let ids; try { ids = resolveName(nm); } catch { ids = null; } if (ids && (ids.size ?? ids.length ?? 0) > 0) { const ref = passageHolding(nm, passages); established.push({ name: nm, ref }); } }
-    if (established.length) return { tier: "named", cell: CELL_OF.named, addresses: [...new Set(established.map((e) => e.ref).filter(Boolean))], phrase: "names established, claim not", detail: `${established.map((e) => e.name).join(", ")} resolve to referents the material establishes; the claim itself was not placed`, names: established.map((e) => e.name), reached };
+    if (established.length) {
+      const addresses = [...new Set(established.map((e) => e.ref).filter(Boolean))];
+      // `phrase` is a fragment meant to read naturally once groundLine()
+      // appends an address after it (measured 2026-09-09: the chip read
+      // "names established, claim not web:search-results#0-2645" — a raw
+      // address glued onto a dangling "not" with no connecting word). "at"
+      // only completes the fragment when an address actually follows; with
+      // none, "claim not placed" stands alone rather than trailing on a
+      // bare preposition.
+      return { tier: "named", cell: CELL_OF.named, addresses, phrase: addresses.length ? "names established, claim not placed at" : "names established, claim not placed", detail: `${established.map((e) => e.name).join(", ")} resolve to referents the material establishes; the claim itself was not placed`, names: established.map((e) => e.name), reached };
+    }
   }
   // 7. self
   const refused = witness?.witness === "refused";

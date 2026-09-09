@@ -20,6 +20,21 @@ test("the ladder places a sentence on its highest rung and names the cell backst
   assert.equal(dv.tier, "derived"); assert.deepEqual(dv.addresses, ["p1", "p2"]);
   const named = groundOf("Amelia Hartley loved comets.", ctx);
   assert.equal(named.tier, "named"); assert.deepEqual(named.names, ["Amelia Hartley"]); assert.deepEqual(named.addresses, ["a.txt#0-60"]);
+  // groundLine() concatenates phrase + address with a bare space (no connecting
+  // word of its own) — the "named" tier's phrase must supply that connector
+  // itself, or the chip reads as a broken sentence fragment glued to a raw
+  // address (measured live 2026-09-09: "names established, claim not
+  // web:search-results#0-2645").
+  assert.equal(groundLine(named), "names established, claim not placed at a.txt#0-60");
+  // A name can resolve to a known referent (resolveName succeeds) while the
+  // PASSAGES HANDED TO THIS SENTENCE never state it (passageHolding finds no
+  // match) — established.length > 0 with every ref null, so addresses is
+  // empty. The phrase must not trail on the bare preposition "at" with
+  // nothing to follow it.
+  const namedNoAddress = groundOf("The Hartley Prize honors astronomers.", ctx);
+  assert.equal(namedNoAddress.tier, "named");
+  assert.deepEqual(namedNoAddress.addresses, [], "the name resolves, but no given passage states it");
+  assert.equal(groundLine(namedNoAddress), "names established, claim not placed", "with no address to append, the phrase must stand alone rather than dangle on a bare preposition");
   const self = groundOf("The show ran nine seasons.", { ...ctx, witness: { witness: "refused" } });
   assert.equal(self.tier, "self"); assert.equal(self.cell, "self:model"); assert.equal(groundLine(self), "gemma2:2b — no source states this");
   const unasked = groundOf("The show ran nine seasons.", { ...ctx, witness: { witness: "skipped", why: "budget" } });

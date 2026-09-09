@@ -288,6 +288,7 @@ import { declaredForm as declaredFormOf, declaredGenre } from "./shape.js";
 import { holographOf, rowsFor, flattenRows, turnsOf, LEVELS as HOLOGRAPH_LEVELS } from "./holograph.js";
 import { run as runQuery, say as sayQuery } from "./eoql.js";
 import { graphOf, place as placeGraph, draw as drawGraph } from "./holograph-graph.js";
+import { DEFAULT_MODEL_LOOP, getActiveModelLoop, setActiveModelLoop, getLastCapturedTurn, loopGraphFor, previewFor } from "./model-loops.js";
 import { namesIn } from "./ground-ladder.js";
 import { declaredSlotShape } from "./web-claim.js";
 import { cellOf, GRAINS, TERRAIN_BY_DOMAIN, isCurrentOperator } from "/engine-v7/kernel/cube.js";
@@ -1243,6 +1244,13 @@ let viewMode = (() => { try { return localStorage.getItem("fold-view-mode") === 
 // cannot be both folded and expanded.
 let panelWide = (() => { try { return localStorage.getItem("fold-panel-wide") === "1"; } catch { return false; } })();
 let panelCollapsed = (() => { try { return localStorage.getItem("fold-panel-collapsed") === "1"; } catch { return false; } })();
+// Declared HERE for the identical reason as panelWide, just above: showView
+// runs during boot and MORE_GROUP is one of its own free variables, so a
+// declaration beside the function that uses it (which is where this first
+// lived) put boot in the same temporal dead trap panelWide's own comment
+// already names — caught live, 2026-09-08, the "More" tab's own first click.
+const MORE_GROUP = ["resources", "holograph", "wiring", "github"];
+let lastMorePane = MORE_GROUP[0];
 function setViewMode(mode) {
   viewMode = mode === "eot" ? "eot" : "text";
   try { localStorage.setItem("fold-view-mode", viewMode); } catch { /* a private window keeps it for the session */ }
@@ -7317,7 +7325,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   loopsEl.className = "loops";
   loopsEl.hidden = true;
   body.before(loopsEl);
-  const drawLoops = () => { renderLoopCards(loopsEl, { turn: turnNo, convo: convoNo }); if ($("pane-holograph")?.classList.contains("on")) renderHolograph(); };
+  const drawLoops = () => { renderLoopCards(loopsEl, { turn: turnNo, convo: convoNo }); if ($("pane-holograph")?.classList.contains("on")) renderHolograph(); if ($("pane-wiring")?.classList.contains("on")) renderWiring(); };
   const landTurnLoops = (acts) => { const r = landLoops(acts); drawLoops(); return r; };
 
   // Already logged once by twoPassTurn's own S1 leg when this is S2 — the
@@ -13167,6 +13175,236 @@ if (localStorage.getItem("fold-marks") === "off") document.body.classList.add("m
   };
 }
 
+// ── Wiring (model-loops.js) ──────────────────────────────────────────────────
+// The last chat turn's real prompt ingredients, as nodes on the SAME graph
+// engine holograph-graph.js already draws (place()/draw(), reused whole —
+// "off"/"overridden" are new states on the identical hg-state-* hook draw()
+// already emits, nothing added there). A saved model-loop is a named set of
+// per-ingredient enable/override choices; switching one re-tunes the SAME
+// captured turn instantly, no new chat message needed.
+let wiringLoopsCache = null; // [{id, name}, …] from the server, "default" first
+let wiringPick = null; // which ingredient key the drawer is open on
+let wiringActiveId = (() => { try { return localStorage.getItem("fold-model-loop") || DEFAULT_MODEL_LOOP.id; } catch { return DEFAULT_MODEL_LOOP.id; } })();
+
+async function wiringFetchLoops() {
+  try {
+    const data = await (await fetch(`${EXPLORE_BASE}/api/model-loops`)).json();
+    wiringLoopsCache = data.loops?.length ? data.loops : [{ id: DEFAULT_MODEL_LOOP.id, name: DEFAULT_MODEL_LOOP.name }];
+  } catch {
+    wiringLoopsCache = [{ id: DEFAULT_MODEL_LOOP.id, name: DEFAULT_MODEL_LOOP.name }];
+  }
+  return wiringLoopsCache;
+}
+
+async function wiringActivate(id) {
+  let loop = DEFAULT_MODEL_LOOP;
+  if (id !== DEFAULT_MODEL_LOOP.id) {
+    try {
+      const data = await (await fetch(`${EXPLORE_BASE}/api/model-loops?id=${encodeURIComponent(id)}`)).json();
+      if (data?.loop) loop = data.loop;
+    } catch { /* explore-server not reachable — the default keeps running */ }
+  }
+  setActiveModelLoop(loop);
+  wiringActiveId = loop.id;
+  try { localStorage.setItem("fold-model-loop", wiringActiveId); } catch { /* kept for the session */ }
+  wiringPick = null;
+  const drawer = $("wiring-drawer");
+  if (drawer) drawer.hidden = true;
+  renderWiring();
+}
+
+async function renderWiring() {
+  const host = $("wiring-graph");
+  if (!host) return;
+  wiringWireDrawerOnce();
+  if (!wiringLoopsCache) await wiringFetchLoops();
+  renderWiringLoopsBar();
+  const captured = getLastCapturedTurn();
+  if (!captured) {
+    host.replaceChildren();
+    const p = document.createElement("p");
+    p.className = "wiring-empty";
+    p.textContent = "Send a chat message first — this canvas draws that turn's own real prompt ingredients, never a simulation of them.";
+    host.append(p);
+    renderWiringSent(null);
+    return;
+  }
+  const loop = getActiveModelLoop();
+  const graph = loopGraphFor(captured, loop);
+  const width = Math.max(300, host.clientWidth || 600);
+  const placed = placeGraph(graph, { width, layerHeight: 62, fontSize: 11 });
+  host.replaceChildren(drawGraph(document, graph, placed, {
+    onPick: (row) => { if (!row) return; wiringPick = row.key; openWiringDrawer(row); },
+  }));
+  renderWiringSent(captured);
+}
+
+function renderWiringLoopsBar() {
+  const bar = $("wiring-loops");
+  if (!bar) return;
+  bar.replaceChildren();
+  for (const l of wiringLoopsCache ?? []) {
+    const wrap = document.createElement("span");
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = `seg${l.id === wiringActiveId ? " active" : ""}`;
+    b.textContent = l.name;
+    b.title = l.id === DEFAULT_MODEL_LOOP.id ? "the wiring already running today — cannot be edited in place, duplicate it with + New" : l.id;
+    b.addEventListener("click", () => wiringActivate(l.id));
+    wrap.append(b);
+    if (l.id !== DEFAULT_MODEL_LOOP.id) {
+      const actions = document.createElement("span");
+      actions.className = "seg-actions";
+      const del = document.createElement("button");
+      del.type = "button"; del.textContent = "✕"; del.title = `delete ${l.name}`;
+      del.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        try { await fetch(`${EXPLORE_BASE}/api/model-loops?id=${encodeURIComponent(l.id)}`, { method: "DELETE" }); } catch { /* nothing more to do locally */ }
+        wiringLoopsCache = null;
+        if (wiringActiveId === l.id) { await wiringActivate(DEFAULT_MODEL_LOOP.id); return; }
+        renderWiring();
+      });
+      actions.append(del);
+      wrap.append(actions);
+    }
+    bar.append(wrap);
+  }
+  const add = document.createElement("button");
+  add.type = "button"; add.className = "seg new"; add.textContent = "+ New";
+  add.title = "save the active loop's current toggles/overrides under a new name";
+  add.addEventListener("click", wiringCreateLoop);
+  bar.append(add);
+}
+
+async function wiringSaveLoop(name, nodes) {
+  try {
+    return await (await fetch(`${EXPLORE_BASE}/api/model-loops`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, nodes }),
+    })).json();
+  } catch {
+    wiringStatus("explore-server.mjs is not reachable on :8812 — a model-loop needs it to save.");
+    return null;
+  }
+}
+
+function wiringStatus(text) {
+  const s = $("wiring-status");
+  if (!s) return;
+  s.textContent = text;
+  s.hidden = false;
+  clearTimeout(wiringStatus._t);
+  wiringStatus._t = setTimeout(() => { s.hidden = true; }, 5000);
+}
+
+async function wiringCreateLoop() {
+  const active = getActiveModelLoop();
+  const name = await wiringPromptName(active.id === DEFAULT_MODEL_LOOP.id ? "" : `${active.name} copy`);
+  if (!name) return;
+  const data = await wiringSaveLoop(name, active.nodes ?? {});
+  if (!data?.loop) return;
+  wiringLoopsCache = null;
+  await wiringActivate(data.loop.id);
+}
+
+/** wiringPromptName(defaultValue) → Promise<string|null> — an inline
+ * name field beside the loop switcher (never a native prompt(), which
+ * this app uses nowhere else and which sandboxed/embedded contexts can
+ * refuse outright). Resolves to the trimmed name on save, null on cancel
+ * or an empty name. */
+function wiringPromptName(defaultValue = "") {
+  return new Promise((resolve) => {
+    const row = $("wiring-name-row");
+    const input = $("wiring-name-input");
+    if (!row || !input) { resolve(null); return; }
+    input.value = defaultValue;
+    row.hidden = false;
+    input.focus();
+    input.select();
+    const done = (value) => { row.hidden = true; cleanup(); resolve(value); };
+    const onSave = () => done(input.value.trim() || null);
+    const onCancel = () => done(null);
+    const onKey = (ev) => { if (ev.key === "Enter") onSave(); else if (ev.key === "Escape") onCancel(); };
+    const cleanup = () => {
+      $("wiring-name-save").removeEventListener("click", onSave);
+      $("wiring-name-cancel").removeEventListener("click", onCancel);
+      input.removeEventListener("keydown", onKey);
+    };
+    $("wiring-name-save").addEventListener("click", onSave);
+    $("wiring-name-cancel").addEventListener("click", onCancel);
+    input.addEventListener("keydown", onKey);
+  });
+}
+
+function openWiringDrawer(row) {
+  const drawer = $("wiring-drawer");
+  if (!drawer || !row) return;
+  drawer.hidden = false;
+  $("wiring-drawer-title").textContent = row.key;
+  const loop = getActiveModelLoop();
+  const node = loop?.nodes?.[row.key];
+  $("wiring-enabled").checked = node?.enabled !== false;
+  $("wiring-computed").textContent = row.computed || "(empty this turn)";
+  $("wiring-override").value = typeof node?.override === "string" ? node.override : "";
+}
+
+function wiringWireDrawerOnce() {
+  const drawer = $("wiring-drawer");
+  if (!drawer || drawer.dataset.wired) return;
+  drawer.dataset.wired = "1";
+  $("wiring-drawer-close").addEventListener("click", () => { drawer.hidden = true; wiringPick = null; });
+  $("wiring-save-node").addEventListener("click", wiringSaveNode);
+}
+
+async function wiringSaveNode() {
+  const key = wiringPick;
+  if (!key) return;
+  const loop = getActiveModelLoop();
+  const enabled = $("wiring-enabled").checked;
+  const overrideText = $("wiring-override").value;
+  const nodes = { ...(loop.nodes ?? {}) };
+  if (!enabled) nodes[key] = { enabled: false };
+  else if (overrideText.trim()) nodes[key] = { override: overrideText };
+  else delete nodes[key];
+  await wiringApplyLoop({ ...loop, nodes });
+}
+
+/** wiringApplyLoop(nextLoop) — makes nextLoop the active loop and persists
+ * it. Editing the shipped default forks it into a new loop (named on the
+ * spot), since the default ships from code and this server refuses to
+ * overwrite it — the same "+ New" flow, triggered by the first edit. */
+async function wiringApplyLoop(nextLoop) {
+  if (nextLoop.id === DEFAULT_MODEL_LOOP.id) {
+    const name = await wiringPromptName("My loop");
+    if (!name) return;
+    const data = await wiringSaveLoop(name, nextLoop.nodes);
+    if (!data?.loop) return;
+    wiringLoopsCache = null;
+    await wiringActivate(data.loop.id);
+    return;
+  }
+  setActiveModelLoop(nextLoop);
+  try {
+    await fetch(`${EXPLORE_BASE}/api/model-loops`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: nextLoop.id, name: nextLoop.name, nodes: nextLoop.nodes }),
+    });
+  } catch { /* the change still applies for this session even if the save failed */ }
+  renderWiring();
+}
+
+function renderWiringSent(captured) {
+  const pre = $("wiring-sent");
+  if (!pre) return;
+  if (!captured) { pre.textContent = "(no turn captured yet)"; return; }
+  const preview = previewFor(captured, getActiveModelLoop());
+  pre.textContent = preview?.parts.length
+    ? preview.parts.map((p) => `[${p.key}]\n${p.value}`).join("\n\n")
+    : "(nothing — every ingredient this shape uses is empty or switched off)";
+}
+
 // ── views ────────────────────────────────────────────────────────────────────
 //
 // Wide, the chat and the panels sit side by side and the tabs switch only the
@@ -13174,14 +13412,23 @@ if (localStorage.getItem("fold-marks") === "off") document.body.classList.add("m
 // and the same click does both jobs. The editor and the terminal are panes
 // with no tab of their own — they open from a build or from its control.
 
+// Resources/Holograph/Wiring/GitHub are grouped behind one "More" tab
+// (2026-09-08, "too many tabs" — four peer tabs made the mobile bar
+// unreadable and the folded side-rail a long vertical scroll). They still
+// have their own tab-shaped buttons, in #more-subnav; MORE_GROUP (declared
+// above, beside panelWide) is what lets the top-level "More" tab show as
+// selected while any of the four is the active view, without a second
+// piece of state to keep in sync.
 function showView(name) {
   // Leaving the editor is an act: an uncommitted draft becomes a SUPERSEDE
   // on the way out, so the builds panel and the download never show older
   // bytes than the newest work (commitDraft is a no-op when there is none).
   if (name !== "editor") commitDraft(editorBuild);
   document.body.dataset.view = name;
+  if (MORE_GROUP.includes(name)) lastMorePane = name;
+  const tabName = MORE_GROUP.includes(name) ? "more" : name;
   for (const t of document.querySelectorAll('[role="tab"]'))
-    t.setAttribute("aria-selected", String(t.dataset.pane === name));
+    t.setAttribute("aria-selected", String(t.dataset.pane === name || t.dataset.pane === tabName));
   if (name === "chat") return; // the panels keep whichever pane they had
   for (const p of document.querySelectorAll(".pane"))
     p.classList.toggle("on", p.id === `pane-${name}`);
@@ -13189,12 +13436,19 @@ function showView(name) {
   if (name === "resources") renderResources();
   if (name === "editor") editorLayout();
   if (name === "holograph") renderHolograph();
+  if (name === "wiring") renderWiring();
 }
 
 for (const tab of document.querySelectorAll('[role="tab"]'))
   // A tab pressed while the panel is collapsed OPENS it on that pane: a tab
-  // that selects a thing nobody can see is not a tab.
-  tab.onclick = () => { if (panelCollapsed && tab.dataset.pane !== "chat") setPanelCollapsed(false); showView(tab.dataset.pane); };
+  // that selects a thing nobody can see is not a tab. The top-level "More"
+  // tab has no pane of its own — it opens whichever of the four was seen
+  // last (the first time, MORE_GROUP's own first entry).
+  tab.onclick = () => {
+    const pane = tab.dataset.pane === "more" ? lastMorePane : tab.dataset.pane;
+    if (panelCollapsed && pane !== "chat") setPanelCollapsed(false);
+    showView(pane);
+  };
 
 // THE PANEL AT FULL WIDTH (user, 2026-09-08). One class on <body>; the
 // conversation column keeps its own tabs as a rail (index.html carries the
@@ -13215,6 +13469,7 @@ function setPanelWide(on) {
   // The drawing is measured against the pane it is drawn in, so a width
   // change is a redraw, not a reflow (holograph-graph.js::place).
   if (document.body.dataset.view === "holograph") renderHolograph();
+  if (document.body.dataset.view === "wiring") renderWiring();
 }
 function setPanelCollapsed(on) {
   panelCollapsed = !!on;

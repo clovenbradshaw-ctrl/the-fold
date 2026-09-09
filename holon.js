@@ -69,6 +69,7 @@ import { parseSegments } from "./artifact.js";
 import { admitPassages } from "./read-on-arrival.js";
 import { asksAboutMaterial, materialView, abbreviate, aboutBlock } from "./about.js";
 import { interpretAsk } from "./about-call.js";
+import { getActiveModelLoop, applyModelLoop, captureLastTurn } from "./model-loops.js";
 
 // ── the decomposition gate ───────────────────────────────────────────────────
 //
@@ -2173,23 +2174,43 @@ export async function runPart({
   const compress = activated || material === "snips" || (material === "auto" && resolutions >= 2);
   const handed = activated ? "activated sentences" : compress ? (snipPrefix ? "snips" : "passages (no snips to hand)") : "passages";
   const rawSource = compress && snipPrefix ? null : (factBlock ? (spanBlock ?? dedupedSourceBlock) : dedupedSourceBlock);
-  const draftMaterial = [comparisonLine, declaredLine, aboutLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, factBlock ? factBlock.text : null, ledgerBlock, rawSource].filter(Boolean).join("\n\n");
+  // THE THREE RESOLUTIONS (resolutions.js): computed from the record, cut by the measurement, templated — never written by a model. The conversation-wide index is the caller's; this part's index stands in only when none was handed over, and the block says so.
+  const resolution = resolutions > 0 ? resolutionBlocks({ level: resolutions, question: task || question, transcript, index: conversationIndex ?? referentIndex, notes: foldedNotes, voids: Array.isArray(hyperlexiconVoids) && hyperlexiconVoids.length ? hyperlexiconVoids : (hyperlexicon?.foldVoids && beliefNotes ? (() => { try { return hyperlexicon.foldVoids(beliefNotes); } catch { return []; } })() : []), records, dmdWindow, prominence: mentionBook ? (id) => (mentionBook.byId?.get(id)?.length ?? 0) : null }) : null;
+  // Model-loops (model-loops.js): every named block/suffix below is tuned
+  // through the active model-loop before it is joined into the prompt —
+  // a no-op for the default loop, so nothing here changes unless a saved
+  // loop says to. Downstream checking (grounding, citations, the
+  // correction loop) still reads the ORIGINAL locals above, never the
+  // tuned copy — an override changes what the model is asked, never what
+  // its answer is checked against. The RAW ingredients (below) are what
+  // gets captured for the canvas — never the tuned copy — so switching
+  // the active loop later re-tunes against the real mechanism's output
+  // rather than against whatever loop happened to be active this turn.
+  const modelLoopIngredients = {
+    comparisonLine, declaredLine, aboutLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock,
+    factBlockText: factBlock ? factBlock.text : null,
+    ledgerBlock, rawSource,
+    resolutionText: resolution?.text ?? null,
+    s2Frame, flatExecuteSystemPrompt: FLAT_EXECUTE_SYSTEM_PROMPT, chatSystemPrompt: CHAT_SYSTEM_PROMPT,
+    shapeSuffix, notesSuffix, priorPassSuffix, searchedVoidSuffix, chatContext,
+  };
+  const modelLoopTuned = applyModelLoop(modelLoopIngredients, getActiveModelLoop());
+  const draftMaterial = [modelLoopTuned.comparisonLine, modelLoopTuned.declaredLine, modelLoopTuned.aboutLine, modelLoopTuned.recalledLine, modelLoopTuned.snipPrefix, modelLoopTuned.premiseBlock, modelLoopTuned.dialogueBlock, modelLoopTuned.learnedBlock, modelLoopTuned.factBlockText, modelLoopTuned.ledgerBlock, modelLoopTuned.rawSource].filter(Boolean).join("\n\n");
   // A turn with nothing attached is exactly the turn that should stand on
   // what was read BEFORE — until 2026-09-03 the ledger block reached only
   // the material branches, so a from-memory question never saw the ledger
   // at all (found by the P84 pin: the materialless path sent none of it).
   // It rides the system message as a fact the model receives (P55's
   // posture), never as an instruction about the apparatus.
-  const ledgerSuffix = ledgerBlock ? `\n\n${ledgerBlock}` : "";
-  // THE THREE RESOLUTIONS (resolutions.js): computed from the record, cut by the measurement, templated — never written by a model. The conversation-wide index is the caller's; this part's index stands in only when none was handed over, and the block says so.
-  const resolution = resolutions > 0 ? resolutionBlocks({ level: resolutions, question: task || question, transcript, index: conversationIndex ?? referentIndex, notes: foldedNotes, voids: Array.isArray(hyperlexiconVoids) && hyperlexiconVoids.length ? hyperlexiconVoids : (hyperlexicon?.foldVoids && beliefNotes ? (() => { try { return hyperlexicon.foldVoids(beliefNotes); } catch { return []; } })() : []), records, dmdWindow, prominence: mentionBook ? (id) => (mentionBook.byId?.get(id)?.length ?? 0) : null }) : null;
-  const resolutionSuffix = resolution?.text ? `\n\n${resolution.text}` : "";
+  const ledgerSuffix = modelLoopTuned.ledgerBlock ? `\n\n${modelLoopTuned.ledgerBlock}` : "";
+  const resolutionSuffix = modelLoopTuned.resolutionText ? `\n\n${modelLoopTuned.resolutionText}` : "";
+  const modelLoopShape = passages.length ? (flat ? "flat-material" : "execute-part") : (chatHistory.length ? "chat-history" : "chat-bare");
   const executeMessages = passages.length
     ? flat
       ? [
           {
             role: "system",
-            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + shapeSuffix + notesSuffix + priorPassSuffix, draftMaterial].join("\n\n") + chatContext + resolutionSuffix,
+            content: [modelLoopTuned.s2Frame + modelLoopTuned.flatExecuteSystemPrompt + modelLoopTuned.shapeSuffix + modelLoopTuned.notesSuffix + modelLoopTuned.priorPassSuffix, draftMaterial].join("\n\n") + modelLoopTuned.chatContext + resolutionSuffix,
           },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task || `${part.label}. ${part.description}` },
@@ -2200,14 +2221,15 @@ export async function runPart({
         ]
     : chatHistory.length
       ? [
-          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${notesSuffix}${priorPassSuffix}${chatContext}${ledgerSuffix}${resolutionSuffix}` },
+          { role: "system", content: `${modelLoopTuned.s2Frame}${modelLoopTuned.chatSystemPrompt}${modelLoopTuned.searchedVoidSuffix}${modelLoopTuned.notesSuffix}${modelLoopTuned.priorPassSuffix}${modelLoopTuned.chatContext}${ledgerSuffix}${resolutionSuffix}` },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task },
         ]
       : [
-          { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${notesSuffix}${priorPassSuffix}${ledgerSuffix}` },
-          { role: "user", content: `${task}${chatContext}` },
+          { role: "system", content: `${modelLoopTuned.s2Frame}${modelLoopTuned.chatSystemPrompt}${modelLoopTuned.searchedVoidSuffix}${modelLoopTuned.notesSuffix}${modelLoopTuned.priorPassSuffix}${ledgerSuffix}` },
+          { role: "user", content: `${task}${modelLoopTuned.chatContext}` },
         ];
+  captureLastTurn(modelLoopIngredients, modelLoopShape);
   onProgress?.("execute", part, {
     // What this call will actually carry — the page's pace ledger turns it
     // into an expected duration.

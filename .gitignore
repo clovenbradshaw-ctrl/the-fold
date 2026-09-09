@@ -18,6 +18,7 @@ materials/
 web/
 library/
 priors/
+model-loops/
 .venv/
 
 # the in-tab model's mirrored weights (P21) — re-fetched, never committed:

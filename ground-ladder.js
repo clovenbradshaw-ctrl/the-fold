@@ -194,7 +194,11 @@ export function groundOf(sentence, ctx = {}) {
   }
   // 7. self
   const refused = witness?.witness === "refused";
-  return { tier: "self", cell: CELL_OF.self, addresses: [], phrase: model ? `${model}` : "the model", detail: refused ? "the witness was asked and no passage states it; this is the model's own testimony" : reached.witness ? "no rung placed it; the model's own testimony" : "no rung placed it and the witness was not asked (budget); the model's own testimony, unexamined", refused, reached };
+  // Trailing periods matter here: app.js's mark detail appends its own
+  // sentence directly after this one with a bare space (found live,
+  // 2026-09-09: "...this is the model's own testimony There is nothing to
+  // cite here..." ran two sentences together with no punctuation between).
+  return { tier: "self", cell: CELL_OF.self, addresses: [], phrase: model ? `${model}` : "the model", detail: refused ? "the witness was asked and no passage states it; this is the model's own testimony." : reached.witness ? "no rung placed it; the model's own testimony." : "no rung placed it and the witness was not asked (budget); the model's own testimony, unexamined.", refused, reached };
 }
 
 /** The reader's line for a ground, plain words and addresses. */

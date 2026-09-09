@@ -1625,6 +1625,46 @@
       .artifact-doc p { margin: 0 0 0.9em; }
       .artifact-doc hr { border: 0; border-top: 1px solid var(--line); margin: 1.2em 0; }
       .artifact-doc em { color: var(--muted); }
+      /* The References section — a citation style is a display choice
+         over the document's own real anchors (app.js's artifactNode), so
+         the cycle button re-renders only this list, instantly, never the
+         document itself. */
+      .artifact-refs {
+        padding: 14px 20px 18px;
+        border-top: 1px solid var(--line);
+        background: var(--bg);
+      }
+      .artifact-refs-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .style-cycle {
+        font: inherit;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 2px 8px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      .style-cycle:hover { border-color: var(--accent); color: var(--accent); }
+      .artifact-refs-list {
+        margin: 0;
+        padding-left: 1.4em;
+        font-size: 13px;
+        line-height: 1.55;
+        color: var(--ink);
+      }
+      .artifact-refs-list li { margin-bottom: 0.5em; }
       .artifact iframe {
         display: block;
         width: 100%;

@@ -131,6 +131,7 @@ import { reduce as audioReduce } from "../eoreader7/native/adapters/audio/reduce
 import { createDeclarationLog, proposeCandidate as proposeDeclaration, promote as promoteDeclaration, foldDeclarations } from "/engine-v7/interpretation/declarations.js";
 import { renderCrown } from "./crown.js";
 import { compose, coverageLine } from "./compose.js";
+import { formatReference, CITATION_STYLES, DEFAULT_CITATION_STYLE } from "./citation-style.js";
 
 import { transcribeBlob, fetchAudioFromUrl, WHISPER_DISCLOSURE } from "./transcribe.js";
 import { passagesFromSegments, citeAudio, AUDIO_STANDING } from "./audio-address.js";
@@ -1784,6 +1785,15 @@ const state = {
    * no claim taken to the web. Set from the header toggle; read per turn.
    */
   grounded: localStorage.getItem("fold-marks") !== "off",
+
+  /**
+   * Which style a composed document's References section prints in
+   * (citation-style.js) — a pure display choice over the SAME underlying
+   * byte-addressed anchors either way, never a re-compose. App-level, not
+   * per-conversation or per-workspace: it is about how this reader wants
+   * to SEE a citation, not a fact about any one document.
+   */
+  citationStyle: CITATION_STYLES[localStorage.getItem("fold-citation-style")] ? localStorage.getItem("fold-citation-style") : DEFAULT_CITATION_STYLE,
 
   /**
    * The thinking-depth slider (P123, depth.js): 0 quick · 1 plain (today's
@@ -4750,6 +4760,44 @@ function findFactsBuild() {
   return state.builds.find((b) => b.kind !== "database" && buildFold(b, null)?.caption === FACTS_CAPTION) ?? null;
 }
 
+/**
+ * What this instrument actually knows about a loaded source, for a
+ * References line (citation-style.js) — read straight off state, never
+ * asked of a model. User direction, 2026-09-09: "no model rewriting the
+ * source name and date stuff either." A field this instrument was never
+ * told is `null` here and stays a disclosed gap all the way to the
+ * rendered line ("n.d.", no site) — never guessed, never left to a
+ * draft's own paraphrase of its source.
+ *
+ * `accessedOn` is the one field manufactured rather than read: not a
+ * stored timestamp (none is kept per source today — a disclosed gap of
+ * its own), but `new Date()` at the moment a reference is RENDERED. That is
+ * still an honest fact, just not the one a citation usually reports: this
+ * instrument is reporting when IT is looking at the source, same as any
+ * reader citing a page that might change under them.
+ */
+function sourceMeta(name) {
+  const prov = state.provenance[name] ?? null;
+  const face = state.pageFaces[name] ?? null;
+  const fields = prov?.fields ?? {};
+  const url = face?.url ?? fields.url ?? null;
+  const host = face?.host ?? (url ? hostOf(url) : null);
+  // provenance.js's own `line` is a free-text display string built for a
+  // reader's eye ("Title — host"), not a structured field — split only
+  // the one shape it is actually built in (addPageFace's own template,
+  // above), and only ever for a TITLE; never guess an author out of it.
+  const title = fields.title ?? (prov?.line?.includes(" — ") ? prov.line.split(" — ")[0] : null);
+  return {
+    name,
+    title,
+    author: fields.author ?? null,
+    site: host ?? fields.site ?? null,
+    url,
+    accessedOn: new Date(),
+    kind: url ? "web" : "attached",
+  };
+}
+
 async function factsTurn(argstr, typed) {
   const n = Number((argstr ?? "").trim());
   if (!Number.isInteger(n) || n < 1)
@@ -4830,9 +4878,26 @@ async function factsTurn(argstr, typed) {
   syncRecords();
 
   const result = compose(items, { renderClaim: (merged) => renderCrown(merged), orderBy: (a, b) => a.order - b.order });
+  // Every composed sentence gets its own real, byte-addressed anchor —
+  // the SAME `[ref#a-b]` bracket syntax the rest of this app already
+  // renders as a clickable "read these bytes back" control (refNodes,
+  // reopen) — so a reader can open the exact span and confirm the
+  // sentence is verbatim-backed, not a model's paraphrase wearing a
+  // citation (user direction, 2026-09-09: "we need these to be real
+  // anchors to the source spans... so we know its verbatim, no model
+  // paraphrasing"). Pulled straight from the winning reading's own edges
+  // — never asked of a model, never invented when a claim genuinely has
+  // no ref (a self-witness hold, say): that sentence simply carries none.
+  const anchorsFor = (claim) => {
+    const item = items.find((it) => it.claim === claim);
+    const refs = (item?.merged?.holds ?? []).flatMap((h) => (h.edges ?? []).flatMap((e) => e.refs ?? []));
+    return [...new Set(refs)];
+  };
   const text = result.refused
     ? `(nothing composed: ${result.refused.detail})`
-    : result.text || "(every checked fact came back undetermined — nothing here is composed enough yet to state as a document.)";
+    : result.sentences.length
+      ? result.sentences.map((s) => `${s.text}${anchorsFor(s.claim).map((r) => ` [${r}]`).join("")}`).join(" ")
+      : "(every checked fact came back undetermined — nothing here is composed enough yet to state as a document.)";
   const doc = `# ${FACTS_CAPTION}\n\n${text}\n\n---\n\n*${coverageLine(result)}*`;
 
   let entry = findFactsBuild();
@@ -12714,16 +12779,67 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
     // a monospace code box — correct for code, wrong for a document meant
     // to be READ (user direction, 2026-09-09: "it can be a more handsome
     // document than that"). Same renderer the chat answer's own prose uses
-    // (render.js), plain-text inline (no grounding marks — this is a
-    // composed document, not a checked turn to overlay marks onto), so
-    // headings/paragraphs/lists read as a document rather than a wall of
-    // literal "#"/"-" characters. Editing still opens the real source (the
-    // fold's own ✎ edit button, unchanged) — this only changes how the
-    // built version is READ.
+    // (render.js), so headings/paragraphs/lists read as a document rather
+    // than a wall of literal "#"/"-" characters. Editing still opens the
+    // real source (the fold's own ✎ edit button, unchanged) — this only
+    // changes how the built version is READ.
+    //
+    // Every `[ref#a-b]` bracket the text carries is rendered as a real,
+    // clickable anchor (refNodes/reopen — the SAME control the chat
+    // surface's own citations use) rather than plain text: this text was
+    // never drafted by a model, it was mechanically composed
+    // (factsTurn/compose.js) from evaluated claims, so — unlike a model's
+    // own prose, where an unresolved bracket is treated as suspect — every
+    // bracket here is trusted as real and pre-scanned into `known` before
+    // rendering.
+    const text = code ?? seg.code;
+    const known = new Set([...text.matchAll(REF_IN_TEXT)].map((m) => m[1]));
     const doc = document.createElement("div");
     doc.className = "artifact-doc";
-    renderBlocksInto(doc, code ?? seg.code, (chunk) => [document.createTextNode(chunk)]);
+    renderBlocksInto(doc, text, (chunk) => refNodes(chunk, known));
     art.append(doc);
+
+    // The References section — built from the SAME anchors just rendered,
+    // never separately stored: a citation style is a display choice over
+    // one set of real addresses, so toggling it is a free, local re-render,
+    // and it can never drift from what the document actually cites. Only
+    // the facts document carries this; an ordinary markdown build (there
+    // is none yet, but the check costs nothing) is left as prose alone.
+    if (caption === FACTS_CAPTION && known.size) {
+      const names = [...new Set([...known].map((r) => r.split("#")[0]))];
+      const refsBox = document.createElement("div");
+      refsBox.className = "artifact-refs";
+      const head = document.createElement("div");
+      head.className = "artifact-refs-head";
+      const label = document.createElement("span");
+      label.textContent = "References";
+      const styleBtn = document.createElement("button");
+      styleBtn.type = "button";
+      styleBtn.className = "style-cycle";
+      const list = document.createElement("ol");
+      list.className = "artifact-refs-list";
+      const renderList = () => {
+        styleBtn.textContent = CITATION_STYLES[state.citationStyle]?.label ?? state.citationStyle;
+        styleBtn.title = "Citation style — click to cycle. Every field is read from what this instrument actually recorded about the source, never asked of a model.";
+        list.replaceChildren();
+        for (const name of names) {
+          const li = document.createElement("li");
+          li.textContent = formatReference(sourceMeta(name), state.citationStyle);
+          list.append(li);
+        }
+      };
+      const styleKeys = Object.keys(CITATION_STYLES);
+      styleBtn.onclick = () => {
+        const next = styleKeys[(styleKeys.indexOf(state.citationStyle) + 1) % styleKeys.length];
+        state.citationStyle = next;
+        localStorage.setItem("fold-citation-style", next);
+        renderList();
+      };
+      renderList();
+      head.append(label, styleBtn);
+      refsBox.append(head, list);
+      art.append(refsBox);
+    }
   } else {
     art.append(codeBlock(code ?? seg.code, seg.lang));
   }

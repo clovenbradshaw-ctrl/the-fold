@@ -9749,8 +9749,33 @@ function searchSpanSource(ref) {
  * writes markdown because it was told to; the reader should see bold as bold.
  * Refs were already split out before this runs (refNodes splits first), and a
  * code span is taken literally — its content is shown as written, `**` inside
- * it included. */
-const INLINE_MD = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^*\n]+\*)/g;
+ * it included.
+ *
+ * FOUND LIVE (2026-09-09, "bad layout" — the same Panama Canal turn as
+ * fact-block.js's own truncated-preview fix, an unrelated bug spotted on
+ * the way past): a small model's own list shape is `* **Label:** text` with
+ * no real newline between items ("* **The French:** ... * **Disease:**
+ * ..."), and the old pattern had no notion that a bare "*" immediately
+ * before whitespace is a list bullet, never an emphasis delimiter. It read
+ * "* " as the OPENING half of an italic span (`\*[^*\n]+\*` matched "* *",
+ * a one-space italic), which put the SECOND "*" of the following "**" on
+ * the wrong side of that pairing — every bold label after the first then
+ * paired its own closing "**" with the NEXT bullet's leading "*", so one
+ * giant, wrong italic span swallowed everything from "The initial
+ * attempt..." up to the following bullet, dropping the intended bold
+ * entirely.
+ *
+ * The fix is CommonMark's own flanking rule (spec §6.2: a delimiter run
+ * immediately followed by whitespace can never OPEN emphasis, and one
+ * immediately preceded by whitespace can never CLOSE it) — not a threshold
+ * or a heuristic invented for this specimen, the same rule every real
+ * markdown renderer already enforces for exactly this reason. A bullet's
+ * "* " is disqualified as an opening delimiter the same way "word* " would
+ * be, so it is left as a literal character (an honest, if unstyled, "*"
+ * where this renderer has no separate list-block pass) rather than pairing
+ * with something two sentences later.
+ */
+const INLINE_MD = /(`[^`\n]+`|\*\*(?!\s)[^*\n]+(?<!\s)\*\*|\*(?!\s)[^*\n]+(?<!\s)\*)/g;
 function inlineMarkdown(text) {
   const out = [];
   let last = 0;

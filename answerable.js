@@ -1,4 +1,4 @@
-// answerable.js — what the instrument can answer BEFORE the model (P129).
+// answerable.js — what the instrument can answer BEFORE the model (P173).
 //
 // User, 2026-09-06, looking at a reasoning probe the mouth kept getting
 // wrong even after the engine handed it the worked-out number: "why is the

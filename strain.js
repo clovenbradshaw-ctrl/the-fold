@@ -1,4 +1,4 @@
-// strain.js — effort is recruited by difficulty, not spent flat (P130).
+// strain.js — effort is recruited by difficulty, not spent flat (P174).
 //
 // User direction (2026-09-06): "leverage the power of system 1 and system 2,
 // in the thinking fast and slow sense."
@@ -6,7 +6,7 @@
 // This instrument already had the two systems and the watcher between them:
 // `runFastPass` drafts (S1), `holonicTurn` checks against real material (S2),
 // and `metacognition.js` classifies the gap and learns a precision per cell.
-// P129 then gave S1 its strict form — `answerBeforeTheModel` returns in
+// P173 then gave S1 its strict form — `answerBeforeTheModel` returns in
 // milliseconds with no call at all when the answer is exactly known.
 //
 // What was missing is the dynamic Kahneman's account actually turns on: S2 is
@@ -109,7 +109,7 @@ export function strainOf({
   // cut rather than how hard the question is.
   if (passages.length && onPoint === 0) found.push([2, `none of the ${passages.length} retrieved passage(s) speak to the question`]);
   else if (passages.length > THIN_PASSAGES && onPoint / passages.length < 0.34 && (coverage ?? 1) < 0.75) found.push([2, `only ${onPoint} of ${passages.length} passage(s) speak to the question`]);
-  // THE CUT IS MEASURED WHERE IT CAN BE (P131/P132, calibration.js): the
+  // THE CUT IS MEASURED WHERE IT CAN BE (P175/P132, calibration.js): the
   // caller may hand a placement of this coverage against a null built from
   // the stream's own recent regime. A declared floor cannot be right across
   // corpora — 0.34 is unremarkable on a critical edition and alarming on a
@@ -135,7 +135,7 @@ export function strainOf({
   // The second finally gives the measured cut something it can fire on: it
   // never fired on coverage in 262 of 713 turns because coverage is flat
   // across most of its range, and a null over a flat series has nothing to
-  // find (P131/P132's own audit).
+  // find (P175/P132's own audit).
   // Asked once, with coverage in hand. A caller that throws is ignored: a
   // belief that cannot be formed is no belief, and the floor resumes.
   let belief = expect;

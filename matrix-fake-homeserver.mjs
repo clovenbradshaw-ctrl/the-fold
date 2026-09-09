@@ -17,7 +17,12 @@
 import http from "node:http";
 
 export function startFakeHomeserver({ port = 0, host = "127.0.0.1", users = {}, serverName = "fake.test" } = {}) {
-  const store = { users: { ...users }, tokens: new Map(), rooms: new Map(), media: new Map(), timeline: [], waiters: [], nextRoom: 1, nextMedia: 1, nextToken: 1, nextEvent: 1 };
+  // One stream counter over BOTH the timeline and state writes, so a sync
+  // cursor covers each: a real homeserver sends state DELTAS on incremental
+  // syncs, and a fixture that only sends state on the first sync would hide
+  // exactly the bugs this file exists to find (measured 2026-09-06: a worker
+  // never saw a room's request that it take up a model).
+  const store = { users: { ...users }, tokens: new Map(), rooms: new Map(), media: new Map(), timeline: [], stateLog: [], waiters: [], nextRoom: 1, nextMedia: 1, nextToken: 1, nextEvent: 1 };
   const wake = () => { const w = store.waiters.splice(0); for (const r of w) r(); };
   const log = [];
   const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, content-type", "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS" };
@@ -108,6 +113,8 @@ export function startFakeHomeserver({ port = 0, host = "127.0.0.1", users = {}, 
         const content = parse(); if (content === null) return err(res, 400, "M_NOT_JSON", "bad json");
         if (body.length > 65536) return err(res, 413, "M_TOO_LARGE", "event too large");
         r.state.set(stateKey(type, key), content);
+        store.stateLog.push({ room_id: r.id, type, state_key: key, content, sender: user, event_id: `$s${store.nextEvent}`, origin_server_ts: Date.now(), stream: store.nextEvent++ });
+        wake();
         return json(res, 200, { event_id: `$e${r.state.size}` });
       }
     }
@@ -130,19 +137,23 @@ export function startFakeHomeserver({ port = 0, host = "127.0.0.1", users = {}, 
       const timeout = Math.min(Number(url.searchParams.get("timeout") ?? 0) || 0, 30000);
       const rooms = filter.room?.rooms ?? null; const types = filter.room?.timeline?.types ?? null; const stateTypes = filter.room?.state?.types ?? null;
       const mine = () => store.timeline.filter((e) => e.stream > since && store.rooms.get(e.room_id)?.members.get(user) === "join" && (!rooms || rooms.includes(e.room_id)) && (!types || types.includes(e.type)));
+      const mineState = () => store.stateLog.filter((e) => e.stream > since && store.rooms.get(e.room_id)?.members.get(user) === "join" && (!rooms || rooms.includes(e.room_id)) && (!stateTypes || stateTypes.includes(e.type)));
       let events = mine();
-      if (!events.length && timeout > 0) {
+      let stateDeltas = mineState();
+      if (!events.length && !stateDeltas.length && timeout > 0) {
         // long-poll: a new event, the timeout, or the client going away wakes it
         // (res, not req: an IncomingMessage closes as soon as its body is read)
         await new Promise((resolve) => { let done = false; const fin = () => { if (!done) { done = true; clearTimeout(t); resolve(); } }; const t = setTimeout(fin, timeout); store.waiters.push(fin); res.on("close", fin); });
         if (res.destroyed) return;
-        events = mine();
+        events = mine(); stateDeltas = mineState();
       }
       const join = {};
       for (const r of store.rooms.values()) {
         if (r.members.get(user) !== "join" || (rooms && !rooms.includes(r.id))) continue;
         const timeline = events.filter((e) => e.room_id === r.id).map(({ stream, room_id, ...e }) => e);
-        const state = since ? [] : [...r.state].filter(([k]) => !stateTypes || stateTypes.includes(k.slice(0, k.indexOf(" ")))).map(([k, content]) => { const i = k.indexOf(" "); return { type: k.slice(0, i), state_key: k.slice(i + 1), content, sender: r.creator }; });
+        const state = since
+          ? stateDeltas.filter((e) => e.room_id === r.id).map(({ stream, room_id, ...e }) => e)
+          : [...r.state].filter(([k]) => !stateTypes || stateTypes.includes(k.slice(0, k.indexOf(" ")))).map(([k, content]) => { const i = k.indexOf(" "); return { type: k.slice(0, i), state_key: k.slice(i + 1), content, sender: r.creator }; });
         if (timeline.length || state.length) join[r.id] = { timeline: { events: timeline, limited: false }, state: { events: state } };
       }
       return json(res, 200, { next_batch: String(store.nextEvent - 1), rooms: { join } });

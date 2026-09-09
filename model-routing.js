@@ -54,24 +54,26 @@ export const ROUTE_KINDS = Object.freeze({
  * model the user chose in the picker.
  */
 /**
- * A model the person picked THROUGH A ROOM outranks every rung of this
- * ladder. The ladder exists to spend the cheapest local model that can do a
- * given job; a room mouth is not on that scale at all — it is somebody
- * else's machine, chosen deliberately, usually because it runs something
- * bigger than anything here. Routing a summary or a flat turn to the local
- * fast rung "for speed" silently answers with a different model than the one
- * the picker says is answering, which is the one thing a picker may not do.
+ * A name of the form `room:@who:server <model>` is not a rung on this ladder:
+ * it names a MACHINE another member is offering through a room. Whoever picked
+ * it chose where the work runs, and a ladder that swapped it for the fastest
+ * local rung would quietly move the work back onto this machine — measured
+ * 2026-09-06, when a turn taken under a room mouth ran entirely on the local
+ * model and only the turn's own attribution line showed it.
  *
- * (This converges with P129's own `isPinnedModel` upstream — the same rule,
- * derived again here from the same failure, measured live 2026-09-08: the
- * room served two real sealed jobs and the shipped answer still came from
- * the local fast rung, with the AnswerRecord naming it.)
+ * (Independently re-found 2026-09-08, same failure, converging on the same
+ * fix: a room mouth outranks every rung of this ladder — see P129's own
+ * `isPinnedModel` upstream. That pass's own regex was a looser
+ * `name.startsWith("room:")`; kept here as this one instead, since it also
+ * requires the full `@who:server model` shape rather than any string merely
+ * prefixed "room:", and additionally skips a pinned entry when it turns up
+ * inside `offered` itself, which the looser version did not.)
  */
-export const isPinnedModel = (name) => typeof name === "string" && name.startsWith("room:");
+export const isPinnedModel = (name) => typeof name === "string" && /^room:@[^:\s]+:\S+\s+\S/.test(name);
 
 export function routeModel(kind, { offered = [], selected = null } = {}) {
   if (isPinnedModel(selected)) return selected;
-  const fast = offered[0] ?? MODEL_PICKER[0];
+  const fast = offered.find((m) => !isPinnedModel(m)) ?? MODEL_PICKER[0];
   if (kind === ROUTE_KINDS.SUMMARY || kind === ROUTE_KINDS.FLAT) return fast;
   return selected ?? fast;
 }

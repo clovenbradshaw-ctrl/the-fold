@@ -250,6 +250,16 @@
         margin-left: 10px;
         cursor: help;
       }
+      /* Which model, on which machine, answered each call of this turn. Beside
+         the token count, in the same register: a fact about the turn, not a
+         claim inside the answer. */
+      .turn-mouths {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--muted);
+        margin-left: 10px;
+        cursor: help;
+      }
       /* EVERY RULE HERE IS SCOPED TO `.msg .body` — the answer surface —
          and none of them reach the `.turn-meta` disclosure, which is a
          sibling of `.body`, not a child. That scoping IS the "hidden
@@ -2461,7 +2471,13 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
                  real dialogs, which is the opposite of elegant. Attaching is
                  still a first-class, one-click action, not buried: the
                  paperclip icon rides the trigger itself, and "Add
-                 attachment" is the sheet's own first row. -->
+                 attachment" is the sheet's own first row. Origin's own
+                 standalone #workspace-switch (same feature — P178 — built
+                 independently as a bare composer switch) is superseded by
+                 this merge: the identical id="workspace-switch"/
+                 id="use-workspace" pair already lives inside dialog#memory-
+                 menu below, and keeping both would duplicate those ids on
+                 the page. -->
             <button type="button" id="memory-open" title="Attach material, or set what this question may draw on beyond the model's own answer.">
               <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M209.66,122.34a8,8,0,0,1,0,11.32l-82.05,82a56,56,0,0,1-79.2-79.21L147.67,35.73a40,40,0,1,1,56.61,56.55L105,193A24,24,0,1,1,71,159L154.3,74.38A8,8,0,1,1,165.7,85.6L82.39,170.31a8,8,0,1,0,11.27,11.36L192.93,81A24,24,0,1,0,159,47L59.76,147.68a40,40,0,1,0,56.53,56.62l82.06-82A8,8,0,0,1,209.66,122.34Z"/></svg>
               <span>memory</span>
@@ -2958,7 +2974,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
       </form>
     </dialog>
 
-    <!-- The room, as a surface (P177). Every door here already existed and
+    <!-- The room, as a surface (P178). Every door here already existed and
          was typed: /matrix, /preserve, /share, /join, /serve, /pool. The
          sheet does not re-implement any of them — each row SENDS the door it
          names, so the act and its answer land on the transcript exactly as

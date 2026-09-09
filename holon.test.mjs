@@ -2500,7 +2500,7 @@ test("P128: a question about the conversation is answered from the conversation'
   const sent = [];
   const admitted = [];
   const r = await runHolonicTask({
-    // Wants prose, so it goes to the model — the mechanical door (P129)
+    // Wants prose, so it goes to the model — the mechanical door (P173)
     // takes the bare "what did you answer" case, which is tested there.
     task: 'Earlier I asked you: "What about the tide?" Explain what you answered and why it matters.',
     chunks, planMode: "flat", transcript,
@@ -2525,13 +2525,13 @@ test("P128: a question about the conversation is answered from the conversation'
   assert.equal(plain.recalledTurns, undefined, "a question about the material does not reach for the transcript");
 });
 
-test("P129: the turn hands the mouth the worked-out comparison as a fact, and a question with nothing to compare is byte-identical to before (control)", async () => {
+test("P173: the turn hands the mouth the worked-out comparison as a fact, and a question with nothing to compare is byte-identical to before (control)", async () => {
   const math = await import("mathjs");
   const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. Millennium ran until 1996.");
   const sent = [];
   const r = await runHolonicTask({
     // Wants prose, so the turn reaches the model AND carries the worked-out
-    // comparison as a fact; the bare form is answered without the model (P129).
+    // comparison as a fact; the bare form is answered without the model (P173).
     task: "Which of the two years mentioned is earlier, 1841 or 1996, and why does that gap matter?",
     chunks, planMode: "flat", math,
     call: async (messages) => { sent.push(messages); return "1841 is earlier, by 155 years."; },
@@ -2552,7 +2552,7 @@ test("P129: the turn hands the mouth the worked-out comparison as a fact, and a 
   assert.doesNotMatch(plain[0].map((m) => m.content).join("\n"), /Worked out from the numbers/);
 });
 
-test("P129: a question the instrument can answer exactly is answered with NO model call at all; one that wants prose still goes to the model", async () => {
+test("P173: a question the instrument can answer exactly is answered with NO model call at all; one that wants prose still goes to the model", async () => {
   const math = await import("mathjs");
   const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The war began in 1805.");
   let calls = 0;
@@ -2578,7 +2578,7 @@ test("P129: a question the instrument can answer exactly is answered with NO mod
   assert.equal(r2.answeredBeforeTheModel, undefined);
 });
 
-test("P130: S2 is recruited by difficulty — an easy turn spends fewer witness asks than an argued one, and the person's slider is a floor and a ceiling", async () => {
+test("P174: S2 is recruited by difficulty — an easy turn spends fewer witness asks than an argued one, and the person's slider is a floor and a ceiling", async () => {
   const easy = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The harbor light stands above the coast. The harbor light is white.");
   // Retrieved (it shares "harbor"), but it does not answer: low coverage of
   // what the question actually asks about, which is the strain.

@@ -112,7 +112,7 @@ import { whereAmI, describeRoutes } from "./routes.js";
 // machine through a Matrix homeserver the person names — every byte that
 // leaves this page for it sealed under a key the homeserver never holds.
 import { FoldMatrix, localStorageStorage, MatrixError } from "./matrix-client.js";
-import { parseShareLink, stripShareFragment, SERVER_SEES, MAGIC_KEY_WARNING } from "./matrix.js";
+import { parseShareLink, stripShareFragment, SERVER_SEES, MAGIC_KEY_WARNING, deviceContent, deviceLine } from "./matrix.js";
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
@@ -1026,8 +1026,36 @@ const ROOM_MODEL_PREFIX = "room:";
 const isRoomModel = (name) => typeof name === "string" && name.startsWith(ROOM_MODEL_PREFIX);
 const roomModelParts = (name) => { const m = /^room:(\S+) (.+)$/.exec(name ?? ""); return m ? { user: m[1], model: m[2] } : null; };
 const roomModelName = (user, model) => `${ROOM_MODEL_PREFIX}${user} ${model}`;
+/** How a model reads when it is cited: a room mouth names its machine. */
+function modelLabel(name) {
+  const p = roomModelParts(name);
+  return p ? `${p.model} on ${p.user}` : name;
+}
 let roomServing = null; // { room, controller, models, served } while this page serves the room
 let inviteWatch = null; // { room, controller } while this page grants bound invites it issued
+// Which model, on which machine, did each call of the turn being written. A
+// turn is several calls, and once a room's machines can answer them they need
+// not all be the same mouth — so the turn says, under its own answer, what
+// actually spoke. Appended at the call boundary in `completeOnce`, drawn by
+// `renderFold`, cleared when a turn starts.
+let turnMouths = [];
+// Which turn a call belongs to, stamped when the call is MADE. A background
+// call of the previous turn (the summary refresh is fire-and-forget) can land
+// after the next turn has begun, and without this it was drawn under the wrong
+// answer — measured 2026-09-06, a local 1.5s call appearing beneath a turn
+// answered entirely on another machine.
+let turnSeq = 0;
+const noteMouth = (where, model, ms, seq) => {
+  const last = turnMouths.at(-1);
+  if (last && last.seq === seq && last.where === where && last.model === model) { last.calls++; last.ms += ms ?? 0; return; }
+  turnMouths.push({ seq, where, model, calls: 1, ms: ms ?? 0 });
+  if (turnMouths.length > 64) turnMouths.splice(0, turnMouths.length - 64);
+};
+function mouthsLine(seq) {
+  const list = turnMouths.filter((m) => m.seq === seq);
+  if (!list.length) return null;
+  return list.map((m) => `${m.calls > 1 ? `${m.calls}× ` : ""}${m.model} ${m.where}${m.ms ? ` (${(m.ms / 1000).toFixed(1)}s)` : ""}`).join(" · ");
+}
 const MAX_TOKENS = 4096;
 /**
  * The summary refresh returns one short JSON object. Left uncapped, a small
@@ -1115,7 +1143,7 @@ const state = {
    * turn; carried on the record and the export.
    */
   depth: (() => { const n = Number(localStorage.getItem("fold-depth")); return Number.isInteger(n) && n >= 0 && n <= 3 ? n : 1; })(),
-  /** Whether the person has actually moved the slider. Unset, difficulty decides the rung (P130). */
+  /** Whether the person has actually moved the slider. Unset, difficulty decides the rung (P174). */
   depthSet: localStorage.getItem("fold-depth") != null,
 
   /**
@@ -1703,6 +1731,7 @@ async function connect() {
  * cut it off" without re-deriving that fact by guessing at the text.
  */
 async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, model, temperature } = {}) {
+  const callSeq = turnSeq;
   // One request, to the one place a model lives. `model` is routed: plain
   // turns and the summary refresh spend the fastest rung; deep work (task,
   // bound, reflect) spends the model the user chose. Whatever it is, the
@@ -1717,6 +1746,7 @@ async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, mo
     if (!state.matrixRoom) throw new Error("no room is open — /join a share link or /preserve first");
     $("status").textContent = `asking ${user} for ${remote} through the room…`;
     const a = await foldMatrix.ask(state.matrixRoom, { messages, model: remote, to: user, options: { maxTokens: maxTokens ?? MAX_TOKENS, temperature, json: json ?? null } }, { onWait: ({ ms }) => { $("status").textContent = `waiting on ${user} · ${Math.round(ms / 1000)}s`; } });
+    noteMouth(`on ${user}'s ${a.device?.home ?? "machine"}, through the room`, a.model ?? remote, a.ms, callSeq);
     tokensSeen.calls += 1; tokensSeen.in += a.usage?.promptTokens ?? 0; tokensSeen.out += a.usage?.outTokens ?? 0;
     onDelta?.(a.text);
     $("status").textContent = `ready · ${modelName} · answered by ${a.by} in ${Math.round(a.ms / 1000)}s`;
@@ -1749,8 +1779,10 @@ async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, mo
         return false;
       },
     });
+    noteMouth("in this tab", webllmLabelFor(modelName), null, callSeq);
     return { text, thinking: "", doneReason: cancelled ? "cancelled" : "stop" };
   }
+  const ollamaStarted = Date.now();
   const res = await fetch(`${OLLAMA}/api/chat`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -1876,10 +1908,12 @@ async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, mo
         } catch {
           // already closed — nothing to do
         }
+        noteMouth("on this machine", modelName, Date.now() - ollamaStarted, callSeq);
         return { text: out, thinking, doneReason: "cancelled" };
       }
     }
   }
+  noteMouth("on this machine", modelName, Date.now() - ollamaStarted, callSeq);
   return { text: out, thinking, doneReason };
 }
 
@@ -2087,7 +2121,8 @@ const matrixUsage = [
   "/share grant @who:server — trust an unverified key after comparing fingerprints · /share pending",
   "/join <link> [words] — open a shared chat: join, publish your key, read every block back here",
   "/serve [stop] — answer sealed prompts for the room with this machine's models",
-  "/pool — the devices offering a mouth through the room, and what each has answered",
+  "/pool — the devices offering a mouth, what each machine is, and what it has answered",
+  "/pool want @who:server <model> — ask a machine to take up a model it has spare · /pool drop @who [model]",
 ].join("\n");
 const roomLabel = (id) => { const r = foldMatrix.status().rooms.find((x) => x.id === id); return r?.name ? `${r.name} (${id})` : id; };
 const matrixGap = (e) => (e instanceof MatrixError ? e.message : e?.message ?? String(e));
@@ -2293,7 +2328,22 @@ async function joinTurn(arg, question) {
 async function serveComplete({ model, messages, options }) {
   const before = { in: tokensSeen.in, out: tokensSeen.out };
   const r = await completeOnce(messages, { model, json: options?.json ?? undefined, maxTokens: options?.maxTokens, temperature: options?.temperature });
-  return { text: r.text, model, usage: { promptTokens: tokensSeen.in - before.in, outTokens: tokensSeen.out - before.out }, device: { home: state.routes?.summary?.split(" · ")[0] ?? null, label: navigator.platform ?? null, webgpu: !!navigator.gpu } };
+  return { text: r.text, model, usage: { promptTokens: tokensSeen.in - before.in, outTokens: tokensSeen.out - before.out }, device: thisMachine() };
+}
+/** What this browser's machine is, from what the browser will actually say:
+ * the runtime that answers, its cores and memory where the browser reports
+ * them, and whether a GPU is there for the in-tab rung. Unknown stays null. */
+function thisMachine() {
+  const local = localModels();
+  const inTab = local.length && local.every((m) => isWebLLMModel(m));
+  return deviceContent({
+    runtime: inTab ? "in-tab (WebLLM)" : local.some((m) => isWebLLMModel(m)) ? "Ollama + in-tab" : "Ollama",
+    os: navigator.platform || null, arch: null,
+    cores: navigator.hardwareConcurrency ?? null,
+    memGB: navigator.deviceMemory ?? null,
+    gpu: navigator.gpu ? true : inTab ? false : null,
+    note: state.routes?.summary?.split(" · ")[0] ?? null,
+  });
 }
 function localModels() { return state.offeredModels.filter((n) => !isRoomModel(n)); }
 async function startServing(room) {
@@ -2302,7 +2352,11 @@ async function startServing(room) {
   if (!models.length) throw new Error("this machine offers no model — Ollama is not answering and the in-tab rung is unavailable");
   const controller = new AbortController();
   roomServing = { room, controller, models, served: 0 };
-  foldMatrix.serve(room, { complete: serveComplete, models, home: state.routes?.summary?.split(" · ")[0] ?? null, signal: controller.signal, onJob: ({ from, model }) => { roomServing.served++; $("status").textContent = `serving ${from} with ${model} through the room…`; renderPool(); } })
+  foldMatrix.serve(room, {
+    complete: serveComplete, models, available: [], device: thisMachine(), home: state.routes?.summary?.split(" · ")[0] ?? null, signal: controller.signal,
+    onJob: ({ from, model }) => { roomServing.served++; $("status").textContent = `serving ${from} with ${model} through the room…`; renderPool(); },
+    onTakeUp: ({ model, by }) => { addMessage("assistant", `taking up ${model} for the room, asked by ${by} — this machine now serves it too`); renderPool(); },
+  })
     .catch((e) => { addMessage("assistant", `serving stopped: ${matrixGap(e)}`); })
     .finally(() => { if (roomServing?.controller === controller) roomServing = null; renderPool(); });
   renderPool();
@@ -2319,15 +2373,32 @@ async function serveTurn(arg, question) {
 }
 function poolLines(pool) {
   if (!pool.workers.length) return ["nobody offers a mouth in this room yet — /serve on a machine that has one"];
-  return pool.workers.map((w) => `  ${w.user}${w.withdrawn ? " (withdrawn)" : ""} · ${w.home ?? "home unknown"} · ${w.models.join(", ") || "no models"} · sent ${w.sent}, answered ${w.answered}, failed ${w.failed}, in flight ${w.inflight}${w.meanMs != null ? ` · mean ${(w.meanMs / 1000).toFixed(1)}s` : ""}${w.tokPerSec != null ? ` · ${w.tokPerSec} tok/s` : ""}${w.device?.label ? ` · ${w.device.label}` : ""}`);
+  return pool.workers.flatMap((w) => [
+    `  ${w.user}${w.withdrawn ? " (withdrawn)" : ""} · ${deviceLine(w.device)} · serving ${w.models.join(", ") || "nothing"}`,
+    `    sent ${w.sent}, answered ${w.answered}, failed ${w.failed}, in flight ${w.inflight}${w.meanMs != null ? ` · mean ${(w.meanMs / 1000).toFixed(1)}s` : ""}${w.tokPerSec != null ? ` · ${w.tokPerSec} tok/s` : ""}`,
+    w.available?.length ? `    spare, ask with /pool want ${w.user} <model>: ${w.available.join(", ")}` : null,
+    ...(w.refused ?? []).map((r) => `    refused ${r.model}: ${r.why}`),
+  ].filter(Boolean));
 }
-async function poolTurn(question) {
+async function poolTurn(question, arg = "") {
   try {
     if (!state.matrixRoom) return usageTurn(question, "no room is open — /preserve makes one, /join opens a shared one", { what: "pool" });
+    const want = arg.match(/^(want|drop)\s+(@[^:\s]+:\S+)\s*(\S*)$/);
+    if (want) {
+      const [, verb, who, model] = want;
+      if (verb === "want") {
+        if (!model) return usageTurn(question, "/pool want @who:server <model> — ask that machine to take up a model it has spare", { what: "pool" });
+        const r = await foldMatrix.want(state.matrixRoom, who, model);
+        renderPool();
+        return usageTurn(question, [`asked ${who} to take up ${model}`, r.serving ? "it already serves that one" : r.available ? "it says it has that one spare — it will be offered within a few seconds, and the picker will list it" : `it does not list ${model} as available; it will answer with a reason, shown in /pool`, r.device ? `that machine: ${r.device}` : null].filter(Boolean).join("\n"), { what: "pool" });
+      }
+      const r = await foldMatrix.unwant(state.matrixRoom, who, model || null);
+      return usageTurn(question, `withdrew the ask${model ? ` for ${model}` : ""} of ${who}; ${r.left} ask(s) left standing`, { what: "pool" });
+    }
     await foldMatrix.mouths(state.matrixRoom);
     const pool = foldMatrix.pool(state.matrixRoom);
     renderPool(); $("pool").showModal();
-    return usageTurn(question, `pooled devices in ${roomLabel(state.matrixRoom)} — ${pool.offers} offering:\n${poolLines(pool).join("\n")}\n— from the room's state and this page's own jobs, not guessed`, { what: "pool" });
+    return usageTurn(question, `pooled devices in ${roomLabel(state.matrixRoom)} — ${pool.offers} offering:\n${poolLines(pool).join("\n")}\n/pool want @who:server <model> asks a machine to take up a model it has spare\n— from the room's state and this page's own jobs, not guessed`, { what: "pool" });
   } catch (e) { return usageTurn(question, `/pool: ${matrixGap(e)}`, { what: "pool" }); }
 }
 /** The pool sheet: the same facts as /pool, as a table, live while serving. */
@@ -2339,15 +2410,17 @@ function renderPool() {
   table.textContent = "";
   if (pool.workers.length) {
     const head = table.createTHead().insertRow();
-    for (const h of ["member", "home", "models", "sent", "answered", "failed", "in flight", "mean", "tok/s", "device"]) { const th = document.createElement("th"); th.textContent = h; head.append(th); }
+    for (const h of ["member", "machine", "serving", "spare", "sent", "answered", "failed", "in flight", "mean", "tok/s"]) { const th = document.createElement("th"); th.textContent = h; head.append(th); }
     const body = table.createTBody();
     for (const w of pool.workers) {
       const tr = body.insertRow(); if (w.withdrawn) tr.className = "withdrawn";
-      const cells = [w.user + (w.withdrawn ? " (withdrawn)" : ""), w.home ?? "—", w.models.join(", ") || "—", w.sent, w.answered, w.failed, w.inflight, w.meanMs != null ? `${(w.meanMs / 1000).toFixed(1)}s` : "—", w.tokPerSec ?? "—", w.device ? `${w.device.label ?? ""}${w.device.webgpu ? " · WebGPU" : ""}` : "—"];
-      cells.forEach((c, i) => { const td = tr.insertCell(); td.textContent = String(c); if (i >= 3 && i <= 8) td.className = "num"; });
+      const cells = [w.user + (w.withdrawn ? " (withdrawn)" : ""), deviceLine(w.device), w.models.join(", ") || "—", w.available?.length ? w.available.join(", ") : "—", w.sent, w.answered, w.failed, w.inflight, w.meanMs != null ? `${(w.meanMs / 1000).toFixed(1)}s` : "—", w.tokPerSec ?? "—"];
+      cells.forEach((c, i) => { const td = tr.insertCell(); td.textContent = String(c); if (i >= 4) td.className = "num"; });
+      if (w.available?.length && !w.withdrawn) { tr.cells[3].title = `ask this machine to take one up: /pool want ${w.user} <model>`; }
+      for (const r of w.refused ?? []) { const note = body.insertRow(); note.className = "withdrawn"; const td = note.insertCell(); td.colSpan = 10; td.textContent = `${w.user} refused ${r.model}: ${r.why}`; }
     }
   }
-  $("pool-this").textContent = roomServing ? `this machine is serving: ${roomServing.models.join(", ")} · ${roomServing.served} answered so far` : `this machine is not serving${localModels().length ? ` — it could offer ${localModels().join(", ")}` : " — it has no model to offer"}`;
+  $("pool-this").textContent = `this machine (${deviceLine(thisMachine())}) ${roomServing ? `is serving ${roomServing.models.join(", ")} · ${roomServing.served} answered so far` : localModels().length ? `is not serving — it could offer ${localModels().join(", ")}` : "has no model to offer"}`;
   const btn = $("pool-serve"); btn.textContent = roomServing ? "Stop serving" : "Serve from this machine"; btn.classList.toggle("on", !!roomServing); btn.disabled = !room || !foldMatrix.status().signedIn;
   renderRoomChip();
 }
@@ -2756,7 +2829,7 @@ const RESOURCE_TILE_NOTE = {
 };
 
 /**
- * The workspace, declared in the header (P177). Two things, and no more: what
+ * The workspace, declared in the header (P178). Two things, and no more: what
  * this workspace is called, and who can read it. The second is not a settings
  * panel — a room is a room of equals and there is nothing to grade — so it
  * states the two states there are and hands every ACT to the room's own
@@ -3016,7 +3089,7 @@ function renderWorkspaceSheet() {
 }
 
 /**
- * The room, as a surface (P177) — the header chip beside the theme toggle,
+ * The room, as a surface (P178) — the header chip beside the theme toggle,
  * and the sheet it opens.
  *
  * Every door here already existed and was reachable only by typing. The
@@ -3051,7 +3124,7 @@ function renderAccountChips() {
 }
 
 function renderRoomChip() {
-  // The room left the header as a place (P177's amendment): who has access is
+  // The room left the header as a place (P178's amendment): who has access is
   // the workspace chip's and the cluster's, the machinery is in Resources,
   // and the header keeps only the two account marks. This is the one place
   // that refreshes all of them after a room door runs.
@@ -4745,6 +4818,7 @@ function guardedSend(question) {
 
 async function send(question) {
   state.busy = true;
+  turnSeq += 1;
   $("send").disabled = true;
 
   // A task rather than a question. Two doors, per the canon in eochatX's
@@ -4836,7 +4910,8 @@ async function send(question) {
   if (joinCmd) return joinTurn(joinCmd[1]?.trim() ?? "", question);
   const serveCmd = question.match(/^\/serve\b\s*(.*)$/s);
   if (serveCmd) return serveTurn(serveCmd[1]?.trim() ?? "", question);
-  if (/^\/pool\b/.test(question)) return poolTurn(question);
+  const poolCmd = question.match(/^\/pool\b\s*(.*)$/s);
+  if (poolCmd) return poolTurn(question, poolCmd[1]?.trim() ?? "");
 
   // The terminal language's chat door (P22's grid.js, opened to chat):
   // compose one act of the nine-operator composition law directly from the
@@ -6386,8 +6461,11 @@ async function twoPassTurn(question) {
   // work) and has no notion of "which pass" at all.
   // ...and a model the person pinned through a room outranks even those: the
   // specialists are a choice about which LOCAL model fits a pass, and a room
-  // mouth is not local at all. Picking one and being answered by gemma2:2b
-  // was the live failure (2026-09-08) this closes.
+  // mouth is not local at all. A pin outranks the specialist ladder — found
+  // independently twice, same failure: 2026-09-06 (the pinned turn's own
+  // attribution line and its self-citation disagreed about which model
+  // spoke) and again 2026-09-08 (picking a room mouth and being answered by
+  // gemma2:2b anyway).
   const pinned = isPinnedModel(state.model) ? state.model : null;
   const s1Model = pinned ?? resolveNamedModel(S1_MODEL, { available: state.availableModels, offered: state.offeredModels });
   const s2Model = pinned ?? resolveNamedModel(S2_MODEL, { available: state.availableModels, offered: state.offeredModels });
@@ -7496,10 +7574,10 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     const ledgerBase = state.hyperlexiconLog;
     result = await runHolonicTask({
       // null when the person has not moved the slider off its default, so
-      // strain decides the rung (P130); a deliberate setting is honoured.
+      // strain decides the rung (P174); a deliberate setting is honoured.
       depth: state.depthSet ? state.depth : null,
       // The arithmetic engine, so ordering and difference are computed rather
-      // than asked of the mouth (P129).
+      // than asked of the mouth (P173).
       math: window.math,
       // The fillers as CONTENT, never as apparatus talk (P55): a stated
       // fact the draft must account for, with no mention of where it came
@@ -7828,7 +7906,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       const notes = state.hyperlexiconLog && hyperlexiconFor.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : [];
       const disputes = state.hyperlexiconLog && hyperlexiconFor.disputesOf ? hyperlexiconFor.disputesOf(state.hyperlexiconLog) : null;
       const index = passages.length ? referentIndexFor(passages) : null;
-      return { claims, passages, notes, derived: derivedNow(), disputes, resolveName: index ? (n) => index.resolve(n) : null, model: turnModel };
+      return { claims, passages, notes, derived: derivedNow(), disputes, resolveName: index ? (n) => index.resolve(n) : null, model: modelLabel(turnModel), turnSeq };
     } catch (e) { console.warn("ground ladder:", e?.message ?? e); return null; }
   })();
   // The instruction is the model's own plan — task + plan parts, mechanically
@@ -8024,6 +8102,7 @@ function addMessage(role, text) {
   el.dataset.tokIn = String(tokensSeen.in);
   el.dataset.tokOut = String(tokensSeen.out);
   el.dataset.tokCalls = String(tokensSeen.calls);
+  el.dataset.turnSeq = String(turnSeq);
   // The disclosure is kept behind a one-word affordance, there the moment
   // you want to ask "what did this turn actually see?"
   //
@@ -8516,15 +8595,21 @@ function taggedProse(text, offered, classified = []) {
     // the model by name: a sentence nothing read places is the mouth's own
     // testimony, and a witness is cited by its name.
     //
-    // FOUND LIVE (2026-09-08): `state.lastGround` is computed unconditionally
-    // every turn (holonicTurn never gates that assignment on `state.grounded`),
-    // so this chip kept drawing — "◎ gemma2:2b" on every sentence — even with
+    // Two independent bugs closed on this one condition. FOUND LIVE
+    // (2026-09-08): `state.lastGround` is computed unconditionally every
+    // turn (holonicTurn never gates that assignment on `state.grounded`), so
+    // this chip kept drawing — "◎ gemma2:2b" on every sentence — even with
     // checking switched OFF, straight against the toggle's own title text
     // ("Off is a plain chatbot: the model answers and nothing is verified")
     // and the standing rule this file already states for exactly this shape
     // of bug: hidden drawing, never a hidden finding — the checks still run
     // and still land on the record either way; only the PAINT is gated here.
-    if (state.grounded && state.lastGround) {
+    // Separately: the ground context belongs to the turn that measured it —
+    // citing a previous turn's would name the wrong mouth as the sentence's
+    // own testimony (measured 2026-09-06, an answer from another machine
+    // captioned with the local model of the turn before it), so `turnSeq` is
+    // checked too, not just presence.
+    if (state.grounded && state.lastGround && state.lastGround.turnSeq === turnSeq) {
       const wrow = (state.lastWitness ?? []).find((r) => r.sentence === entry.text) ?? null;
       // The sentence's own edges (classifySentences rides each relation claim
       // onto the sentence that carries its subject and verb) are the claims
@@ -11037,6 +11122,17 @@ function renderFold(node, { sent, record = null } = {}) {
       meta.append(t);
     }
   }
+  // What spoke for this turn: every call's model and the machine it ran on,
+  // beside the token count, so an answer never hides which mouth made it.
+  meta.querySelector(".turn-mouths")?.remove();
+  const spoke = mouthsLine(Number(node.dataset.turnSeq ?? -1));
+  if (spoke) {
+    const m = document.createElement("span");
+    m.className = "turn-mouths";
+    m.textContent = spoke;
+    m.title = "which model answered each call of this turn, and on whose machine — measured at the call, not inferred";
+    meta.append(m);
+  }
   const out = box.querySelector("p");
   out.textContent = "";
 
@@ -12874,7 +12970,16 @@ function renderModelMenu() {
       const n = document.createElement("span"); n.className = "nm"; n.textContent = `${m} · on ${w.user}${w.home ? `'s ${w.home}` : ""}, through the room`;
       row.append(n);
       if (name === state.model) { const tick = document.createElement("span"); tick.className = "tick"; tick.textContent = "✓"; row.append(tick); }
-      row.onclick = () => { state.model = name; state.ready = true; state.contextTokens = null; settingsDialog.close(); syncModelPick(); $("send").disabled = false; $("status").textContent = `ready · ${name} · sealed through the room`; showView("chat"); $("input").focus(); };
+      row.onclick = () => {
+        state.model = name; state.ready = true; state.contextTokens = null;
+        // The room's mouths belong in what this page considers offered, so
+        // every routing decision can see them and the picker's own checks
+        // do not treat the choice as unknown.
+        if (!state.offeredModels.includes(name)) state.offeredModels = [...state.offeredModels, name];
+        settingsDialog.close(); syncModelPick(); $("send").disabled = false;
+        $("status").textContent = `ready · ${name} · every call of a turn goes there, sealed through the room`;
+        showView("chat"); $("input").focus();
+      };
       list.append(row);
     }
   }
@@ -12975,6 +13080,9 @@ async function signInFromSheet(hs, user, pass) {
   try {
     const st = await foldMatrix.login(hs, user, pass);
     addMessage("assistant", `signed in as ${st.user} on ${st.hs} — this browser now holds a session and an identity pair for it`);
+    // A different account on the same browser cannot reach the room the last
+    // one pointed at; stop pointing at it rather than failing every door.
+    if (state.matrixRoom && !st.rooms.some((x) => x.id === state.matrixRoom)) { const was = forgetRoom(`signed in as ${st.user}, which holds no key for it`); addMessage("assistant", `this chat no longer points at ${was} — ${st.user} holds no key for it; /preserve makes a room this account owns`); }
     if (state.matrixPendingLink) { const line = await joinInto(state.matrixPendingLink); addMessage("assistant", line); }
     renderPool();
   } catch (e) { addMessage("assistant", `sign-in failed: ${matrixGap(e)} — nothing but the login call went to ${hs}`); }

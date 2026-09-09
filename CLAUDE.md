@@ -7675,6 +7675,14 @@ POLICIES.md **P125**. A wrong answer is corrected at ANY level, not only inside 
 
 POLICIES.md **P127**. The mouth narrating its own answering — a heading, "Let me break down…", "This analysis focuses on a passage from…" — is cut from any turn that HAS material (`correction.js::cutProcessTalk`); a passage-less turn is conversation and is left alone. Narrow by construction: a stated absence is a finding and stays, so does any sentence carrying a name, number or date or using the material's own words, and an answer that is nothing BUT narration is left whole for the marks to carry. POLICIES.md **P128**. A question that points back at what was said retrieves the relevant prior turns from the transcript and hands them over as addressed passages `turn:N` (`transcript.js`), so what the recency window drops is still reachable. Two walls: a prior answer is never admitted to the ledger as material (`self:model` may never corroborate itself, P2), and a transcript with nothing in common hands over nothing.
 
+## The pool, coordinated (2026-09-06)
+
+POLICIES.md **P129**. A mouth offer carries `models`, `available` (spare), `device` (`deviceContent`: runtime, cores, memGB, `gpu` true/false/null) and `refused`. `/pool want @who <model>` writes a `fold.want` state event; the worker's serve loop takes the model up if it is spare (subject to `canTakeUp`) or refuses with a reason that travels back in the offer. `pickMouth` ranks by in-flight × measured mean latency. A `room:@who:server model` selection is PINNED (`isPinnedModel`) through `routeModel` and `twoPassTurn`. Every call notes its mouth with the turn's `turnSeq`; `renderFold` draws only that turn's, and `state.lastGround.turnSeq` gates the self-citation. Drill scripts live in the scratchpad, not the repo; the fixture now sends state deltas on incremental syncs.
+
+## Ground, Figure, Pattern (2026-09-07)
+
+POLICIES.md **P130**; spec `GROUND-FIGURE-PATTERN-SPEC.md`. `relative.js` is a keyless state field (no `get`; recall from a cue, walk a synapse, serialize by signature); `relative-pattern.js` is the meta part (`drift`, `reanchor`, `correspond`) over `record-log.js resolveAddress`. Rule: the ends stay absolute (bytes, and the recorded acts), the middle goes relative (memory). Every verdict is against a null band measured per field per cue length — never a threshold. Neither module is in the page graph yet; the spec's Pass 34 is the one wiring point (reopen). `node eval/relative-addresses.mjs` reproduces the table. **P131**: prediction as author is a reordering of the turn (expect → render → diff → update), not a separate program — Passes 40–42; invariants A1–A4 (the ledger authors, the expectation is on the record before the draft, the self tier stays open, precision is the tier).
+
 ## The conversation's loops, on referents (added 2026-09-07) — pointer
 
 POLICIES.md **P170** is the law. `dialogue.js` closes the reading's loops over the CONVERSATION — anaphora, the reader's restatement graded as a premise, the address check with one positive-fact re-ask, typed absence, self-consistency across turns, a measured history depth, the expectation before the draft — and every decision about identity is `cast.js::makeReferentIndex`'s (`resolve`), never a string's. Two things not to re-derive: **nothing had ever passed `makeReferentIndexFor` to the turn** before this (the premise check's referent path had never run in the app), and **an absence the record states needs two bars** — the index refuses a sentence-initial capital as evidence, so a name the bytes carry but the index never established is `unestablished`, never "absent". The doors (`answerable.js::quoteBytes`, `recordCheck`) answer before any model.
@@ -7693,3 +7701,40 @@ Bateson, event sourcing, RAG / GraphRAG), the path on the record (P159,
 P45, the 08-18 address decision, P170, the three resolutions), and the
 walls that stay. Its numbers — the compression ladder and the
 holograph-reading test — are pending and named there as pending.
+
+## Workspaces, the room as a button, resources (2026-09-08) — pointer
+
+POLICIES.md **P178** is the law; this is the map. `PER_WORKSPACE` (app.js) is
+the container `state.sources`' own comment had implied for months and never
+named — material is not per conversation, and this is what it IS per: the
+conversations, the material, the folds and the room, swapped on a switch
+exactly as `PER_CONVO` already was. The reading ledgers deliberately do NOT
+move with it (one instrument's reading, one record, P98), and `buildsKey()`
+keys the fold store per workspace so a switch cannot silently overwrite the
+other one's folds.
+
+`transcriptNow()` spans the workspace's conversations, and **`transcript.js`'s
+`turnRef` is the one place a prior turn's address is built** — `turn:12` here,
+`turn:3.12` for another conversation — because a bare turn number stopped
+being unique the moment more than one conversation could be recalled from
+(P137). `answerable.js` imports it rather than rebuilding the string. Recall
+is unchanged otherwise: same cap, same relevance floor, nothing handed over
+when nothing is in common. **A workspace makes more turns reachable; it never
+makes a prompt bigger.**
+
+Whether ONE question may reach the others is a composer switch beside
+attachments and web — per question, in sight while it is typed, and only
+present once there is a second conversation to govern. Between workspaces
+there is no switch: that isolation is the definition.
+
+The room (P119/P120) is a header button beside the theme toggle, and its
+sheet leads with inviting. No door in it is re-implemented — each row SENDS
+the door it names, so the act lands on the transcript exactly as a typed one
+does. **matrix.org is named and linked, reversing P119's own no-homeserver
+rule on the same giver's later direction**; `constitution.test.mjs` carries a
+typed II.13 allowance whose reason is checked (it must sit in an `href`).
+
+The Resources pane reports probes in THREE states — reachable, not reachable,
+and not asked — so `probeRoutes` now keeps the probe answers themselves
+(`state.routeProbes`) beside `describeRoutes`' phrasing. An unmeasured machine
+sorts LAST on speed, never as if it were instant.

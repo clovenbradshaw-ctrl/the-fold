@@ -328,3 +328,93 @@ test("dedupeSourceText: null/empty inputs are handled without a throw, with or w
   assert.deepEqual(dedupeSourceText([{ ref: "a#0", text: "" }]), [{ ref: "a#0", text: "" }]);
   assert.deepEqual(dedupeSourceText([], freshRelations([PASSAGE_1])), []);
 });
+
+// ── the truncated-preview specimen (2026-09-09) ────────────────────────────
+// Live turn: "I'm researching the Panama Canal's history for a documentary
+// script. Who built the canal, when was it completed, and why did the
+// earlier French attempt fail?" (gemma2:2b, checking + web on, no material
+// attached). A fetched scribd.com page's own "AI-enhanced document" summary
+// caption was extracted TWICE from that one page's raw text — once cut
+// short with a trailing "…" (DuckDuckGo's own snippet convention landed the
+// truncated copy in the search-result digest chunk), once in full a few
+// hundred bytes later in the page's own body — and neither existing pass
+// caught the duplicate: pass 1 is exact-match only (the strings differ);
+// pass 2 (relations) was defeated by the clause the truncation happens to
+// cut off ("...United States THAT led to its failure") producing its own
+// extra, malformed triple that `covered`'s own "one new fact survives the
+// whole sentence" rule correctly, but wrongly here, treated as new
+// information. The model was shown the fact twice and wrote about it
+// twice — once uncited, once carrying a real citation to the fuller copy.
+const TRUNCATED = "The document discusses the history and challenges of the French Canal project initiated by Ferdinand de Lesseps in the 19th century, highlighting mismanagement and opposition from the United…";
+const FULL_RESTATEMENT = "The document discusses the history and challenges of the French Canal project initiated by Ferdinand de Lesseps in the 19th century, highlighting mismanagement and opposition from the United States that led to its failure.";
+
+test("dedupeSourceText: a truncated preview (trailing ellipsis) and its own fuller restatement collapse to one — WITHOUT relations", () => {
+  const passages = [
+    { ref: "web:search-results#0-200", text: TRUNCATED },
+    { ref: "web:scribd.com-1#800-1400", text: FULL_RESTATEMENT },
+  ];
+  const out = dedupeSourceText(passages);
+  const allText = out.map((p) => p.text).join(" ").trim();
+  assert.equal(allText, FULL_RESTATEMENT, "the truncated preview must drop and the fuller sentence must survive, with no relations organ involved at all");
+});
+
+test("dedupeSourceText: the same truncated-preview specimen collapses WITH the real relations reader too (the live path)", () => {
+  const passages = [
+    { ref: "web:search-results#0-200", text: TRUNCATED },
+    { ref: "web:scribd.com-1#800-1400", text: FULL_RESTATEMENT },
+  ];
+  const relations = freshRelations(passages);
+  const out = dedupeSourceText(passages, relations);
+  const allText = out.map((p) => p.text).join(" ").trim();
+  assert.equal(allText, FULL_RESTATEMENT);
+});
+
+test("dedupeSourceText: the truncated-preview collapse is order-independent — full text first, truncated preview second", () => {
+  const passages = [
+    { ref: "web:scribd.com-1#800-1400", text: FULL_RESTATEMENT },
+    { ref: "web:search-results#0-200", text: TRUNCATED },
+  ];
+  const out = dedupeSourceText(passages);
+  const allText = out.map((p) => p.text).join(" ").trim();
+  assert.equal(allText, FULL_RESTATEMENT, "a search digest is not reliably fetched before or after the full page it duplicates — the fix must not depend on which arrives first");
+});
+
+test("dedupeSourceText: a sentence ending in an ellipsis with no completing match anywhere survives untouched", () => {
+  const passages = [{ ref: "a#0", text: 'He paused, then said, "I don\'t know..."' }];
+  const out = dedupeSourceText(passages);
+  assert.equal(out[0].text, passages[0].text, "an ellipsis with nothing to complete it is not evidence of truncation — only a real, present completion is");
+});
+
+test("dedupeSourceText: an ordinary longer sentence sharing an opening clause with an earlier one, ending normally, is never collapsed (not a truncation)", () => {
+  const passages = [
+    { ref: "a#0", text: "Hamlin served as vice president to Abraham Lincoln from 1861 to 1865." },
+    { ref: "b#0", text: "Hamlin served as vice president to Abraham Lincoln from 1861 to 1865, but he was never close with the cabinet." },
+  ];
+  const out = dedupeSourceText(passages);
+  const allText = out.map((p) => p.text).join(" ");
+  assert.ok(allText.includes("never close with the cabinet"), "no trailing ellipsis on either sentence — a shared opening clause is not, by itself, a truncated preview, and the contrastive fact must survive");
+});
+
+test("buildFactBlock: the truncated preview's span never appears, even though its claim's spans are pooled across BOTH copies", () => {
+  const passages = [
+    { ref: "web:search-results#0-200", text: TRUNCATED },
+    { ref: "web:scribd.com-1#800-1400", text: FULL_RESTATEMENT },
+  ];
+  const relations = freshRelations(passages);
+  const fb = buildFactBlock(relations, passages, "who built the panama canal and why did the french attempt fail");
+  assert.ok(fb, "expected a real fact block");
+  assert.equal(fb.spans.length, 1, "only the fuller copy's span may survive");
+  assert.equal(fb.spans[0].ref, "web:scribd.com-1#800-1400");
+  assert.ok(!fb.spans.some((sp) => sp.text === TRUNCATED), "the truncated preview's own text must never appear as a span, whichever claim it rode in on");
+});
+
+test("buildFactBlock: the truncated preview's span is excluded order-independently too", () => {
+  const passages = [
+    { ref: "web:scribd.com-1#800-1400", text: FULL_RESTATEMENT },
+    { ref: "web:search-results#0-200", text: TRUNCATED },
+  ];
+  const relations = freshRelations(passages);
+  const fb = buildFactBlock(relations, passages, "who built the panama canal and why did the french attempt fail");
+  assert.equal(fb.spans.length, 1);
+  assert.equal(fb.spans[0].ref, "web:scribd.com-1#800-1400");
+});

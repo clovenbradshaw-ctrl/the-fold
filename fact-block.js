@@ -194,8 +194,69 @@ const tripleKeysOf = (relations, sentence) => {
     .map((c) => `${c.end1}|${c.label}|${c.end2}`.toLowerCase());
 };
 
+// A TRUNCATED PREVIEW OF A SENTENCE SHOWN IN FULL ELSEWHERE IS THE SAME
+// TEXT, NOT A SECOND FACT — found live 2026-09-09 ("who built the Panama
+// Canal... why did the French attempt fail?"): a fetched page's own
+// "AI-enhanced document" summary caption was extracted TWICE from that
+// one page's raw text — once cut short with a trailing "…" ("...highlighting
+// mismanagement and opposition from the United…"), once in full a few
+// hundred bytes later ("...from the United States that led to its failure.")
+// — and the search-result digest carried the truncated copy as its own
+// snippet (a search engine's own convention), so the two copies landed in
+// TWO DIFFERENT passages. Neither existing pass caught it: pass 1 below is
+// exact-match only, and the strings differ (one is cut off mid-clause);
+// pass 2 (relations) failed for a subtler reason — the clause the
+// truncation happens to cut off ("...United States THAT led to its
+// failure") produced its OWN extra, malformed triple (a relative "that"
+// read as a connector), and `covered`'s own "one new fact survives the
+// whole sentence" rule — deliberately built so a sentence contributing
+// even one new fact is never dropped wholesale — treated that extra
+// triple as real new information. The model was shown the identical
+// sentence twice and wrote about it twice, once per copy.
+//
+// The fix does not touch either existing pass or lean on the extractor at
+// all: a trailing ellipsis (the single Unicode character, or three
+// periods) is a STRUCTURAL truncation marker, not sentence-final
+// punctuation, and checking whether the truncated text is a byte-for-byte
+// PREFIX of some fuller sentence elsewhere in the SAME material is exactly
+// `subsumes`'s own already-accepted shape (one string is a prefix of the
+// other), applied to the whole sentence instead of just a triple's object.
+// It is a structural containment check, never a similarity guess — an
+// ordinary longer sentence that merely shares an opening clause with an
+// earlier one, and ends normally, is never touched (no trailing ellipsis,
+// no match). Order-independent (computed once, up front, over every
+// sentence in every passage) because a search-result digest is not
+// reliably fetched before or after the full page it duplicates.
+//
+// Shared by both halves of the salience gate — `dedupeSourceText` below
+// AND `buildFactBlock` further down — because `buildFactBlock`'s own
+// `spans` (rendered as `spanBlock`, holon.js) bypass `dedupedSourceBlock`
+// entirely whenever any fact bound at all (holon.js's own `rawSource: …
+// factBlock ? (spanBlock ?? dedupedSourceBlock) : dedupedSourceBlock`), so
+// fixing dedupeSourceText alone leaves the live bug's own actual failure
+// mode — the FACTS block — untouched.
+const TRAILING_ELLIPSIS_RE = /(?:…|\.\.\.)\s*$/;
+function truncatedDominated(passages) {
+  const seen = [];
+  for (const p of passages ?? []) {
+    const text = String(p?.text ?? "");
+    if (!text.trim()) continue;
+    for (const s of splitSentences(text)) {
+      const norm = normalizeForDedup(s);
+      if (norm) seen.push({ raw: s, norm });
+    }
+  }
+  const dominated = new Set();
+  for (const { raw, norm } of seen) {
+    if (!TRAILING_ELLIPSIS_RE.test(String(raw).trim())) continue;
+    if (seen.some((o) => o.norm !== norm && o.norm.length > norm.length && o.norm.startsWith(norm))) dominated.add(norm);
+  }
+  return dominated;
+}
+
 export function dedupeSourceText(passages, relations = null) {
   if (!Array.isArray(passages) || !passages.length) return passages ?? [];
+  const dominated = truncatedDominated(passages);
   const seenText = new Set();
   const seenParsed = []; // [subject, verb, object] — subsumes() covers exact matches too (o.startsWith(o) is always true)
   return passages.map((p) => {
@@ -204,6 +265,7 @@ export function dedupeSourceText(passages, relations = null) {
     const kept = splitSentences(text).filter((s) => {
       const norm = normalizeForDedup(s);
       if (!norm) return false;
+      if (dominated.has(norm)) return false;
       if (seenText.has(norm)) return false;
       if (relations) {
         const keys = tripleKeysOf(relations, s);
@@ -242,6 +304,13 @@ export function buildFactBlock(relations, passages, question = "") {
   const lines = [];
   const spans = [];
   const spanSeen = new Set();
+  // See `truncatedDominated`'s own header above `dedupeSourceText` — this
+  // is the OTHER half of the same fix. `spanBlock` (holon.js, built from
+  // `spans` below) stands in for `dedupedSourceBlock` whenever any fact
+  // bound at all, so a truncated preview's own claim must never reach
+  // `spans` here either, or the live bug survives untouched by the fix
+  // above.
+  const dominated = truncatedDominated(passages);
   let sentenceCount = 0;
   let boundSentenceCount = 0;
   for (const p of passages) {
@@ -267,6 +336,11 @@ export function buildFactBlock(relations, passages, question = "") {
     for (const claim of report.claims) {
       if (claim.verdict !== "bound") continue;
       boundSentences.add(claim.sentence);
+      // A truncated preview of a sentence shown in full elsewhere is not a
+      // second fact — still counted toward `boundSentenceCount` above (it
+      // genuinely was examined and did yield a claim), just never turned
+      // into its own line.
+      if (dominated.has(normalizeForDedup(claim.sentence))) continue;
       const key = `${claim.end1}|${claim.label}|${claim.end2}`.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
@@ -281,6 +355,16 @@ export function buildFactBlock(relations, passages, question = "") {
       // though it were evidence. The sentence that actually bound the claim
       // is the evidence, it is byte-addressed, and it is what goes.
       for (const sp of claim.spans ?? []) {
+        // A CLAIM'S OWN SPANS ARE POOLED ACROSS EVERY PASSAGE THAT STATES
+        // THE SAME TRIPLE — found live, the same specimen as above: the
+        // triple both the truncated and the full sentence bind carries
+        // BOTH sentences' spans on every claim that matches it, including
+        // one whose OWN sentence (the FULL one) was never itself skipped
+        // by the check two lines up. Filtering by SENTENCE alone lets a
+        // truncated preview's span back in through an unrelated claim that
+        // happens to share its edge — filtering by the SPAN'S OWN text is
+        // what actually keeps it out.
+        if (dominated.has(normalizeForDedup(String(sp.text ?? "")))) continue;
         const at = `${sp.ref}#${sp.start}-${sp.end}`;
         if (spanSeen.has(at)) continue;
         spanSeen.add(at);

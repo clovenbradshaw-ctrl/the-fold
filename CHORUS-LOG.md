@@ -225,3 +225,16 @@ deferred-with-reason: none. false-positive-on-review: none.
 
 ## 2026-09-07 — P171 written (staged: POLICIES.md)
 - chorus-fast: PASS — law checks (Generality present on P171; citations resolve; the pre-existing duplicate headers P115/P116/P117/P19 warned, unchanged); no source touched in this commit.
+
+## 2026-09-08 — paired-improvement: the driver's claims over the engine unchanged, 5 arms 56/56 (eval/paired-improvement-assay.mjs, untracked)
+
+Constitution: FOLD-CONSTITUTION (+ POLICIES/CLAUDE as standing). Lenses in-session over the driver; the rerun is a pure `tee` capture, diffed line for line against the record the entry rests on.
+
+| persona | cell | citation | file:line | verdict | summary |
+|---|---|---|---|---|---|
+| Diaconis | II.10 | driver exit gate (`passes === total ? 0 : 1`) | eval/paired-improvement-assay.mjs:265-266 | clean | rerun 56/56, exit=0; the result file is a pure tee capture, never hand-appended |
+| I.5 | FOLD-CONSTITUTION I.5 | the driver's header | eval/paired-improvement-assay.mjs:253 | fixed | the header now names the breadth each arm claims (against whose engine) — previously left implicit |
+| Diaconis | II.10 | helper cluster | eval/paired-improvement-assay.mjs:45-47 | noted | `graphOf`/`reassignmentRows`/`countOf` defined, self-referencing, never invoked; noted, not removed |
+| Diaconis | II.10 | Arm B per-schema counts; Arm D referent faces | eval/paired-improvement-assay.mjs | deferred-with-reason | would pass vacuously on an empty engine, but that branch is unreachable for these deterministic inputs; no guard added |
+
+clean: nothing struck. deferred-with-reason: the one observation above. false-positive-on-review: none.

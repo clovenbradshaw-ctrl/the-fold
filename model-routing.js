@@ -53,7 +53,24 @@ export const ROUTE_KINDS = Object.freeze({
  * are actually loaded, in picker order (fastest first); `selected` is the
  * model the user chose in the picker.
  */
+/**
+ * A model the person picked THROUGH A ROOM outranks every rung of this
+ * ladder. The ladder exists to spend the cheapest local model that can do a
+ * given job; a room mouth is not on that scale at all — it is somebody
+ * else's machine, chosen deliberately, usually because it runs something
+ * bigger than anything here. Routing a summary or a flat turn to the local
+ * fast rung "for speed" silently answers with a different model than the one
+ * the picker says is answering, which is the one thing a picker may not do.
+ *
+ * (This converges with P129's own `isPinnedModel` upstream — the same rule,
+ * derived again here from the same failure, measured live 2026-09-08: the
+ * room served two real sealed jobs and the shipped answer still came from
+ * the local fast rung, with the AnswerRecord naming it.)
+ */
+export const isPinnedModel = (name) => typeof name === "string" && name.startsWith("room:");
+
 export function routeModel(kind, { offered = [], selected = null } = {}) {
+  if (isPinnedModel(selected)) return selected;
   const fast = offered[0] ?? MODEL_PICKER[0];
   if (kind === ROUTE_KINDS.SUMMARY || kind === ROUTE_KINDS.FLAT) return fast;
   return selected ?? fast;

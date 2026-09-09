@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { answerRecord, claimKey, claimSets, diffRecords, answerRecordLine, ANSWER_RECORD_SCHEMA, voidInScope, absencesOf } from "./answer-record.js";
+import { answerRecord, claimKey, claimSets, diffRecords, answerRecordLine, answerRecordProse, ANSWER_RECORD_SCHEMA, voidInScope, absencesOf } from "./answer-record.js";
 
 const section = (claims, refs = ["a.txt#0-10"]) => ({ passages: refs.map((ref) => ({ ref, text: "x" })), relations: { claims } });
 
@@ -75,4 +75,46 @@ test("the label folds through an injected morphology organ: 'director' cites a v
   assert.equal(voidInScope("The Northgate Observatory's founder is unknown.", voids, { question: q, sameForm }), null, "a different act still cites none");
   const throwing = () => { throw new Error("no prior yet"); };
   assert.equal(voidInScope("The director of the Northgate Observatory is unknown.", voids, { question: q, sameForm: throwing }), null, "an organ that throws is exact match, never a crash");
+});
+
+test("answerRecordProse reads as plain language — no organ names, no JSON, no schema/recipe/frame (2026-09-08)", () => {
+  const r = answerRecord({
+    question: "Who founded it?", answer: "Amelia Hartley founded it.", model: "m", recipe: "r1", frame: { organs: { discoverRelationVocab: "discoverRelationVocab" } },
+    sections: [section([
+      { end1: "Amelia Hartley", label: "founded", end2: "the Northgate Observatory", verdict: "bound", refs: ["a.txt#0-10"], spans: [{ ref: "a.txt#0-10", start: 0, end: 10, text: "…" }] },
+      { end1: "Amelia Hartley", label: "founded", end2: "a bakery", verdict: "unbound", reason: "object_unspecific" },
+    ])],
+    unsupported: [{ sentence: "She founded a bakery." }], unbacked: ["Nothing here."], unread: [{ name: "b.txt", read: 2, total: 44, unread: 42 }],
+    sources: [{ name: "a.txt", sha256: "abc" }], constitution: { sha256: "def" }, cursor: 7,
+  });
+  const prose = answerRecordProse(r);
+  assert.match(prose, /It made 2 claims about the material — 1 backed by what it read, 1 the reading couldn't settle either way\./);
+  assert.match(prose, /1 statement the material didn't support/);
+  assert.match(prose, /1 statement with nothing to check against/);
+  assert.match(prose, /It drew on 1 passage from 1 source\./);
+  assert.match(prose, /Reading is still going on 1 source \(b\.txt 2 of 44\)\./);
+  // The developer's own view — organ names, the recipe hash, schema/frame
+  // internals — belongs to "view raw", one click deeper, never the default
+  // plain-language sentence.
+  for (const leak of ["discoverRelationVocab", "recipe", "schema", "EOAnswerRecord", "{", "}", "r1"]) {
+    assert.ok(!prose.includes(leak), `plain summary leaked "${leak}": ${prose}`);
+  }
+});
+
+test("answerRecordProse: nothing to say is said plainly, never a blank box", () => {
+  assert.equal(answerRecordProse(answerRecord({})), "It didn't make any checkable claims this turn.");
+  assert.equal(answerRecordProse(null), "");
+});
+
+test("answerRecordProse: absences and open voids are put in words, not counted alone", () => {
+  const voids = [{ id: "void:northgate observatory|director|*", subject: "Northgate Observatory", verb: "director", object: null, scope: { sources: ["a.txt", "b.txt"], read: 5, total: 5 } }];
+  const r = answerRecord({
+    unbacked: ["Carl Keeler directed it."],
+    witness: [{ sentence: "There is no mention of anything else.", witness: "refused" }, { sentence: "The Northgate Observatory's director is not named.", witness: "refused" }],
+    voids,
+  });
+  const prose = answerRecordProse(r);
+  assert.match(prose, /It also said 1 statement with nothing to check against\./);
+  assert.match(prose, /It acknowledged 2 spots where the material simply doesn't say more\./);
+  assert.match(prose, /1 question about this remains open\./);
 });

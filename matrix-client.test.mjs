@@ -24,6 +24,33 @@ import { SecretSet, decryptBytes, decodeBlock, byteEntropy, generateChatKey, unb
 const enc = new TextEncoder(); const dec = new TextDecoder();
 /** Random bytes of any length (getRandomValues caps one call at 64 KiB). */
 const randomBytes = (n) => { const out = new Uint8Array(n); for (let i = 0; i < n; i += 65536) crypto.getRandomValues(out.subarray(i, Math.min(n, i + 65536))); return out; };
+/** The entropy null's false-positive rate, per sealed blob checked: a budget
+ * with a name (P9), not a judgment about the material. It fixes how many
+ * random draws `randomBand` may make; the draws follow from the rate, never
+ * the other way around. At 1e-4 per check this file's three checks spend one
+ * spurious failure in ~3,300 runs; the sample min/max of 100 draws it
+ * replaces spent one in ~17 (2/101 per blob — the 2026-09-07 flake). */
+const NULL_FALSE_POSITIVE = 1e-4;
+/** Place a blob's byte entropy `e` against random bytes of its own length —
+ * the band random occupies, with an EXACTLY stated false-positive rate. If
+ * the blob is random it is exchangeable with the draws, so the chance it is
+ * the strict min or max among N draws and itself is 2/(N+1): a distribution-
+ * free fact, not a fitted one. Draws come in doubling batches and stop as
+ * soon as `e` sits inside the band, because inside a subset's band is inside
+ * the whole band; only a blob outside (a leak, or a 1-in-(N+1) fluke) pays
+ * for every draw. `fpr` is the rate at which the returned verdict is a
+ * false `inside: false`. */
+const randomBand = (e, len) => {
+  const N = Math.ceil(2 / NULL_FALSE_POSITIVE) - 1;
+  let lo = Infinity, hi = -Infinity, n = 0;
+  for (let batch = Math.min(100, N); n < N; batch = Math.min(batch * 2, N - n)) {
+    for (let d = 0; d < batch; d++, n++) { const h = byteEntropy(randomBytes(len)); if (h < lo) lo = h; if (h > hi) hi = h; }
+    if (e >= lo && e <= hi) break;
+  }
+  return { lo, hi, draws: n, inside: e >= lo && e <= hi, fpr: 2 / (N + 1) };
+};
+/** Plaintext the length of a blob: the positive control's material. */
+const proseOf = (len) => { const src = enc.encode(JSON.stringify([...TURNS, ...MORE])); const out = new Uint8Array(len); for (let i = 0; i < len; i++) out[i] = src[i % src.length]; return out; };
 const mapStorage = () => { let v = null; return { get: () => (v ? JSON.parse(v) : null), set: (o) => { v = JSON.stringify(o); }, raw: () => v }; };
 const PW = { alice: "alice-throwaway-pw-9f1c2b", bob: "bob-throwaway-pw-4e7d8a", mallory: "mallory-throwaway-pw-1122", carol: "carol-throwaway-pw-5566" };
 const TURNS = [
@@ -151,13 +178,16 @@ test("check 3 — by the function: with everything the operator holds, every blo
   for (const w of wrapped) for (const k of candidates) await assert.rejects(() => decryptBytes(k, unb64(w.content.blob)));
 });
 
-test("the entropy null, measured per blob: each block sits in the band random bytes of its own length occupy", () => {
+test("the entropy null, measured per blob with a stated false-positive rate: each block sits in the band random bytes of its own length occupy; plaintext of that length does not (positive control)", () => {
+  let checked = 0;
   for (const m of hs.store.media.values()) {
-    let lo = 8, hi = 0;
-    for (let d = 0; d < 100; d++) { const h = byteEntropy(randomBytes(m.bytes.length)); lo = Math.min(lo, h); hi = Math.max(hi, h); }
     const e = byteEntropy(m.bytes);
-    assert.ok(e >= lo && e <= hi, `${m.bytes.length} bytes: ${e.toFixed(3)} in [${lo.toFixed(3)}, ${hi.toFixed(3)}]`);
+    const b = randomBand(e, m.bytes.length);
+    assert.ok(b.inside, `${m.bytes.length} bytes: ${e.toFixed(3)} outside [${b.lo.toFixed(3)}, ${b.hi.toFixed(3)}] after ${b.draws} random draws of that length — a random blob lands here once in ${Math.round(1 / b.fpr)}`);
+    assert.ok(byteEntropy(proseOf(m.bytes.length)) < b.lo, "the band that admits the ciphertext refuses plaintext of the same length");
+    checked++;
   }
+  assert.ok(checked >= 2, `the two blocks the flow pushed (${checked})`);
 });
 
 test("the record discipline: every line the flow recorded is pointer-shaped and carries no secret and no turn; a leaking line refuses (positive control)", () => {
@@ -231,12 +261,15 @@ test("a homeserver that is down or wrong is a typed error, never a hang or a sil
 const PROMPT = "PROMPT-CANARY-77aa: who was Secretary of State?";
 const REPLY = "REPLY-CANARY-88bb: William Seward, from March 1861.";
 const echoMouth = (label) => async ({ model, messages }) => ({ text: `${REPLY} [${label} answered ${messages.at(-1).content.length} chars with ${model}]`, usage: { outTokens: 12, promptTokens: 30 }, model, device: { home: "terminal", label } });
+/** Poll `cond` until it holds, within a stated wall-clock bound; running out is a named failure, never a hang or a fixed sleep. */
+const awaitUntil = async (cond, what, { ms = 10_000, every = 5 } = {}) => { const t0 = Date.now(); while (!(await cond())) { if (Date.now() - t0 > ms) throw new Error(`${what}: not within ${ms}ms`); await new Promise((r) => setTimeout(r, every)); } };
 
 test("the room as a mouth: alice serves her machine's models; bob's prompt goes to her sealed, her answer comes back sealed; the homeserver saw an address, an id, a seal and a size", async () => {
   const ac = new AbortController();
   const serving = alice.serve(room, { complete: echoMouth("alice-mac"), models: ["gemma2:2b", "qwen2.5-coder:1.5b"], home: "terminal", signal: ac.signal });
   try {
-  await new Promise((r) => setTimeout(r, 50));
+  // the offer lands after serve's own key read; wait for it on the room's state, bounded, not for a fixed 50ms that loses under load
+  await awaitUntil(async () => (await bob.mouths(room)).length === 1, "alice's offer on the room's state");
   const offers = await bob.mouths(room);
   assert.deepEqual(offers.map((o) => o.user), ["@alice:fake.test"]);
   assert.deepEqual(offers[0].models, ["gemma2:2b", "qwen2.5-coder:1.5b"]);
@@ -271,13 +304,24 @@ test("a pool: two machines serve; four concurrent asks spread across them by in-
   const carolLink = (await alice.share(room, { invite: "@carol:fake.test", mode: "open", pageHref: "https://example.github.io/the-fold/" })).link;
   assert.equal((await carol.joinFromLink(carolLink)).joined, true);
   const ac = new AbortController();
-  const s1 = alice.serve(room, { complete: echoMouth("alice-mac"), models: ["gemma2:2b"], home: "terminal", signal: ac.signal });
-  const s2 = carol.serve(room, { complete: echoMouth("carol-pc"), models: ["gemma2:2b"], home: "extension", signal: ac.signal });
+  // Both mouths hold every answer behind one gate, so all four picks are made
+  // against the same in-flight state: each earlier pick counted, none answered.
+  // Without the gate the split is a scheduling fact, not a rule: when one
+  // answer lands before a later pick, that mouth is idle again and the
+  // least-loaded rule, correctly, sends it the next job — seen as 3/1 under
+  // machine load with every counter consistent. The pick itself is atomic with
+  // its count (matrix-client.js ask); what varies is when each ask reaches it.
+  let openGate; const gate = new Promise((r) => { openGate = r; });
+  const gated = (label) => { const echo = echoMouth(label); return async (job) => { await gate; return echo(job); }; };
+  const s1 = alice.serve(room, { complete: gated("alice-mac"), models: ["gemma2:2b"], home: "terminal", signal: ac.signal });
+  const s2 = carol.serve(room, { complete: gated("carol-pc"), models: ["gemma2:2b"], home: "extension", signal: ac.signal });
   try {
-  await new Promise((r) => setTimeout(r, 50));
-  await bob.mouths(room);
+  await awaitUntil(async () => (await bob.mouths(room)).length === 2, "both offers on the room's state");
   const big = "B".repeat(70 * 1024) + " PROMPT-CANARY-big";
-  const asks = await Promise.all([0, 1, 2, 3].map((i) => bob.ask(room, { messages: [{ role: "user", content: i === 3 ? big : `${PROMPT} #${i}` }], model: "gemma2:2b" }, { timeoutMs: 10_000 })));
+  const asking = Promise.all([0, 1, 2, 3].map((i) => bob.ask(room, { messages: [{ role: "user", content: i === 3 ? big : `${PROMPT} #${i}` }], model: "gemma2:2b" }, { timeoutMs: 10_000 })));
+  await awaitUntil(() => bob.pool(room).workers.reduce((n, w) => n + w.inflight, 0) === 4, "four jobs picked and in flight");
+  openGate();
+  const asks = await asking;
   const by = asks.map((a) => a.by).sort();
   assert.deepEqual(by, ["@alice:fake.test", "@alice:fake.test", "@carol:fake.test", "@carol:fake.test"], "two each: the least-loaded mouth takes each next job");
   assert.ok(asks[3].text.includes(`answered ${big.length} chars`), "the big prompt arrived whole");
@@ -286,8 +330,8 @@ test("a pool: two machines serve; four concurrent asks spread across them by in-
   assert.equal(viaMedia.length, 1, "one job rode the media store");
   assert.deepEqual(Object.keys(viaMedia[0].content).sort(), ["bytes", "id", "mxc", "sha256", "to", "v"]);
   const blob = hs.store.media.get(viaMedia[0].content.mxc).bytes;
-  let lo = 8; for (let d = 0; d < 50; d++) lo = Math.min(lo, byteEntropy(randomBytes(blob.length)));
-  assert.ok(byteEntropy(blob) >= lo, "the sealed prompt blob sits in the random band");
+  const e = byteEntropy(blob); const band = randomBand(e, blob.length);
+  assert.ok(band.inside, `the sealed prompt blob sits in the random band: ${blob.length} bytes, ${e.toFixed(4)} outside [${band.lo.toFixed(4)}, ${band.hi.toFixed(4)}] after ${band.draws} draws (once in ${Math.round(1 / band.fpr)} for a random blob)`);
   assert.deepEqual(new SecretSet().add("big", big).leaks(hs.everything()), []);
   const pool = bob.pool(room);
   assert.equal(pool.offers, 2);
@@ -295,7 +339,7 @@ test("a pool: two machines serve; four concurrent asks spread across them by in-
   for (const w of pool.workers) { assert.equal(w.answered, w.sent); assert.equal(w.inflight, 0); assert.equal(w.failed, 0); assert.ok(w.meanMs >= 0); }
   assert.equal(pool.workers.reduce((n, w) => n + w.answered, 0), 5, "one from the mouth test, four from this one");
   assert.deepEqual(pool.workers.map((w) => w.device.label).sort(), ["alice-mac", "carol-pc"]);
-  } finally { ac.abort(); await s1; await s2; }
+  } finally { openGate(); ac.abort(); await s1; await s2; }
 });
 
 test("a mouth that is gone is a typed gap that counts against it; a model nobody offers is a typed gap; a room with no mouths says so", async () => {
@@ -304,7 +348,7 @@ test("a mouth that is gone is a typed gap that counts against it; a model nobody
   await assert.rejects(() => bob.ask(room, { messages: [{ role: "user", content: "x" }], model: "gemma2:2b" }), /nobody in this room offers a mouth/);
   const ac = new AbortController();
   const s = alice.serve(room, { complete: echoMouth("alice-mac"), models: ["gemma2:2b"], home: "terminal", signal: ac.signal });
-  await new Promise((r) => setTimeout(r, 50));
+  await awaitUntil(async () => (await bob.mouths(room)).length === 1, "alice's offer on the room's state");
   try { await assert.rejects(() => bob.ask(room, { messages: [{ role: "user", content: "x" }], model: "llama3" }), /no offered mouth has llama3/); }
   finally { ac.abort(); await s; }
 });
@@ -458,4 +502,22 @@ test("members: who is in the room, each key's fingerprint, and who holds a wrap;
   assert.equal(dave.hasKey, false, "the replaced key holds no wrap — a re-published key must be granted again");
   assert.ok(["@carol:fake.test", "@frank:fake.test", "@eve:fake.test"].every((u) => list.find((m) => m.user === u)?.hasKey), JSON.stringify(list.map((m) => [m.user, m.hasKey])));
   assert.ok(list.some((m) => m.user === "@bob:fake.test" && m.membership === "leave"), JSON.stringify(list.map((m) => [m.user, m.membership])));
+});
+
+test("presence: a homeserver that does not serve it (this adversary never implements the route) is asked once per member, never again — access() must not repeat an identical 404 forever", async () => {
+  const presenceRequests = () => hs.log.filter((l) => l.path.startsWith("/_matrix/client/v3/presence/")).length;
+  const before = presenceRequests();
+  const first = await alice.access(room);
+  assert.ok(first.length > 0);
+  assert.ok(first.every((m) => m.presence === "unknown" && m.presenceGap === "this homeserver does not report presence"), JSON.stringify(first.map((m) => [m.user, m.presence, m.presenceGap])));
+  const afterFirst = presenceRequests();
+  assert.ok(afterFirst > before, "the first call actually asks the homeserver, once per member, before anything is learned about it");
+  // Two more calls, same room, same never-implemented homeserver: the typed
+  // gap already established stands in for the request, so no further
+  // `/presence/<user>/status` line reaches the homeserver — this is the
+  // repro from the battery run (a fresh 404 pair every turn) closed at its
+  // source rather than only muted.
+  await alice.access(room);
+  await alice.access(room);
+  assert.equal(presenceRequests(), afterFirst, "no new presence requests once this homeserver has proved it does not serve them");
 });

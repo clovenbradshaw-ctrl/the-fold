@@ -109,6 +109,41 @@ function sameForm(a, b, suffixes) {
 }
 
 /**
+ * A bare numeral — digits alone, or a run of roman-numeral letters — the
+ * SAME shape source.js::tokenize's own private `isNumeral` bypasses its
+ * length floor for ("a document numbers its own parts with" them: chapter
+ * ii, section 4). That is the right call for RETRIEVAL, where a number is
+ * exactly what a query addresses a document's own part BY. It is the wrong
+ * call for THIS module's content-word check, where the question is never
+ * "does this message name a part of the artifact" but "does this message
+ * share a discriminating WORD with it" — and a bare number discriminates
+ * nothing: a loop counter, an array index, a step tag, a modulo test put a
+ * handful of small integers into nearly every program ever written, and an
+ * ordinary sentence mentions a number about as often (a date, an age, a
+ * quantity, a speaker's own numbered turn).
+ *
+ * Found live, on the REAL scaffold this repo's own regression suite already
+ * fixed one false positive from (widget.test.mjs's "code-piece.js's own
+ * python scaffold" case, below): `code-piece.js::skeletonFor`'s `main()`
+ * writes an EVA witness line per step — `[step 1 ...]`, `[step 2 ...]` — so
+ * a two-step build's own bytes carry "1" and "2" regardless of what the
+ * steps actually do. A battery-tested conversation asking about a
+ * transcript's two speakers, "Human 1" and "Human 2", matched fold 7 (an
+ * unrelated "adds up the first 10 even numbers" build) on exactly those two
+ * digits and was routed into its code-revision pipeline instead of
+ * answering the question. This is P31's own finding ("a bare digit string
+ * is the single-token, referent-less case this instrument had no defense
+ * for") one organ over: grounding.js's fix required a number to keep
+ * COMPANY with a real word before it counts as support; this fix is the
+ * same law read the other way — a bare number keeps no company at all here
+ * (this module compares TOKENS, not sentences), so it is refused outright
+ * rather than given a company test it has no sentence to pass.
+ */
+function isBareNumeral(t) {
+  return /^\d+$/.test(t) || /^[ivxlcdm]+$/.test(t);
+}
+
+/**
  * Strip an html document's own wrapper tags — <!DOCTYPE>, <html>, <head>,
  * <body>, open and close, whatever attributes they carry — never their
  * content. Every html-typed build carries this exact wrapper by
@@ -135,6 +170,55 @@ function stripHtmlWrapper(text) {
 }
 
 /**
+ * Strip code-piece.js's own python scaffold — the boilerplate
+ * `skeletonFor`/`RUNTIMES.python` writes around every code-piece build,
+ * regardless of what the build is actually about: the header's
+ * `import random` / `import sys` (`header()`, unconditional — a build
+ * about sorting a list carries the identical two lines a build about
+ * dice rolls does), the per-step witness line's `type(rN).__name__`
+ * (`main()`, one per feature, mechanical), and the closing
+ * `if __name__ == "__main__":` guard plus its `def main():` — the same
+ * non-discriminating-token shape `stripHtmlWrapper` above already exists
+ * to strip for html's own wrapper tags, one runtime over (P5.3's
+ * container-stripping precedent, applied to a code generator's own
+ * container instead of a document format's).
+ *
+ * Found live: a battery-tested conversation asked "one more random
+ * one" (idle filler, nothing to do with code) and it routed onto an
+ * unrelated coin-flip build, because THAT build's header — like every
+ * python build's — reads `import random`; a later conversation asked
+ * "what did I say my dog's name was" and it routed onto an unrelated
+ * "sum the first 10 even numbers" build, because EVERY python build's
+ * own `main()` reads `__name__` in its per-step instrumentation,
+ * contributing the content word "name" to every one of them by
+ * construction.
+ *
+ * Matched by TOKEN, not by the skeleton's own exact whitespace: a
+ * landed revision (SEG's own patch, or a full REC re-zero) routinely
+ * reindents or re-comments the surrounding lines — measured live, the
+ * "sum the first 10 even numbers" build's main() had gained three
+ * comment lines and lost its skeleton-exact blank-line spacing after
+ * one round of iteration — so an earlier draft here that matched the
+ * header and the guard as one exact multi-line string missed the guard
+ * entirely once its trailing newline drifted, and "name" kept routing.
+ * `__name__`/`__main__` are Python's own reserved dunder identifiers —
+ * a model filling in a STUB'S BODY has no occasion to write either, so
+ * stripping every occurrence, not just the two fixed spots the skeleton
+ * itself writes them in, is still narrow. `import random`/`import sys`
+ * stay matched as whole LINES (never mid-line) so a real `random.choice`
+ * call inside a step's body is untouched; `def main():` is the one
+ * genuinely fixed, single-occurrence line the skeleton never varies.
+ */
+function stripPyScaffold(text) {
+  return String(text ?? "")
+    .replace(/^\s*import random\s*$/m, " ")
+    .replace(/^\s*import sys\s*$/m, " ")
+    .replace(/__name__/g, " ")
+    .replace(/__main__/g, " ")
+    .replace("def main():", " ");
+}
+
+/**
  * Bind the router to the engine's prior register.
  *
  * `makeWidgetRouter(priors)` → `{ iterationTell, routeSegment }`, where
@@ -142,7 +226,7 @@ function stripHtmlWrapper(text) {
  * below arrives from there, with its giver attached at the source; this file
  * declares none of its own.
  */
-export function makeWidgetRouter(priors) {
+export function makeWidgetRouter(priors, pos = {}) {
   const {
     ANAPHORIC_PRONOUNS,
     NEGATION_WORDS,
@@ -151,6 +235,11 @@ export function makeWidgetRouter(priors) {
     INDEFINITE_DETERMINERS,
     DEFINITE_DETERMINERS,
   } = priors;
+  // The POS classifier (wordclass.js's `classifyWord`/`dominantClass`,
+  // real UD-treebank prior) is OPTIONAL and additive — see anaphoraTell,
+  // below, for why it is needed at all. Absent it, behavior is exactly
+  // what it was before this parameter existed.
+  const { classifyWord, dominantClass, posPrior } = pos;
 
   for (const [name, set] of Object.entries({ ANAPHORIC_PRONOUNS, NEGATION_WORDS, INFLECTIONAL_SUFFIXES, INDEFINITE_DETERMINERS, DEFINITE_DETERMINERS })) {
     if (!(set instanceof Set) || !set.size)
@@ -249,8 +338,72 @@ export function makeWidgetRouter(priors) {
     // The pointer is the more specific fact than the judging of it — a
     // judgment that arrives BY anaphora reports as the anaphor (the
     // earlier doctrine's own line, kept).
-    if (toks.some((t) => ANAPHORIC_PRONOUNS.has(t))) return "anaphora";
+    if (anaphoraTell(raw)) return "anaphora";
     return null;
+  }
+
+  /**
+   * True when a bare demonstrative ("it"/"this"/"that"/"these"/"those" —
+   * never the "'s"-contracted forms, which already carry their own verb
+   * and are always pronominal) is used PRONOMINALLY somewhere in the
+   * message, rather than as a demonstrative DETERMINER introducing a
+   * following noun. ANAPHORIC_PRONOUNS's own header states the two uses
+   * share one form in English ("'this' and 'that' overlap with
+   * DEFINITE_DETERMINERS by form... a consumer distinguishing 'make it
+   * bigger' (pronoun, nothing follows) from 'make this widget bigger'
+   * (determiner, a noun follows) reads the surrounding tokens, not this
+   * set alone") — this reads exactly that, with the SAME received POS
+   * prior (wordclass.js's `classifyWord`/`dominantClass`, real
+   * UD-treebank counts) app.js already uses for its own per-word class
+   * checks, rather than a second guessed rule.
+   *
+   * Found live: this consumer had never actually done that reading, so
+   * an ordinary sentence like "what is this app, in one sentence?" —
+   * "this" as a determiner on "app", nothing pronominal anywhere — still
+   * fired `tell: "anaphora"` against whichever code build happened to be
+   * the most recent, unconditionally re-zeroing it. A bare demonstrative
+   * followed by a token the POS prior calls a noun/proper noun is read as
+   * the determiner use and does not count.
+   *
+   * A second, narrower rule covers the prior's own vocabulary gap: the
+   * treebank is general prose and does not carry tech jargon like "app"
+   * or "widget" (measured live — both come back `found: false`), which
+   * are exactly the nouns a real reader is likeliest to put after "this"
+   * when asking about the product itself. An OUT-OF-VOCABULARY word is
+   * still read as the noun, not the pronoun's own predicate: a genuinely
+   * novel VERB immediately after a bare demonstrative ("this frobnicates")
+   * is rare in ordinary writing, while a genuinely novel NOUN there
+   * ("this widget", "this app") is common — so "not found" leans
+   * determiner, the same direction as a confident NOUN classification.
+   * A word the prior finds but classifies as something ELSE (a verb, an
+   * adjective — "this is", "this bigger") still reports pronominal, so
+   * "make this bigger" and "this is broken" are unaffected.
+   *
+   * Falls open, not closed, when the POS prior is unavailable (older
+   * callers, tests, or a page that has not finished loading the prior
+   * yet): every bare-demonstrative occurrence still counts as anaphora,
+   * exactly as before this function existed. So nothing that used to
+   * resolve stops resolving; this only narrows a false positive that a
+   * loaded prior can actually rule out.
+   */
+  function anaphoraTell(message) {
+    for (const clause of clauseForms(message)) {
+      for (let i = 0; i < clause.length; i++) {
+        const t = clause[i];
+        if (!ANAPHORIC_PRONOUNS.has(t)) continue;
+        if (t.includes("'")) return true; // "it's"/"this's"/"that's" — always pronominal
+        const next = clause[i + 1];
+        const prior = typeof posPrior === "function" ? posPrior() : posPrior;
+        if (next && classifyWord && dominantClass && prior) {
+          const classified = classifyWord(next, { posPrior: prior });
+          const d = dominantClass(classified, { minShare: 0.5 });
+          if (d && (d.upos === "NOUN" || d.upos === "PROPN")) continue; // determiner use — "this app", "that build"
+          if (classified && classified.found === false) continue; // unknown word — read as a novel noun, not a novel verb
+        }
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Does any content word of the message resolve into the build's own
@@ -384,10 +537,11 @@ export function makeWidgetRouter(priors) {
    * see the routing amendment this measurement produced.
    */
   function matchedTerms(message, known) {
-    const have = [...new Set(terms(stripHtmlWrapper(known)))];
+    const have = [...new Set(terms(stripPyScaffold(stripHtmlWrapper(known))))];
     if (!have.length) return [];
     const hits = [];
     for (const t of new Set(terms(message))) {
+      if (isBareNumeral(t)) continue; // never content evidence — see isBareNumeral's own header
       for (const s of have) {
         if (sameForm(t, s, INFLECTIONAL_SUFFIXES)) {
           hits.push(s === t ? t : `${t}~${s}`);
@@ -396,6 +550,31 @@ export function makeWidgetRouter(priors) {
       }
     }
     return hits;
+  }
+
+  /**
+   * Was this candidate build actually SALIENT in the conversation's own
+   * recent discourse — named, or one of its own distinguishing words used
+   * — rather than merely existing somewhere in the workspace? Read off the
+   * exact same containment fold `matchedTerms` already uses for the
+   * message itself (retrieval's own tokenize/foldDiacritics, the wrapper-
+   * and scaffold-stripping already applied to `known`), applied here to
+   * the caller's own recent turns instead of the current message.
+   *
+   * This exists for ONE tell only — see `routeMessage`'s own `discourse`
+   * paragraph below for the reported false positive and why bare anaphora
+   * is the channel that needed it. A build produced earlier in THIS same
+   * conversation is not a special case for this function: the turn that
+   * built it pushes the model's own reply — the code included — into that
+   * conversation's own history verbatim (app.js's `state.history`), so the
+   * build's own bytes are already sitting in its own birth turn's
+   * discourse and resolve here exactly the way a definite phrase resolves
+   * against the build in `resolvesInto`. A build from an older exchange, a
+   * different conversation, or one this conversation never mentioned
+   * shares no such bytes and does not.
+   */
+  function discourseLocal(discourse, known) {
+    return matchedTerms(String(discourse ?? ""), known).length > 0;
   }
 
   /**
@@ -418,8 +597,67 @@ export function makeWidgetRouter(priors) {
    * — a complaint cannot revise a table. Returns `{n, tell, trigger}` or
    * null; null means the turn is a question or a demand for something new,
    * and the ordinary path keeps it.
+   *
+   * `hasMaterial` (the caller's own liveSources/liveChunks reading — this
+   * module stays pure and never reads state itself) narrows the ANAPHORA
+   * tell only. Found live, alongside the numeral fix above: a bare
+   * demonstrative used pronominally ("does THAT sound like a healthy diet
+   * to you?") carries ZERO byte evidence about which build it points at —
+   * unlike "resolved"/"judgment", which require the message to actually
+   * share a word with the CANDIDATE's own bytes, anaphora fires from the
+   * message's grammar alone and was landing on whichever code build merely
+   * happened to be live, including one from a wholly unrelated, earlier
+   * session, while the operator was plainly asking about attached material
+   * ("that" pointing at the diet just read, not at a leftover sum-of-
+   * numbers script). This module's own header states the invariant this
+   * violated: checked LAST, "so nothing about the material can be hijacked
+   * by it." With material attached, a bare pronoun is at least as likely to
+   * point at THAT as at a stale artifact, so it is no longer read as
+   * evidence for either — the affordance narrows (a genuine widget
+   * complaint with no attached material still routes exactly as before),
+   * it does not vanish: naming the artifact ("build 7", "the counter") or
+   * a word its own bytes hold ("resolved"/"judgment") still route with
+   * material attached, because those DO carry evidence tying to the one
+   * candidate rather than to whichever build merely exists.
+   *
+   * `discourse` (this conversation's own recent history, plain text — the
+   * caller's `state.history` reading; this module stays pure and never
+   * reads state itself) narrows the ANAPHORA tell a SECOND way, alongside
+   * `hasMaterial`. Found live: `hasMaterial` closes the channel only when
+   * material is attached, and an ordinary CASUAL message with none —
+   * "hey! how's it going", "one more random one" (idle filler, unrelated
+   * to any of the fixes above), "what did I say my dog's name was again?"
+   * — still carries a bare "it"/"this"/"that" (an expletive "it", or "this"
+   * inside "this chat") that fires `anaphoraTell` on grammar alone and was
+   * landing on whichever code build merely existed in `state.builds` — the
+   * INSTRUMENT's own workspace-wide log (CLAUDE.md, deliberately not per
+   * conversation), not this conversation's. A leftover coin-flip build
+   * from an unrelated earlier session has no business being "it" to a
+   * conversation that never mentioned it.
+   *
+   * The fix is not a THIRD hand-typed signal: it is the same discourse-
+   * recency machinery this app already tracks per conversation
+   * (`state.history`), read through the identical containment fold
+   * `matchedTerms`/`resolvesInto` already trust for the message itself —
+   * `discourseLocal`, above. A candidate build only counts as anaphora's
+   * target when this conversation's own recent turns actually carry one of
+   * the build's own distinguishing words — which the flagship "make it
+   * blue"/"it's broken" case satisfies for free, because the turn that
+   * BUILT the widget pushed the model's own reply (the code) into
+   * `state.history` verbatim, so the just-built widget's bytes are right
+   * there in its own birth turn. A build from an older exchange, a
+   * different conversation, or no real discourse connection at all shares
+   * no such bytes and is refused, exactly the regression this closes.
+   *
+   * `discourse === undefined` (the default: an older caller, or a test
+   * exercising the tell in isolation) means the caller did not opt into
+   * this check, and behavior is UNCHANGED — falls open, not closed, the
+   * same posture `anaphoraTell`'s own POS-classifier gate already takes
+   * when its prior is unavailable. Only a caller that supplies its own
+   * recent discourse (even an explicitly empty string, for a brand-new
+   * conversation with no history yet) gets the narrower, correct read.
    */
-  function routeMessage(message, builds = []) {
+  function routeMessage(message, builds = [], { hasMaterial = false, discourse } = {}) {
     const live = (builds ?? []).filter((b) => b && b.type === "code");
     if (!live.length) return null;
 
@@ -431,6 +669,10 @@ export function makeWidgetRouter(priors) {
 
     for (let i = live.length - 1; i >= 0; i--) {
       const tell = iterationTell(message, live[i].text ?? "");
+      if (tell === "anaphora") {
+        if (hasMaterial) continue;
+        if (discourse !== undefined && !discourseLocal(discourse, live[i].text ?? "")) continue;
+      }
       if (tell) return { n: live[i].n, tell, trigger: capture(message), ...evidenceOf(tell, message, live[i].text) };
     }
     return null;

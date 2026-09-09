@@ -33,6 +33,9 @@
 // so long and short texts compare on one scale. No activation threshold is
 // chosen anywhere — the null band decides what counts as a recall.
 
+// Declared, not measured (spec F4): set by hand for the 2026-09-07 relative-address experiment,
+// the value every number in GROUND-FIGURE-PATTERN-SPEC.md §0 was measured with; GFP Pass 36
+// measures its sensitivity (2,048 / 4,096 / 8,192) and confirms or replaces it in the record.
 export const SDR_BITS = 4096;
 /** Joins an ordered pair of words into one token; a word never contains it. */
 export const PAIR = "\u0001";

@@ -35,7 +35,23 @@ import { CLAIM_STOPWORDS } from "./grounding.js";
 import { namesIn } from "./ground-ladder.js";
 
 const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-const contentWords = (t) => [...new Set(fold(t).split(/[^\p{L}\p{N}_]+/u))].filter((w) => w.length > 3 && !CLAIM_STOPWORDS.has(w));
+// LENGTH FLOOR MATCHES RETRIEVAL'S OWN (source.js::tokenize: `t.length > 2`),
+// not a copy of snip-check.js's `contentWords` (a DIFFERENT question — does
+// the model's OWN rewrite still talk about the same thing — inherited here
+// unexamined when this file was written). This one decides which of the
+// QUESTION's words are worth searching the material for, and a floor one
+// higher than retrieval's silently throws away exactly the words retrieval
+// itself found relevant. Measured live (2026-09-08): "what time are they
+// meeting at the gym?" retrieved the whole pasted passage on "time" and
+// "gym" (tokenize keeps both), but turnSnipBlock's needles were only
+// ["time", "meeting"] — "gym" fell below the old `> 3` floor — so the one
+// sentence stating the actual meeting time ("I'll meet you at the gym at
+// 3:30 then.") never became a snip, `compress` (holon.js) dropped the raw
+// passages because SOME snip still matched, and the mouth was handed one
+// unrelated line ("What time do you want to go?") for a whole retrieved
+// passage. The whole doc reads "retrieved" in the record because it was —
+// this is a needle too narrow to find its own retrieved sentence again.
+const contentWords = (t) => [...new Set(fold(t).split(/[^\p{L}\p{N}_]+/u))].filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w));
 
 /** The phrasings by which a question hands over a claim as already settled —
  * measured off the live run and the ordinary ways people talk. The trigger is

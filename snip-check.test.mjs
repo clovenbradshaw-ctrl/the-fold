@@ -49,6 +49,30 @@ test("the section's rewrite: flagged sentences asked once with their flags as fa
   assert.match(bad.text, /in 1997\./, "the original stands when the rewrite does not pass");
 });
 
+// BUG (found live, 2026-09-08): reviseAsk told the model "the sources do
+// not use the name X here" for EVERY flag, whatever its `reason` — true for
+// `absent`, but false for `no_company`, where the value is genuinely in a
+// snip, just not beside this sentence's own words. Measured on a dialogue
+// carrying "#Person1#:" verbatim many times: the false "do not use" line
+// still went out, and the model spent a whole extra rewrite round on a name
+// that was never missing. The two reasons must say two different, both
+// true, things.
+test("a name present in a snip but beside none of this sentence's own words is never told to the model as absent (P100/S77-style false positive)", () => {
+  const snips = snipsFor(passages, { obligations: ["Chris Carter", "Fox", "Millennium", "Lone Gunmen"], terms: ["x-files"] });
+  const sec = checkSection(["Reception was mixed in 2001."], snips);
+  assert.equal(sec.flagged.length, 1);
+  assert.equal(sec.flagged[0].flags[0].reason, "no_company");
+  const ask = reviseAsk(sec.flagged, snips);
+  // Never the false claim that the sources lack the value outright.
+  assert.doesNotMatch(ask, /the sources do not use the year "2001" here/);
+  // The true fact instead: the value is there, just not with this claim.
+  assert.match(ask, /the sources use the year "2001" only elsewhere, never together with what this sentence says about it/);
+  // The new plain-language fact is still apparatus vocabulary, refused if echoed straight back.
+  const echoed = applyRewrite("Reception was mixed in 2001.", sec.flagged, "The sources use the year \"2001\" only elsewhere, never together with what this sentence says about it in 1996.", snips);
+  assert.equal(echoed.outcomes[0].outcome, "refused");
+  assert.match(echoed.outcomes[0].because, /echoes the instrument's own words/);
+});
+
 test("a rewrite must be about the same thing: a sentence whose atoms sit in a snip but whose subject is different is refused, and the original stands", () => {
   const snips = snipsFor(passages, { obligations: ["Chris Carter", "Fox", "Millennium"], terms: ["x-files"] });
   const text = "The X-Files series first aired on Fox in 1997.";

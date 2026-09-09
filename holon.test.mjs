@@ -15,6 +15,7 @@ import {
   PLAN_ENTRY_KINDS,
   PLAN_SYSTEM_PROMPT,
   SEARCHED_VOID_PREFIX,
+  UNRETRIEVED_MATERIAL_PREFIX,
   appendPlan,
   createPlanLog,
   extractArray,
@@ -25,6 +26,7 @@ import {
   projectParts,
   runHolonicTask,
   runPart,
+  todayLine,
 } from "./holon.js";
 import { chunkSource } from "./source.js";
 import { makeRelationReader } from "./hypergraph.js";
@@ -846,6 +848,20 @@ test("a prompt that matched no material gets one plain-chat reply, not a diagnos
   assert.ok(result.open.every((o) => !o.includes("restates")), "no typed echo on the record");
 });
 
+// BATTERY-TESTED 2026-09-08: pinned so a future edit to CHAT_SYSTEM_PROMPT
+// cannot silently drop the fix for the deflection loop found live on this
+// exact path — an opinion question bounced back with no stance ("Ooh,
+// that's a classic debate! Tell me what side you're on. 🌭 🥪 🤔"), and a
+// three-turn restaurant ask that already had occasion, city, and party size
+// in hand still never got a place named, only a fourth clarifying question.
+// This branch's system message IS the whole prompt (no material framing to
+// fall back on), so the fix has nowhere to live but this string.
+test("CHAT_SYSTEM_PROMPT tells the model to commit to an opinion or a suggestion, not just ask another question", () => {
+  assert.match(CHAT_SYSTEM_PROMPT, /own opinion/);
+  assert.match(CHAT_SYSTEM_PROMPT, /give one plainly/);
+  assert.match(CHAT_SYSTEM_PROMPT, /answer from that instead of asking/);
+});
+
 // ── the void, acknowledged (2026-08-19, user direction) ─────────────────
 // "if the surf did not turn something up, the model should be fed the
 // acknowledgement of this void" — a preflight search that ran and found
@@ -938,6 +954,158 @@ test("searchedVoid is flat-only — a decomposed part's chat branch stays untouc
   assert.equal(sawVoid, false, "searchedVoid must not reach a decomposed part's own prompt");
 });
 
+// ── attached, but not retrieved (the harbor-note incident) ──────────────
+// Before this, a materialless chat turn (`!passages.length`) read exactly
+// the same whether nothing was EVER given or a source was attached and this
+// turn's own retrieval simply came back empty (the attachments switch off,
+// every source muted, or a genuinely empty draw) — so the hyperlexicon's
+// own cross-turn ledger, accumulated from earlier, unrelated reading, was
+// the only thing on the page that looked like "what you were given".
+// Measured live: a gym-workout dialogue attached and asked to be
+// summarized in one sentence, with retrieval empty, answered entirely
+// about an unrelated single-witness note from a prior session ("Ships can
+// stay safe in the harbor during a storm").
+
+test("sourcesAttached reaches a flat chat turn's system prompt as a fact, not an instruction", async () => {
+  let sawIt = false;
+  const call = async (messages) => {
+    if (messages[0].content.includes(UNRETRIEVED_MATERIAL_PREFIX)) sawIt = true;
+    return "I don't see anything in what's attached that answers that.";
+  };
+  const result = await runHolonicTask({
+    task: "can you summarize this conversation in one sentence?",
+    chunks: [],
+    call,
+    planMode: "flat",
+    sourcesAttached: true,
+  });
+  assert.ok(sawIt, "an attached-but-unretrieved source must ride the system prompt as a fact");
+  assert.ok(result.output.length > 0);
+});
+
+test("sourcesAttached also reaches a flat chat turn that carries verbatim history", async () => {
+  let sawIt = false;
+  const call = async (messages) => {
+    if (messages[0].content.includes(UNRETRIEVED_MATERIAL_PREFIX)) sawIt = true;
+    return "Still nothing in it that answers that.";
+  };
+  await runHolonicTask({
+    task: "anything else in there?",
+    chunks: [],
+    call,
+    planMode: "flat",
+    chatHistory: [{ role: "user", content: "summarize it" }, { role: "assistant", content: "I don't see anything that answers that." }],
+    sourcesAttached: true,
+  });
+  assert.ok(sawIt, "the fact must reach the history-carrying branch too, not just the no-history one");
+});
+
+test("without sourcesAttached, an ordinary materialless chat turn is untouched — no phantom attachment", async () => {
+  let sawIt = false;
+  const call = async (messages) => {
+    if (messages[0].content.includes(UNRETRIEVED_MATERIAL_PREFIX)) sawIt = true;
+    return "Hey! What's up?";
+  };
+  await runHolonicTask({ task: "hey", chunks: [], call, planMode: "flat" });
+  assert.equal(sawIt, false, "a bare chat turn with nothing ever attached must never claim otherwise");
+});
+
+test("sourcesAttached does not fire once something is actually retrieved", async () => {
+  // The gate is `!passages.length && sourcesAttached`, not `sourcesAttached`
+  // alone — a turn whose retrieval DID find something must read exactly as
+  // before; this is the control that the fix is additive, not a new floor
+  // under every materialless answer.
+  const workout = chunkSource("workout.txt", "Coach: Four sets of squats, eight reps each, then three sets of lunges.");
+  let sawIt = false;
+  const call = async (messages) => {
+    if (messages.some((m) => m.content?.includes(UNRETRIEVED_MATERIAL_PREFIX))) sawIt = true;
+    return "You did four sets of squats and three of lunges.";
+  };
+  await runHolonicTask({
+    task: "how many sets of squats?",
+    chunks: workout,
+    call,
+    planMode: "flat",
+    sourcesAttached: true,
+  });
+  assert.equal(sawIt, false, "a turn that actually retrieved something must not also claim it found nothing");
+});
+
+test("sourcesAttached is flat-only — a decomposed part's chat branch stays untouched", async () => {
+  let sawIt = false;
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    if (messages[0]?.content?.includes(UNRETRIEVED_MATERIAL_PREFIX)) sawIt = true;
+    return "An answer.";
+  };
+  await runHolonicTask({
+    task: "hi there, two things: a) how are you b) what's new",
+    chunks: [],
+    call,
+    planMode: "model",
+    sourcesAttached: true,
+  });
+  assert.equal(sawIt, false, "sourcesAttached must not reach a decomposed part's own prompt");
+});
+
+test("the ledger is WITHHELD (not deleted) on exactly the turn UNRETRIEVED_MATERIAL_PREFIX names — the disclosure alone was measured live and was not enough", async () => {
+  // The live incident this pins: gemma2:2b, told in the same system message
+  // that nothing below was the attachment, still answered from the harbor
+  // note anyway ("We've been chatting about harbor safety for kids"). The
+  // mechanical half of the fix withholds the temptation rather than trusting
+  // a small model's instruction-following (L5) — the note itself is
+  // untouched on the ledger, only THIS prompt's offer of it is withheld.
+  const notes = [{ id: "a", subject: "7 Examples Of Harbor", verb: "used", object: "In a Sentence For Kids", witnesses: ["web:search-results#0-9~r"], sources: 1, instruments: 1, standing: "single-witness", kinds: {} }];
+  const stubHyperlexicon = {
+    createHyperlexicon: () => ({ entries: [] }),
+    admit: (log, edges) => ({ log, heard: edges.map(() => ({})), turnedAway: [] }),
+    foldHyperlexicon: () => notes,
+    foldWithStanding: () => notes,
+    redeclareFrame: (log) => log,
+  };
+  let seen = null;
+  const call = async (messages) => { seen = messages[0].content; return "I don't see anything in what's attached that answers that."; };
+  await runHolonicTask({
+    task: "can you summarize this conversation in one sentence?",
+    chunks: [],
+    call,
+    planMode: "flat",
+    sourcesAttached: true,
+    hyperlexicon: stubHyperlexicon,
+    hyperlexiconLog: { entries: [] },
+  });
+  assert.ok(seen.includes(UNRETRIEVED_MATERIAL_PREFIX), "the disclosure must still fire");
+  assert.doesNotMatch(seen, /From earlier reading/, "the ledger's cross-session note must not ALSO be offered on this turn");
+  assert.doesNotMatch(seen, /Examples Of Harbor/, "the specific unrelated note must not reach the prompt");
+});
+
+test("without sourcesAttached, a genuinely bare chat turn still sees the ledger — P84 is untouched", async () => {
+  // The control: withholding is scoped to the one narrow case above, never
+  // to every materialless turn — a chat with nothing attached at all should
+  // stand on earlier reading exactly as P84 already established.
+  const notes = [{ id: "a", subject: "Mars", verb: "orbits", object: "the sun", witnesses: ["m.txt#0-9~r"], sources: 1, instruments: 1, standing: "single-witness", kinds: {} }];
+  const stubHyperlexicon = {
+    createHyperlexicon: () => ({ entries: [] }),
+    admit: (log, edges) => ({ log, heard: edges.map(() => ({})), turnedAway: [] }),
+    foldHyperlexicon: () => notes,
+    foldWithStanding: () => notes,
+    redeclareFrame: (log) => log,
+  };
+  let seen = null;
+  const call = async (messages) => { seen = messages[0].content; return "Mars orbits the sun, yes."; };
+  await runHolonicTask({
+    task: "what orbits the sun?",
+    chunks: [],
+    call,
+    planMode: "flat",
+    hyperlexicon: stubHyperlexicon,
+    hyperlexiconLog: { entries: [] },
+  });
+  assert.doesNotMatch(seen, /UNRETRIEVED_MATERIAL_PREFIX/, "sanity: the constant name itself never leaks");
+  assert.match(seen, /From earlier reading/, "a genuinely bare chat still stands on earlier reading");
+  assert.match(seen, /Mars — orbits→ the sun/);
+});
+
 test("priorPass reaches a flat chat turn's system prompt as S1's own words, checkable not assumed right", async () => {
   let seen = null;
   const call = async (messages) => {
@@ -998,6 +1166,100 @@ test("priorPass is flat-only — a decomposed part's own prompt stays untouched"
     priorPass: "Doing fine, nothing new.",
   });
   assert.ok(!seen.includes("faster, unchecked first pass"), "priorPass must not reach a decomposed part's own prompt");
+});
+
+// ── the turn's own date (2026-09-08, battery-tested "Rapid topic hopping") ──
+// "have you heard anything about the new iphone", nothing attached, answered
+// "the iPhone 15" — several generations stale — with no hedge, because
+// nothing in any prompt this instrument builds had ever told the model what
+// "now" is. `now` is the fix: a bare fact, same shape and same flat-only
+// scope as searchedVoid/priorPass above.
+test("todayLine: a Date, an ISO string, and epoch millis all format the same bare fact; absent or invalid input is silent", () => {
+  assert.equal(todayLine(new Date("2026-09-08T03:00:00Z")), "Today's date is 2026-09-08.");
+  assert.equal(todayLine("2026-09-08T23:00:00Z"), "Today's date is 2026-09-08.");
+  assert.equal(todayLine(new Date("2026-09-08T03:00:00Z").getTime()), "Today's date is 2026-09-08.");
+  assert.equal(todayLine(null), "", "no date declared means no line, never a guessed one");
+  assert.equal(todayLine(undefined), "");
+  assert.equal(todayLine("not a date"), "", "an invalid date must not ship as a claim about the world");
+});
+
+test("now reaches a flat chat turn's system prompt as a bare fact, not an instruction", async () => {
+  let seen = null;
+  const call = async (messages) => {
+    seen = messages[0].content;
+    return "I'm not sure what the newest one is.";
+  };
+  const result = await runHolonicTask({
+    task: "have you heard anything about the new iphone",
+    chunks: [],
+    call,
+    planMode: "flat",
+    now: new Date("2026-09-08T12:00:00Z"),
+  });
+  assert.ok(seen.includes("Today's date is 2026-09-08."), `the date must ride the system prompt: ${seen}`);
+  assert.ok(!/\byou must\b|\bshould\b/i.test(seen), "information, not an instruction stacked on top");
+  assert.ok(result.output.length > 0);
+});
+
+test("now also reaches the flat MATERIAL branch — a fetched page is no reason to hide the date", async () => {
+  let seen = null;
+  const call = async (messages) => {
+    seen = messages[0].content;
+    const refs = offeredRefs(promptOf(messages));
+    return `The Kessington report puts the harbor figure at 12% for the spring quarter. [${refs[0] ?? "x#0-1"}]`;
+  };
+  await runHolonicTask({
+    task: "what was the harbor figure?",
+    chunks,
+    call,
+    planMode: "flat",
+    now: new Date("2026-09-08T12:00:00Z"),
+  });
+  assert.ok(seen.includes("Today's date is 2026-09-08."), `the date must reach the material branch too: ${seen}`);
+});
+
+test("now also reaches a flat chat turn that carries verbatim history", async () => {
+  let seen = null;
+  const call = async (messages) => {
+    seen = messages[0].content;
+    return "Still nothing new that I know of.";
+  };
+  await runHolonicTask({
+    task: "anything else?",
+    chunks: [],
+    call,
+    planMode: "flat",
+    chatHistory: [{ role: "user", content: "hi" }, { role: "assistant", content: "hey!" }],
+    now: new Date("2026-09-08T12:00:00Z"),
+  });
+  assert.ok(seen.includes("Today's date is 2026-09-08."), "the date must reach the history-carrying branch too, not just the no-history one");
+});
+
+test("without now, an ordinary turn is untouched — no phantom date", async () => {
+  let seen = null;
+  const call = async (messages) => {
+    seen = messages[0].content;
+    return "Hey! What's up?";
+  };
+  await runHolonicTask({ task: "hey", chunks: [], call, planMode: "flat" });
+  assert.ok(!seen.includes("Today's date is"), "a turn with no declared date must never invent one");
+});
+
+test("now is flat-only — a decomposed part's own prompt stays untouched", async () => {
+  let seen = null;
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    seen = messages[0]?.content;
+    return "An answer.";
+  };
+  await runHolonicTask({
+    task: "hi there, two things: a) how are you b) what's new",
+    chunks: [],
+    call,
+    planMode: "model",
+    now: new Date("2026-09-08T12:00:00Z"),
+  });
+  assert.ok(!seen.includes("Today's date is"), "now must not reach a decomposed part's own prompt");
 });
 
 test("a draft that opens by restating the prompt ships without its framing", async () => {
@@ -1844,6 +2106,70 @@ test("the ledger block carries corroborated notes, then question-relevant single
   const block = text.match(/From earlier reading[^"]*/g) ?? [];
   assert.ok(block.length, "the block was sent");
   for (const b of block) assert.deepEqual(apparatusMentions(b.replace(/\\n/g, "\n")), [], "firewall-clean");
+});
+
+// ── attachment/mute isolation (2026-09-08 battery) ──────────────────────
+// A note the ledger carries can be grounded in a source this very
+// conversation has since muted, or one it never even holds any more —
+// reading-on-arrival admits a source's claims the moment it is attached,
+// and mute is deliberately a retrieval concept, so silencing a source
+// afterward never retracts what was already heard from it. Before this,
+// nothing re-checked a note's witnesses against what is actually live, so
+// a note stood on nothing but a muted or gone source rode the ledger block
+// (and resolutionBlocks' "cited on this ground" line) exactly like one
+// grounded in material this turn actually has. Measured live: two files
+// explicitly unchecked before any question was asked, a third attached
+// and enabled, and the answer's grounding line still named the muted file.
+test("a ledger note grounded only in a muted/gone source is withheld once something is attached — one grounded in a live source still shows (attachment/mute isolation)", async () => {
+  const sent = [];
+  const notes = [
+    // Muted/gone: "old-notes.txt" is not among this turn's chunks at all.
+    { id: "stale", subject: "Kessington", verb: "closed", object: "the harbor early", witnesses: ["old-notes.txt#0-9~r"], sources: 1, instruments: 1, standing: "single-witness", kinds: {} },
+    // Live: "notes.txt" is exactly what this turn's own chunks are built from.
+    { id: "live", subject: "Kessington", verb: "revised", object: "the harbor figure", witnesses: ["notes.txt#0-9~r"], sources: 1, instruments: 1, standing: "single-witness", kinds: {} },
+  ];
+  const stubHyperlexicon = {
+    createHyperlexicon: () => ({ entries: [] }),
+    admit: (log, edges) => ({ log, heard: edges.map(() => ({})), turnedAway: [] }),
+    foldHyperlexicon: () => notes,
+    foldWithStanding: () => notes,
+    redeclareFrame: (log) => log,
+  };
+  await runHolonicTask({
+    task: "what is the harbor figure?",
+    chunks,
+    call: async (messages) => { sent.push(JSON.stringify(messages)); return "The harbor figure is 12%."; },
+    hyperlexicon: stubHyperlexicon,
+    hyperlexiconLog: { entries: [] },
+    sourcesAttached: true,
+  });
+  const text = sent.join("\n");
+  assert.doesNotMatch(text, /Kessington — closed→ the harbor early/, "a note whose only witness is a muted/gone source must not reach the mouth");
+  assert.match(text, /Kessington — revised→ the harbor figure/, "a note grounded in a source this turn actually has stays offered");
+});
+
+test("without sourcesAttached, a note from a source outside this turn's chunks still shows — the isolation gate is opt-in, not a blanket witness check", async () => {
+  // The control: the new filter is gated on `sourcesAttached` exactly like
+  // UNRETRIEVED_MATERIAL_PREFIX above, so a genuinely bare conversation
+  // (nothing attached at all, ever) keeps standing on earlier reading —
+  // P84's own control, unmoved by this fix.
+  const sent = [];
+  const notes = [{ id: "a", subject: "Mars", verb: "orbits", object: "the sun", witnesses: ["m.txt#0-9~r"], sources: 1, instruments: 1, standing: "single-witness", kinds: {} }];
+  const stubHyperlexicon = {
+    createHyperlexicon: () => ({ entries: [] }),
+    admit: (log, edges) => ({ log, heard: edges.map(() => ({})), turnedAway: [] }),
+    foldHyperlexicon: () => notes,
+    foldWithStanding: () => notes,
+    redeclareFrame: (log) => log,
+  };
+  await runHolonicTask({
+    task: "what orbits the sun?",
+    chunks: [],
+    call: async (messages) => { sent.push(JSON.stringify(messages)); return "Mars orbits the sun, yes."; },
+    hyperlexicon: stubHyperlexicon,
+    hyperlexiconLog: { entries: [] },
+  });
+  assert.match(sent.join("\n"), /Mars — orbits→ the sun/, "with nothing ever attached, a note from any source still stands (P84)");
 });
 
 test("P108: a piece's section is told its place, the outline, the previous tail and its word target; a short draft is continued once, measured, before any check", async () => {

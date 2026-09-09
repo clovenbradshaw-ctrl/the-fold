@@ -75,6 +75,25 @@ test("no passages, no snips or no call is a no-op — every caller without mater
   assert.match(turnSnipBlock(passages, "what does it say about Ada Rowe"), /^What the sources say, verbatim/);
 });
 
+test("the snip needle floor matches retrieval's own — a 3-letter content word that drove retrieval is not dropped from the excerpt (live bug, 2026-09-08)", () => {
+  // Reproduced live: a whole dialogue pasted as one passage (no blank lines,
+  // so chunkSource yields ONE chunk covering the whole file — `retrieved`
+  // legitimately names the whole thing), asked "what time are they meeting
+  // at the gym?" `retrieve()` picks this chunk on "time" AND "gym" (both
+  // clear tokenize's own `t.length > 2` floor). But the snip needles used to
+  // be built with a STRICTER `w.length > 3` floor, so "gym" never became a
+  // needle and the one sentence that actually states the meeting time never
+  // became a snip — the mouth was handed "Person1: What time do you want to
+  // go?" alone for a passage the record called fully retrieved.
+  const dialogue = [{ ref: "pasted.txt#0-200", text:
+    "Person1: What time do you want to go?\n" +
+    "Person2: I don't know, whenever works.\n" +
+    "Person1: How about at 3:30?\n" +
+    "Person2: I'll meet you at the gym at 3:30 then." }];
+  const block = turnSnipBlock(dialogue, "what time are they meeting at the gym?");
+  assert.match(block, /I'll meet you at the gym at 3:30 then\./, "the answer-bearing sentence is a snip, not silently dropped");
+});
+
 test("process narration is cut, but a stated absence and anything carrying the material's own words are kept (P127)", () => {
   const material = "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day.";
   const run = (t) => cutProcessTalk(t, { materialText: material, splitSentences });

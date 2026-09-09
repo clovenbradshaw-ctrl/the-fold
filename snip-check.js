@@ -27,7 +27,7 @@ const contentWords = (t) => [...wordSet(fold(t))].filter((w) => w.length > 3 && 
 const YEAR_RE = /\b(1[5-9]\d\d|20\d\d)\b/g;
 /** This module's own vocabulary, and the asks built from it. A candidate
  * carrying any of it is describing the checking rather than the material. */
-const APPARATUS_RE = /\b(?:appears? in (?:a|no) snip|beside none of this sentence|this section stood on|the sources do not use the (?:name|year|number)|what the sources say, verbatim|rewrite only those sentences|reply with the rewritten sentences|these sentences say things the sources|already found to be wrong on this material|bytes \d+–\d+ of that passage)\b/i;
+const APPARATUS_RE = /\b(?:appears? in (?:a|no) snip|beside none of this sentence|this section stood on|the sources do not use the (?:name|year|number)|only elsewhere, never together with what this sentence says|what the sources say, verbatim|rewrite only those sentences|reply with the rewritten sentences|these sentences say things the sources|already found to be wrong on this material|bytes \d+–\d+ of that passage)\b/i;
 export const SNIP_MAX = 40;         // snips a section is handed (P9: declared)
 export const SNIP_WINDOW = 320;     // chars of a passage around a hit, when the passage has no sentence boundary near it
 
@@ -133,8 +133,21 @@ export function reviseAsk(flagged, snips, { words = null } = {}) {
     // landed. What the model needs is the FACT: which value the sources do not
     // carry, and what they say instead. "Snip" is this instrument's word for
     // its own working, never a fact about the world.
+    //
+    // BUG (found live, 2026-09-08): every flag, whatever its `reason`, was
+    // told to the model as "the sources do not use … here" — true for an
+    // `absent` atom, but FALSE for a `no_company` one: that atom is in a
+    // snip, just not beside this sentence's own words. Measured on a dialogue
+    // whose bytes carry "#Person1#:" verbatim many times — the sources
+    // plainly use the name — the false "do not use" line still went to the
+    // model, which then spent a whole extra rewrite round correcting a
+    // sentence that was never wrong about the name at all. The two reasons
+    // are different facts and now say different, both true, things.
+    const kindWord = (f) => (f.kind === "name" ? "the name" : f.kind === "year" ? "the year" : "the number");
     const why = [
-      ...r.flags.map((f) => `the sources do not use ${f.kind === "name" ? "the name" : f.kind === "year" ? "the year" : "the number"} "${f.value}" here`),
+      ...r.flags.map((f) => f.reason === "no_company"
+        ? `the sources use ${kindWord(f)} "${f.value}" only elsewhere, never together with what this sentence says about it`
+        : `the sources do not use ${kindWord(f)} "${f.value}" here`),
       ...(r.contradiction ? [`they say ${r.contradiction.snipYears.join(" and ")} where this says ${r.contradiction.sentenceYears.join(" and ")}: "${r.contradiction.text.replace(/\s+/g, " ").slice(0, 160)}"`] : []),
     ];
     return `- "${r.sentence}" — ${why.join("; ")}`;

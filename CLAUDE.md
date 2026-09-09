@@ -7659,6 +7659,10 @@ POLICIES.md **P118**. `deploy/build-site.mjs` is the one static build (site, arc
 
 POLICIES.md **P119**. `matrix.js` is the pure half (envelope, wrap, blocks, shapes, share link, seal, `SecretSet`, `forRecord`); `matrix-client.js` the crossing (`MatrixHttp`, `FoldMatrix`); `matrix-fake-homeserver.mjs` the adversary for tests and the browser rehearsal (never in the page graph); `matrix-worker.mjs` the headless Ollama worker. Rules: every record line through `forRecord`; no homeserver literal anywhere the page loads (II.13 catches even a doc comment); rooms at full power; a member's mouth is `room:@who:server model` and routes inside `completeOnce`. Dialog sheets act on their form's `submit`, not the dialog's `close` (dead in Chromium 148). Rehearse with `node matrix-fake-homeserver.mjs 8448` and two origins (localhost / 127.0.0.1) for two people.
 
+## The entropy null states its rate (added 2026-09-07) — pointer
+
+POLICIES.md **P172**. A pass/fail null states its false-positive rate as its own arithmetic, never as a sample min/max: `matrix-client.test.mjs::randomBand` places a sealed blob against random bytes of its length by exact order statistics (P(outside N draws' band) = 2/(N+1), distribution-free), the rate `NULL_FALSE_POSITIVE` is the named budget and the draw count is derived from it, and draws stop as soon as the verdict is decided, so a passing check costs 100 draws and only a failing one pays for all 19,999. A widened band re-proves its cut: plaintext of the same length must sit below the band that admitted the ciphertext. Grep for "min/max of k draws" read as "the null" before writing another band.
+
 ## Bound links, epochs, the vault (2026-09-05)
 
 POLICIES.md **P120**. Share links are v2 and come in three kinds — `bound` (no key; account + one-shot secret + expiry; redeemed by publishing a `fold.member_key` whose `proof` HMACs room/user/pub under the secret), `open` (the magic key; always printed with `MAGIC_KEY_WARNING`), `passphrase` (key sealed under words). Grants: `grantPending` verifies proofs and wraps only to the proved key; an unproved key is listed as unverified with a `fingerprint()` to compare aloud, then `/share grant @who`. Keys are per epoch (`rooms[id].keys{epoch}`); blocks, manifest entries and chain heads name theirs; `rotate`/`remove` mint a new one and re-wrap older epochs under `older`. `lock`/`unlock` seal storage (PBKDF2 600k); `locked` gates every door. Rehearse with two origins plus `node matrix-fake-homeserver.mjs 8448`.
@@ -7689,40 +7693,3 @@ Bateson, event sourcing, RAG / GraphRAG), the path on the record (P159,
 P45, the 08-18 address decision, P170, the three resolutions), and the
 walls that stay. Its numbers — the compression ladder and the
 holograph-reading test — are pending and named there as pending.
-
-## Workspaces, the room as a button, resources (2026-09-08) — pointer
-
-POLICIES.md **P177** is the law; this is the map. `PER_WORKSPACE` (app.js) is
-the container `state.sources`' own comment had implied for months and never
-named — material is not per conversation, and this is what it IS per: the
-conversations, the material, the folds and the room, swapped on a switch
-exactly as `PER_CONVO` already was. The reading ledgers deliberately do NOT
-move with it (one instrument's reading, one record, P98), and `buildsKey()`
-keys the fold store per workspace so a switch cannot silently overwrite the
-other one's folds.
-
-`transcriptNow()` spans the workspace's conversations, and **`transcript.js`'s
-`turnRef` is the one place a prior turn's address is built** — `turn:12` here,
-`turn:3.12` for another conversation — because a bare turn number stopped
-being unique the moment more than one conversation could be recalled from
-(P137). `answerable.js` imports it rather than rebuilding the string. Recall
-is unchanged otherwise: same cap, same relevance floor, nothing handed over
-when nothing is in common. **A workspace makes more turns reachable; it never
-makes a prompt bigger.**
-
-Whether ONE question may reach the others is a composer switch beside
-attachments and web — per question, in sight while it is typed, and only
-present once there is a second conversation to govern. Between workspaces
-there is no switch: that isolation is the definition.
-
-The room (P119/P120) is a header button beside the theme toggle, and its
-sheet leads with inviting. No door in it is re-implemented — each row SENDS
-the door it names, so the act lands on the transcript exactly as a typed one
-does. **matrix.org is named and linked, reversing P119's own no-homeserver
-rule on the same giver's later direction**; `constitution.test.mjs` carries a
-typed II.13 allowance whose reason is checked (it must sit in an `href`).
-
-The Resources pane reports probes in THREE states — reachable, not reachable,
-and not asked — so `probeRoutes` now keeps the probe answers themselves
-(`state.routeProbes`) beside `describeRoutes`' phrasing. An unmeasured machine
-sorts LAST on speed, never as if it were instant.

@@ -66,9 +66,16 @@ test("a name present in a snip but beside none of this sentence's own words is n
   // Never the false claim that the sources lack the value outright.
   assert.doesNotMatch(ask, /the sources do not use the year "2001" here/);
   // The true fact instead: the value is there, just not with this claim.
-  assert.match(ask, /the sources use the year "2001" only elsewhere, never together with what this sentence says about it/);
+  // Wording reconciled 2026-09-09: two sessions fixed this identical bug the
+  // same day with different phrasing (this test's own original wording,
+  // "...only elsewhere, never together with what this sentence says about
+  // it", and the one reviseAsk actually ships, below) — a merge conflict
+  // kept the later synthesis (its own comment names both specimens: Prince
+  // Andrew AND this test's dialogue case), so the test now asserts what the
+  // code actually says rather than the wording it was first written against.
+  assert.match(ask, /the sources do use the year "2001", but never together with what this says about it/);
   // The new plain-language fact is still apparatus vocabulary, refused if echoed straight back.
-  const echoed = applyRewrite("Reception was mixed in 2001.", sec.flagged, "The sources use the year \"2001\" only elsewhere, never together with what this sentence says about it in 1996.", snips);
+  const echoed = applyRewrite("Reception was mixed in 2001.", sec.flagged, "The sources do use the year \"2001\", but never together with what this says about it in 1996.", snips);
   assert.equal(echoed.outcomes[0].outcome, "refused");
   assert.match(echoed.outcomes[0].because, /echoes the instrument's own words/);
 });

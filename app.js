@@ -801,6 +801,21 @@ const RELATION_READER_OPTIONS = {
   // unsupported list by relationFindings' own standing rule).
   determiners: new Set([...enginePriors.DEFINITE_DETERMINERS, ...enginePriors.INDEFINITE_DETERMINERS]),
   negationWords: enginePriors.NEGATION_WORDS,
+  // A third closed class, same standing, same reason (POLICIES.md P180): a
+  // first-person subject ("my favorite color", "I painted the wall") names
+  // whoever is SPEAKING, never a stable entity — measured live, gemma2:2b's
+  // own first-person answer bound `bound`, cited to a generic ESL "10
+  // sentences about my favorite color" example page, because both sides'
+  // subjects resolved to the same recurring FORM ("color"/"blue") despite
+  // naming two unrelated speakers. `sameSpeakerRef` is deliberately left
+  // unset here: this reader has no organ yet attesting that a retrieved
+  // passage shares the model's own speaker (the self plane's `self:`
+  // addresses are the natural candidate — named, not wired, since nothing
+  // currently threads a self-plane passage into this reader's `list`), so
+  // every first-person-led claim is `beyond-reach` against retrieved
+  // material, which is the correct, conservative default until that organ
+  // exists.
+  firstPerson: enginePriors.FIRST_PERSON,
   // Scoped to the extractor alone (hypergraph.js's own header says exactly
   // where) — succession.js's completeness gate, retrieval, and what the
   // model is shown all still read the real bytes.
@@ -852,6 +867,7 @@ const BARE_RELATION_READER_OPTIONS = {
   oovLexicon: undefined,
   determiners: undefined,
   negationWords: undefined,
+  firstPerson: undefined,
   createLemmatizer: undefined,
 };
 const relationsWithPriors = makeRelationReader(RELATION_READER_OPTIONS);
@@ -1337,7 +1353,29 @@ const PER_CONVO = [
   // false: a workspace's conversations know what the others found, which is
   // the whole reason a workspace is a thing. See PER_WORKSPACE below.
   "isolated",
+  // Checking mode — was one header icon shared by every open conversation,
+  // so a plain-answers chat and a checked one could not coexist (found
+  // live, 2026-09-09, user direction: "put the grounding toggle as an
+  // option within the specific chat, and scope it to per chat"). Read the
+  // composer switch's own comment in index.html for the UI half; every
+  // site that copies PER_CONVO into `state` must call syncGroundedUI()
+  // right after, or the composer checkbox and body.marks-off show the
+  // conversation just left, not the one now active.
+  "grounded",
 ];
+
+/** Applies state.grounded — the ACTIVE conversation's checking mode, now
+ *  that it is PER_CONVO — to the composer's #use-checking box and to
+ *  body.marks-off, which is a single global class the whole answer surface
+ *  reads (index.html's own "hidden drawing, never a hidden finding" CSS
+ *  scoping comment). Call after any assignment of state.grounded, whether
+ *  that came from the switch's own onchange or from switching to a
+ *  conversation/workspace whose stored value differs. */
+function syncGroundedUI() {
+  document.body.classList.toggle("marks-off", !state.grounded);
+  const box = $("use-checking");
+  if (box) box.checked = state.grounded;
+}
 
 // ── workspaces ───────────────────────────────────────────────────────────────
 //
@@ -1437,6 +1475,7 @@ function switchWorkspace(index) {
   if (to) {
     for (const k of PER_CONVO) state[k] = to[k];
     to.el.classList.add("on");
+    syncGroundedUI();
   }
   renderThreads();
   renderBuilds();
@@ -1466,6 +1505,7 @@ function addWorkspace(name) {
   const first = state.convos[0];
   for (const k of PER_CONVO) state[k] = first[k];
   first.el.classList.add("on");
+  syncGroundedUI();
   renderThreads();
   renderBuilds();
   renderSources?.();
@@ -1506,6 +1546,10 @@ function newConvo() {
     // Off by default: a new chat in a workspace starts knowing what the
     // workspace knows. Isolating one is an act, the way muting a source is.
     isolated: false,
+    // A new conversation starts from the one standing preference — the
+    // last value anyone set anywhere, same as before this was per-convo —
+    // and diverges from there if its own switch is ever touched.
+    grounded: localStorage.getItem("fold-marks") !== "off",
   };
 }
 
@@ -1531,6 +1575,7 @@ function switchConvo(index) {
   const to = state.convos[index];
   for (const k of PER_CONVO) state[k] = to[k];
   to.el.classList.add("on");
+  syncGroundedUI();
   renderThreads();
   renderBuilds();
   showView("chat");
@@ -1561,6 +1606,7 @@ function closeConvo(index) {
     const to = state.convos[state.active];
     for (const k of PER_CONVO) state[k] = to[k];
     to.el.classList.add("on");
+    syncGroundedUI();
     renderBuilds();
     showView("chat");
     $("input").focus();
@@ -8945,7 +8991,15 @@ function taggedProse(text, offered, classified = [], marks = []) {
       // honest absence reads differently from the mouth's own "no mention".
       const gap = voidInScope(entry.text, voidsNow(), { question: state.lastAsked ?? "", sameForm: sameFormOrgan });
       sentMarks.push(gap
-        ? { label: `∅ open gap on the record: ${gap.subject} —${gap.verb}→ ?`, detail: `${gap.id} — declared by the reader over ${gap.scope?.sources?.length ?? "?"} source(s), ${gap.scope?.read ?? "?"} of ${gap.scope?.total ?? "?"} parts read; cancelled by the first arrival that fills it.`, action: () => groundHunt(entry.text), actionLabel: "Search the material", warn: true }
+        // gap.id (`void:subject|verb|*`) used to open the detail sentence
+        // raw ("void:yuri gagarin|shoe size|* — declared by the reader
+        // over..."), restating in an internal address format the exact
+        // same thing the label just said in plain words a line above it
+        // (found live, 2026-09-09, same class as the earlier `no-testimony`
+        // leak). It carries real information — it is this gap's own
+        // address — so it moves to `addresses`, the same place every other
+        // item's address lives, rather than opening the sentence.
+        ? { label: `∅ open gap on the record: ${gap.subject} —${gap.verb}→ ?`, detail: `Declared by the reader over ${gap.scope?.sources?.length ?? "?"} source(s), ${gap.scope?.read ?? "?"} of ${gap.scope?.total ?? "?"} parts read; cancelled by the first arrival that fills it.`, addresses: gap.id ? [gap.id] : [], action: () => groundHunt(entry.text), actionLabel: "Search the material", warn: true }
         // wit.why is always the literal witness-sentences.js code
         // "no-testimony" on a refused row (rowFor's own only refused
         // case) — phrased plainly here rather than interpolated raw
@@ -13286,28 +13340,23 @@ bindSwitch("use-priors", "fold-use-priors", () => state.usePriors, (v) => {
 // witness's ∅ — are the product bar's own item (1), and a checked turn
 // paints them unless the person turned marks off. `fold-marks=off` still
 // hides them; nothing else does.
-if (localStorage.getItem("fold-marks") === "off") document.body.classList.add("marks-off");
+// `state.grounded` gates whether a FUTURE turn computes and paints marks at
+// all; `body.marks-off` is the CSS-level switch that hides marks already
+// sitting in the DOM from earlier turns. Both must move together, live,
+// every time — syncGroundedUI() (PER_CONVO, above) is the one place that
+// happens, so boot, the switch's own onchange, and every conversation/
+// workspace switch all go through it rather than three copies of this pair.
+syncGroundedUI();
 {
-  const btn = $("marks-toggle");
-  // `state.grounded` gates whether a FUTURE turn computes and paints marks
-  // at all; `body.marks-off` is the CSS-level switch that hides marks
-  // already sitting in the DOM from earlier turns. Boot reads both off the
-  // same setting (line above, and here) — but the click handler used to
-  // touch only `state.grounded`, so turning checking off mid-session left
-  // every mark already painted on screen exactly as it was: the toggle
-  // looked like it did nothing. Both must move together, live, every time.
-  const apply = (on) => {
-    state.grounded = on;
-    btn.setAttribute("aria-pressed", String(on));
-    document.body.classList.toggle("marks-off", !on);
-  };
-  apply(localStorage.getItem("fold-marks") !== "off");
-  btn.onclick = () => {
-    const on = btn.getAttribute("aria-pressed") !== "true";
-    apply(on);
-    localStorage.setItem("fold-marks", on ? "on" : "off");
-    $("status").textContent = on ? "checking on" : "checking off — plain answers";
-  };
+  const box = $("use-checking");
+  if (box) {
+    box.onchange = () => {
+      state.grounded = box.checked;
+      syncGroundedUI();
+      localStorage.setItem("fold-marks", box.checked ? "on" : "off");
+      $("status").textContent = box.checked ? "checking on" : "checking off — plain answers";
+    };
+  }
 }
 
 // ── views ────────────────────────────────────────────────────────────────────

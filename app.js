@@ -80,7 +80,7 @@ import { checkQuantity } from "./arithmetic.js";
 // hand-typed notion of how the expression looks.
 import katex from "/node_modules/katex/dist/katex.mjs";
 
-import { checkGrounding, unsupportedClaims, extractCheckableAtoms } from "./grounding.js";
+import { checkGrounding, unsupportedClaims, extractCheckableAtoms, extractAtoms } from "./grounding.js";
 
 import { attribute, attributedRefs, stripSelfCitations } from "./cite.js";
 
@@ -162,7 +162,7 @@ import { CODE_RUNTIMES, skeletonFor, snipFor, spliceFunction, failingFunction, m
 import { editLine } from "./piece-edit.js";
 import { revisionLine } from "./piece-revise.js";
 import { exportPiece } from "./piece-export.js";
-import { groundOf, groundLine } from "./ground-ladder.js";
+import { groundOf, groundLine, tierWord } from "./ground-ladder.js";
 import { answerRecord, answerRecordLine, answerRecordProse, voidInScope } from "./answer-record.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
@@ -8692,7 +8692,7 @@ function refNodes(text, known) {
  * button rather than a click on running prose.
  */
 function openMarkDetail(entry) {
-  $("mark-detail-title").textContent = entry.tier ? `Ground — ${entry.tier}` : "Marks";
+  $("mark-detail-title").textContent = entry.tier ? `Ground — ${tierWord(entry.tier)}` : "Marks";
   $("mark-detail-sentence").textContent = `“${entry.sentence}”`;
   const body = $("mark-detail-body");
   body.replaceChildren();
@@ -8785,7 +8785,7 @@ function renderMarksStrip(container, marks) {
     const warn = entry.items.some((it) => it.warn);
     const chip = document.createElement("button");
     chip.className = `mark-chip${warn ? " warn" : ""}`;
-    chip.textContent = `${i + 1} · ${entry.tier ?? entry.items[0]?.label ?? "mark"}`;
+    chip.textContent = `${i + 1} · ${entry.tier ? tierWord(entry.tier) : entry.items[0]?.label ?? "mark"}`;
     chip.onclick = () => openMarkDetail(entry);
     strip.append(chip);
   });
@@ -8871,7 +8871,20 @@ function taggedProse(text, offered, classified = [], marks = []) {
     const sentMarks = [];
     let tier = null;
 
-    if (state.grounded && state.lastGround && state.lastGround.turnSeq === turnSeq) {
+    // Not every sentence is a claim to check — a preference, a hedge, an
+    // aside asserts nothing checkable, and running it through the ladder
+    // anyway just marks it (found live, 2026-09-09, user direction: "we
+    // need an evaluator of what needs grounding" — the ladder was placing
+    // every sentence, including "why do you like blue", the way a
+    // preference question got a stray "bound" mark off unrelated web
+    // material). `extractAtoms` is grounding.js's own existing answer to
+    // "what in this sentence is checkable" (figures and names); a relation
+    // edge is the other real shape a checkable claim takes. A sentence
+    // with neither gets no ground computed at all — not self tier, not an
+    // underline, nothing — because there is nothing here to hold to a
+    // source in the first place.
+    const checkable = extractAtoms(entry.text).length > 0 || (entry.edges ?? []).length > 0;
+    if (checkable && state.grounded && state.lastGround && state.lastGround.turnSeq === turnSeq) {
       const wrow = (state.lastWitness ?? []).find((r) => r.sentence === entry.text) ?? null;
       // The sentence's own edges (classifySentences rides each relation claim
       // onto the sentence that carries its subject and verb) are the claims
@@ -8882,7 +8895,15 @@ function taggedProse(text, offered, classified = [], marks = []) {
       tier = g.tier;
       sentMarks.push({
         label: `◎ ${groundLine(g)}`,
-        detail: g.detail,
+        // Self tier means the model is citing itself — nothing read placed
+        // this sentence, so there is nothing to point at. Said in words
+        // here because the inline mark for this case is an underline, not
+        // a numbered citation (see the sentMarks.length block below); the
+        // explanation has to live where a reader who clicks the underline
+        // actually lands.
+        detail: g.tier === "self"
+          ? `${g.detail} There is nothing to cite here, so this sentence is underlined rather than marked with a numbered citation — the underline means "the model's own voice, unbacked."`
+          : g.detail,
         addresses: g.addresses,
         action: () => groundHunt(entry.text),
         actionLabel: "Search the material",
@@ -8925,7 +8946,17 @@ function taggedProse(text, offered, classified = [], marks = []) {
       const gap = voidInScope(entry.text, voidsNow(), { question: state.lastAsked ?? "", sameForm: sameFormOrgan });
       sentMarks.push(gap
         ? { label: `∅ open gap on the record: ${gap.subject} —${gap.verb}→ ?`, detail: `${gap.id} — declared by the reader over ${gap.scope?.sources?.length ?? "?"} source(s), ${gap.scope?.read ?? "?"} of ${gap.scope?.total ?? "?"} parts read; cancelled by the first arrival that fills it.`, action: () => groundHunt(entry.text), actionLabel: "Search the material", warn: true }
-        : { label: "∅ no passage states this", detail: `Asked the witness whether any retrieved passage states this sentence (${wit.why}); none was pointed at. Silence from the material, not a contradiction — and no declared gap is in scope for it.`, action: () => groundHunt(entry.text), actionLabel: "Search the material", warn: true });
+        // wit.why is always the literal witness-sentences.js code
+        // "no-testimony" on a refused row (rowFor's own only refused
+        // case) — phrased plainly here rather than interpolated raw
+        // (found live, 2026-09-09: the modal showed "(no-testimony)"
+        // verbatim, an internal code never meant for a reader). ends
+        // (the two anchor words endsFor picked to search a candidate
+        // passage, carried on every witness row regardless of verdict)
+        // is what actually answers "what was this based on" — the
+        // material it was searched over is one click away via the
+        // action below, never fed back in as prose.
+        : { label: "∅ no passage states this", detail: `The witness was shown the retrieved passages and asked whether any of them states this sentence; none did. Silence from the material, not a contradiction — and no declared gap is in scope for it.${wit.ends?.end1 ? ` Searched for a passage relating "${wit.ends.end1}" and "${wit.ends.end2}".` : ""}`, action: () => groundHunt(entry.text), actionLabel: "Search the material", warn: true });
     }
     // One verdict per sentence: once the witness has spoken (stated or
     // refused), the relation tier's own ∅ is redundant — measured live, a
@@ -8965,7 +8996,27 @@ function taggedProse(text, offered, classified = [], marks = []) {
       });
     }
 
-    if (sentMarks.length) {
+    // Self tier, and nothing else flagged on this sentence, means the ONLY
+    // thing to show is the model citing itself — and that is not a
+    // citation: there is no address, no passage, nothing external the
+    // numbered marker would be pointing at. Drawing one anyway reads as
+    // sourcing that never happened (found live, 2026-09-09, user direction:
+    // "if the model is citing itself, don't give it a citation... give it
+    // underline"). So this one case skips markRef entirely — no numbered
+    // mark, no entry in the bottom strip — and underlines the sentence
+    // instead, the same quiet mark this file already draws for model-ground
+    // prose (`.sent[data-ground="model"]`, above). The explanation lives in
+    // the mark detail modal, reachable by clicking the underline — unless
+    // entry.absent/entry.ground==="model" already pointed this sentence's
+    // click at a material search above, which takes precedence and is left
+    // alone rather than silently overridden.
+    if (tier === "self" && sentMarks.length === 1) {
+      sent.classList.add("self-cited");
+      if (!sent.onclick) {
+        sent.onclick = (e) => { e.stopPropagation(); openMarkDetail({ sentence: entry.text, tier, items: sentMarks }); };
+        sent.title = "The model's own voice — nothing here points at a source. Click for detail.";
+      }
+    } else if (sentMarks.length) {
       const ref = markRef(marks, { sentence: entry.text, tier, items: sentMarks });
       // proofTargets locates a live-updatable node by walking the DOM for
       // this exact key (see its own caller) — carried forward from the old
@@ -11214,7 +11265,25 @@ function renderGrounding(node, { answer, offered, findings = [], relations = [],
     });
     det.classList.add("unbacked");
     stripAdd(det);
-    if (state.webProof && i < PROOF_TARGETS_PER_TURN) autorun.push(run);
+    // Marked "checking" on the sentence's own marker for exactly as long as
+    // this one check is actually in flight (found live, 2026-09-09, user
+    // direction: the automatic walk below runs AFTER the whole answer
+    // already reads as settled -- every marker already showing its tier --
+    // so a mark whose claim was still being checked looked identical to one
+    // already final; "checking claims online" above the composer was the
+    // only sign anything was still happening, disconnected from WHICH
+    // sentence it was about).
+    if (state.webProof && i < PROOF_TARGETS_PER_TURN) {
+      autorun.push(async () => {
+        const marks = [...node.querySelectorAll(".mark-ref")].filter((b) => b.dataset.proofKey === key);
+        marks.forEach((b) => b.classList.add("checking"));
+        try {
+          await run();
+        } finally {
+          marks.forEach((b) => b.classList.remove("checking"));
+        }
+      });
+    }
   });
 
   // Single-source checks fill whatever the per-turn budget has left after

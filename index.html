@@ -280,7 +280,8 @@
       body.marks-off .msg .body .mark-ref,
       body.marks-off .msg .body .marks-strip { display: none; }
       body.marks-off .sent[data-ground="model"],
-      body.marks-off .sent.claims {
+      body.marks-off .sent.claims,
+      body.marks-off .sent.self-cited {
         border-bottom: 0;
         text-decoration: none;
         cursor: auto;
@@ -522,6 +523,12 @@
          address; the model's own voice carries a quiet dotted line; a claim
          of fact the material does not hold carries the warning stripe. */
       .sent[data-ground="model"] { border-bottom: 1px dotted var(--muted); }
+      /* The model citing itself (ground-ladder tier "self") is not a
+         citation — nothing read placed the sentence, so a numbered marker
+         would point at nothing. Underlined instead, in the tier's own
+         color (matching .mark-ref.tier-self below), with the explanation
+         one click away in the mark detail modal rather than beside it. */
+      .sent.self-cited { border-bottom: 1px dotted #b8b; cursor: pointer; }
       .sent.claims {
         text-decoration: underline wavy var(--warn);
         text-decoration-thickness: 1px;
@@ -582,6 +589,15 @@
       .mark-ref.tier-self { border-color: #b8b; color: #857; }
       .mark-ref.web-backed { border-style: solid; opacity: 0.85; }
       .mark-ref.witness-contradicted { border-color: var(--warn); color: var(--warn); }
+      /* Found live, 2026-09-09, user direction: the automatic web-proof
+         walk (autorun, below) runs AFTER the whole answer already reads as
+         settled — every sentence's marker already showing its tier — so a
+         mark whose claim is still being checked looked identical to one
+         that was already final, and the "checking claims online · N/M"
+         line above the composer was the only sign anything was still
+         happening. `.checking` names it on the mark itself, at the exact
+         sentence it concerns. */
+      .mark-ref.checking { animation: chip-pulse 1.2s ease-in-out infinite; }
       /* The strip every .mark-ref points into: one compact row at the
          bottom of the message, everything the sentence-level chips used to
          say, still all present, just not standing in the reader's way to

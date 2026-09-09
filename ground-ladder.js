@@ -159,8 +159,24 @@ export function groundOf(sentence, ctx = {}) {
   };
   const dv = derived.filter((d) => sideMatches(d.subject ?? d.end1) && sideMatches(d.object ?? d.end2) && toks(d.verb ?? d.label).some((w) => st.has(w)));
   if (dv.length) return { tier: "derived", cell: CELL_OF.derived, addresses: dv.flatMap((d) => d.premises ?? []), phrase: "derived on the record", detail: `follows from ${dv[0].premises?.length ?? "?"} earlier claim(s), stated by no source`, reached };
-  // 6. named
-  if (typeof resolveName === "function") {
+  // 6. named — skipped when the witness already ran a stronger, more
+  // specific check on THIS sentence and came back empty. "A name here
+  // resolves to a referent the material establishes" is real but weak —
+  // it is true of nearly any sentence that mentions someone real, whether
+  // or not the sentence claims anything about them. "The witness read
+  // every retrieved passage looking for this exact sentence and found
+  // none" is the ladder's own purpose-built check for precisely this
+  // question, already run, already conclusive. Found live 2026-09-09: a
+  // pure absence sentence ("those details are not readily available")
+  // read "named, not placed" — Armstrong's own name resolving — while the
+  // witness's actual, decisive finding (nothing states this) sat one
+  // click deeper and never shaped what the reader saw first, so the two
+  // looked contradictory rather than like the same answer said twice.
+  // Same rule this ladder's own header already states between rungs (a
+  // stronger rung's verdict stands over a weaker rung's mechanism),
+  // pointed at DISPLAY priority between two checks of the same sentence
+  // rather than between two different rungs.
+  if (witness?.witness !== "refused" && typeof resolveName === "function") {
     const names = namesIn(sentence);
     const established = [];
     for (const nm of names) { let ids; try { ids = resolveName(nm); } catch { ids = null; } if (ids && (ids.size ?? ids.length ?? 0) > 0) { const ref = passageHolding(nm, passages); established.push({ name: nm, ref }); } }
@@ -186,4 +202,27 @@ export function groundLine(g) {
   if (!g) return "";
   if (g.tier === "self") return `${g.phrase}${g.refused ? " — no source states this" : ""}`;
   return `${g.phrase}${g.addresses?.length ? ` ${g.addresses.slice(0, 3).join(", ")}${g.addresses.length > 3 ? ` (+${g.addresses.length - 3})` : ""}` : ""}`;
+}
+
+// A tier NAME (bound/witnessed/recorded/derived/contested/named/self) is
+// this file's own internal vocabulary — the same rung the CSS classes and
+// the code above key off — and it leaked, unglossed, into two reader-facing
+// spots (the bottom marks strip, the mark detail modal's own title): found
+// live, 2026-09-09, a reader saw a chip that just said "bound" and had no
+// way to know what that meant. `tierWord` is the one place a tier gets a
+// plain phrase for those two spots; `groundLine` above stays the fuller,
+// address-carrying line and is untouched.
+const TIER_WORD = Object.freeze({
+  bound: "confirmed",
+  witnessed: "confirmed by a passage",
+  recorded: "on the record",
+  derived: "derived from other claims",
+  contested: "disputed",
+  named: "named, not placed",
+  self: "the model's own voice",
+});
+
+/** A tier's plain-English word — never the bare tier name. */
+export function tierWord(tier) {
+  return TIER_WORD[tier] ?? tier ?? "";
 }

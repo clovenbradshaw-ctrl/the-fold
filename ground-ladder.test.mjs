@@ -42,6 +42,41 @@ test("the ladder places a sentence on its highest rung and names the cell backst
   assert.deepEqual(TIERS, ["bound", "witnessed", "recorded", "derived", "contested", "named", "self"]);
 });
 
+test("tier 4 (derived) compares referent identity when the index is available, not bare token containment — recall gained on a differently-worded alias, a false match refused between two distinct referents", () => {
+  // RECALL: a derived fact phrased with a wholly different name for the
+  // SAME referent (zero shared tokens with the sentence) is missed by
+  // pure bag-of-words containment but found once both sides resolve
+  // through the same referent index — the "holograph" comparison this
+  // ladder's own header names, not a string one.
+  const alias = { passages, model: "gemma2:2b", resolveName: (n) => {
+    const s = n.toLowerCase();
+    if (s === "amelia hartley" || s === "doctor reyes") return new Set(["r1"]);
+    return new Set();
+  } };
+  const recall = groundOf("Amelia Hartley discovered the comet.", { ...alias, derived: [{ subject: "Doctor Reyes", verb: "discovered", object: "the comet", premises: ["p1"] }] });
+  assert.equal(recall.tier, "derived", "an alias with no shared tokens still resolves to the same referent as the sentence's own name");
+
+  // PRECISION: a derived fact's subject shares a token (the surname) with
+  // the sentence's own longer name purely by coincidence — the old
+  // bag-of-words subset check would have credited the sentence with a
+  // fact about a DIFFERENT, distinctly-resolved referent.
+  const distinct = { passages, model: "gemma2:2b", resolveName: (n) => {
+    const s = n.toLowerCase();
+    if (s === "amelia jane hartley") return new Set(["r1"]);
+    if (s === "amelia hartley") return new Set(["r2"]);
+    return new Set();
+  } };
+  const precision = groundOf("Amelia Jane Hartley discovered the comet.", { ...distinct, derived: [{ subject: "Amelia Hartley", verb: "discovered", object: "the comet", premises: ["p1"] }] });
+  assert.notEqual(precision.tier, "derived", "the subject's tokens are a literal subset of the sentence's, but they resolve to a DIFFERENT referent — must not be credited as derived");
+
+  // When neither side has a resolvable name (index absent, or the
+  // phrasing has no capitalised name at all), this falls through to the
+  // existing token check exactly as before — nothing that worked
+  // regresses.
+  const noIndex = groundOf("Rowan Vale preceded Owen Blythe.", { passages, model: "gemma2:2b", resolveName: () => new Set(), derived: [{ subject: "Rowan Vale", verb: "preceded", object: "Owen Blythe", premises: ["p1", "p2"] }] });
+  assert.equal(noIndex.tier, "derived", "with no resolvable identity either side, the token check still applies");
+});
+
 test("names in a sentence are capitalised runs, never sentence-initial function words", () => {
   assert.deepEqual(namesIn("The X-Files was created by Chris Carter and aired on Fox."), ["X-Files", "Chris Carter", "Fox"]);
   assert.deepEqual(namesIn("Some viewers loved \"I Want to Believe\" and its tagline Trust No One, said Chris Carter."), ["Trust No One", "Chris Carter"], "a lone capitalised word at the sentence's start or inside a quoted title is capitalisation, not a name; a multi-word run still counts");

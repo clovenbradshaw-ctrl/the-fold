@@ -20,6 +20,28 @@
 // A rung is a finding only when its organ REACHED the sentence (THE-NULL-
 // STATES law 3): a witness that was never asked is not a refusal, and the
 // ladder says which rungs were skipped.
+//
+// THE STANDING RULE BETWEEN ANY TWO RUNGS (user direction, 2026-09-09):
+// the LOW sets the POSSIBILITY for the HIGH; the HIGH sets the PROBABILITY
+// for the LOW. A weaker rung's own mechanism is a floor a stronger rung's
+// verdict may never contradict — tier 4 ("derived") answers "is this
+// referent even the one the sentence names" by asking tier 6's own
+// resolveName before crediting a match, so a stronger claim can never
+// override what a weaker rung has already established as impossible (two
+// distinct, named referents are not quietly folded into one because their
+// surnames share a token). This is a CONSISTENCY constraint, checked here,
+// not a comparison of confidence — it costs nothing to enforce and is
+// applied every time a higher rung reads through a lower one's organ.
+// The reverse — a stronger rung CALIBRATING how much weight the weaker
+// rung's own signal deserves, e.g. how often "named" turns out correct
+// measured against cases where "bound" was also reachable for the same
+// claim — is a real, disclosed, UNMEASURED question. Nothing in this file
+// assigns a numeric probability to any rung; inventing one without a
+// measurement (this repo's own standing rule, generality-gate discipline,
+// applied here) would be worse than leaving it named and open. A rung
+// added later inherits both halves: it must respect every rung already
+// below it as a possibility floor, and its own reliability against the
+// rungs above it is something to measure, never assume.
 const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const toks = (t) => fold(t).replace(/[^\p{L}\p{N}]+/gu, " ").trim().split(" ").filter((w) => w.length > 2);
 const sourceOf = (w) => String(w ?? "").split("~")[0];
@@ -110,7 +132,32 @@ export function groundOf(sentence, ctx = {}) {
   }
   // 4. derived
   const st = new Set(toks(sentence));
-  const dv = derived.filter((d) => toks(d.subject ?? d.end1).every((w) => st.has(w)) && toks(d.object ?? d.end2).every((w) => st.has(w)) && toks(d.verb ?? d.label).some((w) => st.has(w)));
+  // A derived fact was composed from OTHER sentences, in THEIR wording —
+  // bare token containment only catches a fact restated near-verbatim, and
+  // it is blind to identity: two different people sharing a surname (e.g.
+  // two Bezukhovs) share tokens without being the same referent, so a
+  // bag-of-words check alone can credit a sentence with a derived fact
+  // about someone else entirely. Where the referent index (tier 6's own
+  // `resolveName`) is available and both sides resolve to a NAMED
+  // referent, compare identities the same way tier 6 already does — the
+  // holograph comparison, not a string one. When either side has no
+  // resolvable name (a pronoun, a bare description, or the index absent),
+  // this falls through to the token check exactly as before: refusing to
+  // manufacture a mismatch from an absence is the same discipline this
+  // ladder already holds for withholding vs. convicting.
+  const sideMatches = (text) => {
+    if (typeof resolveName === "function") {
+      const idsHere = new Set();
+      for (const nm of namesIn(text)) { let ids; try { ids = resolveName(nm); } catch { ids = null; } for (const id of ids ?? []) idsHere.add(id); }
+      if (idsHere.size) {
+        const idsSentence = new Set();
+        for (const nm of namesIn(sentence)) { let ids; try { ids = resolveName(nm); } catch { ids = null; } for (const id of ids ?? []) idsSentence.add(id); }
+        if (idsSentence.size) return [...idsHere].some((id) => idsSentence.has(id));
+      }
+    }
+    return toks(text).every((w) => st.has(w));
+  };
+  const dv = derived.filter((d) => sideMatches(d.subject ?? d.end1) && sideMatches(d.object ?? d.end2) && toks(d.verb ?? d.label).some((w) => st.has(w)));
   if (dv.length) return { tier: "derived", cell: CELL_OF.derived, addresses: dv.flatMap((d) => d.premises ?? []), phrase: "derived on the record", detail: `follows from ${dv[0].premises?.length ?? "?"} earlier claim(s), stated by no source`, reached };
   // 6. named
   if (typeof resolveName === "function") {

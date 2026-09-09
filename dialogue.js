@@ -105,6 +105,25 @@ export const surfacesOf = (index, id) => [...new Set((index?.events ?? []).filte
 
 const PRONOUN_RE = /\b(he|she|him|her|his|hers|they|them|their|it|its|that|this|those|these)\b/gi;
 const PASSAGE_ANAPHOR_RE = /\b(those|these|that|the)\s+(passages?|quotes?|lines?|excerpts?|citations?|references?|addresses?)\b/i;
+// A PARTITIVE QUANTIFIER OVER THE SOURCES ("did EITHER OF THEM mention X?",
+// "does ANY OF THESE say Y?") is not a person/entity anaphor — "them" here
+// stands for the attached sources themselves, a referent class the index
+// (cast.js: people, places, things the MATERIAL's own text establishes) has
+// no notion of at all. Stripped before the pronoun scan so this construction
+// never falls through to "bind to the last answer's referents."
+//
+// Measured live (2026-09-08 battery): "did either of them mention a Disney
+// movie?" answered (wrongly) by naming a real character while denying it;
+// the very next, entirely self-contained question — "do either of them
+// mention cats?" — reused the SAME "them" wording, `bindAnaphora` bound it to
+// that incidental character (the last answer's own referent, mention-order
+// first) since the new question names no referent of its own, and the
+// address check then forced the draft to account for a being the cat
+// question has nothing to do with — hijacking a fresh question toward the
+// previous one instead of letting it retrieve on its own words. Narrow on
+// purpose: a bare "them"/"he"/"it" with no quantifier still binds exactly as
+// before (the "why did he do it?" case this file's own test already pins).
+const QUANTIFIED_SOURCE_RE = /\b(?:either|any|both|neither|none|some|each|one)\s+of\s+(?:them|those|these|it)\b/gi;
 /**
  * bindAnaphora(question, last, index) → { ids, refs, pronouns, own }. The
  * question's own referents (`own`) come first; an anaphor binds to the last
@@ -113,7 +132,8 @@ const PASSAGE_ANAPHOR_RE = /\b(those|these|that|the)\s+(passages?|quotes?|lines?
 export function bindAnaphora(question, last, index) {
   const q = String(question ?? "");
   const own = referentsOf(q, index);
-  const pronouns = [...new Set((q.match(PRONOUN_RE) ?? []).map((p) => p.toLowerCase()))];
+  const qForPronouns = q.replace(QUANTIFIED_SOURCE_RE, " ");
+  const pronouns = [...new Set((qForPronouns.match(PRONOUN_RE) ?? []).map((p) => p.toLowerCase()))];
   const passageAnaphor = PASSAGE_ANAPHOR_RE.test(q);
   if (!last || (!pronouns.length && !passageAnaphor)) return { ids: [], refs: [], pronouns: [], own };
   const bound = own.ids.size ? [] : [...referentsOf(last.answer ?? "", index).ids];

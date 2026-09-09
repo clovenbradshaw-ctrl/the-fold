@@ -130,6 +130,7 @@ import { reduce as audioReduce } from "../eoreader7/native/adapters/audio/reduce
 // (derivation.js), so a derived fact always names who licensed it.
 import { createDeclarationLog, proposeCandidate as proposeDeclaration, promote as promoteDeclaration, foldDeclarations } from "/engine-v7/interpretation/declarations.js";
 import { renderCrown } from "./crown.js";
+import { compose, coverageLine } from "./compose.js";
 
 import { transcribeBlob, fetchAudioFromUrl, WHISPER_DISCLOSURE } from "./transcribe.js";
 import { passagesFromSegments, citeAudio, AUDIO_STANDING } from "./audio-address.js";
@@ -4720,6 +4721,124 @@ async function corroborateTurn(argstr, typed) {
   logAct("checked", { text: `corroborate: ${report.attested.length} attested of ${report.asks} asks` });
 }
 
+// ── /facts — a working document of grounded facts, iterated and logged ─────
+//
+// User direction, 2026-09-09: "develop making a working document of facts
+// with grounding... so Priya can export it, and it can be iterated by both
+// the chat and Priya, and all changes logged." This is the fold mechanism
+// (build-log.js) pointed at a new kind of artifact: not code, a passage
+// composed from the accumulated hyperlexicon by compose.js + crown.js —
+// the same model-free, trace-checked rendering the crown line already uses
+// per turn, run here over the whole ledger's top claims at once.
+//
+// Nothing new was built to make this ITERATED and LOGGED: `state.builds` is
+// per-WORKSPACE (not per-conversation, see PER_WORKSPACE above), so any
+// conversation sharing this workspace — Priya's own research thread
+// included — regenerates the SAME document, and buildLog.reviseBuild only
+// ever appends a SUPERSEDE (refusing churn when nothing changed), which is
+// the append-only history "all changes logged" asks for. Export is the
+// Folds panel's existing download, unmodified — a markdown build already
+// has one.
+const FACTS_CAPTION = "Grounded facts";
+
+/** The one running facts document, or null before /facts has ever run. Found
+ *  by its stable caption rather than a new persisted flag — persistBuilds()
+ *  already round-trips a build's log (and therefore its caption) across a
+ *  reload; teaching it a THIRD kind, after "database", for one flag would be
+ *  the more fragile change. */
+function findFactsBuild() {
+  return state.builds.find((b) => b.kind !== "database" && buildFold(b, null)?.caption === FACTS_CAPTION) ?? null;
+}
+
+async function factsTurn(argstr, typed) {
+  const n = Number((argstr ?? "").trim());
+  if (!Number.isInteger(n) || n < 1)
+    return usageTurn(
+      typed,
+      "/facts <n> — compose the top n most-corroborated facts on this workspace's hyperlexicon into one grounded document (crown.js's own model-free sentence render, joined by compose.js — never a model drafting prose). <n> is yours to declare (P9), e.g. /facts 20. A claim never checked against a loaded source before is checked now, against every loaded source; an already-checked claim is read back, not re-spent (P30). Lands as a build in Folds, named \"Grounded facts\" — export it from there. Call again any time (from this chat or another conversation in the same workspace) to revise the same document; every real change is logged as a new version, and an unchanged regeneration appends nothing.",
+    );
+  const log = state.hyperlexiconLog;
+  const notes = log && hyperlexiconFor.foldWithStanding ? hyperlexiconFor.foldWithStanding(log) : [];
+  if (!notes.length) return usageTurn(typed, "the hyperlexicon is empty — nothing has been heard yet in this workspace, so there is no fact to compose.");
+  const names = Object.keys(state.sources);
+  if (!names.length) return usageTurn(typed, "no sources loaded — a fact is composed by checking it against what is loaded, and nothing is.");
+
+  addMessage("user", typed);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  const slice = notes.slice(0, n); // foldWithStanding's own order: most-witnessed first — a declared order, never invented (compose.js's own rule)
+  body.textContent = `composing: checking ${slice.length} of ${notes.length} fact(s) against ${names.length} source(s)…`;
+
+  const items = [];
+  let step = 0;
+  for (const note of slice) {
+    step += 1;
+    $("status").textContent = `composing facts · ${step}/${slice.length}`;
+    const claim = { end1: note.subject, label: note.verb, end2: note.object };
+    const claimId = await grid.mintClaimId(claim);
+    let readings = perSourceReadings(grid, state.gridLog, claimId);
+    if (!readings.length) {
+      // Never checked before — check it now, the same per-source evaluate
+      // crownTestimony runs per turn (above), just run here over the
+      // ledger's own top claims instead of one turn's flagged ones.
+      const claimText = `${claim.end1} ${claim.label} ${claim.end2}`.replace(/"/g, "'");
+      for (const name of names) {
+        const line = `evaluate "${claimText}" at Link from differentiate ground "${String(name).replace(/"/g, "'")}" broken:rotation`;
+        const landed = landAct(grid, state.gridLog, line, { sources: state.sources, runCapacity, claimId });
+        if (landed.ok && landed.event.ground === name && landed.event.object === claimText) state.gridLog = landed.log;
+      }
+      readings = perSourceReadings(grid, state.gridLog, claimId);
+    }
+    items.push({ claim, merged: mergeTestimony(readings), order: step });
+  }
+  syncRecords();
+
+  const result = compose(items, { renderClaim: (merged) => renderCrown(merged), orderBy: (a, b) => a.order - b.order });
+  const text = result.refused
+    ? `(nothing composed: ${result.refused.detail})`
+    : result.text || "(every checked fact came back undetermined — nothing here is composed enough yet to state as a document.)";
+  const doc = `# ${FACTS_CAPTION}\n\n${text}\n\n---\n\n*${coverageLine(result)}*`;
+
+  let entry = findFactsBuild();
+  if (entry) {
+    entry.log = buildLog.reviseBuild(entry.log, { code: doc, reason: "facts regenerated" });
+    entry.cursor = null;
+    mirrorBuild(entry, entry.log.entries.length - 1);
+  } else {
+    entry = {
+      n: state.builds.length + 1,
+      turn: state.summary.turnCount + 1,
+      log: buildLog.proposeBuild({
+        n: state.builds.length + 1, turn: state.summary.turnCount + 1,
+        seg: { type: "code", lang: "markdown", code: doc }, caption: FACTS_CAPTION,
+        instruction: "composed mechanically from the workspace's hyperlexicon by /facts — no model call",
+      }),
+      cursor: null, draft: null,
+    };
+    state.builds.push(entry);
+    mirrorBuild(entry, 0);
+  }
+  persistBuilds();
+  renderBuilds(entry.n);
+
+  body.textContent = `${coverageLine(result)} — see fold ${entry.n} ("${FACTS_CAPTION}") in Folds.`;
+  const p = document.createElement("p");
+  p.className = "piece-links";
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = "build-chip";
+  chip.innerHTML = `<span aria-hidden="true">▤</span> fold ${entry.n} · ${FACTS_CAPTION}`;
+  chip.onclick = () => {
+    showView("builds");
+    renderBuilds(entry.n);
+    document.getElementById(`build-${entry.n}`)?.scrollIntoView({ block: "start" });
+  };
+  p.append(chip);
+  body.append(p);
+  mirrorTermRecord("facts", { n, notes: notes.length, composed: result.coverage.composed, withheld: result.coverage.withheld, fold: entry.n, via: "chat" });
+  logAct("checked", { text: `facts: composed ${result.coverage.composed} of ${slice.length} into fold ${entry.n}` });
+}
+
 async function actTurn(argstr, typed) {
   const actLine = argstr.trim();
   if (!actLine) {
@@ -5713,6 +5832,9 @@ async function send(question) {
   const corrCmd = question.match(/^\/corroborate\b\s*(.*)$/s);
   if (corrCmd) return corroborateTurn(corrCmd[1] ?? "", question);
 
+  const factsCmd = question.match(/^\/facts\b\s*(.*)$/s);
+  if (factsCmd) return factsTurn(factsCmd[1] ?? "", question);
+
   // Derivation and recourse (Pass 21, P102): a person declares what a
   // relation does, the record derives what follows, and a premise can be
   // conceded — with what would fall shown first.
@@ -5923,7 +6045,7 @@ async function send(question) {
 
 /** Every door the composer routes, read off the dispatch above — kept as one
  * list so the refusal for an unknown slash names all of them. */
-const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/fold", "/gateways", "/holograph", "/ingest", "/join", "/learn", "/matrix", "/measure", "/must", "/pool", "/preserve", "/priors", "/ranke", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/task", "/transcribe", "/void"]);
+const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/facts", "/fold", "/gateways", "/holograph", "/ingest", "/join", "/learn", "/matrix", "/measure", "/must", "/pool", "/preserve", "/priors", "/ranke", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/task", "/transcribe", "/void"]);
 
 /**
  * /ingest — a repo becomes folds, mechanically. Every admissible file (the
@@ -12509,6 +12631,21 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
     src.innerHTML = "<summary>source</summary>";
     src.append(codeBlock(code ?? seg.code, seg.lang));
     art.append(src);
+  } else if (seg.lang === "markdown") {
+    // A markdown build (the /facts document, so far the only kind) read as
+    // a monospace code box — correct for code, wrong for a document meant
+    // to be READ (user direction, 2026-09-09: "it can be a more handsome
+    // document than that"). Same renderer the chat answer's own prose uses
+    // (render.js), plain-text inline (no grounding marks — this is a
+    // composed document, not a checked turn to overlay marks onto), so
+    // headings/paragraphs/lists read as a document rather than a wall of
+    // literal "#"/"-" characters. Editing still opens the real source (the
+    // fold's own ✎ edit button, unchanged) — this only changes how the
+    // built version is READ.
+    const doc = document.createElement("div");
+    doc.className = "artifact-doc";
+    renderBlocksInto(doc, code ?? seg.code, (chunk) => [document.createTextNode(chunk)]);
+    art.append(doc);
   } else {
     art.append(codeBlock(code ?? seg.code, seg.lang));
   }

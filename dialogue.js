@@ -52,7 +52,13 @@ export const TRIGGER_LANGUAGE = "en";
 export const TRIGGER_LANGUAGE_META = Object.freeze({ giver: "lang/en", scope: "question-side speech acts: restatement, trailing check, pronoun and passage anaphors" });
 export const triggerGap = (language) => (language && language !== TRIGGER_LANGUAGE ? { type: "no_trigger_prior_for_language", language, detail: `the question-side triggers are declared for ${TRIGGER_LANGUAGE} only` } : null);
 
-const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+// THE ONE FOLD, BY IMPORT (P7.1: "the same one, by import, never by local
+// reimplementation" — the failure this guards against is a retrieval organ
+// and a grounding check disagreeing about what a word is, so a found passage
+// fails the check that should confirm it). resolutions.js, activation-
+// retrieval.js and holon.js's act-key fold all import this rather than
+// redefining it; a fourth copy is exactly the shape P7.1 was written for.
+export const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const ids = (index, name) => { try { const r = index?.resolve?.(name); return r instanceof Set ? r : new Set(r ?? []); } catch { return new Set(); } };
 const represent = (index, id) => { try { return index?.represent?.(id) ?? id; } catch { return id; } };
 

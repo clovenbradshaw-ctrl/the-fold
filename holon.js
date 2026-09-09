@@ -48,7 +48,7 @@ import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard,
 // The conversation's own loops (dialogue.js, 2026-09-07): anaphora across turns, the reader's restatement graded, the address check with one re-ask on facts, self-consistency against this conversation's own record, the expectation before the draft and its diff.
 import { resolutionBlocks } from "./resolutions.js";
 import { mouthFacing } from "./firewall.js";
-import { ownedRows, ownedLine, referentsOf, bindAnaphora, addressedBy, absenceOf, surfacesOf, selfContradictions, contradictionLine, positionOn, expectationFrom, expectationFacts, errorOf } from "./dialogue.js";
+import { ownedRows, ownedLine, referentsOf, bindAnaphora, addressedBy, absenceOf, surfacesOf, selfContradictions, contradictionLine, positionOn, expectationFrom, expectationFacts, errorOf, fold as dfold } from "./dialogue.js";
 import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
 import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine } from "./transcript.js";
 import { checkComparison } from "./arithmetic.js";
@@ -67,6 +67,8 @@ import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.j
 import { LINK_CHECKS_PER_PART, extractLinkAtoms, linkFindings, stripDeadLinks, urlInMaterial, verifyLinks } from "./links.js";
 import { parseSegments } from "./artifact.js";
 import { admitPassages } from "./read-on-arrival.js";
+import { asksAboutMaterial, materialView, abbreviate, aboutBlock } from "./about.js";
+import { interpretAsk } from "./about-call.js";
 
 // ── the decomposition gate ───────────────────────────────────────────────────
 //
@@ -1242,6 +1244,13 @@ export async function runPart({
   // and 2, both ahead of any drafting). A caller with no void passes null
   // and every branch below is byte-identical to before this existed.
   answerShape = null,
+  // The reader's own notes on particular loops (loops.js, 2026-09-08: "add a
+  // prompt or similar injected into particular loops"), already phrased by
+  // the caller in the reader's own words ("The reader adds, about the form:
+  // make it rhyme."). Task-wide and flat only, like answerShape: a fact the
+  // mouth is handed, never an instruction stacked on the prompt. null →
+  // byte-identical to before.
+  readerNotes = null,
   // S1's own answer text, or null when there was no fast pass (or the S2
   // gate never fired). Flat only, reaching both the chat branches and the
   // flat material branch (unlike searchedVoid, S1's answer stays relevant
@@ -2170,6 +2179,7 @@ export async function runPart({
   // with a phrase in its prompt rather than using it. A size it can simply
   // aim at is information; a length limit is one more rule to satisfy.
   const shapeSuffix = answerShape ? ` ${answerShape}` : "";
+  const notesSuffix = flat && readerNotes ? ` ${readerNotes}` : "";
   // Phase 2's own material, for the INITIAL draft prompt only — `sourceBlock`
   // itself stays untouched everywhere else in this function (succession-box
   // parsing at parseSuccessionBoxes below reads raw material text and must
@@ -2318,10 +2328,56 @@ export async function runPart({
   // to hand falls back to the passages and says so. Level means what the
   // mouth is handed, and higher means less — measured as a monotone
   // compression ladder, never assumed.
+  // WHAT THE MATERIAL IS, as against what a passage of it happens to say
+  // (P46's own organ, `source.js::declaredIdentity` — the file's own title
+  // page, with a named giver and a byte address). It rides EVERY path,
+  // because it is a property of the source and not of whichever passage
+  // retrieval returned: `buildSourceBlock` already carried it, but the
+  // compressed path below sets `rawSource` to null, so on a snips turn it
+  // was computed, addressed, and thrown away.
+  //
+  // Measured live (2026-09-08), which is why this exists: War and Peace
+  // attached, asked "what's this book about?" — the question's one content
+  // word is "book", so retrieval returned chapters about Prince Bolkonsky's
+  // EXERCISE BOOK, and the mouth, holding sentences about a book and a table
+  // and no title, answered "a man named Caesar and his commentary on his
+  // military campaigns". The engine had "War and Peace, by graf Leo Tolstoy"
+  // in hand the whole time. A fact, never an instruction (P55); no address,
+  // because the mouth never sees one.
+  const declaredLine = (() => {
+    const bySource = new Map();
+    for (const p of passages ?? []) {
+      const d = p?.identity?.declared;
+      if (!d?.title || bySource.has(p.source)) continue;
+      bySource.set(p.source, `${d.title}${d.author ? `, by ${d.author}` : ""}`);
+    }
+    return bySource.size ? `What this material is, by its own title page: ${[...bySource.values()].join("; ")}.` : "";
+  })();
+  // WHAT THE ASK IS ACTUALLY FOR (about-call.js), the sharper half of the
+  // same fix. `declaredLine` above is the cheap, always-on half — every
+  // turn gets the title page, for free, and that alone closed the flagship
+  // specimen. This is the paid half, spent only when the FREE mechanical
+  // detector (`about.js::asksAboutMaterial`, P30's own "null before you
+  // spend" law) says the question reads as asking what the material IS: a
+  // small model reads the SITUATION (never the whole material — an ellipsed
+  // sample spread across it, never the front alone) and says in one short
+  // line what kind of thing the person seems to want, so the talker is told
+  // that BEFORE it drafts rather than left to guess from whichever passages
+  // retrieval happened to pick. Gated to a FLAT turn (one part, one
+  // question) — a decomposed task's own parts are not "what is this"
+  // questions in the first place, and this must never compound across them.
+  // A call that throws or a reply that fails the wall (about-call.js's own
+  // `looksLikeAnAnswer`) degrades to nothing added — never to a guess, and
+  // never worse than before this existed.
+  let aboutLine = "";
+  if (flat && chunks?.length && asksAboutMaterial(task || question) && typeof call === "function") {
+    const said = await interpretAsk(task || question, { rows: materialView({ chunks }), digest: abbreviate(chunks), call });
+    if (said) aboutLine = `What they seem to be asking for: ${said}`;
+  }
   const compress = activated || material === "snips" || (material === "auto" && resolutions >= 2);
   const handed = activated ? "activated sentences" : compress ? (snipPrefix ? "snips" : "passages (no snips to hand)") : "passages";
   const rawSource = compress && snipPrefix ? null : (factBlock ? (spanBlock ?? dedupedSourceBlock) : dedupedSourceBlock);
-  const draftMaterial = [comparisonLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, factBlock ? factBlock.text : null, ledgerBlock, rawSource].filter(Boolean).join("\n\n");
+  const draftMaterial = [comparisonLine, declaredLine, aboutLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, factBlock ? factBlock.text : null, ledgerBlock, rawSource].filter(Boolean).join("\n\n");
   // A turn with nothing attached is exactly the turn that should stand on
   // what was read BEFORE — until 2026-09-03 the ledger block reached only
   // the material branches, so a from-memory question never saw the ledger
@@ -2371,19 +2427,19 @@ export async function runPart({
       ? [
           {
             role: "system",
-            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + shapeSuffix + priorPassSuffix + todaySuffix, draftMaterial].join("\n\n") + chatContext + resolutionSuffix,
+            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + shapeSuffix + notesSuffix + priorPassSuffix + todaySuffix, draftMaterial].join("\n\n") + chatContext + resolutionSuffix,
           },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task || `${part.label}. ${part.description}` },
         ]
       : chatHistory.length
         ? [
-            { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${unretrievedSuffix}${priorPassSuffix}${todaySuffix}${chatContext}${ledgerSuffix}${resolutionSuffix}` },
+            { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${unretrievedSuffix}${notesSuffix}${priorPassSuffix}${todaySuffix}${chatContext}${ledgerSuffix}${resolutionSuffix}` },
             ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
             { role: "user", content: task },
           ]
         : [
-            { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${unretrievedSuffix}${priorPassSuffix}${todaySuffix}${ledgerSuffix}` },
+            { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${unretrievedSuffix}${notesSuffix}${priorPassSuffix}${todaySuffix}${ledgerSuffix}` },
             { role: "user", content: `${task}${chatContext}` },
           ]
     : [
@@ -3037,7 +3093,6 @@ export async function runPart({
   // addresses — never an instruction about what not to say. It sits before
   // the snip checks, the guards, the correction round and the inadmissible
   // gate, so a re-asked draft passes every wall the first draft did.
-  const dfold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   const lastTurn = transcript.length ? transcript[transcript.length - 1] : null;
   // IDENTITY IS THE READING'S. When the turn is handed the conversation's
   // own index (the constitutional reader's log projected — reading-log.js),
@@ -3464,6 +3519,8 @@ export async function runHolonicTask({
   // for the identical reason searchedVoid is: the void is declared once per
   // TURN, before any part runs. null → byte-identical to before.
   answerShape = null,
+  // The reader's notes on particular loops (see runPart's own parameter).
+  readerNotes = null,
   // S1's own answer, task-wide for the identical reason searchedVoid is —
   // one fast pass ran once, before the plan, never per-part.
   priorPass = null,
@@ -3681,6 +3738,7 @@ export async function runHolonicTask({
       sourcesAttached,
       now,
       answerShape,
+      readerNotes,
       priorPass,
       onProgress,
       grid,

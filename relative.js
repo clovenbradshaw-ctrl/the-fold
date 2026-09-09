@@ -129,29 +129,44 @@ export class Field {
    * words drawn from the field's own vocabulary, `draws` times; the band is
    * the lowest and highest top activation seen, and the widest gap between a
    * top and its runner-up. Measured, not chosen.
+   *
+   * `steps`/`spread` are NEW (2026-09-08), additive, and default to the
+   * field's own — every existing caller is byte-identical. They exist
+   * because a null band measured at one hop count is the wrong control for
+   * a recall measured at another: more spreading steps changes what chance
+   * alone can pull out of this field, so a multi-hop question ("does this
+   * cue still settle on something above chance after N hops") needs its own
+   * band at that same N, never the field's default band reused past hop 1.
    */
-  nullBand(tokenCount, { draws = 200, rng = Math.random } = {}) {
+  nullBand(tokenCount, { draws = 200, rng = Math.random, steps = this.steps, spread = this.spread } = {}) {
     const words = [...this.vocab.keys()];
-    if (!words.length || !this.nodes.length) return { lo: 0, hi: 0, margin: 0, draws: 0 };
+    if (!words.length || !this.nodes.length) return { lo: 0, hi: 0, margin: 0, draws: 0, steps };
     let lo = Infinity, hi = 0, margin = 0;
     for (let d = 0; d < draws; d++) {
       const cue = Array.from({ length: Math.max(1, tokenCount) }, () => words[Math.floor(rng() * words.length)]).join(" ");
-      const r = this.recall(cue);
+      const r = this.recall(cue, { steps, spread });
       const top = r[0]?.activation ?? 0, second = r[1]?.activation ?? 0;
       lo = Math.min(lo, top); hi = Math.max(hi, top); margin = Math.max(margin, top - second);
     }
-    return { lo: lo === Infinity ? 0 : lo, hi, margin, draws };
+    return { lo: lo === Infinity ? 0 : lo, hi, margin, draws, steps };
   }
   /**
    * A recall that says whether it is one: the top node when its activation
    * clears the null band AND its lead over the runner-up exceeds the widest
    * lead chance produced; `ambiguous` when the field settled on more than
    * one figure; `nothing` when it is inside the band.
+   *
+   * `steps`/`spread` (new, additive, default the field's own — every
+   * existing caller unchanged): passed to BOTH the recall and a
+   * self-measured band, so a caller cannot accidentally compare a hop-N
+   * recall against a hop-1 band by only setting one of the two. A `band`
+   * passed in explicitly is trusted as already measured at the right hop
+   * count — the caller's own responsibility, same as before.
    */
-  recallAgainstNull(cue, { band = null, draws = 200 } = {}) {
+  recallAgainstNull(cue, { band = null, draws = 200, steps = this.steps, spread = this.spread } = {}) {
     const words = tokensOf(cue).filter(isWord).length;
-    const b = band ?? this.nullBand(words, { draws });
-    const r = this.recall(cue);
+    const b = band ?? this.nullBand(words, { draws, steps, spread });
+    const r = this.recall(cue, { steps, spread });
     const top = r[0], second = r[1];
     if (!top || top.activation <= b.hi) return { kind: "nothing", top: top ?? null, band: b, ranked: r };
     if (second && top.activation - second.activation <= b.margin) return { kind: "ambiguous", top, second, band: b, ranked: r };

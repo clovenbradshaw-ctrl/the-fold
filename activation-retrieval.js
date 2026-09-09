@@ -30,7 +30,7 @@
 // The mouth gets the sentences verbatim, address-free (firewall.js); the
 // record keeps the addresses. The chunk survives only as the paragraph the
 // writer chose, an address container, never a retrieval unit.
-import { referentsOf } from "./dialogue.js";
+import { referentsOf, fold } from "./dialogue.js";
 import { activeReferents, dmdCut, lensCut, DECLARED_LINES } from "./resolutions.js";
 
 // THE GRAIN OF A SENTENCE IS THE ACT. Reach by referent alone hands ONE
@@ -48,7 +48,6 @@ import { activeReferents, dmdCut, lensCut, DECLARED_LINES } from "./resolutions.
 // turn. The cut inside the ceiling is measured; the ceiling itself is
 // declared and carried on the result.
 export const SENTENCE_CEILING = 24;
-const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 const resolveIds = (index, name) => { try { const r = index?.resolve?.(String(name ?? "")); return r instanceof Set ? r : new Set(r ?? []); } catch { return new Set(); } };
 

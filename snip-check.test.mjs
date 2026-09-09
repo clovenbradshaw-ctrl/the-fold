@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { snipsFor, snipBlock, atomsOf, checkSentence, checkSection, reviseAsk, applyRewrite } from "./snip-check.js";
+import { snipsFor, snipBlock, atomsOf, checkSentence, checkSection, reviseAsk, applyRewrite, ABSENCE_RE } from "./snip-check.js";
 
 const passages = [
   { ref: "web:en.wikipedia.org-0#100-400", text: "The X-Files is an American science fiction drama television series created by Chris Carter. The original television series aired from September 10, 1993, to May 19, 2002, on Fox. The show was a hit for the network. Unrelated filler sentence about weather patterns in the region here." },
@@ -102,4 +102,42 @@ test("the instrument's own words never reach the answer, and the ask that caused
   assert.equal(leaked.outcomes[0].outcome, "refused");
   assert.match(leaked.outcomes[0].because, /echoes the instrument's own words/);
   assert.equal(leaked.text, text);
+});
+
+test("a stated absence is exempt from the company check entirely — the atom it names is the SUBJECT of the silence, not a claim resting on it", () => {
+  // Measured live (2026-09-08): War and Peace, wounding scene attached.
+  // Asked whether Prince Andrew's wound was fatal, gemma2:2b answered
+  // honestly — "The passage doesn't say whether or not Prince Andrew's
+  // wound was fatal." — and this check flagged the name "Prince Andrew" in
+  // it for having no company, because the sentence's other words never sit
+  // beside the name in the one snip retrieved. The name IS in the snip; the
+  // sentence is not claiming anything about it that a snip could support —
+  // it is reporting silence, and the name is what the silence is about.
+  const snip = { ref: "andrei-excerpt.txt#143-214", start: 0, end: 71, text: "The adjutant, having obeyed this instruction, approached Prince Andrew." };
+  const draft = "The passage doesn't say whether or not Prince Andrew's wound was fatal.";
+  assert.ok(ABSENCE_RE.test(draft));
+  const check = checkSentence(draft, [snip]);
+  assert.equal(check.flags.length, 0, "no flag at all — not even a corrected one");
+  assert.equal(check.atoms.length, 1, "the atom is still found, just never checked");
+  assert.equal(check.atoms[0].value, "Prince Andrew");
+  // The section as a whole never asks for a rewrite of it.
+  const sec = checkSection([draft], [snip]);
+  assert.equal(sec.flagged.length, 0);
+});
+
+test("reviseAsk states the TRUE reason for each flag, and never claims an absence where the snip block sent alongside it says otherwise", () => {
+  // The bug this closes, reproduced directly: a name genuinely present in a
+  // snip, just never beside the rest of a POSITIVE claim's own words —
+  // `reviseAsk` used to say "the sources do not use the name X here" for
+  // this exact case, which is false, and self-contradicts the snip block
+  // handed in the very same message. Uses a positive claim (not a stated
+  // absence) so the company check still applies and produces the flag.
+  const snip = { ref: "s#0-40", start: 0, end: 40, text: "Prince Andrew stood near the battalion." };
+  const draft = "Prince Andrew commanded the whole army.";
+  const check = checkSentence(draft, [snip]);
+  assert.equal(check.flags.length, 1);
+  assert.equal(check.flags[0].reason, "no_company");
+  const ask = reviseAsk(check.flagged ?? [{ sentence: draft, ...check }], [snip]);
+  assert.match(ask, /the sources do use the name "Prince Andrew", but never together with what this says about it/);
+  assert.doesNotMatch(ask, /the sources do not use the name "Prince Andrew"/, "never the false claim — the snip block right below names it");
 });

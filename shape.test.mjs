@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { SHAPE_SCHEMA, buildShapeMessages, readShape, cardinalityOf, mergeShape, askShape, KIND_MAX_CHARS } from "./shape.js";
+import { SHAPE_SCHEMA, buildShapeMessages, readShape, cardinalityOf, mergeShape, askShape, KIND_MAX_CHARS, declaredGenre, checkGenre, GENRES_META } from "./shape.js";
 
 const shapeOf = (howMany, kind = "a person", composition = "a single item") =>
   readShape({ how_many: howMany, kind_of_thing: kind, composition });
@@ -176,4 +176,22 @@ test("checkForm: lipogram, word bounds, one sentence, and a form with nothing de
   const none = checkForm("anything", declaredForm("Say something."));
   assert.equal(none.ok, false);
   assert.equal(formLine(none), "form: nothing examined");
+});
+
+// ── the declared genre (2026-09-08) ───────────────────────────────────────
+test("a task that names its genre declares its form; one that names none declares nothing; the class names its giver", () => {
+  assert.deepEqual(declaredGenre("write a poem about batman"), { kind: "verse", word: "poem", reads: "a poem, in lines" });
+  assert.equal(declaredGenre("write me a short story about a lighthouse").kind, "prose");
+  assert.equal(declaredGenre("give me a list of the towns").kind, "list");
+  assert.equal(declaredGenre("who was lincoln's vice president?"), null);
+  assert.equal(GENRES_META.giver, "lang/en");
+});
+test("checkGenre reads the draft's own structure — verse is lines that read as verse, prose is a paragraph that does not — and never approximates rhyme", () => {
+  const poem = "Here is your poem:\nThe cowl hides a city's fright,\nA shadowed vigil, day and night.";
+  assert.equal(checkGenre(poem, { kind: "verse" }).ok, true, "the leading 'Here is' line is dropped by draftText before the check");
+  assert.equal(checkGenre("The cowl hides a city's fright, a shadowed vigil day and night. He walks.", { kind: "verse" }).ok, false);
+  assert.equal(checkGenre("The cowl hides a city's fright, a shadowed vigil day and night. He walks.", { kind: "prose" }).ok, true);
+  assert.equal(checkGenre("- a\n- b", { kind: "list" }).ok, true);
+  assert.equal(checkGenre("| a | b |\n| 1 | 2 |", { kind: "table" }).ok, true);
+  assert.equal(checkGenre("x", { kind: "rhyme" }).examined, false);
 });

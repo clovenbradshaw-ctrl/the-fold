@@ -272,6 +272,29 @@ clean: Dijkstra, Holmes, Pearl, Ostrom, Frankfurt — nothing in the merge's own
 ## 2026-09-07 — P171 written (staged: POLICIES.md)
 - chorus-fast: PASS — law checks (Generality present on P171; citations resolve; the pre-existing duplicate headers P115/P116/P117/P19 warned, unchanged); no source touched in this commit.
 
+## 2026-09-08 — Compliance pass: reassignment/merge separated, the whole-set tautology closed in historyWindow, a throwing organ typed apart from a ceiling, foldReading/resolve memoized, one fold by import (staged: reading-log.js, reading-log.test.mjs, resolutions.js, resolutions.test.mjs, dialogue.js, dialogue.test.mjs, activation-retrieval.js, holon.js, POLICIES.md)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + POLICIES.md/CLAUDE.md. Tier 1: law ok; suites 1928 tests, 1919 pass, 0 fail, 9 skipped (the-fold full); the touched files' own suites re-run in isolation, 130+/130+.
+
+A compliance review (2026-09-07, this session) found ten defects across P162–P171/S78–S81. This commit closes the ones that are the-fold's to fix.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Holmes | II.7; S17 | reading-log.js `foldReading` | fixed | `EOReferentMerge@1` was overloaded for a witnessed identity decision AND a mere address change; 9 of 14 records on the real reading folded a still-live id, and two surviving unions collapsed distinct people (Katerina/Alyona, disclosed; Sonia/Marmeladov, not until this review) — only `EOReferentMerge@1` unions now, `EOReferentReassignment@1` (eoreader7) routes surface lookup without unioning; pinned by two new tests |
+| Diaconis | II.10 | dialogue.js `historyWindow` | fixed | the whole exchange count was one of its own dmdWindow candidates — agreement by construction, reported "measured"; a 7-exchange fixture with the target only in exchange 1 returned depth 7/7. Fixed: filtered below the set; empty candidates is a typed gap |
+| Diaconis | II.10 | resolutions.js `dmdCut` | fixed | a throwing measurement organ was caught and fell through to the ceiling branch, reporting `reach_exceeds_candidates` — the kernel's own finding string on an organ that never ran. Fixed: `measurement_threw`, `ceiling: false`, its own test |
+| Frankfurt | S25 | eoreader7 `kernel/reading.js`/`recursive.js` (restore) | fixed | THE-HOLOGRAPH §7 claimed a resumed read is "the same log to the byte"; measured false — perceiver accumulators live outside the log. `restore()` replays persisted encounters; `resume-state.test.js` pins straight === resumed |
+| Simon | P95/P96 | eoreader7 `conversation.mjs`/`conversation-compare.mjs` | fixed | the `voids` figure read `r.voidsDeclared`, a field the driver's row never wrote — 0 on every run while the same rows showed absences. Row now carries it; the compare lib reads the legacy `voids` field too |
+| Feynman | II.11 | resolutions.js:41 `DECLARED_LINES` | fixed | the prior commit's collapse of the giver comment into a trailing one-liner dropped the word "giver" and the ratchet flagged it as a new unearned constant on a clean worktree; restored |
+| Ostrom | P157 (a cache is measured, never assumed) | reading-log.js `foldReadingOnce`, `resolve` memo | fixed, measured | `readingIndexFromLog`/`mentionBookFromLog` each independently ran the union-find + coreference containment pass over the same entries array (measured on the persisted Crime and Punishment reading: 835,340 `namesCorefer` calls, twice); `resolve(name)` re-scanned every referent's every surface on every ask for an unresolvable ledger-note end. Both memoized, both counted in new tests (not timed) |
+| Dijkstra | P7.1 | dialogue.js `fold` (exported), resolutions.js/activation-retrieval.js/holon.js | fixed | four byte-identical local reimplementations of the same blanket combining-mark strip — the exact shape P7.1 names as a standing failure class. One export, three imports, zero behavior change (existing tests unchanged) |
+| Simon | P95 | eoreader7 `organs/aliases.test.mjs` | fixed | hard-coded `/home/user/live_priors/...`; portable module-relative path with a typed `fixture_absent` refusal when the sibling checkout is absent |
+| Marshall | IV.1; P71 | POLICIES.md this entry | upheld — compliant | Generality lines present on the corrected P171 addendum; the Sonia/Marmeladov correction is disclosed, not silently absorbed into the standing 100-beings count; pre-existing duplicate headers P115/P116/P117/P19 and S17 unchanged, not this commit's to fix |
+
+deferred-with-reason: inline top-N literals (three names for a ground, three fresh referents, two addresses per note line) are display truncation, not a judgment about material (P9's own scope is a judgment "wearing the clothes of a setting") — reviewed, left as prose-documented magic numbers rather than extracted into named constants that would conflate unrelated concerns under one name. `individuation.js::place()`'s throw on a lost hypothesis (eoreader7) is reachable only through an update that changes an occurrence's own encounter id, judged unreachable in practice; disclosed, not hardened this pass.
+
+false-positive-on-review: none.
+
 ## 2026-09-08 — paired-improvement: the driver's claims over the engine unchanged, 5 arms 56/56 (eval/paired-improvement-assay.mjs, untracked)
 
 Constitution: FOLD-CONSTITUTION (+ POLICIES/CLAUDE as standing). Lenses in-session over the driver; the rerun is a pure `tee` capture, diffed line for line against the record the entry rests on.

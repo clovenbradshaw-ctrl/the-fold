@@ -2792,3 +2792,116 @@ test("P137: a finding leaves the part and binds the later cells — the section 
   assert.doesNotMatch(r.output, /^## .*Lincoln/m, "no section heading ships the cut name");
   assert.doesNotMatch(r.output, /Lincoln/, "and neither does anything the later cells assembled");
 });
+
+test("what the material IS rides every path: a source's own title page reaches the mouth even when the passages are compressed to snips", async () => {
+  // Measured live, 2026-09-08: War and Peace attached, "what's this book
+  // about?" retrieved chapters about a prince's EXERCISE BOOK (the question's
+  // one content word is "book") and the mouth answered "a man named Caesar
+  // and his commentary on his military campaigns". The engine had the title
+  // page in hand throughout; the compressed path dropped it.
+  const declared = { title: "War and Peace", author: "graf Leo Tolstoy", giver: "the source file's own declared header", ref: "wp.txt#0-856" };
+  // Real chunks from the real chunker, so they carry the term index retrieval
+  // reads — and the identity every chunking path threads onto every chunk.
+  const body = "The princess bent over the exercise book on the table, and the prince pushed the book away.\n\nHe took the exercise book containing lessons in geometry written by himself and drew up a chair with his foot.";
+  const wp = chunkSource("wp.txt", body, { identity: { kind: "prose", certainty: "default", declared } });
+  const sent = [];
+  // "what's this book about?" also fires the about-call (about-call.js) —
+  // its own system prompt is distinguishable and its reply must stay
+  // grounded in the excerpt's own words, or the (unrelated) snip-rewrite
+  // check trips on an unbacked name and spends a further call this test
+  // does not care about.
+  const call = async (messages) => {
+    sent.push(messages);
+    const sys = messages[0]?.content ?? "";
+    if (/Not the answer/i.test(sys)) return "Asking for the gist.";
+    return "It is about a princess and a prince and an exercise book.";
+  };
+  await runHolonicTask({
+    task: "what's this book about?", call, chunks: wp, planMode: "flat", material: "snips", maxCorrections: 0,
+  });
+  const systems = sent.flat().filter((m) => m.role === "system").map((m) => m.content);
+  assert.ok(systems.some((s) => /What this material is, by its own title page: War and Peace, by graf Leo Tolstoy\./.test(s)));
+  // A fact, not an instruction (P55), and no address — the mouth never sees one.
+  assert.ok(!systems.some((s) => /wp\.txt#/.test(s)), "no address reaches the mouth");
+  // And the same turn with material carrying no title page says nothing at all.
+  sent.length = 0;
+  await runHolonicTask({
+    task: "what's this book about?", call, planMode: "flat", material: "snips", maxCorrections: 0,
+    chunks: wp.map((c) => ({ ...c, identity: { kind: "prose" } })),
+  });
+  const bareSystems = sent.flat().filter((m) => m.role === "system").map((m) => m.content);
+  assert.ok(!bareSystems.some((s) => /title page/.test(s)), "material with no declared identity claims none");
+});
+
+test("the about call: a small model reads the SITUATION and says what the ask is for, gated on the free mechanical detector — spent only when it fires", async () => {
+  // (user, 2026-09-08, after the title-page fix closed the flagship
+  // specimen): "we need an 'about' model call that gets all the folded
+  // content needed... to tell the talker what it thinks the user is
+  // saying." about-call.js::interpretAsk is the call; about.js::
+  // asksAboutMaterial is the free gate that decides whether to spend it.
+  const declared = { title: "War and Peace", author: "graf Leo Tolstoy", giver: "the source file's own declared header" };
+  const body = "The princess bent over the exercise book on the table, and the prince pushed the book away.\n\nHe took the exercise book containing lessons in geometry written by himself and drew up a chair with his foot.";
+  const wp = chunkSource("wp.txt", body, { identity: { kind: "prose", certainty: "default", declared } });
+  const sent = [];
+  const call = async (messages) => {
+    sent.push(messages);
+    const sys = messages[0]?.content ?? "";
+    // The about-call's own system prompt says it must not answer; a real
+    // draft call's system prompt never says that — this is how the mock
+    // tells the two calls apart without hardcoding either prompt's text.
+    if (/Not the answer/i.test(sys)) return "Asking for the whole gist of the book.";
+    // Grounded in the excerpt's own words — a name the excerpt never says
+    // (e.g. "Tolstoy") would trip the unrelated snip-rewrite check and spend
+    // a further call this test does not care about counting.
+    return "It is about a princess and a prince and an exercise book.";
+  };
+  await runHolonicTask({ task: "what's this book about?", call, chunks: wp, planMode: "flat", material: "snips", maxCorrections: 0 });
+  assert.equal(sent.length, 2, "one about-call, then one draft call — no more");
+  const draftSystem = sent[1][0].content;
+  assert.match(draftSystem, /What they seem to be asking for: Asking for the whole gist of the book\./);
+  // declaredLine still rides too — the two are complementary, not a swap.
+  assert.match(draftSystem, /War and Peace, by graf Leo Tolstoy/);
+});
+
+test("the about call is never spent on an ordinary content question — the free detector decides, not a model", async () => {
+  const wp = chunkSource("wp.txt", "The general moved his forces across the river at dawn.", { identity: { kind: "prose", certainty: "default", declared: { title: "T" } } });
+  const sent = [];
+  const call = async (messages) => { sent.push(messages); return "The general crossed at dawn."; };
+  await runHolonicTask({ task: "when did the general cross the river?", call, chunks: wp, planMode: "flat", material: "snips", maxCorrections: 0 });
+  assert.equal(sent.length, 1, "no about-call spent — only the draft call");
+});
+
+test("the about call degrading — a reply shaped like an answer — adds nothing to the talker; declaredLine alone still stands", async () => {
+  const declared = { title: "War and Peace", author: "graf Leo Tolstoy" };
+  const body = "The princess bent over the exercise book on the table, and the prince pushed the book away.";
+  const wp = chunkSource("wp.txt", body, { identity: { kind: "prose", certainty: "default", declared } });
+  const sent = [];
+  const call = async (messages) => {
+    sent.push(messages);
+    const sys = messages[0]?.content ?? "";
+    if (/Not the answer/i.test(sys)) return "The book is about the princess and the exercise book.";
+    return "It is about a princess and a prince and an exercise book.";
+  };
+  await runHolonicTask({ task: "what's this book about?", call, chunks: wp, planMode: "flat", material: "snips", maxCorrections: 0 });
+  // The DRAFT call's own system message, wherever it landed — never assumed
+  // to be a fixed index, since another mechanism (the snip-rewrite pass) can
+  // legitimately add a call of its own for reasons unrelated to this test.
+  const draftSystem = sent.map((m) => m[0]?.content ?? "").find((s) => !/Not the answer/i.test(s));
+  assert.ok(!/What they seem to be asking for/.test(draftSystem), "a refused interpretation is discarded, never forwarded");
+  assert.match(draftSystem, /War and Peace/, "declaredLine is unaffected by the about call's own outcome");
+});
+
+test("the about call never fires on a decomposed (non-flat) task — it is scoped to a single flat question and must not compound across parts", async () => {
+  const declared = { title: "War and Peace", author: "graf Leo Tolstoy" };
+  const wp = chunkSource("wp.txt", "The princess bent over the exercise book. The prince read the geometry lessons himself.", { identity: { kind: "prose", certainty: "default", declared } });
+  const sent = [];
+  const call = async (messages) => {
+    sent.push(messages);
+    const sys = messages[0]?.content ?? "";
+    if (/Not the answer/i.test(sys)) return "Asking for the gist.";
+    if (sys.includes("JSON")) return JSON.stringify([{ label: "what it is", description: "what's this book about" }]);
+    return "It is Tolstoy's novel.";
+  };
+  await runHolonicTask({ task: "Describe what's this book about, in full.", call, chunks: wp, planMode: "model", maxCorrections: 0 });
+  assert.ok(sent.every((m) => !/Not the answer/i.test(m[0]?.content ?? "")), "no about-call fired on a decomposed task");
+});

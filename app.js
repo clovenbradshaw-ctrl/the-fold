@@ -74,6 +74,7 @@ import { NOTHING, buildTable, chartOf, detectChart, detectTable, toMarkdown } fr
 // questions (units, choose, statistics, derivative, an equation) and the
 // calendar — each computed by the engine's own operation, never restated.
 import { checkQuantity } from "./arithmetic.js";
+import { asksAboutMaterial, materialView, aboutBlock, abbreviate } from "./about.js";
 
 // KaTeX, vendored per P1 (index.html links its CSS), renders arithmetic's
 // computed expression as typeset math — mathjs's own toTex(), not a second,
@@ -153,6 +154,12 @@ import { updateSourceMeta } from "./sources-store.js";
 // Read when material arrives (Pass 18, P99): the reader loop and the typed
 // unread extent a question asked mid-read is told about.
 import { readOnArrival, unreadExtent } from "./read-on-arrival.js";
+// THE CONSTITUTIONAL READER, off the main thread (2026-09-08 product review,
+// item 2: "the page still runs the presence index at the turn" —
+// THE-HOLOGRAPH §7's disclosed, owed step). Runs beside readOnArrival's own
+// relation-reading loop, over the same chunks; conversationIndexNow() below
+// prefers its index once a source's read has produced one.
+import { readConstitutionally, constitutionalIndexFor, covers as constitutionalCovers, manifest as readingManifest } from "./reading-client.js";
 // The AnswerRecord (Pass 19, P100): one per turn, persisted append-only,
 // shown first in the thinking panel — what was handed, what was said, what
 // nothing backs, and the reader's identity.
@@ -280,6 +287,21 @@ import { briefFor, observedFillers } from "./void-brief.js";
 // filed as a receipt afterward (void-narration.js's own header carries the
 // full account of what was wrong with the receipt).
 import { narrateVoid, noSlotLine } from "./void-narration.js";
+// The loops a turn owes (loops.js): each opened with what would close it,
+// closed by a witness, reopened with a trigger — the cards that replaced the
+// void's narrated paragraphs and the run log as the turn's face. The ledger
+// is a kernel task log like the hyperlexicon and the grid, persisted the
+// same way; the cards are its projection at a (conversation, turn).
+import { makeLoops, foldLoops, cardsFor, lineFor, stateWord, trailLine, eotFor, eotStep, loopId, loopsFromBrief, fillLoopIdFor, loopsFromProgress, loopsFromResult, loopsFromObligations, closingsFromFillings, subjectOf, loopsFromQuestion, closingsFromDraft, readerNotesFor, turnAtSeq } from "./loops.js";
+import { declaredForm as declaredFormOf, declaredGenre } from "./shape.js";
+// The holograph (holograph.js): the conversation as the record holds it,
+// drawn — the whole, its referents, their loops and gaps; a referent
+// re-expands to everything that holds it. `namesIn` is ground-ladder.js's
+// own names organ, the same one dialogue.js resolves candidates with.
+import { holographOf, rowsFor, flattenRows, turnsOf, LEVELS as HOLOGRAPH_LEVELS } from "./holograph.js";
+import { run as runQuery, say as sayQuery } from "./eoql.js";
+import { graphOf, place as placeGraph, draw as drawGraph } from "./holograph-graph.js";
+import { namesIn } from "./ground-ladder.js";
 import { declaredSlotShape } from "./web-claim.js";
 import { cellOf, GRAINS, TERRAIN_BY_DOMAIN, isCurrentOperator } from "/engine-v7/kernel/cube.js";
 // The measurement organ the three resolutions' cuts spend (resolutions.js, P171): the kernel's own dmdWindow, never a count.
@@ -350,6 +372,8 @@ import { makeStore } from "./store.js";
 const buildLog = makeBuildLog(nativeTaskLog);
 const store = makeStore(nativeTaskLog);
 const grid = makeGrid({ operators: { TERRAIN_BY_DOMAIN, isCurrentOperator }, taskLog: nativeTaskLog });
+// The loop ledger's organ — the same native task log, the cube's own cellOf.
+const loopsFor = makeLoops({ taskLog: nativeTaskLog, cellOf });
 grid.withCapacities({ findCapacity, unresolvedCapacity });
 const metaLedger = makeMetacognition(nativeTaskLog);
 
@@ -372,7 +396,7 @@ function syncRecords() {
   // is how it was found (P99). The log itself is read at run time too, so a
   // job appends whatever the app holds by then, never a stale snapshot.
   const job = async () => {
-    for (const [name, get] of [["hyperlexicon", () => state.hyperlexiconLog], ["grid", () => state.gridLog], ["meta", () => state.metaLedger], ["declarations", () => state.declarations]]) {
+    for (const [name, get] of [["hyperlexicon", () => state.hyperlexiconLog], ["grid", () => state.gridLog], ["meta", () => state.metaLedger], ["declarations", () => state.declarations], ["loops", () => state.loopLog]]) {
       const log = get();
       if (!log || !Array.isArray(log.entries)) continue;
       // A second tab or session on this same origin shares this OPFS store
@@ -415,7 +439,21 @@ function syncRecords() {
 // cursor (passages admitted under this recipe) persists in the source's own
 // index row; a reload resumes from it, and a reader whose recipe changed
 // reads again under its own witness string (a second instrument, P68).
+// HOW MUCH OF A SOURCE THE READER SEES AT ONCE, IN CHARACTERS. Declared (P9),
+// measured rather than guessed, and in characters because that is the unit
+// the cost is in: building the relation reader is superlinear in the TEXT of
+// its pool — 86 KB (500 short passages) 584ms, 340 KB 4.9s, and the whole of
+// War and Peace 161.7 SECONDS in one synchronous call, which is exactly how
+// long the page sat frozen with nothing to show (measured live, 2026-09-08).
+// A passage COUNT was tried first and was the wrong unit: the same book cut
+// on its own chapter headings gives passages 21x larger, so 500 of those is
+// 1.58 MB and froze the page just as badly. At 120 KB the build is well under
+// a second, so the read proceeds in slices the page paints between and the
+// status line can count them. The cost is disclosed in read-on-arrival.js: a
+// verb attested only outside a window is not in that window's vocabulary.
+const READ_WINDOW_CHARS = 120_000;
 const READING = new Map(); // name → { cursor, total, recipe, running }
+const READING_CONSTITUTIONAL = new Map(); // name → { cursor, total, running } — chunks admitted into the constitutional reader (reading-client.js), independent of READING's relation-reading cursor
 const yieldMacrotask = (() => {
   if (typeof MessageChannel === "undefined") return () => new Promise((r) => setTimeout(r));
   const ch = new MessageChannel();
@@ -425,12 +463,25 @@ const yieldMacrotask = (() => {
 })();
 let readQueue = Promise.resolve();
 function unreadNow() {
-  return [...READING.entries()].filter(([, r]) => !r.skipped).map(([name, r]) => unreadExtent({ name, cursor: r.cursor, total: r.total })).filter(Boolean);
+  // A source's own reading state may only speak for a source still on the
+  // record — `state.sources[name]` is the one fact that decides that, the
+  // same guard `readSourceOnArrival`'s own loop already reads before every
+  // yield. `removeSource` clears READING directly on removal; this is the
+  // second, independent check at the one place every "still reading" line
+  // is actually built, so a future path that removes a source without
+  // going through `removeSource` cannot leak its stale progress either.
+  return [...READING.entries()].filter(([name, r]) => !r.skipped && state.sources[name]).map(([name, r]) => unreadExtent({ name, cursor: r.cursor, total: r.total })).filter(Boolean);
 }
 function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {}) {
+  // Computed once, synchronously — state.chunks already carries this
+  // source's chunks by the time addSource() calls in here, so both the
+  // relation-reading closure below and the constitutional read beside it
+  // share one binding instead of each re-deriving (or, as before, one of
+  // them reaching for a `passages` that only ever existed inside the
+  // other's async closure).
+  const passages = state.chunks.filter((c) => c.source === name);
   readQueue = readQueue.then(async () => {
     await priorsSettled();
-    const passages = state.chunks.filter((c) => c.source === name);
     if (!passages.length || !state.sources[name]) return;
     // A code file is not prose (P113): retrievable, runnable, scouted for
     // its declarations — never read into the ledger as English. The skip is
@@ -452,10 +503,15 @@ function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {})
       // 44-passage read into a crawl the first time this ran live. Message
       // events are not clamped, and the page still repaints between them.
       yieldFn: yieldMacrotask,
+      windowChars: READ_WINDOW_CHARS,
       onProgress: (p) => {
+        if (p.read === 1) console.info(`read on arrival: ${name} — first passage read`);
         READING.set(name, { cursor: p.read, total: p.total, recipe, running: p.read < p.total });
         if (p.read - lastSync >= 25 || p.read === p.total) { lastSync = p.read; syncRecords(); updateSourceMeta(name, { readCursor: p.read, readRecipe: recipe }); }
-        if (p.read % 10 === 0 || p.read === p.total) $("status").textContent = `reading ${name} · ${p.read}/${p.total}`;
+        // A long read SAYS it is working, and how far it has got — a book is
+        // shown in progress, never as a frozen page (user, 2026-09-08:
+        // "rather to show it in progress than frozen or just wait").
+        if (p.read % 10 === 0 || p.read === p.total) $("status").textContent = p.read === p.total ? `read ${name} · ${p.total} passages` : `reading ${name} · ${p.read} of ${p.total} passages`;
       },
     });
     READING.set(name, { cursor: r.cursor, total: passages.length, recipe, running: false });
@@ -466,7 +522,61 @@ function readSourceOnArrival(name, { savedCursor = 0, savedRecipe = null } = {})
     }
     if (state.ready) $("status").textContent = readyLine();
   }).catch((e) => console.warn(`read on arrival: ${name}:`, e?.message ?? e));
+  // THE CONSTITUTIONAL READ runs beside the relation-reading loop above, not
+  // instead of it — the two are different questions the material answers
+  // (bound claims for the ledger; referent identity for the turn's own
+  // loops), and neither blocks the other. Deliberately NOT chained onto
+  // readQueue: the relation loop already serializes per source and the
+  // worker has its own single-flight guard (reading-client.js), so
+  // interleaving costs nothing and a slow constitutional read (measured:
+  // ~200s/MB, P171) never delays the relation ledger a question is
+  // actually answered from today.
+  if (!isCodeSource(name) && passages.length && state.sources[name]) {
+    // The constitutional read's own progress handler runs on the MAIN thread
+    // even though the reading itself is in a worker, and `refreshConstitutional
+    // Index` reprojects the log each time — so it is timed here, separately
+    // from the relation read, rather than assumed cheap.
+    let ctick = 0, cms = 0;
+    readConstitutionally(name, passages, {
+      budgetMs: 250,
+      onProgress: (p) => {
+        READING_CONSTITUTIONAL.set(name, { cursor: p.read, total: p.total, running: p.read < p.total });
+        const t = Date.now();
+        refreshConstitutionalIndex();
+        cms += Date.now() - t;
+        if (++ctick % 10 === 0) console.info(`constitutional read: ${name} — ${p.read}/${p.total}, ${cms}ms in the index projection over ${ctick} ticks`);
+      },
+    }).then((r) => {
+      READING_CONSTITUTIONAL.set(name, { cursor: r.cursor, total: passages.length, running: false });
+      if (!r.done || r.cursor > 0) refreshConstitutionalIndex();
+      if (r.cursor && !r.resumed) console.info(`constitutional read: ${name} — ${r.cursor} chunk(s) in ${r.ms} ms (${r.assembly ?? "resumed, no new work"})`);
+    }).catch((e) => console.warn(`constitutional read: ${name}:`, e?.message ?? e));
+  }
   return readQueue;
+}
+// A synchronous cache fed by the async constitutional reads above — the
+// same shape conversationIndexCache already used for the presence index,
+// so conversationIndexNow() can prefer this one without becoming async
+// itself (every one of its callers, down to the turn-building code, reads
+// it synchronously; making it async would touch far more of this file for
+// no benefit the two-cache split doesn't already give — the read is real
+// background work, not free, and a turn must never block on it finishing).
+let constitutionalCache = { key: null, index: null, book: null };
+let constitutionalRefreshChain = Promise.resolve();
+function refreshConstitutionalIndex() {
+  constitutionalRefreshChain = constitutionalRefreshChain.then(async () => {
+    const names = [...new Set(liveChunks().map((c) => c.source))];
+    if (!names.length) return;
+    const { key, index, book, lengths } = await constitutionalIndexFor(names);
+    // `lengths` (name → its persisted log length) is what covers() below
+    // actually checks — dropping it here made covers() see `result.lengths`
+    // as undefined and refuse every request unconditionally, so the
+    // constitutional index could never be preferred no matter how complete
+    // the reading was (found live, 2026-09-08: READING_CONSTITUTIONAL
+    // showed 2/2 while currentIndexAndBook() still fell back to presence).
+    if (index) constitutionalCache = { key, index, book, lengths };
+  }).catch((e) => console.warn("constitutional index refresh:", e?.message ?? e));
+  return constitutionalRefreshChain;
 }
 
 async function restoreRecords() {
@@ -482,7 +592,7 @@ async function restoreRecords() {
   // what actually shows this to the person; this function stays pure I/O
   // orchestration and hands back what it found.
   const gaps = [];
-  for (const [name, admits] of [["hyperlexicon", null], ["grid", state.gridLog?.admits ?? null], ["meta", state.metaLedger?.admits ?? null], ["declarations", state.declarations?.admits ?? null]]) {
+  for (const [name, admits] of [["hyperlexicon", null], ["grid", state.gridLog?.admits ?? null], ["meta", state.metaLedger?.admits ?? null], ["declarations", state.declarations?.admits ?? null], ["loops", state.loopLog?.admits ?? null]]) {
     const lines = await loadRecord(name);
     if (!lines.length) continue;
     const r = replayRecord(lines, { ...bundle, admits });
@@ -921,15 +1031,528 @@ function declareVoidOnLedger(brief, { because = null } = {}) {
   const anchor = brief.declaration?.cells?.find((c) => c.field === "anchor")?.declared ?? null;
   const label = brief.headPhrase ?? null;
   if (!anchor || !label) return null;
+  return declareVoidFor(anchor, label, { because });
+}
+/** The void's scope right now: which sources, how far read, the ledger's cursor — the denominator every void carries (P105). */
+function voidScopeNow() {
   const sources = liveSources().map((s) => s.name);
   let read = 0, total = 0;
   for (const [name, r] of READING.entries()) { if (!sources.includes(name)) continue; read += Number(r.cursor ?? 0); total += Number(r.total ?? 0); }
-  const scope = { sources, read, total, cursor: state.hyperlexiconLog.nextSeq };
+  return { sources, read, total, cursor: state.hyperlexiconLog?.nextSeq ?? 0 };
+}
+/** Declare (or re-declare) a void by its ends. A re-declaration after a filling opens it again — a new event on the record, the old filling kept in its timeline. */
+function declareVoidFor(anchor, label, { because = null } = {}) {
+  if (!state.hyperlexiconLog || !hyperlexiconFor.declareVoid || !anchor || !label) return null;
+  const scope = voidScopeNow();
   const r = hyperlexiconFor.declareVoid(state.hyperlexiconLog, { end1: anchor, label, end2: null, scope, because });
   if (r.refused) return { refused: r.refused, anchor, label };
   state.hyperlexiconLog = r.log;
   syncRecords();
   return { id: r.id, anchor, label, scope, redeclared: Boolean(r.redeclared) };
+}
+
+// ── the loops, landed and drawn ─────────────────────────────────────────────
+//
+// User direction (2026-09-08): a message's turn shows the LOOPS that have to
+// close for the answer — as cards — and a loop closes and can spiral. The
+// ledger is `state.loopLog` (loops.js on the kernel task log); nothing here
+// decides a loop's state, it lands the acts the adapters read off what the
+// turn already computed and draws the projection. A refusal from the ledger
+// is a console line, never a broken turn (P57: turnedAway is returned, and
+// here it is at least seen).
+const loopLogNow = () => state.loopLog ?? loopsFor.createLoopLog();
+function landLoops(acts) {
+  if (!acts?.length) return { landed: [], turnedAway: [] };
+  const r = loopsFor.landAll(loopLogNow(), acts);
+  state.loopLog = r.log;
+  if (r.turnedAway.length) console.warn("loops: turned away", r.turnedAway);
+  syncRecords();
+  return r;
+}
+const convoNow = () => state.convos[state.active]?.key ?? String(state.convos[state.active]?.id ?? 1);
+
+/** The cards of one (conversation, turn), drawn into `el` from the projection. Idempotent: a redraw replaces the children. */
+function renderLoopCards(el, { turn, convo }) {
+  const { cards, standing } = cardsFor(foldLoops(loopLogNow()), { turn, convo });
+  // DISCLOSEABLE, NOT OPEN BY DEFAULT (user direction, 2026-09-08). The
+  // cards sit behind one line that says where the loops stand and ticks
+  // as the turn runs; a reader who opened it keeps it open across redraws.
+  const wasOpen = el.querySelector("details.loops-fold")?.open ?? false;
+  const expanded = new Set([...el.querySelectorAll(".loop.expanded")].map((c) => c.dataset.loop));
+  el.replaceChildren();
+  el.dataset.turn = String(turn);
+  el.dataset.convo = String(convo);
+  el.dataset.loops = cards.map((c) => c.id).join("\n");
+  if (!cards.length) { el.hidden = true; return; }
+  el.hidden = false;
+  const tally = {};
+  for (const c of cards) tally[c.state] = (tally[c.state] ?? 0) + 1;
+  const bits = [];
+  if (tally.open) bits.push(`${tally.open} open`);
+  if (tally.contested) bits.push(`${tally.contested} contested`);
+  if (tally.refused) bits.push(`${tally.refused} could not close`);
+  if (tally.closed) bits.push(`${tally.closed} closed`);
+  if (tally.waived) bits.push(`${tally.waived} set aside`);
+  const d = document.createElement("details");
+  d.className = "loops-fold";
+  d.open = wasOpen;
+  const sm = document.createElement("summary");
+  // In the notation the line is the arrows and their counts, nothing else.
+  sm.textContent = viewMode === "eot" ? Object.entries(LOOP_MARKS).filter(([st]) => tally[st]).map(([st, g]) => `${g}${tally[st]}`).join(" ") || "∅" : `loops · ${bits.join(" · ")}`;
+  d.append(sm);
+  // Closed cards fold to one line each; open, contested and refused ones
+  // stand at full height. The order is the chain's, never "most
+  // interesting first" (FOLD-CONSTITUTION III.1).
+  for (const c of cards) d.append(loopCard(c, { expanded: expanded.has(c.id) }));
+  if (standing.length) {
+    const p = document.createElement("p");
+    p.className = "loops-standing";
+    p.textContent = viewMode === "eot" ? `⇒${standing.length} ⟵ ${[...new Set(standing.map((l) => l.turn))].sort((a, b) => a - b).map((t) => `t${t}`).join(" ")}` : `${standing.length} loop${standing.length === 1 ? "" : "s"} still open from earlier turns`;
+    d.append(p);
+  }
+  el.append(d);
+}
+
+// A loop's mark is its ARROW (loops.js LOOP_GLYPHS): ○ and ● belong to SIG and INS.
+const LOOP_MARKS = Object.freeze({ open: "⇒", closed: "⇐", refused: "⇏", contested: "⇔", waived: "–" });
+/**
+ * One card. Its head is one line — the mark, what the loop asks, and (for a
+ * closed loop) what closed it, right there; the state word only when it is
+ * not simply closed. Everything else — the trail (every act on the record),
+ * a note box, reopen — is behind a click on the head (`expanded`), so the
+ * stack reads as a list of questions, not a wall of controls.
+ */
+function loopCard(c, { expanded = false } = {}) {
+  const card = document.createElement("div");
+  card.className = `loop ${c.state}${c.ring > 1 ? " again" : ""}${c.carried ? " carried" : ""}${c.authored === "model" ? " model-authored" : ""}${expanded ? " expanded" : ""}`;
+  card.dataset.loop = c.id;
+  const head = document.createElement("div");
+  head.className = "loop-head";
+  head.title = "press for this loop's trail, a note, or reopen";
+  const eot = viewMode === "eot";
+  if (eot) {
+    // The notation: one line — glyph, arrow, value. The sentence is one
+    // hover away (a refusal's reason lives there), never on the face.
+    const line = document.createElement("span");
+    line.className = "loop-eot";
+    line.textContent = eotFor(c);
+    line.title = `${c.asks} — ${lineFor(c)}`;
+    head.append(line);
+    if (c.carried) { const st = document.createElement("span"); st.className = "loop-state"; st.textContent = `← t${c.turn}`; head.append(st); }
+  } else {
+    const mark = document.createElement("span");
+    mark.className = "loop-mark";
+    mark.textContent = LOOP_MARKS[c.state] ?? "⇒";
+    const ask = document.createElement("span");
+    ask.className = "loop-ask";
+    ask.textContent = c.asks;
+    head.append(mark, ask);
+    const line = lineFor(c);
+    if (c.state === "closed" || c.state === "waived") {
+      const inl = document.createElement("span");
+      inl.className = "loop-inline";
+      inl.textContent = ` — ${line.replace(/\.$/, "")}`;
+      head.append(inl);
+    }
+    const bits = [];
+    // "open" is already said twice on the face — by the ⇒ mark and by the
+    // bar down the card's left edge — so the word is not said a third time.
+    // Every other state is one a reader cannot infer from the face and is
+    // named: could not close, contested, set aside, and any later round.
+    if (c.state !== "closed" && (c.state !== "open" || c.ring > 1)) bits.push(stateWord(c));
+    else if (c.state === "closed" && c.ring > 1) bits.push(`round ${c.ring}`);
+    if (c.carried) bits.push(c.convo != null && c.convo !== convoNow() ? "from another conversation" : `from turn ${c.turn}`);
+    if (c.authored === "model") bits.push("the model's own part");
+    if (bits.length) {
+      const st = document.createElement("span");
+      st.className = "loop-state";
+      st.textContent = bits.join(" · ");
+      head.append(st);
+    }
+  }
+  head.addEventListener("click", () => card.classList.toggle("expanded"));
+  card.append(head);
+  const more = document.createElement("div");
+  more.className = "loop-more";
+  // WHAT WOULD CLOSE IT sits with the trail, not on the face. It is stated
+  // for every open loop (the wall at open() requires one), but the nine
+  // void cells legitimately share one — six identical sentences stacked on
+  // one turn is the boilerplate a reader learns to skip, and a face that
+  // has to be skipped is not a face. One line per loop collapsed; the
+  // condition is the same click away the trail already was.
+  if (!eot && c.state !== "closed" && c.state !== "waived") {
+    const ln = document.createElement("div");
+    ln.className = "loop-line";
+    ln.textContent = lineFor(c);
+    more.append(ln);
+  }
+  // The trail: every act on this loop, in order — the record's own
+  // timeline, not a paraphrase of it.
+  const trail = document.createElement("div");
+  trail.className = "loop-trail";
+  // The turn number is stated once per RUN of steps on the same turn, not
+  // repeated on every line — a card that opened, drafted, and closed on
+  // turn 1 reads as one paragraph headed "turn 1", not three "turn 1"s.
+  let lastTurn = null;
+  for (const h of c.history) {
+    const row = document.createElement("div");
+    row.className = `loop-step${h.prompt ? " reader" : ""}`;
+    const sameTurn = h.turn != null && h.turn === lastTurn;
+    row.textContent = viewMode === "eot" ? eotStep(h) : trailLine(h, { showTurn: !sameTurn });
+    lastTurn = h.turn ?? lastTurn;
+    trail.append(row);
+  }
+  more.append(trail);
+  // The per-loop note box was REMOVED (user direction, 2026-09-08). A card
+  // is a reading of what the turn did; a text input on every loop turned it
+  // into a form to fill in, and buried the trail it exists to show.
+  // A closed, refused or set-aside loop can be reopened by the person — a
+  // REC with its trigger on the record, never a deletion; a fill loop that
+  // stood on a declared void re-declares it, so the next turn is told the
+  // gap is open again and the next arrival can fill it.
+  if (c.state === "closed" || c.state === "refused" || c.state === "waived") {
+    const acts = document.createElement("div");
+    acts.className = "loop-acts";
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "linkish";
+    b.textContent = "reopen";
+    b.title = "open this loop again — the earlier closure stays in its trail; the record carries the reopening with its reason";
+    b.addEventListener("click", () => reopenLoopFromCard(c.id, card));
+    acts.append(b);
+    more.append(acts);
+  }
+  card.append(more);
+  return card;
+}
+/** Redraw every card set on screen that holds this loop, at its own (conversation, turn). */
+function redrawLoopsHolding(id) {
+  for (const el of document.querySelectorAll(".loops")) {
+    if ((el.dataset.loops ?? "").split("\n").includes(id)) renderLoopCards(el, { turn: Number(el.dataset.turn), convo: el.dataset.convo });
+  }
+}
+// ── the holograph pane ──────────────────────────────────────────────────────
+//
+// Drawn from the record, never from the model: this conversation's turns
+// (state.history), its loops (the ledger, this conversation's), the live
+// gaps (voidsNow). Redrawn when the pane is on and something landed; a
+// press on a referent expands it below the drawing. `/holograph [name]`
+// opens the pane and, with a name, expands that part.
+// ALWAYS WITH A CURSOR AND A LEVEL (user, 2026-09-08: "it needs holon
+// levels and a cursor, always"). The cursor is the loop ledger's own act
+// sequence — the same clock the cards fold on — and the holograph at a
+// cursor is the fold of the record AS OF that act (P159), the turns cut to
+// the one the act belongs to; the level is the rung of the ladder the
+// drawing stands at (holograph.js::LEVELS), each standing in for the one
+// below. The cursor follows the head until the person moves it; the
+// "now" state is dragging it back to the end.
+let holographPick = null;
+let holographLevel = "loops";
+let holographCursorPinned = false;
+function holographAt() {
+  const log = loopLogNow();
+  const cursor = $("holograph-cursor");
+  const max = log.nextSeq;
+  if (cursor) {
+    cursor.max = String(max);
+    if (!holographCursorPinned) cursor.value = String(max);
+  }
+  const at = cursor && holographCursorPinned ? Number(cursor.value) : max;
+  return { log, max, atSeq: at >= max ? null : at };
+}
+// THE HOLOGRAPH'S INDEX — the beings the reading established over the
+// conversation's own words AND the attached material, built with the
+// organ's own DERIVED recurrence floor (`discoverReferents(surfaces, {})`,
+// P38's rule: the citation-presence floor `minSentences: 0` that cast.js's
+// index rightly uses is the wrong floor for "who is there"), resolving a
+// name the way cast.js does (namesCorefer, then coverage). Cached by what
+// it was built over; a novel's cast is built once per material, not per
+// redraw.
+let holographIndexCache = { key: null, index: null };
+// WHAT THE INDEX IS BUILT OVER, and why it is not the corpus (measured live,
+// 2026-09-08: War and Peace attached, 3.3MB, and the page froze — this index
+// ran `discoverReferents` over every chunk of the book, synchronously, on
+// every redraw of the holograph).
+//
+// The bound is not a budget bolted on to make it fast. The holograph draws
+// THE RECORD, and a book nobody has read into a turn is not on the record
+// yet — P67's rule, that absence of a reading is a fact about the reader and
+// never about the document, said in the one place it costs something. So the
+// index is built over the conversation's own turns and over the passages the
+// record actually CITED, and over nothing else; an attached, unread book
+// contributes no beings until a turn reads some of it, at which point the
+// passages that turn stood on join. `CITED_PASSAGE_CAP` is declared (P9), and
+// what it left out is said out loud rather than silently dropped.
+const CITED_PASSAGE_CAP = 400;
+function citedPassages() {
+  const wanted = new Set((state.summary?.records ?? []).flatMap((r) => r.refs ?? []));
+  if (!wanted.size) return { passages: [], of: 0 };
+  const chunks = liveChunks();
+  const hit = chunks.filter((c) => wanted.has(c.ref));
+  return { passages: hit.slice(0, CITED_PASSAGE_CAP), of: hit.length };
+}
+function holographIndex(turns) {
+  const cited = citedPassages();
+  const key = `${turns.length}:${(state.history ?? []).length}:${cited.of}:${cited.passages[0]?.ref ?? ""}:${cited.passages[cited.passages.length - 1]?.ref ?? ""}`;
+  if (holographIndexCache.key === key) return holographIndexCache.index;
+  const passages = [...turns.flatMap((t) => [{ ref: `turn:${t.n}:q`, text: t.asked }, { ref: `turn:${t.n}:a`, text: t.answer }]), ...cited.passages.map((c) => ({ ref: c.ref, text: c.blanked ?? c.text ?? "" }))];
+  const text = passages.map((p) => p.text).filter(Boolean).join("\n\n");
+  let index = null;
+  if (text.trim()) {
+    try {
+      const events = discoverReferents(extractSurfaces(engineSentences(text), {}), {}).events ?? [];
+      const best = new Map();
+      for (const e of events) { const prev = best.get(e.referent_id); if (!prev || e.surface.length > prev.length) best.set(e.referent_id, e.surface); }
+      const MIN_STEM = 4;
+      const covers = (a, b) => a === b || (Math.min(a.length, b.length) >= MIN_STEM && (a.startsWith(b) || b.startsWith(a)));
+      const resolve = (name) => {
+        const ids = new Set();
+        const parts = diaNorm(name).split(/\s+/).filter((t) => t.length > 2);
+        if (!parts.length) return ids;
+        for (const e of events) {
+          if (!namesCorefer(name, e.surface)) continue;
+          const st = diaNorm(e.surface).split(/\s+/);
+          if (parts.every((p) => st.some((x) => covers(x, p)))) ids.add(e.referent_id);
+        }
+        return ids;
+      };
+      index = { events, referents: new Set(best.keys()), resolve, represent: (id) => best.get(id) ?? null };
+    } catch (e) { console.warn("holograph index:", e?.message ?? e); index = null; }
+  }
+  holographIndexCache = { key, index };
+  return index;
+}
+function holographModel() {
+  const convo = convoNow();
+  const { log, atSeq } = holographAt();
+  const loops = foldLoops(log, { atSeq }).filter((l) => l.convo === convo);
+  // The gaps as the loops at this cursor stand on them — one clock, never the
+  // ledger's head read against an earlier act.
+  const voids = loops.filter((l) => l.voidId && (l.state === "open" || l.state === "contested")).map((l) => ({ id: l.voidId, subject: l.meta?.anchor ?? (/"([^"]+)"/.exec(l.asks ?? "")?.[1] ?? l.asks), verb: l.meta?.label ?? "appears", object: null }));
+  const throughTurn = atSeq == null ? null : turnAtSeq(log, atSeq, { convo });
+  const turns = turnsOf(state.history).filter((t) => throughTurn == null || t.n <= throughTurn);
+  const sources = liveSources().map((src) => { const r = READING.get(src.name); return { name: src.name, bytes: state.sources[src.name]?.length ?? 0, read: r?.cursor ?? 0, total: r?.total ?? 0 }; });
+  return holographOf({ history: state.history, loops, voids, namesIn, index: holographIndex(turns), sources, convo, throughTurn, records: state.summary?.records ?? [], splitSentences: engineSentences });
+}
+// The rows a person has drilled open, by row key — kept across redraws so
+// the cursor and the turn's own landings never fold what was opened.
+const holographOpen = new Set();
+// VISUAL vs TEXT (user, 2026-09-08: "we do want a mode that is visual vs
+// text — we are losing so much to verbiage; why don't we put it essentially
+// in EOT?"). One setting for the cards and the holograph, kept across
+// reloads: "eot" says every loop in the notation (glyph, cell, name, value),
+// "text" in sentences. Neither is stored on a loop — both are projections.
+// The notation is the default (user, 2026-09-08, on the cards: "do EOT in
+// here too"); text is one press away, and the choice is kept.
+let viewMode = (() => { try { return localStorage.getItem("fold-view-mode") === "text" ? "text" : "eot"; } catch { return "eot"; } })();
+// WHICH COLUMN IS FOLDED — declared HERE, beside the other view preferences,
+// and not beside the functions that use it: `renderThreads` builds the
+// conversation's own fold control and runs during boot, long before the
+// bottom of this file is reached, so a declaration down there left the whole
+// boot in the temporal dead zone (measured live, 2026-09-08 — the page came
+// up with no file handler wired and nothing said why). Either side may give
+// the other the width; the two are exclusive by construction, since a column
+// cannot be both folded and expanded.
+let panelWide = (() => { try { return localStorage.getItem("fold-panel-wide") === "1"; } catch { return false; } })();
+let panelCollapsed = (() => { try { return localStorage.getItem("fold-panel-collapsed") === "1"; } catch { return false; } })();
+function setViewMode(mode) {
+  viewMode = mode === "eot" ? "eot" : "text";
+  try { localStorage.setItem("fold-view-mode", viewMode); } catch { /* a private window keeps it for the session */ }
+  document.body.classList.toggle("view-eot", viewMode === "eot");
+  for (const b of document.querySelectorAll(".view-toggle")) b.textContent = viewMode === "eot" ? "text" : "eot";
+  for (const el of document.querySelectorAll(".loops")) if (el.dataset.turn) renderLoopCards(el, { turn: Number(el.dataset.turn), convo: el.dataset.convo });
+  renderHolograph();
+}
+document.body.classList.toggle("view-eot", viewMode === "eot");
+// THE HOLOGRAPH'S OWN MODE — a GRAPH or ROWS (user, 2026-09-08: "no, visual
+// SHOULD be like a visual graph"). Kept apart from the notation (`viewMode`,
+// eot or text), which decides how a node or a row is labelled in either.
+// The query is held for the session, never stored; positions are kept
+// across redraws so a referent stays where it was when the rung changes.
+let holographMode = (() => { try { return localStorage.getItem("fold-holograph-mode") === "rows" ? "rows" : "graph"; } catch { return "graph"; } })();
+let holographQuery = "";
+function renderHolograph({ pick = holographPick, level = holographLevel } = {}) {
+  const host = $("holograph-rows");
+  if (!host) return;
+  holographLevel = HOLOGRAPH_LEVELS.some((l) => l.key === level) ? level : "link";
+  const levels = $("holograph-levels");
+  if (levels && !levels.children.length) {
+    // A vertical ladder reads top-down: the highest rung first. Each rung by
+    // its REAL NAME — the terrain (user, 2026-09-08: "let's just use the real
+    // names of the terrains", after asking for a plain one and seeing both).
+    // The plain name and the rung's reading ride the hover, so the ladder
+    // stays a ladder and nothing is lost.
+    for (const l of [...HOLOGRAPH_LEVELS].reverse()) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "seg"; b.dataset.level = l.key; b.title = `${l.name} — ${l.reads}`;
+      b.textContent = l.key;
+      b.addEventListener("click", () => renderHolograph({ level: l.key }));
+      levels.append(b);
+    }
+  }
+  for (const b of levels?.querySelectorAll(".seg") ?? []) b.classList.toggle("active", b.dataset.level === holographLevel);
+  const modes = $("holograph-mode");
+  if (modes && !modes.children.length) {
+    for (const [m, label, title] of [["graph", "visual", "a graph: what stands at this rung as nodes, tied by what they hold — press a node to drill it"], ["rows", "text", "rows that drill"]]) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "seg"; b.dataset.hmode = m; b.textContent = label; b.title = title;
+      b.addEventListener("click", () => { holographMode = m; try { localStorage.setItem("fold-holograph-mode", m); } catch { /* kept for the session */ } renderHolograph(); });
+      modes.append(b);
+    }
+  }
+  for (const b of modes?.querySelectorAll(".seg") ?? []) b.classList.toggle("active", b.dataset.hmode === holographMode);
+  document.body.classList.toggle("view-eot", viewMode === "eot");
+  const cursor = $("holograph-cursor");
+  if (cursor && !cursor.dataset.wired) {
+    cursor.dataset.wired = "1";
+    cursor.addEventListener("input", () => { holographCursorPinned = Number(cursor.value) < Number(cursor.max); renderHolograph(); });
+  }
+  // THE QUERY BAR (user, 2026-09-08: "search for terms, filter, enter EOT
+  // commands to essentially SQL what we want to see"): a bare word scans, an
+  // operator's glyph or keyword begins an act (eoql.js). Live as it is typed;
+  // Escape clears it.
+  const q = $("holograph-query");
+  if (q && !q.dataset.wired) {
+    q.dataset.wired = "1";
+    let pending = null;
+    q.addEventListener("input", () => { holographQuery = q.value; clearTimeout(pending); pending = setTimeout(() => renderHolograph(), 120); });
+    q.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); holographQuery = q.value; renderHolograph(); } else if (ev.key === "Escape") { q.value = ""; holographQuery = ""; renderHolograph(); } });
+  }
+  const model = holographModel();
+  const { max, atSeq } = holographAt();
+  const label = $("holograph-cursor-label");
+  if (label) label.textContent = max ? `as of act ${atSeq ?? max} of ${max}${model.throughTurn != null ? ` · turn ${model.throughTurn}` : " · now"}` : "no acts yet";
+  // The places in the material that hold a referent — each a door to the bytes.
+  const fold = (x) => String(x ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  // The places in the material that hold a referent. The scan stops at the
+  // first PLACES_SHOWN it finds rather than folding every chunk of a corpus:
+  // on War and Peace that walk was 11,000 chunks per referent per redraw.
+  const PLACES_SHOWN = 12;
+  const placesOf = (r) => {
+    const needle = fold(r.name);
+    if (needle.length < 3) return [];
+    const out = [];
+    for (const c of liveChunks()) {
+      if (fold(c.text).includes(needle)) out.push({ ref: c.ref, text: c.text });
+      if (out.length >= PLACES_SHOWN) break;
+    }
+    return out;
+  };
+  holographPick = pick;
+  if (pick && typeof pick === "string") { const r = model.referents.find((x) => fold(x.name) === fold(pick) || fold(x.name).includes(fold(pick))); if (r) holographOpen.add(r.key); }
+  const rows = rowsFor(model, holographLevel, { placesOf, mode: viewMode });
+  const note = $("holograph-query-note");
+  let shown = rows, flat = false;
+  const qText = holographQuery.trim();
+  if (qText) {
+    // A query runs over every row of the rung with its parts (depth 2), so a
+    // loop under a referent is found by its own words.
+    const res = runQuery(qText, flattenRows(rows, { depth: 2 }));
+    if (res.refused) { if (note) note.textContent = `⇏ ${res.refused.detail}`; shown = []; }
+    else { if (note) note.textContent = `${sayQuery({ acts: res.acts })} ⇒ ×${res.rows.length}`; shown = res.rows; flat = true; }
+  } else if (note) note.textContent = "";
+  host.replaceChildren(holographMode === "graph" ? graphView(host, shown, { flat }) : rowsList(shown, 0));
+}
+// How many nodes a rung may draw before it stops opening parts nobody asked
+// it to open. Declared (P9), not measured: past this the picture is a mist
+// and the list mode is the honest face.
+const GRAPH_AUTO_NODES = 60;
+/**
+ * The rows drawn as a graph: the rung's own rows, their parts beside them
+ * where a row stands open — and, while the rung is small enough to draw,
+ * ONE level of parts for every row, because a rung of referents alone has
+ * no ties to draw and reads as a scatter (measured live, 2026-09-08). What
+ * is added is exactly what a press would open in the list; nothing is
+ * inferred, and past the budget only what was actually opened is drawn.
+ */
+function graphView(host, rows, { flat = false } = {}) {
+  const partsOf = (r) => { try { return r.drill() ?? []; } catch { return []; } };
+  const openFlat = (list, depth, parent, out, auto) => { for (const r of list ?? []) { out.push({ ...r, depth, parent }); const opened = holographOpen.has(r.key); if (typeof r.drill === "function" && (opened || (auto && depth === 0))) openFlat(partsOf(r), depth + 1, r.key, out, opened && auto); } return out; };
+  const auto = !flat && rows.reduce((n, r) => n + 1 + (typeof r.drill === "function" ? partsOf(r).length : 0), 0) <= GRAPH_AUTO_NODES;
+  const list = (flat ? rows : openFlat(rows, 0, null, [], auto)).filter((r) => r.kind !== "empty");
+  const wrap = document.createElement("div");
+  wrap.className = "hg-graph-wrap";
+  if (!list.length) { const e = document.createElement("div"); e.className = "hg-row hg-empty"; e.textContent = viewMode === "eot" ? "∅" : "nothing here"; wrap.append(e); return wrap; }
+  const g = graphOf(list, { open: holographOpen });
+  const width = Math.max(300, host.clientWidth || 600);
+  // A line per node, tall enough for a node's two lines of text and air; the
+  // frame grows downward with the rows and the pane scrolls. Nothing is
+  // rescaled to fit, so nothing is ever too small to read.
+  const placed = placeGraph(g, { width, layerHeight: 62, fontSize: 11 });
+  wrap.append(drawGraph(document, g, placed, { onPick: (row) => {
+    if (row.at && !String(row.at).startsWith("turn:") && typeof row.drill !== "function") { reopen(row.at); return; }
+    if (holographOpen.has(row.key)) holographOpen.delete(row.key); else holographOpen.add(row.key);
+    renderHolograph();
+  } }));
+  return wrap;
+}
+/** One list of rows; a row with parts is a press that opens them beneath it; a row with an address is a door to the bytes. */
+function rowsList(rows, depth) {
+  const ul = document.createElement("ul");
+  ul.className = `hg-rows depth-${depth}`;
+  for (const r of rows) {
+    const li = document.createElement("li");
+    li.className = `hg-row hg-${r.kind}${r.state ? ` hg-state-${r.state}` : ""}${r.drill ? " drillable" : ""}${holographOpen.has(r.key) ? " open" : ""}`;
+    li.dataset.key = r.key;
+    const head = document.createElement(r.drill ? "button" : "div");
+    if (r.drill) { head.type = "button"; head.setAttribute("aria-expanded", String(holographOpen.has(r.key))); }
+    head.className = "hg-head";
+    const title = document.createElement("span");
+    title.className = "hg-title";
+    title.textContent = r.title;
+    head.append(title);
+    if (r.meta) { const m = document.createElement("span"); m.className = "hg-meta"; m.textContent = r.meta; head.append(m); }
+    li.append(head);
+    if (r.line) { const ln = document.createElement("div"); ln.className = "hg-line"; ln.textContent = r.line; li.append(ln); }
+    if (r.at && !String(r.at).startsWith("turn:")) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "ref attached"; b.textContent = chipText(r.at); b.title = `${r.at} — press to read the bytes`;
+      b.onclick = () => reopen(r.at);
+      li.append(b);
+    }
+    if (r.drill) {
+      head.addEventListener("click", () => {
+        if (holographOpen.has(r.key)) holographOpen.delete(r.key); else holographOpen.add(r.key);
+        renderHolograph();
+      });
+      if (holographOpen.has(r.key)) li.append(rowsList(r.drill() ?? [], depth + 1));
+    }
+    ul.append(li);
+  }
+  if (!rows.length) { const li = document.createElement("li"); li.className = "hg-row hg-empty"; li.textContent = viewMode === "eot" ? "∅" : "nothing here"; ul.append(li); }
+  return ul;
+}
+function holographTurn(argstr, typed) {
+  const name = String(argstr ?? "").trim();
+  showView("holograph");
+  renderHolograph({ pick: name || null });
+  const m = holographModel();
+  const about = m.referents.slice(0, 8).map((r) => r.name);
+  const st = {};
+  for (const l of foldLoops(loopLogNow()).filter((l) => l.convo === convoNow())) st[l.state] = (st[l.state] ?? 0) + 1;
+  const bits = [st.open ? `${st.open} open` : null, st.contested ? `${st.contested} contested` : null, st.refused ? `${st.refused} could not close` : null, st.closed ? `${st.closed} closed` : null].filter(Boolean);
+  return usageTurn(typed, `the holograph is open in the panel${name ? `, opened on “${name}”` : ""} — ${m.referents.length ? `about ${about.join(", ")}${m.referents.length > 8 ? ", …" : ""}` : "nothing established yet"}${bits.length ? ` · loops: ${bits.join(" · ")}` : ""}${m.voids.length ? ` · ${m.voids.length} gap${m.voids.length === 1 ? "" : "s"} on the record` : ""}. \`/holograph <name>\` opens one referent's rows.`, { what: "holograph" });
+}
+
+function reopenLoopFromCard(id, card) {
+  const turn = state.summary.turnCount + 1;
+  const convo = convoNow();
+  const before = foldLoops(loopLogNow()).find((l) => l.id === id);
+  if (!before) return;
+  const r = landLoops([{ act: "reopen", id, trigger: "reopened by the reader", turn, convo, by: "person" }]);
+  if (r.turnedAway.length) { $("status").textContent = `not reopened: ${r.turnedAway[0].detail ?? r.turnedAway[0].type}`; return; }
+  // A fill loop stood on a declared void: declare it again so the ledger
+  // block tells the next turn the gap is open, and the next arrival fills it.
+  if (before.kind === "fill" && before.meta?.anchor && before.meta?.label) {
+    const v = declareVoidFor(before.meta.anchor, before.meta.label, { because: "reopened by the reader" });
+    if (v?.id) landLoops([{ act: "evidence", id, note: `declared again as a gap on the record — looked for in ${v.scope.sources.length} source(s), ${v.scope.read} of ${v.scope.total} parts read`, voidId: v.id, turn, convo }]);
+    else if (v?.refused) landLoops([{ act: "evidence", id, note: `not declared again as a gap: ${v.refused.type === "not_empty" ? "the record already holds something for it" : v.refused.detail ?? v.refused.type}`, turn, convo }]);
+  }
+  logAct("loop-reopened", { loop: id, cascaded: r.landed.find((x) => x.id === id)?.cascaded ?? [] });
+  // Redraw every card set on screen that holds this loop, at its own (conversation, turn).
+  redrawLoopsHolding(id);
+  const after = foldLoops(loopLogNow()).find((l) => l.id === id);
+  $("status").textContent = `reopened: ${after?.asks ?? id}${r.landed.find((x) => x.id === id)?.cascaded?.length ? ` (and ${r.landed.find((x) => x.id === id).cascaded.length} that stood on it)` : ""}`;
 }
 
 // NO VIEW FROM NOWHERE (eoreader7 kernel/notes.js; POLICIES.md P80). The
@@ -1112,14 +1735,19 @@ const state = {
    */
   webProof: localStorage.getItem("fold-web-proof") !== "off",
   /**
-   * Ranke — the primary-source chase (eoreader7 native/organs/ranke.js).
-   * OFF by default and a switch, not a standing consent: every run is
-   * fetches and searches against the world (user, 2026-09-03: "perhaps we
-   * toggle this one as this could be very burdensome"). On, a grounded turn
-   * that read a citing page chases its new notes under RANKE_AUTO_* budgets;
-   * off, only the explicit door (/ranke <maxFetches> [maxSearches]) runs it.
+   * Priors mode — how live_priors participates once a slice of it is toggled
+   * on (priors-toggles.js's own ledger; unrelated to and untouched by this).
+   * "off": not consulted at all, this turn. "background" (default): the
+   * FREE tier of the grounding ladder (priors.js) — claims are checked
+   * against it, cited if it settles them, same zero-egress posture as
+   * always. "foreground": additionally, every document currently gated on
+   * is attached as a real source (the same read/retrieve path an uploaded
+   * file gets), so it can be drawn on directly, not just checked against.
+   * Replaces the composer's former ranke switch (user, 2026-09-08: "i like
+   * that more than 'primary', let's nix that") — /ranke <maxFetches>
+   * [maxSearches] still runs the primary-source chase explicitly.
    */
-  ranke: localStorage.getItem("fold-ranke") === "on",
+  priorsMode: localStorage.getItem("fold-priors-mode") ?? "background",
   /** web source name → { url, host, rawPath, textPath }: the saved faces a chase can start from (the organ needs the page's own HTML for its links). */
   pageFaces: {},
 
@@ -1264,6 +1892,14 @@ const state = {
    * load is a fresh reading. `null` until the first turn admits something.
    */
   hyperlexiconLog: null,
+  /**
+   * The loop ledger (loops.js): app-wide like `hyperlexiconLog` — a loop's
+   * id is content-addressed (the same question asked in another
+   * conversation reaches the same loop), and every touch is stamped with
+   * its conversation and turn so the cards of one never show in another.
+   * Persisted as `records/loops.jsonl` and replayed on boot like the rest.
+   */
+  loopLog: null,
   huntUrls: {},
   lastSearchSpans: [],
   lastPiece: null,
@@ -1532,6 +2168,12 @@ function newConvo() {
   $("chat").append(el);
   return {
     id: state.convos.length + 1,
+    // The loop ledger's key for this conversation: unique across reloads,
+    // where `id` restarts at 1 — a restored ledger already holds
+    // "conversation 1, turn 1", and a new page's first turn must not land
+    // on it (measured live 2026-09-08: the old turn's cards came back as
+    // "round 2").
+    key: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
     el,
     summary: emptySummary(),
     history: [],
@@ -1659,6 +2301,18 @@ function renderThreads() {
   // The workspace switch governs a question against the OTHER conversations,
   // so it appears and disappears with them.
   renderWorkspaceSwitch();
+  // The conversation's own fold control, at the end of the conversation's own
+  // bar (user, 2026-09-08: "the left collapse is on the right weirdly"). It is
+  // rebuilt with the bar, so it survives every redraw of the tabs.
+  const fold = document.createElement("button");
+  fold.type = "button";
+  fold.id = "chat-collapse";
+  fold.className = "fold-side";
+  fold.setAttribute("aria-pressed", String(panelWide));
+  fold.textContent = panelWide ? "›" : "‹";
+  fold.title = panelWide ? "open the conversation again" : "fold the conversation away — its tabs stay on the left, and this opens it again";
+  fold.onclick = () => setPanelWide(!panelWide);
+  bar.append(fold);
 }
 
 // ── model ────────────────────────────────────────────────────────────────────
@@ -2174,6 +2828,7 @@ const matrixUsage = [
   "/serve [stop] — answer sealed prompts for the room with this machine's models",
   "/pool — the devices offering a mouth, what each machine is, and what it has answered",
   "/pool want @who:server <model> — ask a machine to take up a model it has spare · /pool drop @who [model]",
+  "/reading — which build is running, which reading assembly and prior, per-source progress, and which reader actually decided the last turn's identity",
 ].join("\n");
 const roomLabel = (id) => { const r = foldMatrix.status().rooms.find((x) => x.id === id); return r?.name ? `${r.name} (${id})` : id; };
 const matrixGap = (e) => (e instanceof MatrixError ? e.message : e?.message ?? String(e));
@@ -2430,6 +3085,45 @@ function poolLines(pool) {
     w.available?.length ? `    spare, ask with /pool want ${w.user} <model>: ${w.available.join(", ")}` : null,
     ...(w.refused ?? []).map((r) => `    refused ${r.model}: ${r.why}`),
   ].filter(Boolean));
+}
+// /reading — item 1 of the 2026-09-08 product review ("every run has a
+// reproducible manifest"). What is actually deciding identity for the next
+// turn, not what the code COULD do: which git commit this tab is running,
+// which reading assembly, which prior it fetched, per-source progress on
+// both readers (the ledger's relation reading and the constitutional one),
+// and whether the LAST turn actually used the constitutional index or fell
+// back to the presence index — the fact `lastIndexBasis` carries and
+// nothing before this command surfaced anywhere.
+async function readingTurn(question) {
+  let build = null;
+  try { build = await (await fetch("/api/manifest")).json(); } catch (e) { build = { error: e?.message ?? String(e) }; }
+  const names = [...new Set(state.chunks.map((c) => c.source))];
+  const rows = names.map((name) => {
+    const rel = READING.get(name); const con = READING_CONSTITUTIONAL.get(name);
+    return `  ${name} · relation reading: ${rel ? (rel.skipped ? `skipped (${rel.skipped})` : `${rel.cursor}/${rel.total}${rel.running ? " …" : ""}`) : "not started"} · constitutional reading: ${con ? `${con.cursor}/${con.total}${con.running ? " …" : ""}` : "not started"}`;
+  });
+  const m = readingManifest();
+  // Plain language leads every line; a code identifier, when one is worth
+  // keeping at all, trails in parentheses as a citation — never the first
+  // thing a line says (EO canon stays backstage in the UI; this command
+  // is a diagnostic FOR a person, not a dump of the state it reads).
+  const lines = [
+    `build: the-fold commit ${build?.theFold?.commit?.slice(0, 12) ?? "unknown"}${build?.theFold?.branch ? `, branch ${build.theFold.branch}` : ""} — eoreader7 commit ${build?.eoreader7?.commit?.slice(0, 12) ?? "unknown"}`,
+    `reading assembly in use: ${m.assembly}`,
+    m.posPriorSource
+      ? `the part-of-speech prior has been fetched, from ${m.posPriorSource}`
+      : "the part-of-speech prior has not been fetched yet — no source has been read this session",
+    `the last turn's identity came from: ${
+      lastIndexBasis
+        ? lastIndexBasis.kind === "constitutional"
+          ? "the constitutional reader — every loaded source is fully read"
+          : `the older reader, because not every source is fully read yet (fallback: ${lastIndexBasis.detail})`
+        : "no turn has built a conversation index yet"
+    }`,
+    names.length ? "sources:" : "no sources loaded",
+    ...rows,
+  ];
+  return usageTurn(question, lines.join("\n"), { what: "reading" });
 }
 async function poolTurn(question, arg = "") {
   try {
@@ -3471,12 +4165,14 @@ function mustTurn(argstr, typed) {
     }
     if (r.refused) return usageTurn(typed, `refused (${r.refused}): ${r.detail}`);
     state.obligations = r.ledger;
+    landLoops(loopsFromObligations(obligationStandings(r.ledger), { turn: state.summary.turnCount + 1, convo: convoNow(), only: [id] }));
     mirrorTermRecord("obligation-mark", { id, standing: kind, via: "chat" });
     return usageTurn(typed, render(r.ledger));
   }
   const admitted = admitObligations(arg);
   if (admitted.refused) return usageTurn(typed, `refused (${admitted.refused}): ${admitted.detail}`);
   state.obligations = admitted.ledger;
+  landLoops(loopsFromObligations(obligationStandings(admitted.ledger), { turn: state.summary.turnCount + 1, convo: convoNow() }));
   mirrorTermRecord("obligation-admit", { clauses: admitted.ledger.clauses.length, via: "chat" });
   return usageTurn(typed, render(admitted.ledger));
 }
@@ -3523,14 +4219,10 @@ function rememberPageFace(name, url, entry) {
 }
 
 // ── /ranke — the primary-source chase, on request ────────────────────────
-// Budgets declared per run (P9). RANKE_AUTO_* are the standing budgets the
-// switch spends per grounded turn: three faces (giver: primary.js
-// PRIMARY_SOURCES_CONSULTED — one perspective is anecdote, three is the
-// smallest count where 2-of-3 can disagree with 3-of-3) and one quote
-// search (a search is the costlier crossing; one per turn keeps the switch
-// from becoming a crawler).
-const RANKE_AUTO_FETCHES = 3;
-const RANKE_AUTO_SEARCHES = 1;
+// Budgets declared per run (P9): the caller — now only the explicit
+// /ranke <maxFetches> [maxSearches] door — names them (the ambient
+// per-grounded-turn auto-chase this once ran under, and its own standing
+// budgets, retired with the composer switch that drove it, 2026-09-08).
 async function rankeChase({ maxFetches, maxSearches, consult = 3, show = null }) {
   const log = state.hyperlexiconLog;
   if (!log) return { refused: "the hyperlexicon is empty — nothing has been heard yet, so there is nothing to chase." };
@@ -4545,10 +5237,20 @@ function pickAudioFile() {
  * documents in each are in play; `/priors on|off <path>` flips a document,
  * a folder, or the whole corpus (blank path). Computed from a server
  * fetch, never generated — a toggle is a fact about a file on disk.
+ * `/priors sync` runs one bounded round of foreground attachment
+ * (PRIORS_FOREGROUND_SYNC_BATCH documents) regardless of the composer's
+ * current priors-mode dial — the explicit door, mirroring /ranke's own
+ * "toggle for the ambient case, command for a declared one" split.
  */
 async function priorsTurn(argstr, typed) {
   const [sub, ...rest] = argstr.trim().split(/\s+/).filter(Boolean);
   try {
+    if (sub === "sync") {
+      const before = new Set(Object.values(state.provenance).map((p) => p?.path).filter(Boolean)).size;
+      await syncForegroundPriors();
+      const after = new Set(Object.values(state.provenance).map((p) => p?.path).filter(Boolean)).size;
+      return usageTurn(typed, after > before ? `attached ${after - before} document(s) — see the status line for what, if anything, remains.` : "nothing new to attach — every enabled document is already a source, or none is enabled (/priors on <path>).");
+    }
     if (sub === "on" || sub === "off") {
       const p = rest.join(" ");
       const body = await (
@@ -4975,6 +5677,7 @@ async function send(question) {
   if (serveCmd) return serveTurn(serveCmd[1]?.trim() ?? "", question);
   const poolCmd = question.match(/^\/pool\b\s*(.*)$/s);
   if (poolCmd) return poolTurn(question, poolCmd[1]?.trim() ?? "");
+  if (/^\/reading\b/.test(question)) return readingTurn(question);
 
   // The terminal language's chat door (P22's grid.js, opened to chat):
   // compose one act of the nine-operator composition law directly from the
@@ -5019,6 +5722,8 @@ async function send(question) {
   if (deriveCmd) return deriveTurn(deriveCmd[1] ?? "", question);
   const concedeCmd = question.match(/^\/concede(!?)(?:\s+|$)(.*)$/s);
   if (concedeCmd) return concedeTurn(concedeCmd[2] ?? "", question, { perform: concedeCmd[1] === "!" });
+  const holographCmd = question.match(/^\/holograph\b\s*(.*)$/s);
+  if (holographCmd) return holographTurn(holographCmd[1] ?? "", question);
   const voidCmd = question.match(/^\/void(!?)(?:\s+|$)(.*)$/s);
   if (voidCmd) return voidTurn(voidCmd[2] ?? "", question, { perform: voidCmd[1] === "!" });
   const essayCmd = question.match(/^\/essay\b\s*(.*)$/s);
@@ -5099,6 +5804,14 @@ async function send(question) {
   // the world (or the material) always falls through untouched.
   const arithmetic = checkQuantity(question, { math: window.math });
   if (arithmetic) return arithmeticTurn(question, arithmetic);
+
+  // ABOUT the material ("what is this?", "what's this book about?", "is it
+  // a book?") is answered from the SITUATION — a view of what is attached,
+  // how large it is, how far it has been read, and an ellipsed sample of
+  // its own words — never from a retrieved passage, which is how "what's
+  // this book about?" once answered "a man named Caesar" (about.js's own
+  // note). One small-model call at most; empty situation is mechanical.
+  if (asksAboutMaterial(question)) return aboutTurn(question);
 
   // Self questions asked in words ("what surprised you most", "how do you
   // think"). Checked AFTER detectTable so a question the app can answer
@@ -5210,7 +5923,7 @@ async function send(question) {
 
 /** Every door the composer routes, read off the dispatch above — kept as one
  * list so the refusal for an unknown slash names all of them. */
-const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/fold", "/gateways", "/ingest", "/join", "/learn", "/matrix", "/measure", "/must", "/pool", "/preserve", "/priors", "/ranke", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/task", "/transcribe", "/void"]);
+const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/fold", "/gateways", "/holograph", "/ingest", "/join", "/learn", "/matrix", "/measure", "/must", "/pool", "/preserve", "/priors", "/ranke", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/task", "/transcribe", "/void"]);
 
 /**
  * /ingest — a repo becomes folds, mechanically. Every admissible file (the
@@ -6397,8 +7110,44 @@ function needsSystem2(question, s1Text) {
 // turn's checked refs from the record store.
 const RESOLUTIONS_LEVEL = 3;
 let conversationIndexCache = { key: null, index: null, book: null };
-function conversationIndexNow() {
+let lastIndexBasis = null; // disclosed by /manifest (item 1) — which reading actually decided identity for the live turn
+/**
+ * THE CONSTITUTIONAL INDEX, PREFERRED (2026-09-08, item 2). `constitutionalCache`
+ * is fed in the background by readConstitutionally()'s progress callbacks
+ * (readSourceOnArrival, above) — a projection of the SAME reader the eval
+ * driver names (READING_ASSEMBLY), never a scan of capitalised runs (P38).
+ * It is used only when it actually covers every live source's OWN latest
+ * reading (the key check below): a source added since the last refresh, or
+ * one the constitutional reader has not reached yet, falls the WHOLE
+ * conversation index back to the presence index rather than silently
+ * mixing identities decided two different ways — the same all-or-nothing
+ * rule S1/S25 already hold for an assembly. `readingManifest()`'s own
+ * `assembly`/`posPriorSource` name what actually decided it, every time.
+ */
+// ONE decision, read by both conversationIndexNow() (the .index alone, for
+// callers that only resolve names) and activationRetrievalNow() (the
+// matching .book too) — the two must never disagree about which reading
+// decided identity for a turn, which is exactly the bug a second, separate
+// "read conversationIndexCache directly" path had until this function
+// existed: activationRetrievalNow() could read the presence index's book
+// beside conversationIndexNow()'s constitutional index, silently.
+function currentIndexAndBook() {
   const chunks = liveChunks();
+  const names = [...new Set(chunks.map((c) => c.source))];
+  // constitutionalCovers() only proves each live name has SOME entry in the
+  // cache's log-derived lengths — a source still at 0 of N chunks read
+  // would pass that check too. READING_CONSTITUTIONAL carries the actual
+  // chunk-unit progress (the two are different units — log rows per chunk
+  // vary, so one can't stand in for the other); require it here as well,
+  // or a mid-read source silently decides identity on a partial reading.
+  const constitutionallyComplete = names.length > 0 && names.every((n) => {
+    const r = READING_CONSTITUTIONAL.get(n);
+    return r && !r.running && r.total > 0 && r.cursor === r.total;
+  });
+  if (constitutionallyComplete && constitutionalCache.index && constitutionalCovers(constitutionalCache, names)) {
+    lastIndexBasis = { kind: "constitutional", assembly: readingManifest().assembly, posPriorSource: readingManifest().posPriorSource };
+    return { index: constitutionalCache.index, book: constitutionalCache.book };
+  }
   const key = `${chunks.length}:${chunks[0]?.ref ?? ""}:${chunks[chunks.length - 1]?.ref ?? ""}`;
   if (conversationIndexCache.key !== key) {
     const index = chunks.length ? referentIndexFor(chunks) : null;
@@ -6407,12 +7156,13 @@ function conversationIndexNow() {
     // No reader is built here: the acts of a sentence are the ledger's own notes (read at arrival, persisted — P98/P99), projected by span in activation-retrieval.js. Building the reader over a novel here cost 362 s (measured 2026-09-07) and re-did the reading the log already holds.
     conversationIndexCache = { key, index, book };
   }
-  return conversationIndexCache.index;
+  lastIndexBasis = chunks.length ? { kind: "presence", detail: "cast.js::makeReferentIndex, P38" } : null;
+  return conversationIndexCache;
 }
+function conversationIndexNow() { return currentIndexAndBook().index; }
 // RETRIEVAL IS ACTIVATION (THE-HOLOGRAPH.md §6): the question activates referents, hop 0 their sentences, hop 1 what they stand with, cut by the measurement; the term retriever stands in only for a question that resolves to no referent, and the record says so.
 function activationRetrievalNow() {
-  conversationIndexNow();
-  const { index, book } = conversationIndexCache;
+  const { index, book } = currentIndexAndBook();
   if (!index || !book) return null;
   return makeActivationRetrieval({ index, book, dmdWindow, fallback: retrieve, notes: () => (state.hyperlexiconLog && hyperlexiconFor?.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : []), transcript: transcriptNow, resolutions: RESOLUTIONS_LEVEL });
 }
@@ -6437,6 +7187,117 @@ function turnRowsOf(history, records, { chat = null, chatTitle = null } = {}) {
   return rows;
 }
 
+// ABOUT the material ("what is this?", "is this a book?") is answered from
+// the SITUATION — a view of what is attached, how large it is, how far it
+// has been read, and an ellipsed sample of its own words — never from a
+// retrieved passage, which is how "what's this book about?" once answered
+// "a man named Caesar" (about.js's own note). One small-model call at most;
+// when nothing is attached the door answers mechanically, no call at all.
+async function aboutTurn(question) {
+  addMessage("user", question);
+  const node = addMessage("assistant", "");
+  node.querySelector(".who").textContent = state.model;
+  const body = node.querySelector(".body");
+  body.textContent = "…";
+  logAct("asked", { text: question });
+
+  // The SITUATION, not retrieved passages.
+  const ls = liveSources();
+  const sources = Object.fromEntries(ls.map((s) => [s.name, s.text]));
+  const chunks = liveChunks();
+  const media = state.media ?? {};
+  const reading = new Map();
+  for (const [name, r] of READING.entries()) {
+    if (Number.isFinite(r.cursor) && Number.isFinite(r.total)) {
+      reading.set(name, r);
+    }
+  }
+  const rows = materialView({ sources, chunks, reading, media });
+  const digest = abbreviate(chunks);
+  const viewText = aboutBlock(rows, digest);
+  const discourse = discourseLineNow();
+
+  // Nothing is attached: a mechanical answer, no model call at all.
+  if (rows.length === 0) {
+    const answer =
+      "nothing is attached right now — attach a book, a file or a page and I can say what it is.";
+    body.textContent = answer;
+    const sent = [];
+    state.history.push(
+      { role: "user", content: question },
+      { role: "assistant", content: answer },
+    );
+    const turn = state.summary.turnCount + 1;
+    logAct("answered-from-state", { what: "about", rows: 0 });
+    observeExchange(turn, question, answer);
+    const fold = mechanicalFoldLine(question, answer);
+    state.turnFolds.push(fold);
+    state.summary = advanceSummaryFold(state.summary, fold);
+    renderFold(node, { sent });
+    renderThreads();
+    $("status").textContent = readyLine();
+    releaseBusy();
+    return { node, text: answer, sent };
+  }
+
+  // Exactly one small-model call, grounded in the SITUATION view alone. No
+  // history is sent: an about question is answered from what is attached,
+  // never steered by earlier turns.
+  const system = [
+    "You are answering a question about material that is attached and being read, not as if you had read it. Below: what the material says it is, how large it is, how far it has been read, and a sample of its own words taken at even intervals, with the gaps marked with an ellipsis. Answer from that alone; where it does not say, say so. Keep the answer short.",
+    viewText,
+    discourse ? `The conversation so far, in one line: ${discourse}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  const messages = [
+    { role: "system", content: system },
+    { role: "user", content: question },
+  ];
+  const sent = [{ n: 1, messages }];
+  let text = "";
+  try {
+    const raw = await complete(messages, {
+      model: state.model,
+      onDelta: (partial) => {
+        body.textContent = partial;
+      },
+    });
+    text = stripSelfCitations(raw).text;
+  } catch (e) {
+    text = "";
+    body.textContent = `(about turn failed: ${e?.message ?? e})`;
+  }
+  if (text) {
+    try {
+      body.replaceChildren(...taggedProse(text, [], classifySentences(text, [], [])));
+    } catch {
+      body.textContent = text;
+    }
+  } else if (!body.textContent) {
+    body.textContent = "(no reply)";
+  }
+  const shipped = text || body.textContent;
+  state.history.push(
+    { role: "user", content: question },
+    { role: "assistant", content: shipped },
+  );
+  const turn = state.summary.turnCount + 1;
+  logAct("answered-from-state", {
+    what: "about",
+    rows: rows.length,
+    chars: viewText.length,
+  });
+  observeExchange(turn, question, shipped);
+  const fold = mechanicalFoldLine(question, shipped);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+  renderFold(node, { sent });
+  renderThreads();
+  $("status").textContent = readyLine();
+  releaseBusy();
+  return { node, text, sent };
+}
 /**
  * What a question about the conversation may retrieve from (P128), scoped to
  * the WORKSPACE (this chat's own turns first, then every other conversation
@@ -6749,10 +7610,24 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // Where the ledger stood when this turn began (Pass 29 / P109): a void
   // filled at or after this seq is a re-zero of the ground THIS turn moved.
   const turnStartSeq = state.hyperlexiconLog?.nextSeq ?? 0;
+  // The turn's identity for the loop ledger, fixed HERE: the summary's
+  // turnCount advances during the turn (refreshSummary), so a later moment
+  // reading it again would file its loops under the next turn.
+  const turnNo = state.summary.turnCount + 1;
+  const convoNo = convoNow();
+  const loopScope = `c${convoNo}t${turnNo}`;
   if (!opts.skipUserMessage) addMessage("user", typed);
   const node = addMessage("assistant", "");
   if (opts.label) node.querySelector(".role-tag").textContent = opts.label;
   const body = node.querySelector(".body");
+  // The loops, above the body: the cards live beside the answer, not inside
+  // it, so `renderAnswer`'s own clearing of the body never takes them.
+  const loopsEl = document.createElement("div");
+  loopsEl.className = "loops";
+  loopsEl.hidden = true;
+  body.before(loopsEl);
+  const drawLoops = () => { renderLoopCards(loopsEl, { turn: turnNo, convo: convoNo }); if ($("pane-holograph")?.classList.contains("on")) renderHolograph(); };
+  const landTurnLoops = (acts) => { const r = landLoops(acts); drawLoops(); return r; };
 
   // Already logged once by twoPassTurn's own S1 leg when this is S2 — the
   // "asked" act is one event per question, not one per pass over it.
@@ -6978,11 +7853,14 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
         // instrument insisting on its own inapplicability.
         if (voidDigest === null) {
           voidDigest = "no-slot";
-          think(noSlotLine());
+          reasoning.push(noSlotLine());
         }
         return;
       }
       voidBrief = b;
+      // The cards: the void's nine cells and its fill loop, from the brief —
+      // what used to be narrated as paragraphs, now landed as loops.
+      landTurnLoops(loopsFromBrief(b, { phase, turn: turnNo, convo: convoNo }));
       const said = narrateVoid(b, { phase, previous: voidDigest });
       // Once material is in hand and the slot is still empty, the void is
       // an EVENT on the record (Pass 23 / P105): declared with its scope,
@@ -7012,25 +7890,68 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
             const f = b.fillers[0];
             const by = String(f?.filler ?? f?.name ?? f ?? "").trim();
             const rz = hyperlexiconFor.rezeroVoid(state.hyperlexiconLog, open.id, { by: by || "a filler the reader found", witness: f?.ref ?? f?.witness ?? null });
-            if (!rz.refused) { state.hyperlexiconLog = rz.log; syncRecords(); think(`Filled: "${open.verb}" of ${open.subject} — ${by || "a filler"} arrived; the gap declared earlier is cancelled on the record.`); }
+            if (!rz.refused) {
+              state.hyperlexiconLog = rz.log; syncRecords();
+              landTurnLoops(closingsFromFillings(foldLoops(loopLogNow()), [{ void: open.id, by: by || "a filler the reader found", witness: f?.ref ?? f?.witness ?? null }], { turn: turnNo, convo: convoNo }));
+            }
           }
         }
         if (empty) {
           voidDeclaredThisTurn = true;
           const v = declareVoidOnLedger(b, { because: b.standing?.reason ?? null });
-          if (v?.id) think(`On the record: nothing read so far fills "${v.label}" of ${v.anchor} — looked for in ${v.scope.sources.length} source(s), ${v.scope.read} of ${v.scope.total} parts read${v.redeclared ? " (declared again)" : ""}. The first arrival that fills it will cancel this.`);
-          else if (v?.refused) think(`Not declared as a gap: ${v.refused.type === "not_empty" ? `the record already holds something for "${v.label}" of ${v.anchor}` : v.refused.detail ?? v.refused.type}.`);
+          // The fill loop now stands on the declared void: its id rides the
+          // loop, so a filling on any later turn closes this card (P105's
+          // specimen, filled six turns later).
+          const fillId = fillLoopIdFor(b);
+          if (v?.id && fillId) landTurnLoops([{ act: "evidence", id: fillId, note: `declared as a gap on the record — looked for in ${v.scope.sources.length} source(s), ${v.scope.read} of ${v.scope.total} parts read${v.redeclared ? " (declared again)" : ""}; the first arrival that fills it will close this`, voidId: v.id, turn: turnNo, convo: convoNo }]);
+          else if (v?.refused && fillId) landTurnLoops([{ act: "evidence", id: fillId, note: `not declared as a gap: ${v.refused.type === "not_empty" ? "the record already holds something for it" : v.refused.detail ?? v.refused.type}`, turn: turnNo, convo: convoNo }]);
         }
       }
       if (!said) return;
       voidDigest = said.digest;
-      think(said.text);
+      // The paragraphs stay on the record (`reasoning`) and are no longer
+      // drawn: the cards are the turn's face now (user direction, 2026-09-08).
+      reasoning.push(said.text);
     } catch (e) {
       voidBrief = { error: String(e?.message ?? e) };
       think(`I could not work out what shape an answer here would need: ${e?.message ?? e}`);
     }
   };
   narrateTheVoid([], "question");
+  // THE QUESTION'S OWN SHAPE (loops.js::loopsFromQuestion): what form it
+  // asks for, what it is about, and what the answer stands on — read off
+  // the question's own words before any organ runs. A slot-shaped question
+  // (voidBrief set just above) carries its subject in the void's own cells,
+  // so no second subject loop is opened for it.
+  const questionGenre = opts.longForm ? null : declaredGenre(task);
+  const questionForm = opts.longForm ? null : declaredFormOf(task);
+  const questionSubject = voidBrief || opts.longForm ? null : subjectOf(task, { isAdposition });
+  const convoScope = `c${convoNo}`;
+  if (!opts.longForm) {
+    try {
+      // What a gap the check opens would close ON, in the material's own
+      // words: the beings the INDEX resolves out of the question (P170 —
+      // identity is the index's, never a string's) and the question's own
+      // content words under the received stopword class. Computed here
+      // because loops.js is pure and reads no index; it owns the phrasing,
+      // this owns the organs.
+      const loopAbout = (() => {
+        try {
+          const idx = conversationIndexNow();
+          const names = [];
+          if (idx?.resolve) for (const id of idx.resolve(task) ?? []) { const n = idx.represent?.(id); if (n && !names.includes(n)) names.push(n); }
+          const terms = String(task).split(/[^\p{L}\p{N}'’-]+/u).filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w.toLowerCase()));
+          const owned = new Set(names.flatMap((n) => n.toLowerCase().split(/\s+/)));
+          return { names, terms: terms.filter((t) => !owned.has(t.toLowerCase())) };
+        } catch { return null; }
+      })();
+      landTurnLoops(loopsFromQuestion(task, { genre: questionGenre, form: questionForm, subject: questionSubject, hasMaterial: live.length > 0, sourceNames: liveSources().map((s) => s.name), webOn: Boolean(state.webProof), scope: loopScope, convoScope, turn: turnNo, convo: convoNo }));
+    } catch (e) { console.warn("loops (question):", e?.message ?? e); }
+  }
+  // The reader's own notes on this conversation's open loops, handed to the
+  // mouth as facts in the reader's words (loops.js::readerNotesFor).
+  const readerNotes = readerNotesFor(foldLoops(loopLogNow()), { convo: convoNo });
+  if (readerNotes) show(`carrying your notes: ${readerNotes}`);
 
   // A message can point at an address as directly as at a build's own
   // bytes (widget.js's own lesson, applied here): an explicit http(s) URL
@@ -7140,6 +8061,9 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
 
   let lastDraftPaint = 0;
   let lastThinkPaint = 0;
+  // The plan's parts, kept from the `planned` event so a later part event
+  // can be matched to its loop by id or label.
+  let plannedParts = null;
 
   // The reach of the present, under the standing regime: calm is fold.js's
   // declared RECENCY_WINDOW untouched; a startled reader's present
@@ -7850,7 +8774,17 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       ...(opts.planMaxTokens ? { planMaxTokens: opts.planMaxTokens } : {}),
       ...(opts.piece ? { piece: { ...opts.piece, model: turnModel } } : {}),
       ...(planFacts ? { planFacts } : {}),
+      readerNotes,
       onProgress: (phase, part, info) => {
+        // Every progress event lands as loop acts first (loops.js's own
+        // reading of the same callback): the plan, each part's research,
+        // draft, correction rounds, and its check.
+        if (phase === "planned") plannedParts = info.parts ?? null;
+        try {
+          const groundState = foldLoops(loopLogNow()).find((l) => l.id === loopId("ground", loopScope))?.state ?? null;
+          landTurnLoops(loopsFromProgress(phase, part, info, { scope: loopScope, turn: turnNo, convo: convoNo, planned: planMode, parts: plannedParts, hasMaterial: live.length > 0, groundState, about: loopAbout }));
+        }
+        catch (e) { console.warn("loops (progress):", e?.message ?? e); }
         if (phase === "plan") {
           setPhase("planning");
           show("planning…");
@@ -7941,6 +8875,13 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // and otherwise the SAME log object handed in, updated or not; only
     // overwrite when a real state came back, so a turn that landed nothing
     // never clobbers what `/act`/the terminal already hold.
+    // The loops the run's own sections carry (P170's: premise, address,
+    // position, the witness, the absent names, a misquote, the door).
+    try { landTurnLoops(loopsFromResult(result, { scope: loopScope, turn: turnNo, convo: convoNo })); }
+    catch (e) { console.warn("loops (result):", e?.message ?? e); }
+    // The form and the subject close (or refuse) on the draft itself.
+    try { if (!opts.longForm) landTurnLoops(closingsFromDraft(result.output ?? "", { genre: questionGenre, form: questionForm, subject: questionSubject, scope: loopScope, convoScope, turn: turnNo, convo: convoNo, namesIn })); }
+    catch (e) { console.warn("loops (draft):", e?.message ?? e); }
     if (result.gridLog) state.gridLog = result.gridLog;
     // Same discipline: only a real, updated ledger overwrites — a checking-
     // off turn (`result.hyperlexiconLog` null) never clobbers what an
@@ -7949,14 +8890,6 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // passages while this turn ran; both chains started from `ledgerBase`.
     if (result.hyperlexiconLog) state.hyperlexiconLog = mergeAppendOnly(state.hyperlexiconLog, result.hyperlexiconLog, ledgerBase, { append: nativeTaskLog.append });
     syncRecords();
-    // Ranke's switch: chase what this turn heard off citing pages, under
-    // the standing budgets, never awaited — the answer is already on screen
-    // and the primary witnesses land on the ledger for the NEXT turn's
-    // ledger block. Fire-and-forget like crownTestimony; a failure is a
-    // console line, never a broken turn.
-    if (state.ranke && state.grounded && result.hyperlexiconLog && Object.keys(state.pageFaces).length) {
-      rankeChase({ maxFetches: RANKE_AUTO_FETCHES, maxSearches: RANKE_AUTO_SEARCHES }).catch((e) => console.warn("ranke:", e?.message ?? e));
-    }
     clearInterval(ticker);
   } catch (err) {
     clearInterval(ticker);
@@ -8114,6 +9047,9 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   const filledThisTurn = state.grounded && state.hyperlexiconLog && hyperlexiconFor.fillingsSince ? hyperlexiconFor.fillingsSince(state.hyperlexiconLog, turnStartSeq) : [];
   if (filledThisTurn.length) {
     logAct("rezeroed", { voids: filledThisTurn.map((f) => f.void), by: filledThisTurn.map((f) => f.by) });
+    // A void filled this turn closes the fill loop standing on it — whichever turn opened it.
+    try { landTurnLoops(closingsFromFillings(foldLoops(loopLogNow()), filledThisTurn, { turn: turnNo, convo: convoNo })); }
+    catch (e) { console.warn("loops (fillings):", e?.message ?? e); }
     forceRefresh = true;
     forceBecause = `${filledThisTurn.length} void(s) filled this turn (REC·Ground)`;
   }
@@ -8184,6 +9120,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     appendRecord("answers", [JSON.stringify(answerRec)]).catch(() => {});
   } catch (e) { console.warn("answer record:", e?.message ?? e); }
   renderFold(node, { sent: sentCalls, record: answerRec });
+  drawLoops();
   if (opts.longForm) {
     const bodyText = node.querySelector(".body")?.innerText ?? "";
     const secs = (result.sections ?? []).map((s) => s.piece ?? null).filter(Boolean);
@@ -8285,11 +9222,18 @@ function addMessage(role, text) {
     `<div class="role-tag"></div>` +
     (role === "assistant"
       ? `<div class="turn-meta">` +
-        `<details class="fold"><summary>thinking</summary><p></p></details>` +
+        `<details class="fold"><summary title="every message this turn sent to the model, verbatim, and the answer record it produced — the loops are the cards above; this is the wire">what the model saw</summary><p></p></details>` +
+        `<button type="button" class="ground-toggle" hidden title="show where each sentence stands — the ground chips, hidden unless asked">ground</button>` +
+        `<button type="button" class="view-toggle" title="the loops in sentences (text) or in the notation (eot) — one setting for every turn and the holograph">${viewMode === "eot" ? "text" : "eot"}</button>` +
         `</div>`
       : "") +
     `<div class="body"></div>`;
   el.querySelector(".role-tag").textContent = role === "user" ? "you" : "model";
+  el.querySelector(".ground-toggle")?.addEventListener("click", (ev) => {
+    const on = el.classList.toggle("show-ground");
+    ev.currentTarget.textContent = on ? "hide ground" : "ground";
+  });
+  el.querySelector(".view-toggle")?.addEventListener("click", () => setViewMode(viewMode === "eot" ? "text" : "eot"));
   if (role === "user" && /^\//.test(text)) {
     const body = el.querySelector(".body");
     const span = document.createElement("span");
@@ -8398,6 +9342,17 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
   // header) — what is withheld is the drawing, never the finding.
   const buildTurn = landedThisTurn.some((b) => b.type === "code");
   if (buildTurn) body.closest(".msg")?.classList.add("build-turn");
+  // The "ground" toggle appears only in checking mode (user, 2026-09-08:
+  // "that should not happen when checking is off") — with checking off,
+  // classifySentences still marks every sentence "model" ground by default
+  // (nothing was ever checked to say otherwise), and offering to reveal
+  // that would read as a finding when none was made. And only when there
+  // is something to show: a chip, a mark, or a badge actually drawn.
+  const gt = body.closest(".msg")?.querySelector(".ground-toggle");
+  if (gt) {
+    const hasMarks = Boolean(body.querySelector(".ground-chip, .sent[data-ground='model'], .sent.claims, .edge-badge"));
+    gt.hidden = !state.grounded || !hasMarks;
+  }
   // A tally of the turn's epistemic state — how much of what was just said
   // stands on the material, how much on the model, how much stands on
   // nothing — used to be drawn into the "thinking" box here (one reading of
@@ -8854,6 +9809,13 @@ function renderMarksStrip(container, marks) {
  * finding — the chips themselves render once, in the strip, and again on
  * demand in the detail modal a click opens.
  */
+// Merge note (2026-09-09): origin/main's "one ground chip per run" +
+// groundRunKey dedup (2026-09-08) predates and is fully superseded by this
+// branch's own mark-ref/marks-strip redesign, below — the SAME "too many
+// chips" complaint, resolved by moving every mark off the running prose
+// entirely rather than deduping which sentences still carry one inline.
+// Kept HEAD's signature; origin/main's groundRunKey and its inline
+// `.ground-chip` rendering are dropped, not carried forward.
 function taggedProse(text, offered, classified = [], marks = []) {
   const known = new Set(offered.map((p) => p.ref ?? p));
   const full = String(text);
@@ -10833,6 +11795,27 @@ function proofCheckNode(labelText, title, target, { onVerdict = null, ledger = n
     live.className = "proof-query";
     slot.textContent = "";
     slot.append(live);
+    // THE FREE TIER, FIRST (priors.js's own design: "spend the P13 crossing
+    // only on what the library leaves unsettled"). Zero egress, no consent
+    // to spend, so this runs whenever priors mode isn't off — unlike the
+    // web check below, it never needed a toggle of its own. Never made to
+    // gate the web check itself here: state.webProof stays the sole say
+    // over whether that crossing runs, unaffected by what the library
+    // found — priors.js's stated intent names a real next step (skip an
+    // auto web spend once the library alone settles a claim), not this one.
+    if (ledger && state.priorsMode !== "off") {
+      live.textContent = "checking the reference library…";
+      try {
+        const priorsOut = await (
+          await fetch(`${EXPLORE_BASE}/api/priors/check`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ claim: target }),
+          })
+        ).json();
+        if (!priorsOut.error) ledger.note(target, "priors", priorsOut);
+      } catch (e) { console.warn(`priors check: ${key}:`, e?.message ?? e); }
+    }
     const out = await seekProof(target, faces, (step) => {
       live.textContent = step;
     });
@@ -11900,6 +12883,22 @@ function liveSources() {
     .map(([name, text]) => ({ name, text }));
 }
 
+// ATTACHING SAYS WHAT IT IS DOING (user, 2026-09-08: "have it disclose the
+// process, so we get feedback", after a 3.3MB book left the page frozen with
+// nothing on screen). Each stage of the attach names itself before it runs
+// and times itself after; the timings go to the console so a slow stage can
+// be found rather than guessed at, and the stage NAME goes to the status
+// line, which is what a person actually sees. A stage that takes no
+// measurable time still says its name — a reader learning where the time
+// goes is worth more than a line that only appears when things are bad.
+function attachStage(name, label, fn) {
+  $("status").textContent = label;
+  const t = Date.now();
+  const out = fn();
+  const ms = Date.now() - t;
+  console.info(`attach ${name}: ${label} — ${ms}ms`);
+  return out;
+}
 function addSource(name, text, { fromBoot = false, passages = null, kind = null, standing = null } = {}) {
   if (!text.trim()) return;
   // The `self:` namespace is the instrument's own plane. A file wearing it
@@ -11914,7 +12913,8 @@ function addSource(name, text, { fromBoot = false, passages = null, kind = null,
   // the ONE choke-point every attachment/paste/upload/library pull already
   // passes through, so this needs no per-caller change to reach any of
   // them (identifyMaterial, source.js).
-  const identity = identifyMaterial(name, text);
+  const big = text.length > 200_000;
+  const identity = big ? attachStage(name, `${name} — reading what kind of thing it is…`, () => identifyMaterial(name, text)) : identifyMaterial(name, text);
   // blankFurniture was already wired into `relationsFor` (above) on the
   // belief that it protected every reader of this text — measured
   // 2026-09-04 (rashomon-contrast-RESULTS.md) that it did not protect the
@@ -11927,21 +12927,30 @@ function addSource(name, text, { fromBoot = false, passages = null, kind = null,
   // the boundaries the recognizer heard, and those are better than any count
   // — a pause is the speaker's own. Passages handed in are used as given,
   // with their time addresses intact.
-  state.chunks = state.chunks
-    .filter((c) => c.source !== name)
-    .concat(passages?.length
-      ? passages.map((p) => ({ ...p, source: name, ...(kind ? { kind } : {}), ...(standing ? { standing } : {}) }))
-      : chunkSource(name, text, {
-          boundaries: discoverBoundaries(text), identity,
-          blankFurniture: (t) => blankLabelRows(t, { minRun: 4, maxCell: 60 }),
-        }));
-  renderSources();
+  const cut = () => (passages?.length
+    ? passages.map((p) => ({ ...p, source: name, ...(kind ? { kind } : {}), ...(standing ? { standing } : {}) }))
+    : chunkSource(name, text, {
+        boundaries: discoverBoundaries(text), identity,
+        blankFurniture: (t) => blankLabelRows(t, { minRun: 4, maxCell: 60 }),
+      }));
+  const cutChunks = big ? attachStage(name, `${name} — cutting it into passages…`, cut) : cut();
+  state.chunks = state.chunks.filter((c) => c.source !== name).concat(cutChunks);
+  if (big) attachStage(name, `${name} — ${cutChunks.length.toLocaleString()} passages`, renderSources);
+  else renderSources();
   // Persist to OPFS so the source survives a reload — not on boot, where
   // it came FROM OPFS and a rewrite would race the reading cursor's own row.
-  if (!fromBoot) persistSource(name, text, { passages: countFor(name) });
+  if (!fromBoot) { const tp = Date.now(); Promise.resolve(persistSource(name, text, { passages: countFor(name) })).then(() => { if (big) console.info(`attach ${name}: stored — ${Date.now() - tp}ms`); }); }
   // Read it now (Pass 18, P99) — a book attached is a book read, before any
   // question. Boot resumes from the saved cursor instead (below).
-  if (!fromBoot) readSourceOnArrival(name);
+  // The read is the long one, and it reports its own progress passage by
+  // passage (readSourceOnArrival). Handing it a macrotask first lets the
+  // count above actually paint before the reading starts — a status line
+  // written and then immediately buried under a second of work is a line
+  // nobody sees.
+  if (!fromBoot) {
+    if (big) { $("status").textContent = `${name} — starting to read ${cutChunks.length.toLocaleString()} passages…`; setTimeout(() => readSourceOnArrival(name), 0); }
+    else readSourceOnArrival(name);
+  }
 }
 
 /**
@@ -11970,6 +12979,19 @@ function removeSource(name) {
   delete state.provenance[name];
   state.muted.delete(name);
   state.chunks = state.chunks.filter((c) => c.source !== name);
+  // THE READING STATE GOES TOO — measured live, 2026-09-08: a source
+  // removed mid-read left its own entry in READING/READING_CONSTITUTIONAL
+  // (module-level maps `readSourceOnArrival` writes to), and the very next
+  // turn's prompt disclosed "Still reading: war-and-peace.txt — 196 of
+  // 1051 passages" for a source that was no longer attached to anything —
+  // a fact about a PAST source leaking into an unrelated turn about a
+  // completely different one. `readSourceOnArrival`'s own read loop checks
+  // `state.sources[name]` before every yield and stops reading once it is
+  // gone (see its own `if (!passages.length || !state.sources[name]) return`
+  // guard), so no further work happens on a removed source — but nothing
+  // had ever cleared what the loop had ALREADY written before this ran.
+  READING.delete(name);
+  READING_CONSTITUTIONAL.delete(name);
   renderSources();
   // Remove from OPFS.
   unpersistSource(name);
@@ -12885,6 +13907,7 @@ $("not-served")?.remove();
       if (restored.grid) state.gridLog = restored.grid;
       if (restored.meta) state.metaLedger = restored.meta;
       if (restored.declarations) state.declarations = restored.declarations;
+      if (restored.loops) state.loopLog = restored.loops;
       const n = Object.keys(restored).length;
       if (n) console.info(`record restored: ${Object.entries(restored).map(([k, l]) => `${k} ${l.entries.length}`).join(", ")}`);
       // A typed gap is never silent (record-log.js's own stated rule), but
@@ -13140,6 +14163,61 @@ async function existingItems() {
   return out;
 }
 
+// A declared budget (P9), not a silent truncation: the ledger's "on" set is
+// the whole corpus's own gate, sized for browsing and checking, not for
+// "attach every one as a chat source" — measured live, 2026-09-08, the
+// corpus this reads against was 3,166 of 3,166 documents on, which a
+// blocking one-at-a-time attach loop would have taken a very long time
+// over and left the Sources panel unusable. PRIORS_DOCS_CONSULTED (12,
+// priors.js) is the sibling budget this mirrors: one deliberately small
+// round, reported, resumable, never a silent cap on what's possible.
+const PRIORS_FOREGROUND_SYNC_BATCH = 12;
+
+/**
+ * FOREGROUND PRIORS (priors-mode toggle, 2026-09-08): documents the ledger
+ * currently gates on are attached as real sources, the same doc-endpoint
+ * path the picker's own row above already uses (one fetch: text and
+ * provenance together) — so "foreground" means what an uploaded file
+ * means: read, retrieved, drawn on directly, not just checked against.
+ *
+ * Bounded and resumable, not exhaustive: at most PRIORS_FOREGROUND_SYNC_BATCH
+ * land per call. "Already attached" is read off state.provenance's own
+ * paths — itself the sidecar this needs, since it already persists across
+ * reloads (sources-store.js) — so a later call (re-toggling foreground, or
+ * `/priors sync`) picks up exactly where the last one stopped, never
+ * re-fetching or re-reading what already landed. Additive only: turning
+ * foreground off, or a document later toggling off in the ledger, does not
+ * retract what is already attached — removing a source stays the same
+ * deliberate act it always was.
+ */
+async function syncForegroundPriors() {
+  const pri = await (await fetch(`${EXPLORE_BASE}/api/priors/enabled`)).json();
+  if (pri.gap) { $("status").textContent = `priors: ${pri.gap.detail}`; return; }
+  const already = new Set(Object.values(state.provenance).map((p) => p?.path).filter(Boolean));
+  const pending = (pri.entries ?? []).filter((e) => !already.has(e.path));
+  if (!pending.length) return;
+  const toAttach = pending.slice(0, PRIORS_FOREGROUND_SYNC_BATCH);
+  let landed = 0;
+  for (const e of toAttach) {
+    try {
+      const doc = await (await fetch(`${EXPLORE_BASE}/api/priors/doc?path=${encodeURIComponent(e.path)}&text=1`)).json();
+      if (doc.error || doc.gap || !doc.text || looksBinary(doc.text)) continue;
+      // Same disambiguation as the picker row: two corpora can hold a file
+      // by the same name, so a genre prefix replaces silent overwrite.
+      let name = e.name;
+      if (state.sources[name] && state.provenance[name]?.path !== doc.path) name = `${doc.path.split("/")[0]}-${name}`;
+      addSource(name, doc.text);
+      if (doc.provenance && state.sources[name]) state.provenance[name] = { line: doc.provenanceLine, fields: doc.provenance, path: doc.path };
+      landed++;
+    } catch (err) { console.warn(`priors: foreground attach ${e.path} failed:`, err?.message ?? err); }
+  }
+  if (landed) renderSources();
+  const remaining = pending.length - toAttach.length;
+  $("status").textContent = landed
+    ? `priors: foreground attached ${landed} document(s) from live_priors${remaining ? ` — ${remaining} more enabled, toggle foreground again (or /priors sync) to continue` : ""}`
+    : `priors: foreground found ${pending.length} enabled document(s) to attach but none could be read`;
+}
+
 async function openPicker() {
   const list = $("picker-list");
   const filter = $("picker-filter");
@@ -13302,10 +14380,57 @@ bindSwitch("use-ranke", "fold-ranke", () => state.ranke, (v) => {
   state.ranke = v;
   $("status").textContent = v ? "primary-source chase on (Ranke)" : "primary-source chase off";
 });
+// #use-priors (below) and #priors-mode (further below) are two DIFFERENT
+// features, not a merge collision to resolve toward one — index.html's own
+// comment beside #priors-mode already disambiguates them: this checkbox
+// gates whether priors are consulted at all (relationsFor, RELATION_READER_
+// OPTIONS), the cycling button beneath it is the off/background/foreground
+// DEPTH of that consultation once it is on. Both sides of this merge are
+// kept.
 bindSwitch("use-priors", "fold-use-priors", () => state.usePriors, (v) => {
   state.usePriors = v;
   $("status").textContent = v ? "priors on" : "priors off — plainer reading";
 });
+// ── the priors-mode toggle ───────────────────────────────────────────────────
+//
+// Three states, cycled — same pattern as the theme toggle: the choice lives
+// in localStorage and this button only moves the stamp. What each state
+// actually DOES lives where priors get consulted (the claim-checking
+// cascade, foreground's source-sync below) — this is only the dial.
+{
+  const PRIORS_KEY = "fold-priors-mode";
+  const priorsBtn = $("priors-mode");
+  const PRIORS_TITLE = {
+    off: "Priors: off. live_priors is not consulted this session, whatever is toggled on in the ledger. Click to cycle off → background → foreground.",
+    background: "Priors: background. Whatever live_priors documents are toggled on are checked against your claims and cited if they settle one — zero egress, the free tier of the grounding ladder. Click to cycle to foreground.",
+    foreground: "Priors: foreground. Same checking as background, and documents currently toggled on are also attached as real sources, a bounded batch at a time — read and drawn on directly. Click to cycle to off.",
+  };
+  // Fill level reads the state (empty ring → half → full) rather than a
+  // word, so the button stays icon-sized like its neighbors and never
+  // changes the row's width when pressed (the theme toggle's own reasoning).
+  const PRIORS_ICON = {
+    off: '<circle cx="128" cy="128" r="88" fill="none" stroke="currentColor" stroke-width="20"/>',
+    background: '<circle cx="128" cy="128" r="88" fill="none" stroke="currentColor" stroke-width="20"/><circle cx="128" cy="128" r="42" fill="currentColor"/>',
+    foreground: '<circle cx="128" cy="128" r="98" fill="currentColor"/>',
+  };
+  const priorsLabel = (mode) => {
+    priorsBtn.innerHTML = `<svg class="ph ph-lg" viewBox="0 0 256 256" aria-hidden="true">${PRIORS_ICON[mode]}</svg>`;
+    priorsBtn.title = PRIORS_TITLE[mode];
+    priorsBtn.dataset.mode = mode;
+  };
+  const applyPriorsMode = (mode) => {
+    state.priorsMode = mode;
+    priorsLabel(mode);
+    if (mode === "foreground") syncForegroundPriors().catch((e) => console.warn("priors: foreground sync failed:", e?.message ?? e));
+  };
+  priorsBtn.onclick = () => {
+    const next = { off: "background", background: "foreground", foreground: "off" }[state.priorsMode] ?? "background";
+    try { localStorage.setItem(PRIORS_KEY, next); } catch { /* storage blocked — the stamp below still applies for this page */ }
+    applyPriorsMode(next);
+  };
+  priorsLabel(state.priorsMode);
+  if (state.priorsMode === "foreground") syncForegroundPriors().catch((e) => console.warn("priors: foreground sync failed:", e?.message ?? e));
+}
 
 // Checking, on or off. This is a MODE, not a paint setting: off, the relation
 // tier is never asked for, nothing is drawn into the prose, no tally is
@@ -13380,10 +14505,41 @@ function showView(name) {
   if (name === "terminal") $("term-in").focus();
   if (name === "resources") renderResources();
   if (name === "editor") editorLayout();
+  if (name === "holograph") renderHolograph();
 }
 
 for (const tab of document.querySelectorAll('[role="tab"]'))
-  tab.onclick = () => showView(tab.dataset.pane);
+  // A tab pressed while the panel is collapsed OPENS it on that pane: a tab
+  // that selects a thing nobody can see is not a tab.
+  tab.onclick = () => { if (panelCollapsed && tab.dataset.pane !== "chat") setPanelCollapsed(false); showView(tab.dataset.pane); };
+
+// THE PANEL AT FULL WIDTH (user, 2026-09-08). One class on <body>; the
+// conversation column keeps its own tabs as a rail (index.html carries the
+// rules) so a conversation is still selectable while a panel has the width.
+// Kept across reloads, like every other view preference on this page.
+function setPanelWide(on) {
+  panelWide = !!on;
+  if (panelWide) panelCollapsed = false;
+  try { localStorage.setItem("fold-panel-wide", panelWide ? "1" : "0"); localStorage.setItem("fold-panel-collapsed", panelCollapsed ? "1" : "0"); } catch { /* a private window keeps it for the session */ }
+  document.body.classList.toggle("panel-wide", panelWide);
+  document.body.classList.toggle("panel-collapsed", panelCollapsed);
+  // Each chevron points the way its own column will go, and reverses when it
+  // is folded — the control that folded it is the control that opens it.
+  const b = $("chat-collapse");
+  if (b) { b.setAttribute("aria-pressed", String(panelWide)); b.textContent = panelWide ? "›" : "‹"; b.title = panelWide ? "open the conversation again" : "fold the conversation away — its tabs stay on the left, and this opens it again"; }
+  const c = $("panel-collapse");
+  if (c) { c.setAttribute("aria-pressed", String(panelCollapsed)); c.textContent = panelCollapsed ? "‹" : "›"; c.title = panelCollapsed ? "open this panel again" : "fold this panel away — its tabs stay on the right, and pressing one opens it again"; }
+  // The drawing is measured against the pane it is drawn in, so a width
+  // change is a redraw, not a reflow (holograph-graph.js::place).
+  if (document.body.dataset.view === "holograph") renderHolograph();
+}
+function setPanelCollapsed(on) {
+  panelCollapsed = !!on;
+  if (panelCollapsed) panelWide = false;
+  setPanelWide(panelWide);
+}
+$("panel-collapse")?.addEventListener("click", () => setPanelCollapsed(!panelCollapsed));
+setPanelWide(panelWide);
 
 // Narrow, the first thing to see is the conversation and the composer; wide,
 // the panels are already beside it, so start on the reading itself

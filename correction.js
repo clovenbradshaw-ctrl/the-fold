@@ -30,7 +30,7 @@
 // PURE: no model call of its own, no I/O. `correctTurn` takes the call it is
 // given and spends exactly the rounds it is handed.
 import { restatementOf } from "./dialogue.js";
-import { snipsFor, snipBlock, checkSection, checkSentence, reviseAsk, applyRewrite, atomsOf as atomsOfText } from "./snip-check.js";
+import { snipsFor, snipBlock, checkSection, checkSentence, reviseAsk, applyRewrite, atomsOf as atomsOfText, ABSENCE_RE as KEEPS_RE } from "./snip-check.js";
 import { CLAIM_STOPWORDS } from "./grounding.js";
 import { namesIn } from "./ground-ladder.js";
 
@@ -318,7 +318,11 @@ const HEADING_RE = /^\s*(?:#{1,6}\s|\*\*[^*]+\*\*\s*:?\s*$|\d+\.\s*\*\*)/;
 // widening `i \w+\b` to match mid-sentence, which would risk matching real
 // content ("Also, Napoleon invaded Russia in 1812.").
 const PROCESS_RE = /^\s*(?:let(?:'|’)?s\b|let me\b|i(?:'|’)?(?:ll|m|d|ve)\b|i \w+\b|we(?:'|’)?(?:ll|re|ve)\b|here(?:'|’)?s\b|this (?:analysis|passage|section|code|snippet|document|text|response|answer|breakdown)\b|the (?:following|passage|snippet|code) (?:is|describes|shows|focuses)\b|to (?:answer|summarize|understand|break)\b|in (?:short|summary|conclusion)\b|also (?:looked at|checked|consulted|searched|read)\b|first,|next,|finally,|okay|sure|certainly)/i;
-const KEEPS_RE = /\b(?:do(?:es)?n['’]t|do(?:es)? not|cannot|can['’]t|no|none|nothing|not)\b[^.]{0,60}\b(?:contain|mention|say|state|include|provide|appear|find|specify|indicate|give|exist)/i;
+// KEEPS_RE is snip-check.js's own ABSENCE_RE, imported above — the one
+// implementation, shared: moved there 2026-09-08 so that module's atom/
+// company check could exempt an absence sentence the same way this file's
+// `cutProcessTalk` already does, rather than growing a second, driftable
+// copy of "what a stated absence looks like."
 
 /**
  * cutProcessTalk(text, { materialText, splitSentences }) → { text, cut }

@@ -1607,6 +1607,24 @@
          same posture the build editor itself already takes regardless of
          the page's own light/dark toggle. */
       .artifact pre.code-highlight { background: #1e1e1e; color: #d4d4d4; }
+      /* A markdown build (the /facts document) read as a document, not a
+         code box — the page's own body font and reading measure, real
+         paragraph and heading spacing. */
+      .artifact-doc {
+        padding: 18px 20px;
+        font-size: 15px;
+        line-height: 1.65;
+        max-width: 68ch;
+        background: var(--bg);
+      }
+      .artifact-doc h1, .artifact-doc h2, .artifact-doc h3 {
+        margin: 1.1em 0 0.4em;
+        line-height: 1.3;
+      }
+      .artifact-doc h1:first-child, .artifact-doc h2:first-child, .artifact-doc h3:first-child { margin-top: 0; }
+      .artifact-doc p { margin: 0 0 0.9em; }
+      .artifact-doc hr { border: 0; border-top: 1px solid var(--line); margin: 1.2em 0; }
+      .artifact-doc em { color: var(--muted); }
       .artifact iframe {
         display: block;
         width: 100%;
@@ -2149,6 +2167,40 @@
         font-size: 13px;
       }
       .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+      /* Holograph and GitHub grew the tab bar from five panes to seven, and
+         the narrow layout broke: the 900px rule above (line ~943) already
+         declares `.tabs { flex-wrap: nowrap; ... }` for the single-column,
+         tabs-at-the-bottom layout, but the plain, unconditional `.tabs` /
+         `.tabs button` rules just above this comment set flex-wrap: wrap
+         and other conflicting values — same selector specificity, later in
+         this sheet, so THEY win at every width the 900px query also
+         matches, and seven tabs wrap into a ragged, half-empty second row
+         with the panel-collapse chevron stranded in it (that chevron also
+         has nothing to do below 900px, since `main` is already one column
+         there — its own `.fold-side` rule loses the flex fight too, for
+         the same reason: `.tabs button` outranks a bare class). Fixed here,
+         after those rules, so this wins the cascade at both the phone and
+         tablet widths the 900px breakpoint covers. Matches `.threads`'
+         already-shipped pattern one section up for the identical problem:
+         natural-width tabs that scroll sideways with a hidden scrollbar,
+         rather than wrapping or being squeezed to nothing. */
+      @media (max-width: 900px) {
+        .tabs {
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          scrollbar-width: none;
+          justify-content: flex-start;
+          padding: 0 4px;
+          border-bottom: none;
+        }
+        .tabs::-webkit-scrollbar { display: none; }
+        .tabs button {
+          flex: 0 0 auto;
+          white-space: nowrap;
+          padding: 11px 14px;
+        }
+        .fold-side { display: none; }
+      }
       /* The Sources pane: a file-manager view of imported documents. */
       #pane-explore { display: none; height: 100%; flex-direction: column; gap: 0; overflow: hidden; }
       #pane-explore.on { display: flex; }

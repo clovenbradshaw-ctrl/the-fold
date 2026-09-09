@@ -7804,3 +7804,38 @@ a closed class that only ever turns a binding into a typed refusal. Measured
 live: `gemma2:2b`, seed 1, real answer, real reader — `bound` without the
 fix, `beyond-reach` with it.
 
+## A truncated web-page preview is not a second fact (added 2026-09-09) — pointer
+
+POLICIES.md **P181** is the law. A live turn (Panama Canal history, gemma2:2b,
+checking + web on) drafted the same fact twice, back to back, both instances
+citing the identical two addresses. Root cause: a fetched scribd.com page's
+own "AI-enhanced document" summary caption sat TWICE in that one page's own
+extracted text — once truncated with a trailing "…" (DuckDuckGo's own
+snippet convention, landing in the pinned search-results digest), once in
+full further down the page. `dedupeSourceText`'s two existing passes
+(fact-block.js, P122) both missed it — exact-match fails on a truncated
+string, and the SVO-triple pass was fooled by a malformed extra triple the
+truncation's own cut point happens to introduce ("...United States THAT led
+to its failure"), which its own deliberate "one new fact survives the whole
+sentence" rule read as real information. `buildFactBlock`'s separate span
+collection had the same blind spot, plus its own wrinkle: a claim's spans
+are pooled across every passage stating the same triple, so the truncated
+sentence's span rode back in through the FULL sentence's own claim on the
+shared edge — and holon.js's `rawSource` uses `spanBlock` INSTEAD of the
+deduped block whenever anything bound at all, so `dedupeSourceText` alone
+would not have closed it. Not a gap in holon.js's echo/reproduction/
+narration verdicts (P30) or correction.js's P127 narration cut — both check
+whether a draft restates the QUESTION or narrates its OWN process, neither
+was ever positioned to catch the material handing the model one fact twice.
+`fact-block.js::truncatedDominated` is the fix: a trailing ellipsis (or
+three periods) is a structural truncation marker, and a sentence it ends is
+dropped when its normalized text is a byte-for-byte PREFIX of a fuller
+sentence elsewhere in the same material — `subsumes`'s own already-accepted
+shape, applied to a whole sentence rather than a triple's object, computed
+once so the check is order-independent. Shared by `dedupeSourceText` and
+`buildFactBlock` (the latter filtering by each span's own text, not only its
+claim's sentence). Measured live, the fixed turn's own "what the model saw"
+panel across all 4 model calls: the truncated variant appears zero times.
+Full suite 2099/2095/4 before and after, the same 4 pre-existing
+`merge-code.test.mjs` failures, zero regressions.
+

@@ -1979,6 +1979,21 @@
       .sources-file-actions button:hover { color: var(--warn); border-color: var(--warn); }
       .sources-file-muted { opacity: 0.45; }
       .sources-file-muted .sources-file-icon { background: var(--muted); }
+      /* Research pages a turn fetched to CHECK an answer, never attached —
+         a distinct section under the real file list (found live,
+         2026-09-09: a reader had no way to see what was actually read
+         short of clicking one citation at a time). Muted icon color and no
+         action buttons mark it read-only at a glance; opening one leaves
+         this instrument (a real saved page, same as "＋ Add → already
+         here"), so no mute/remove belongs here. */
+      .sources-section-head {
+        font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em;
+        color: var(--muted); padding: 12px 12px 4px; text-transform: uppercase;
+      }
+      .sources-file-research .sources-file-icon {
+        background: transparent; border: 1px solid var(--line, #ccc);
+        color: var(--muted); font-size: 10px; font-weight: 700;
+      }
       .source-viewer-body {
         font: 13px/1.6 var(--mono); white-space: pre-wrap; word-break: break-word;
         margin: 0; overflow: auto; max-height: 65vh;

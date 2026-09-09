@@ -12115,6 +12115,18 @@ function renderSourcesPanel() {
     list.innerHTML = heldOnly
       ? `<div class="sources-empty"><p>Nothing is held right now.</p><p class="sources-empty-sub">Every loaded source is muted — nothing is contributing to retrieval this turn.</p></div>`
       : `<div class="sources-empty"><p>No sources yet.</p><p class="sources-empty-sub">Drop a file anywhere, paste text, or click ＋ Add to bring documents into this project.</p><p class="sources-empty-sub">Sources persist across sessions via the browser's private file system.</p></div>`;
+    // Research pages a turn fetched to CHECK an answer (P23's preflight,
+    // proof-seeking, /ranke) are deliberately never written to
+    // state.sources (P23: "turn-scoped, never written to state.sources" —
+    // a fetch's bytes could change under a record's addresses, so nothing
+    // built on them is a standing attachment). That is the right call for
+    // RETRIEVAL, but it meant a reader had no way to see what was actually
+    // read short of clicking one citation address at a time or opening the
+    // ＋ Add picker's own "saved pages" row — found live, 2026-09-09, user
+    // direction: "research-pages disclosure in the tree". This still shows
+    // under "No sources yet" — fetched-and-read is a different fact from
+    // attached, and both can be true at once.
+    if (!heldOnly) renderResearchedSection(list);
     return;
   }
   const search = $("sources-search")?.value?.toLowerCase() ?? "";
@@ -12185,6 +12197,58 @@ function renderSourcesPanel() {
       renderSources();
     };
     row.onclick = () => openMediaViewer(name);
+    list.append(row);
+  }
+  if (!heldOnly) renderResearchedSection(list);
+}
+
+/**
+ * Pages this instrument fetched to CHECK an answer (preflight search,
+ * proof-seeking, /ranke) — read, not attached; see renderSourcesPanel's own
+ * comment on why they stay out of state.sources. Appended under the real
+ * file list (never replacing it), so "what did you attach" and "what did
+ * you actually go read" are two honest, separate questions with two honest
+ * answers, both visible without opening the ＋ Add picker just to find out.
+ * A round trip to explore-server.mjs, so it renders after the synchronous
+ * list above — never blocking it, and a caller who switches views again
+ * before this resolves is simply overwritten by the next render (`token`
+ * below), never stacked.
+ */
+let researchSectionToken = 0;
+async function renderResearchedSection(list) {
+  const token = ++researchSectionToken;
+  let hist;
+  try {
+    hist = await (await fetch(`${EXPLORE_BASE}/api/web/history`)).json();
+  } catch {
+    return; // no explore server reachable — the file list above still stands on its own
+  }
+  if (token !== researchSectionToken || list !== $("sources-list") || state.exploreView === "held") return;
+  const seen = new Set();
+  const entries = [];
+  for (const e of hist.entries ?? []) {
+    if (!e.textPath || seen.has(e.textPath)) continue;
+    seen.add(e.textPath);
+    entries.push(e);
+  }
+  if (!entries.length) return;
+  entries.sort((a, b) => (b.fetchedAt ?? 0) - (a.fetchedAt ?? 0));
+  const heading = document.createElement("div");
+  heading.className = "sources-section-head";
+  heading.textContent = `RESEARCHED — read to check answers, not attached (${entries.length})`;
+  list.append(heading);
+  for (const e of entries.slice(0, 12)) {
+    const host = hostOf(e.finalUrl ?? e.url);
+    const row = document.createElement("div");
+    row.className = "sources-file sources-file-research";
+    row.innerHTML = `
+      <div class="sources-file-icon">web</div>
+      <div class="sources-file-info">
+        <div class="sources-file-name">${esc(e.title || host)}</div>
+        <div class="sources-file-meta">${esc(host)} · ${(e.textChars ?? 0).toLocaleString()} chars${e.challenge ? " · ⚠ challenge page" : ""}</div>
+      </div>`;
+    row.title = "Read during research for a turn, never attached as material — click to open what was actually read.";
+    row.onclick = () => window.open(pageFaceUrl(EXPLORE_BASE, e.textPath), "_blank", "noopener");
     list.append(row);
   }
 }

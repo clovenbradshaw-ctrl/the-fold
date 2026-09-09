@@ -4798,6 +4798,28 @@ function sourceMeta(name) {
   };
 }
 
+/**
+ * Wikipedia is an INDEX, never a citation (user direction, 2026-09-09:
+ * "let's never cite wikipedia... we only use it as an index for primary
+ * sources, and we seek multiple sources when possible"). It stays a
+ * loadable, readable source — a fine map of what to go read next, and
+ * `/ranke` already chases exactly that, from a page's own outbound
+ * citations to the primary face that actually states a claim (P84) — but
+ * its own bytes never back a composed fact or appear in References.
+ * Checked by host first (real, when a page was freshly fetched or its
+ * library attachment carried provenance — see existingItems' "saved
+ * pages" branch above); the source's own display NAME is the honest
+ * fallback for the many older/less-instrumented attachment paths that
+ * still don't populate state.pageFaces, since a Wikipedia article kept
+ * from the web organ is always titled "<article> - Wikipedia" or "<article>
+ * — Wikipedia" (source.js's own title-extraction convention).
+ */
+function isWikipediaSource(name) {
+  const host = state.pageFaces[name]?.host ?? (state.provenance[name]?.fields?.url ? hostOf(state.provenance[name].fields.url) : null);
+  if (host && /(^|\.)wikipedia\.org$/i.test(host)) return true;
+  return /\bwikipedia\b/i.test(String(name ?? ""));
+}
+
 async function factsTurn(argstr, typed) {
   const n = Number((argstr ?? "").trim());
   if (!Number.isInteger(n) || n < 1)
@@ -4810,6 +4832,17 @@ async function factsTurn(argstr, typed) {
   if (!allNotes.length) return usageTurn(typed, "the hyperlexicon is empty — nothing has been heard yet in this workspace, so there is no fact to compose.");
   const names = Object.keys(state.sources);
   if (!names.length) return usageTurn(typed, "no sources loaded — a fact is composed by checking it against what is loaded, and nothing is.");
+  // Wikipedia is an index, never a citation (isWikipediaSource's own
+  // header) — a claim only composes when a NON-Wikipedia source states
+  // it. Wikipedia stays loaded (still counts toward the relevance filter
+  // just below, and /ranke can still chase its own outbound citations to
+  // a primary face), it simply never grounds a sentence in the document.
+  const citableNames = names.filter((nm) => !isWikipediaSource(nm));
+  if (!citableNames.length)
+    return usageTurn(
+      typed,
+      `${names.join(", ")} ${names.length > 1 ? "are all" : "is"} Wikipedia — loaded as an index, never cited directly. Attach a primary or secondary source (a news article, an official record, a book excerpt) to compose grounded facts, or run /ranke to chase Wikipedia's own citations out to the primary sources it names first.`,
+    );
 
   // The hyperlexicon is per-WORKSPACE, so it holds every fact ever heard in
   // this workspace — including from unrelated earlier turns, other
@@ -4845,6 +4878,38 @@ async function factsTurn(argstr, typed) {
   const slice = notes.slice(0, n); // foldWithStanding's own order (post-filter): most-witnessed first — a declared order, never invented (compose.js's own rule)
   body.textContent = `composing: checking ${slice.length} of ${notes.length} fact(s) heard from ${names.join(", ")}…`;
 
+  // RANKE'S RULE (P84; user direction, 2026-09-09: "Ranke is our agent in
+  // charge of this type of thing, have him be in charge of these rules").
+  // Wikipedia never grounds a composed sentence (isWikipediaSource, above)
+  // — but rather than leave a Wikipedia-only note simply undetermined,
+  // Ranke is handed exactly the notes in THIS slice that currently stand
+  // on Wikipedia alone, and runs his own chase (rankeChase — the SAME
+  // mechanism /ranke exposes, reused whole, never re-implemented here):
+  // from each loaded Wikipedia page's own outbound citations, out to a
+  // primary face, read by the witness protocol, never by containment
+  // alone (P84's own "containment is a lead, never a landing"). A small,
+  // bounded, no-search budget (P9) — following a page's own already-known
+  // links is far more reliable in this environment than a fresh search
+  // (measured live this session: DuckDuckGo returned no results at all
+  // for a plain query, where direct fetches of known URLs kept working).
+  const wikiOnlyInSlice = slice.filter((note) =>
+    (note.witnesses ?? []).length > 0 && (note.witnesses ?? []).every((w) => isWikipediaSource(refOf(w))),
+  );
+  if (wikiOnlyInSlice.length) {
+    body.textContent = `Ranke: ${wikiOnlyInSlice.length} fact(s) in this batch stand on Wikipedia alone — chasing to primary sources before composing…`;
+    try {
+      const chase = await rankeChase({ maxFetches: 6, maxSearches: 0 });
+      if (chase.refused) {
+        body.textContent = `Ranke could not chase: ${chase.refused}`;
+      } else if (chase.report?.notesAttested) {
+        const hosts = [...new Set((chase.report.chased ?? []).flatMap((c) => (c.consulted ?? []).filter((x) => x.snipsFound > 0).map((x) => x.host)))];
+        body.textContent = `Ranke attested ${chase.report.notesAttested} fact(s) to a primary source${hosts.length ? ` (${hosts.join(", ")})` : ""}. Attach the found source(s) (Reading → RESEARCHED) and run /facts again to cite them — a fact Ranke could not yet place a primary under stays undetermined below, never cited to Wikipedia.`;
+      }
+    } catch (err) {
+      body.textContent = `Ranke's chase failed (${err?.message ?? err}) — continuing without it; Wikipedia-only facts stay undetermined rather than cited.`;
+    }
+  }
+
   const items = [];
   let step = 0;
   for (const note of slice) {
@@ -4865,14 +4930,22 @@ async function factsTurn(argstr, typed) {
       // Never checked before — check it now, the same per-source evaluate
       // crownTestimony runs per turn (above), just run here over the
       // ledger's own top claims instead of one turn's flagged ones.
+      // citableNames, not names: Wikipedia is never asked to ground a
+      // claim (isWikipediaSource's own header).
       const claimText = `${claim.end1} ${claim.label} ${claim.end2}`.replace(/"/g, "'");
-      for (const name of names) {
+      for (const name of citableNames) {
         const line = `evaluate "${claimText}" at Link from differentiate ground "${String(name).replace(/"/g, "'")}" broken:rotation`;
         const landed = landAct(grid, state.gridLog, line, { sources: state.sources, runCapacity, claimId });
         if (landed.ok && landed.event.ground === name && landed.event.object === claimText) state.gridLog = landed.log;
       }
       readings = perSourceReadings(grid, state.gridLog, claimId);
     }
+    // Defense in depth against a Wikipedia-grounded reading landed in an
+    // EARLIER run this session (before this rule existed) and now read
+    // back from the cache above (P30's "not re-spent") rather than
+    // recomputed: a verdict that came from Wikipedia never counts toward
+    // the merge, so it can neither hold a sentence up nor cite it.
+    readings = readings.filter((r) => !isWikipediaSource(String(r.who ?? "").split(":")[0]));
     items.push({ claim, merged: mergeTestimony(readings), order: step });
   }
   syncRecords();
@@ -4898,7 +4971,21 @@ async function factsTurn(argstr, typed) {
     : result.sentences.length
       ? result.sentences.map((s) => `${s.text}${anchorsFor(s.claim).map((r) => ` [${r}]`).join("")}`).join(" ")
       : "(every checked fact came back undetermined — nothing here is composed enough yet to state as a document.)";
-  const doc = `# ${FACTS_CAPTION}\n\n${text}\n\n---\n\n*${coverageLine(result)}*`;
+  // The exported .md file (Folds' own ↓ download) is a static file — it
+  // cannot carry the live, toggleable APA/MLA/plain <select> the Folds
+  // panel renders (artifactNode, below). So the References list is baked
+  // in here too, once, in the reader's own last-chosen style (falling back
+  // to APA — CITATION_STYLES' own DEFAULT_CITATION_STYLE) — mechanically,
+  // from the SAME sourceMeta() every live render already reads, never a
+  // model asked to write a bibliography. A reader who wants a different
+  // style still gets one live in the Folds panel; the file just needs to
+  // hold ONE real answer rather than none (found live, 2026-09-09, user
+  // direction: facts should be "exportable... with MLA and APA citations").
+  const citedNames = [...new Set(items.flatMap((it) => anchorsFor(it.claim)).map((r) => r.split("#")[0]))];
+  const refsSection = citedNames.length
+    ? `\n\n## References\n\n${citedNames.map((n) => `- ${formatReference(sourceMeta(n), state.citationStyle || DEFAULT_CITATION_STYLE)}`).join("\n")}`
+    : "";
+  const doc = `# ${FACTS_CAPTION}\n\n${text}\n\n---\n\n*${coverageLine(result)}*${refsSection}`;
 
   let entry = findFactsBuild();
   if (entry) {
@@ -9722,8 +9809,20 @@ async function crownTestimony(node, relationClaims) {
   $("status").textContent = readyLine();
 }
 
-/** An address, exactly as source.js writes and checkCitations reads it. */
-const REF_IN_TEXT = /\[([^\]\s]+#\d+-\d+)\]/g;
+/**
+ * An address, exactly as source.js writes and checkCitations reads it.
+ * The source-name half used to require NO whitespace ([^\]\s]+) — true of
+ * every test fixture this pattern was built against (pasted.txt,
+ * lincoln.txt), false of a real fetched web page's own title ("History of
+ * the Panama Canal - Wikipedia"). Found live 2026-09-09 building a real
+ * web-sourced /facts document: every citation into such a source silently
+ * failed to match, so refNodes() never turned it into a clickable ref and
+ * the References section (gated on `known.size`) never rendered at all.
+ * Widened to any non-`]` run — still anchored by the literal `#digits-
+ * digits]` suffix, so an unrelated bracketed aside ("[sic]") still never
+ * matches.
+ */
+const REF_IN_TEXT = /\[([^\]]+?#\d+-\d+)\]/g;
 
 /**
  * Turn every bracketed address in an answer into the thing it names.
@@ -12655,6 +12754,102 @@ function codeBlock(text, lang) {
   return pre;
 }
 
+/**
+ * Recovers one row per composed sentence from a /facts document's own
+ * prose — never a second copy of the data. `factsTurn` never stores a
+ * separate structured form of what it composed; the `[ref#a-b]` anchors
+ * already in the text ARE the row boundaries (the identical brackets
+ * `refNodes` already renders as clickable controls in the prose view), so
+ * a table view is a pure re-reading of the same bytes, not a second
+ * source of truth that could drift from the prose. Consecutive refs with
+ * only whitespace between them (one sentence citing more than one
+ * passage) stay one row.
+ */
+function factsTableRows(text) {
+  const rows = [];
+  let cursor = 0;
+  let rowText = "";
+  let refs = [];
+  for (const m of String(text).matchAll(REF_IN_TEXT)) {
+    const between = text.slice(cursor, m.index);
+    if (between.trim() && rowText.trim()) {
+      rows.push({ text: rowText.trim(), refs });
+      rowText = "";
+      refs = [];
+    }
+    rowText += between;
+    refs.push(m[1]);
+    cursor = m.index + m[0].length;
+  }
+  if (rowText.trim()) rows.push({ text: rowText.trim(), refs });
+  return rows;
+}
+
+// crown.js's own SINGLE-standing template (P39/BUILD-4) opens every
+// one-witness sentence with "According to <source>, " — real, correct
+// prose, and pure redundancy in a table that already names the source in
+// its own column. Stripped for the table cell only (never for the prose
+// view, and never for what's exported): the underlying sentence is
+// untouched, this just decides how one cell reads.
+const FACTS_ATTRIBUTION_RE = /^According to (.+?), (.+)$/s;
+function factCellText(text) {
+  const m = text.match(FACTS_ATTRIBUTION_RE);
+  if (!m) return text;
+  const rest = m[2];
+  return rest.charAt(0).toUpperCase() + rest.slice(1);
+}
+
+/** The table view of a /facts document — one row per composed sentence,
+ * its citation(s) as the SAME real, clickable `reopen()` controls the
+ * prose view uses (never a plain string — a table cell is not licence to
+ * drop the "read these bytes back" affordance). Source and byte-span are
+ * their own columns (user direction, 2026-09-09: "much more of a real
+ * table" — the first cut's one wide "Source" column repeated the full
+ * source name inside the citation label it was already naming). */
+function factsTable(text, known) {
+  const rows = factsTableRows(text);
+  const table = document.createElement("table");
+  table.className = "facts-table";
+  const thead = table.createTHead().insertRow();
+  for (const h of ["#", "Fact", "Source", "Span"]) {
+    const th = document.createElement("th");
+    th.textContent = h;
+    thead.append(th);
+  }
+  const tbody = table.createTBody();
+  rows.forEach((row, i) => {
+    const tr = tbody.insertRow();
+    tr.insertCell().textContent = String(i + 1);
+    tr.insertCell().append(...inlineMarkdown(factCellText(row.text)));
+    const srcCell = tr.insertCell();
+    srcCell.className = "facts-table-src";
+    const spanCell = tr.insertCell();
+    spanCell.className = "facts-table-src";
+    for (const ref of row.refs) {
+      const name = ref.split("#")[0];
+      const span = ref.slice(name.length + 1);
+      const meta = known.has(ref) ? sourceMeta(name) : null;
+      const srcBtn = document.createElement("button");
+      srcBtn.className = "ref";
+      srcBtn.textContent = meta?.title ?? name;
+      srcBtn.title = known.has(ref) ? `${ref} — read these bytes back out of the material` : "not among the passages retrieved for this turn";
+      if (known.has(ref)) srcBtn.onclick = () => reopen(ref);
+      else srcBtn.className = "ref bad";
+      srcCell.append(srcBtn);
+      const spanBtn = document.createElement("button");
+      spanBtn.className = known.has(ref) ? "ref" : "ref bad";
+      spanBtn.textContent = span;
+      spanBtn.title = known.has(ref) ? `${ref} — read these bytes back out of the material` : "not among the passages retrieved for this turn";
+      if (known.has(ref)) spanBtn.onclick = () => reopen(ref);
+      spanCell.append(spanBtn);
+    }
+  });
+  const wrap = document.createElement("div");
+  wrap.className = "table-wrap facts-table-wrap";
+  wrap.append(table);
+  return wrap;
+}
+
 /** One `<table>`, wrapped for horizontal scroll — factored out of
  * artifactNode's own `seg.type === "table"` branch so a database fold
  * (P25), which may need to draw several tables in one card, reuses the
@@ -12794,9 +12989,65 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
     // rendering.
     const text = code ?? seg.code;
     const known = new Set([...text.matchAll(REF_IN_TEXT)].map((m) => m[1]));
+    // factsTurn bakes a "## References" section into the stored/exported
+    // markdown (so a downloaded file carries real citations even though
+    // nothing renders it live) — the Folds panel already offers a richer,
+    // toggleable version of the same list a few lines below, so the plain
+    // baked-in copy is stripped from what's READ here to avoid showing the
+    // same bibliography twice. The exported file is untouched — this only
+    // trims what this function itself draws.
+    const proseText = caption === FACTS_CAPTION ? text.replace(/\n{2,}## References\n\n[\s\S]*$/, "") : text;
     const doc = document.createElement("div");
     doc.className = "artifact-doc";
-    renderBlocksInto(doc, text, (chunk) => refNodes(chunk, known));
+
+    // Prose vs table is a DISPLAY choice over the identical composed
+    // sentences (factsTableRows re-reads the same `[ref#a-b]` anchors the
+    // prose view already renders) — never a second document, so the two
+    // views can never disagree. Only the facts document offers this: an
+    // ordinary markdown build has no per-sentence claim/citation shape to
+    // tabulate. (User direction, 2026-09-09: "toggle different ways to
+    // display, including table.")
+    const renderDoc = () => {
+      doc.replaceChildren();
+      const asTable = caption === FACTS_CAPTION && known.size && localStorage.getItem("fold-facts-view") === "table";
+      // The prose measure (68ch) reads well for a paragraph and cramps a
+      // four-column table — widened only while the table view is active.
+      doc.classList.toggle("artifact-doc-wide", asTable);
+      if (asTable) {
+        // The document's own "# Grounded facts" heading carries no ref, so
+        // factsTableRows would otherwise fold it into the first row's text
+        // (text before the FIRST ref is still "between" text). Everything
+        // after the last ref — the trailing "---" + coverage line — is
+        // already dropped by factsTableRows on its own (nothing after the
+        // final match is ever read into a row).
+        doc.append(factsTable(proseText.replace(/^#[^\n]*\n+/, ""), known));
+      } else {
+        renderBlocksInto(doc, proseText, (chunk) => refNodes(chunk, known));
+      }
+    };
+    if (caption === FACTS_CAPTION && known.size) {
+      const viewHead = document.createElement("div");
+      viewHead.className = "artifact-doc-head";
+      const viewLabel = document.createElement("span");
+      viewLabel.textContent = "View";
+      const viewSel = document.createElement("select");
+      viewSel.className = "style-select";
+      viewSel.title = "How the composed facts are shown — the underlying document is the same either way.";
+      for (const [value, label] of [["prose", "Prose"], ["table", "Table"]]) {
+        const opt = document.createElement("option");
+        opt.value = value;
+        opt.textContent = label;
+        viewSel.append(opt);
+      }
+      viewSel.value = localStorage.getItem("fold-facts-view") === "table" ? "table" : "prose";
+      viewSel.onchange = () => {
+        localStorage.setItem("fold-facts-view", viewSel.value);
+        renderDoc();
+      };
+      viewHead.append(viewLabel, viewSel);
+      art.append(viewHead);
+    }
+    renderDoc();
     art.append(doc);
 
     // The References section — built from the SAME anchors just rendered,
@@ -14547,6 +14798,23 @@ async function existingItems() {
         meta: `${hostOf(e.finalUrl ?? e.url)} · ${(e.textChars ?? 0).toLocaleString()} chars`,
         from: "saved pages",
         url: pageFaceUrl(EXPLORE_BASE, e.textPath),
+        // Carried through to the click handler below so a page attached
+        // from the library — not freshly fetched this turn — still gets
+        // real web provenance (state.pageFaces/state.provenance). Found
+        // live, 2026-09-09 building a real /facts document: this branch
+        // never set either, so sourceMeta() read every library-attached
+        // page as "attached" (unpublished, no date) rather than "web" —
+        // the References section cited real Wikipedia/news pages as if
+        // they were pasted text with no author or URL.
+        pageUrl: e.finalUrl ?? e.url,
+        pageTitle: e.title ?? null,
+        pageHost: hostOf(e.finalUrl ?? e.url),
+        textPath: e.textPath,
+        // The saved raw HTML's own path (web/pages/<sha>.html) — needed
+        // so a library-attached page is eligible for Ranke's own chase
+        // (rankeChase's `pages` filter requires it: the organ needs the
+        // page's real HTML to find its outbound links/citations).
+        rawPath: e.rawPath ?? null,
       });
     }
   } catch (e) {
@@ -14688,6 +14956,16 @@ async function openPicker() {
             const res = await fetch(item.url);
             if (!res.ok) throw new Error(`answered ${res.status}`);
             text = await res.text();
+            // A "saved pages" row is a real fetched web page, not a bare
+            // file — carry its provenance through exactly like a
+            // freshly-named-source fetch already does (rememberPageFace +
+            // state.provenance, above in gatherPreflightMaterial's named-URL
+            // branch), so sourceMeta()/citation-style.js read it as "web"
+            // (real title/host/URL/access-date) rather than "attached".
+            if (item.from === "saved pages" && item.pageUrl) {
+              prov = { line: item.pageTitle ? `${item.pageTitle} — ${item.pageHost}` : item.pageHost, fields: { url: item.pageUrl, title: item.pageTitle ?? undefined } };
+              rememberPageFace(name, item.pageUrl, { rawPath: item.rawPath, textPath: item.textPath ?? null });
+            }
           }
           if (looksBinary(text)) {
             $("status").textContent = `${item.name} isn't text — skipped`;

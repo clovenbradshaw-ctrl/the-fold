@@ -1617,6 +1617,28 @@
         max-width: 68ch;
         background: var(--bg);
       }
+      /* Prose/Table view toggle — sits above the document, same shape as
+         the References head below it (label + a real <select>, both
+         styled with .style-select so the two controls read as one family). */
+      .artifact-doc-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        padding: 10px 20px 0;
+      }
+      /* Table view of the facts document — a real table (columns for row
+         number, the fact, its source, and its byte span, separately),
+         not the prose measure squeezed into cells. */
+      .artifact-doc.artifact-doc-wide { max-width: none; }
+      .facts-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+      .facts-table th, .facts-table td { text-align: left; padding: 8px 10px; vertical-align: top; border-bottom: 1px solid var(--line); }
+      .facts-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+      .facts-table th:first-child, .facts-table td:first-child { width: 2em; color: var(--muted); }
+      .facts-table-src { display: flex; flex-wrap: wrap; gap: 4px; }
       .artifact-doc h1, .artifact-doc h2, .artifact-doc h3 {
         margin: 1.1em 0 0.4em;
         line-height: 1.3;

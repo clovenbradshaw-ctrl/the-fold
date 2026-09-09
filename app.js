@@ -302,6 +302,7 @@ import { declaredForm as declaredFormOf, declaredGenre } from "./shape.js";
 import { holographOf, rowsFor, flattenRows, turnsOf, LEVELS as HOLOGRAPH_LEVELS } from "./holograph.js";
 import { run as runQuery, say as sayQuery } from "./eoql.js";
 import { graphOf, place as placeGraph, draw as drawGraph } from "./holograph-graph.js";
+import { DEFAULT_MODEL_LOOP, getActiveModelLoop, setActiveModelLoop, getLastCapturedTurn, loopGraphFor, previewFor, pipelineToggle, pipelineValue, PIPELINE_STAGE_META, DRAFT_MATERIAL_KEYS, orderedDraftMaterialKeys, validateOverride, validateModelLoopImport, SAMPLE_CAPTURE, captureLastTurn } from "./model-loops.js";
 import { namesIn } from "./ground-ladder.js";
 import { declaredSlotShape } from "./web-claim.js";
 import { cellOf, GRAINS, TERRAIN_BY_DOMAIN, isCurrentOperator } from "/engine-v7/kernel/cube.js";
@@ -1073,45 +1074,21 @@ function landLoops(acts) {
 const convoNow = () => state.convos[state.active]?.key ?? String(state.convos[state.active]?.id ?? 1);
 
 /** The cards of one (conversation, turn), drawn into `el` from the projection. Idempotent: a redraw replaces the children. */
+/** renderLoopCards(el, {turn, convo}) — kept the loops' own bookkeeping
+ * (dataset.turn/convo/loops, read by the re-render call sites below) but
+ * dropped the inline visual entirely: user direction, 2026-09-09, on the
+ * summary line's own glyph notation ("idk what this means, you can
+ * hide") — reversing the 2026-09-08 "do EOT in here too" default it was
+ * built to satisfy. Nothing about the loops themselves is hidden: every
+ * act still lands on the record either way, and renderHolograph (a wholly
+ * separate implementation) is the surface that still draws them. */
 function renderLoopCards(el, { turn, convo }) {
-  const { cards, standing } = cardsFor(foldLoops(loopLogNow()), { turn, convo });
-  // DISCLOSEABLE, NOT OPEN BY DEFAULT (user direction, 2026-09-08). The
-  // cards sit behind one line that says where the loops stand and ticks
-  // as the turn runs; a reader who opened it keeps it open across redraws.
-  const wasOpen = el.querySelector("details.loops-fold")?.open ?? false;
-  const expanded = new Set([...el.querySelectorAll(".loop.expanded")].map((c) => c.dataset.loop));
+  const { cards } = cardsFor(foldLoops(loopLogNow()), { turn, convo });
   el.replaceChildren();
   el.dataset.turn = String(turn);
   el.dataset.convo = String(convo);
   el.dataset.loops = cards.map((c) => c.id).join("\n");
-  if (!cards.length) { el.hidden = true; return; }
-  el.hidden = false;
-  const tally = {};
-  for (const c of cards) tally[c.state] = (tally[c.state] ?? 0) + 1;
-  const bits = [];
-  if (tally.open) bits.push(`${tally.open} open`);
-  if (tally.contested) bits.push(`${tally.contested} contested`);
-  if (tally.refused) bits.push(`${tally.refused} could not close`);
-  if (tally.closed) bits.push(`${tally.closed} closed`);
-  if (tally.waived) bits.push(`${tally.waived} set aside`);
-  const d = document.createElement("details");
-  d.className = "loops-fold";
-  d.open = wasOpen;
-  const sm = document.createElement("summary");
-  // In the notation the line is the arrows and their counts, nothing else.
-  sm.textContent = viewMode === "eot" ? Object.entries(LOOP_MARKS).filter(([st]) => tally[st]).map(([st, g]) => `${g}${tally[st]}`).join(" ") || "∅" : `loops · ${bits.join(" · ")}`;
-  d.append(sm);
-  // Closed cards fold to one line each; open, contested and refused ones
-  // stand at full height. The order is the chain's, never "most
-  // interesting first" (FOLD-CONSTITUTION III.1).
-  for (const c of cards) d.append(loopCard(c, { expanded: expanded.has(c.id) }));
-  if (standing.length) {
-    const p = document.createElement("p");
-    p.className = "loops-standing";
-    p.textContent = viewMode === "eot" ? `⇒${standing.length} ⟵ ${[...new Set(standing.map((l) => l.turn))].sort((a, b) => a - b).map((t) => `t${t}`).join(" ")}` : `${standing.length} loop${standing.length === 1 ? "" : "s"} still open from earlier turns`;
-    d.append(p);
-  }
-  el.append(d);
+  el.hidden = true;
 }
 
 // A loop's mark is its ARROW (loops.js LOOP_GLYPHS): ○ and ● belong to SIG and INS.
@@ -1356,6 +1333,13 @@ let viewMode = (() => { try { return localStorage.getItem("fold-view-mode") === 
 // cannot be both folded and expanded.
 let panelWide = (() => { try { return localStorage.getItem("fold-panel-wide") === "1"; } catch { return false; } })();
 let panelCollapsed = (() => { try { return localStorage.getItem("fold-panel-collapsed") === "1"; } catch { return false; } })();
+// Declared HERE for the identical reason as panelWide, just above: showView
+// runs during boot and MORE_GROUP is one of its own free variables, so a
+// declaration beside the function that uses it (which is where this first
+// lived) put boot in the same temporal dead trap panelWide's own comment
+// already names — caught live, 2026-09-08, the "More" tab's own first click.
+const MORE_GROUP = ["resources", "holograph", "wiring", "github"];
+let lastMorePane = MORE_GROUP[0];
 function setViewMode(mode) {
   viewMode = mode === "eot" ? "eot" : "text";
   try { localStorage.setItem("fold-view-mode", viewMode); } catch { /* a private window keeps it for the session */ }
@@ -4339,6 +4323,30 @@ function declareTurn(argstr, typed) {
 // one back with a recorded trigger (REC), the same act `/concede!` performs
 // on a premise. A void is never deleted: a conceded void stays in the
 // timeline with its concession after it.
+/** /model-loop [name] — switch which saved model-loop the Wiring canvas
+ * modifies and turns run under, straight from the composer (user
+ * direction, 2026-09-08: "call different loops via the chat via '/'
+ * commands"). Bare lists the saved loops with the active one marked; a
+ * name or id switches — wiringActivate is the SAME function a click on
+ * its chip in the Wiring tab already calls, so this is a second door
+ * onto one implementation, never a parallel switch that could drift.
+ * "default" resets to the shipped loop. */
+async function modelLoopTurn(argstr, typed) {
+  if (!wiringLoopsCache) await wiringFetchLoops();
+  const loops = wiringLoopsCache ?? [{ id: DEFAULT_MODEL_LOOP.id, name: DEFAULT_MODEL_LOOP.name }];
+  const name = argstr.trim();
+  if (!name) {
+    const listing = loops.map((l) => `${l.name}${l.id === wiringActiveId ? " (active)" : ""}`).join(", ");
+    return usageTurn(typed, `model-loops: ${listing} — /model-loop <name> to switch, /model-loop default to reset.`, { what: "model-loop-list" });
+  }
+  const match = name.toLowerCase() === "default"
+    ? { id: DEFAULT_MODEL_LOOP.id, name: DEFAULT_MODEL_LOOP.name }
+    : loops.find((l) => l.name.toLowerCase() === name.toLowerCase() || l.id === name.toLowerCase());
+  if (!match) return usageTurn(typed, `no model-loop named "${name}" — model-loops: ${loops.map((l) => l.name).join(", ")}`, { what: "model-loop-not-found" });
+  await wiringActivate(match.id);
+  return usageTurn(typed, `switched to "${match.name}" — every turn from here runs under it until changed again.`, { what: "model-loop-switch" });
+}
+
 function voidTurn(argstr, typed, { perform = false } = {}) {
   const log = state.hyperlexiconLog;
   if (!log || !hyperlexiconFor.foldVoids) return usageTurn(typed, "the hyperlexicon is empty — nothing has been read yet, so no gap has been declared over it.");
@@ -5884,6 +5892,8 @@ async function send(question) {
   if (holographCmd) return holographTurn(holographCmd[1] ?? "", question);
   const voidCmd = question.match(/^\/void(!?)(?:\s+|$)(.*)$/s);
   if (voidCmd) return voidTurn(voidCmd[2] ?? "", question, { perform: voidCmd[1] === "!" });
+  const modelLoopCmd = question.match(/^\/model-loop\b\s*(.*)$/s);
+  if (modelLoopCmd) return modelLoopTurn(modelLoopCmd[1] ?? "", question);
   const essayCmd = question.match(/^\/essay\b\s*(.*)$/s);
   if (essayCmd) return essayTurn(essayCmd[1] ?? "", question);
   if (/^\/export\b/.test(question)) return exportTurn(question);
@@ -6081,7 +6091,7 @@ async function send(question) {
 
 /** Every door the composer routes, read off the dispatch above — kept as one
  * list so the refusal for an unknown slash names all of them. */
-const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/facts", "/fold", "/gateways", "/holograph", "/ingest", "/join", "/learn", "/matrix", "/measure", "/must", "/pool", "/preserve", "/priors", "/ranke", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/task", "/transcribe", "/void"]);
+const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/facts", "/fold", "/gateways", "/holograph", "/ingest", "/join", "/learn", "/matrix", "/measure", "/model-loop", "/must", "/pool", "/preserve", "/priors", "/ranke", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/task", "/transcribe", "/void"]);
 
 /**
  * /ingest — a repo becomes folds, mechanically. Every admissible file (the
@@ -7354,7 +7364,10 @@ function turnRowsOf(history, records, { chat = null, chatTitle = null } = {}) {
 async function aboutTurn(question) {
   addMessage("user", question);
   const node = addMessage("assistant", "");
-  node.querySelector(".who").textContent = state.model;
+  // A stray reference to the pre-rename class (both branches had it —
+  // addMessage's own template creates .role-tag now, not .who; this call
+  // was throwing on a null querySelector before this fix).
+  node.querySelector(".role-tag").textContent = state.model;
   const body = node.querySelector(".body");
   body.textContent = "…";
   logAct("asked", { text: question });
@@ -7490,9 +7503,24 @@ function discourseLineNow() {
   return [s.topic, s.flow, (s.entities || []).join(", ")].filter(Boolean).join(" · ").slice(0, 300);
 }
 
+// The role label above an answer reads "model" under the shipped Default,
+// and the active loop's own name once a saved loop is running the turn —
+// the one place a reader already looks to see who/what answered, so a
+// non-default loop names itself there rather than only inside the Wiring
+// tab (user direction, 2026-09-08: "'model' needs be the name of the
+// 'loop'").
+function mouthLabel() {
+  const loop = getActiveModelLoop();
+  return loop && loop.id !== DEFAULT_MODEL_LOOP.id ? loop.name : "model";
+}
+
 async function runFastPass(question, model) {
   const node = addMessage("assistant", "");
-  node.querySelector(".role-tag").textContent = `model`;
+  // .role-tag (renamed from .who by a concurrent same-day session — see
+  // addMessage below) still needs mouthLabel(), not the literal "model":
+  // this branch's own fix for the same day (S1's fast pass under a named
+  // model-loop was showing "model" regardless of which loop was active).
+  node.querySelector(".role-tag").textContent = mouthLabel();
   const body = node.querySelector(".body");
   body.textContent = "…";
   const present = presentWindow(state.regime, RECENCY_WINDOW);
@@ -7583,7 +7611,7 @@ async function twoPassTurn(question) {
     return holonicTurn(question, question, "flat", {
       skipUserMessage: true,
       forceModel: s2Model,
-      label: `model`,
+      label: mouthLabel(),
     });
   }
 
@@ -7608,7 +7636,7 @@ async function twoPassTurn(question) {
       skipUserMessage: true,
       priorPass: s1Text,
       forceModel: s2Model,
-      label: `model`,
+      label: mouthLabel(),
     });
   }
   // Gate stayed off: S1 stands as the whole turn. holonicTurn's own
@@ -7784,7 +7812,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   loopsEl.className = "loops";
   loopsEl.hidden = true;
   body.before(loopsEl);
-  const drawLoops = () => { renderLoopCards(loopsEl, { turn: turnNo, convo: convoNo }); if ($("pane-holograph")?.classList.contains("on")) renderHolograph(); };
+  const drawLoops = () => { renderLoopCards(loopsEl, { turn: turnNo, convo: convoNo }); if ($("pane-holograph")?.classList.contains("on")) renderHolograph(); if ($("pane-wiring")?.classList.contains("on")) renderWiring(); };
   const landTurnLoops = (acts) => { const r = landLoops(acts); drawLoops(); return r; };
 
   // Already logged once by twoPassTurn's own S1 leg when this is S2 — the
@@ -8303,8 +8331,11 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
         pages: escalation.pagesConsulted,
       });
     }
-    const longFormHunt = Boolean(opts.longForm) && state.grounded && state.webProof;
-    if (longFormHunt || shouldPreflight({ live, grounded: state.grounded, webProof: state.webProof, planMode })) {
+    // Mirrors the header's own web toggle (state.webProof); a loop that
+    // names webPreflight overrides it for this turn, absence inherits it.
+    const webPreflightOn = pipelineToggle(getActiveModelLoop(), "webPreflight", state.webProof);
+    const longFormHunt = Boolean(opts.longForm) && state.grounded && webPreflightOn;
+    if (longFormHunt || shouldPreflight({ live, grounded: state.grounded, webProof: webPreflightOn, planMode })) {
       setPhase("checking for material");
       show(longFormHunt ? `finding material on “${opts.longForm.topic}” before planning…` : "nothing attached — checking the web before answering…");
       // Two assemblies handed over separately, never pre-mixed: the query
@@ -8768,7 +8799,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     result = await runHolonicTask({
       // null when the person has not moved the slider off its default, so
       // strain decides the rung (P174); a deliberate setting is honoured.
-      depth: state.depthSet ? state.depth : null,
+      depth: pipelineValue(getActiveModelLoop(), "depth", state.depthSet ? state.depth : null),
       // The arithmetic engine, so ordering and difference are computed rather
       // than asked of the mouth (P173).
       math: window.math,
@@ -8815,7 +8846,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // The relation tier is the expensive check and the one with a whole
       // verdict vocabulary behind it. Plain mode does not ask for it, so it
       // is never computed — off means not run, not run-and-hidden.
-      makeRelationReader: state.grounded ? relationsFor : null,
+      makeRelationReader: pipelineToggle(getActiveModelLoop(), "makeRelationReader", state.grounded) ? relationsFor : null,
       // FOUND LIVE (2026-09-09): checking on, nothing attached, "What's your
       // favorite season and why?" — the turn's own void-brief had already
       // decided, before any draft existed, that this question "does not open
@@ -8854,13 +8885,17 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // relation tier's own SVO-level checking — untouched by this gate —
       // keeps checking whatever claims it can actually extract from a real
       // explanation.
-      witnessSentences: state.grounded && voidDigest !== "no-slot" ? witnessSentencesFor : null,
+      // Mirrors the same underlying flag pipelineToggle everywhere else
+      // mirrors (never a second independent boolean) — the flag here is
+      // origin/main's own smarter one (state.grounded AND the question
+      // opened a checkable slot), not bare state.grounded.
+      witnessSentences: pipelineToggle(getActiveModelLoop(), "witnessSentences", state.grounded && voidDigest !== "no-slot") ? witnessSentencesFor : null,
       // The link tier (links.js): a cited URL is fetched through the SAME
       // standing web consent proof-seeking already asks for — an automatic
       // crossing the instrument decided to make, not a click the reader
       // made, so it lives behind the same switch. Off means every cited URL
       // ships `unexamined`, never silently treated as checked.
-      checkLink: state.webProof ? checkLinkCitation : null,
+      checkLink: pipelineToggle(getActiveModelLoop(), "checkLink", state.webProof) ? checkLinkCitation : null,
       // The completeness gate's own belief, landed on the SAME app-wide
       // log `/act`/the terminal already write to (P38: "the hypergraph
       // records beliefs... held BY AN EXPERIENCER, not just given by a
@@ -8895,7 +8930,8 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // the fold.
       chatHistory: state.history.slice(-present),
       discourse: discourseLine,
-      resolutions: RESOLUTIONS_LEVEL,
+      resolutions: pipelineValue(getActiveModelLoop(), "resolutions", RESOLUTIONS_LEVEL),
+      material: pipelineValue(getActiveModelLoop(), "material", "auto"),
       retrieveWith: activationRetrievalNow(),
       mentionBook: conversationIndexCache.book,
       dmdWindow,
@@ -8922,8 +8958,8 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // an ordinary turn — and one more correction pass plus two more
       // passages per part exactly when S1's record says the fast layer
       // has been getting corrected.
-      maxCorrections: escalation.maxCorrections,
-      passagesPerPart: opts.passagesPerPart ?? escalation.passagesPerPart,
+      maxCorrections: pipelineValue(getActiveModelLoop(), "maxCorrections", escalation.maxCorrections),
+      passagesPerPart: pipelineValue(getActiveModelLoop(), "passagesPerPart", opts.passagesPerPart ?? escalation.passagesPerPart),
       // Long-form (P108): an essay door declares its section count and its
       // per-part draft budget; an ordinary turn passes nothing and gets the
       // standing defaults.
@@ -9369,24 +9405,31 @@ function addMessage(role, text) {
   // (FOLD-CONSTITUTION I.5); it is simply no longer drawn here. The `.fold`
   // CLASS below is left alone deliberately: it is the disclosure's shared
   // styling and renaming it would buy nothing a reader ever sees.
-  // The disclosure sits ABOVE the answer (user direction, 2026-09-08):
-  // "thinking" is what the turn did BEFORE it spoke, so it reads first,
-  // the same chronology this file's own void/reasoning sections already
-  // argue for elsewhere ("the reasoning genuinely preceded the
-  // conclusion... printing the conclusion first would read as having
-  // known it all along"). Collapsed by default either way, so this
-  // costs nothing when nobody opens it.
+  // turn-meta sits ABOVE the body: "thinking" is what the turn did BEFORE
+  // it spoke, so it reads first (2026-09-08 chronology direction) — and,
+  // beside that, the response should be the last thing on screen, not
+  // sandwiched between two rows of disclosure (2026-09-09, on this same
+  // reorder). Nothing here reads DOM order (checked: no sibling-position
+  // CSS selector exists for .turn-meta/.body), so this is a pure reorder.
+  // ground/view/cost all moved INSIDE the <details> too — collapsed, the
+  // row shows nothing but the one disclosure trigger (user direction,
+  // 2026-09-09: "let's put more of this in the disclosure affordance").
+  // They sit between <summary> and the JSON <p>, so renderFold's own
+  // `box.querySelector("p")` still finds the right element to clear/fill.
   el.innerHTML =
     `<div class="role-tag"></div>` +
     (role === "assistant"
       ? `<div class="turn-meta">` +
-        `<details class="fold"><summary title="every message this turn sent to the model, verbatim, and the answer record it produced — the loops are the cards above; this is the wire">what the model saw</summary><p></p></details>` +
+        `<details class="fold"><summary title="every message this turn sent to the model, verbatim, and the answer record it produced — the loops are the cards above; this is the wire">what the model saw</summary>` +
+        `<div class="fold-controls">` +
         `<button type="button" class="ground-toggle" hidden title="show where each sentence stands — the ground chips, hidden unless asked">ground</button>` +
         `<button type="button" class="view-toggle" title="the loops in sentences (text) or in the notation (eot) — one setting for every turn and the holograph">${viewMode === "eot" ? "text" : "eot"}</button>` +
+        `</div>` +
+        `<p></p></details>` +
         `</div>`
       : "") +
     `<div class="body"></div>`;
-  el.querySelector(".role-tag").textContent = role === "user" ? "you" : "model";
+  el.querySelector(".role-tag").textContent = role === "user" ? "you" : mouthLabel();
   el.querySelector(".ground-toggle")?.addEventListener("click", (ev) => {
     const on = el.classList.toggle("show-ground");
     ev.currentTarget.textContent = on ? "hide ground" : "ground";
@@ -12864,8 +12907,18 @@ function renderFold(node, { sent, record = null } = {}) {
   // without opening anything. Checking is what makes a turn expensive (a
   // plan, a call per part, the corrections), so the count is shown in the
   // mode that incurs it.
-  const meta = node.querySelector(".turn-meta");
-  meta.querySelector(".turn-tokens")?.remove();
+  // Lives inside the disclosure now, beside ground/view (user direction,
+  // 2026-09-09: "let's put more of this in the disclosure affordance") —
+  // collapsed, nothing but the summary trigger shows; opened, the cost
+  // sits with the other controls, above the raw JSON.
+  const meta = box.querySelector(".fold-controls") ?? node.querySelector(".turn-meta");
+  // Tokens and mouths ride in ONE wrapper span: two separate flex children
+  // each carrying their own gap and margin were landing right at the edge
+  // of the row's width and wrapping to a second line on an ordinary turn
+  // (caught live, 2026-09-09: "put this metadata on one line"). Each part
+  // keeps its own hover title; only the flex accounting changed.
+  meta.querySelector(".turn-cost")?.remove();
+  const costParts = [];
   if (state.grounded) {
     const din = tokensSeen.in - Number(node.dataset.tokIn ?? 0);
     const dout = tokensSeen.out - Number(node.dataset.tokOut ?? 0);
@@ -12875,19 +12928,24 @@ function renderFold(node, { sent, record = null } = {}) {
       t.className = "turn-tokens";
       t.textContent = `${(din + dout).toLocaleString()} tokens`;
       t.title = `${din.toLocaleString()} in · ${dout.toLocaleString()} out, over ${calls} model call(s) — measured from the runtime's own telemetry, not estimated`;
-      meta.append(t);
+      costParts.push(t);
     }
   }
   // What spoke for this turn: every call's model and the machine it ran on,
   // beside the token count, so an answer never hides which mouth made it.
-  meta.querySelector(".turn-mouths")?.remove();
   const spoke = mouthsLine(Number(node.dataset.turnSeq ?? -1));
   if (spoke) {
     const m = document.createElement("span");
     m.className = "turn-mouths";
     m.textContent = spoke;
     m.title = "which model answered each call of this turn, and on whose machine — measured at the call, not inferred";
-    meta.append(m);
+    costParts.push(m);
+  }
+  if (costParts.length) {
+    const wrap = document.createElement("span");
+    wrap.className = "turn-cost";
+    costParts.forEach((part, i) => { if (i) wrap.append(" · "); wrap.append(part); });
+    meta.append(wrap);
   }
   const out = box.querySelector("p");
   out.textContent = "";
@@ -14699,6 +14757,615 @@ syncGroundedUI();
   }
 }
 
+// ── Wiring (model-loops.js) ──────────────────────────────────────────────────
+// The last chat turn's real prompt ingredients, as nodes on the SAME graph
+// engine holograph-graph.js already draws (place()/draw(), reused whole —
+// "off"/"overridden" are new states on the identical hg-state-* hook draw()
+// already emits, nothing added there). A saved model-loop is a named set of
+// per-ingredient enable/override choices; switching one re-tunes the SAME
+// captured turn instantly, no new chat message needed.
+let wiringLoopsCache = null; // [{id, name}, …] from the server, "default" first
+let wiringPick = null; // which ingredient key the drawer is open on
+let wiringActiveId = (() => { try { return localStorage.getItem("fold-model-loop") || DEFAULT_MODEL_LOOP.id; } catch { return DEFAULT_MODEL_LOOP.id; } })();
+// The line above restores which loop the BAR shows as active; it does not
+// restore the real active loop model-loops.js's own module state holds —
+// caught live: a reload showed a saved loop highlighted while every turn
+// silently ran under Default until its chip was clicked again this
+// session. Fetching and setting the real loop here, once, closes that gap
+// with no UI touched (the Wiring pane may not be mounted at this point).
+if (wiringActiveId !== DEFAULT_MODEL_LOOP.id) {
+  fetch(`${EXPLORE_BASE}/api/model-loops?id=${encodeURIComponent(wiringActiveId)}`)
+    .then((r) => r.json())
+    .then((data) => { if (data?.loop) setActiveModelLoop(data.loop); })
+    .catch(() => { /* explore-server not reachable yet — Default keeps running, same as before this fix */ });
+}
+
+async function wiringFetchLoops() {
+  try {
+    const data = await (await fetch(`${EXPLORE_BASE}/api/model-loops`)).json();
+    wiringLoopsCache = data.loops?.length ? data.loops : [{ id: DEFAULT_MODEL_LOOP.id, name: DEFAULT_MODEL_LOOP.name }];
+  } catch {
+    wiringLoopsCache = [{ id: DEFAULT_MODEL_LOOP.id, name: DEFAULT_MODEL_LOOP.name }];
+  }
+  return wiringLoopsCache;
+}
+
+async function wiringActivate(id) {
+  let loop = DEFAULT_MODEL_LOOP;
+  if (id !== DEFAULT_MODEL_LOOP.id) {
+    try {
+      const data = await (await fetch(`${EXPLORE_BASE}/api/model-loops?id=${encodeURIComponent(id)}`)).json();
+      if (data?.loop) loop = data.loop;
+    } catch { /* explore-server not reachable — the default keeps running */ }
+  }
+  setActiveModelLoop(loop);
+  wiringActiveId = loop.id;
+  try { localStorage.setItem("fold-model-loop", wiringActiveId); } catch { /* kept for the session */ }
+  wiringCollapseDrawer(); // switching loops changes every node's meaning — never carry an expansion across that
+  renderWiring();
+}
+
+async function renderWiring() {
+  const host = $("wiring-graph");
+  if (!host) return;
+  wiringWireDrawerOnce();
+  wiringWireLoopToolbarOnce();
+  // Park the drawer back at its stable home BEFORE rebuilding the flow —
+  // host.replaceChildren below would otherwise orphan it if it's still
+  // sitting inside a card from a prior render (a detached element is no
+  // longer findable by $() at all, not merely hidden).
+  const drawerHome = $("wiring-drawer-home");
+  const drawer = $("wiring-drawer");
+  if (drawerHome && drawer && drawer.parentElement !== drawerHome) drawerHome.append(drawer);
+  wiringExpandedCard = null;
+  if (!wiringLoopsCache) await wiringFetchLoops();
+  renderWiringLoopsBar();
+  const captured = getLastCapturedTurn();
+  if (!captured) {
+    host.replaceChildren();
+    const p = document.createElement("p");
+    p.className = "wiring-empty";
+    p.textContent = "Send a chat message first, or load sample data above, to see this canvas draw real prompt ingredients.";
+    host.append(p);
+    wiringPick = null;
+    renderWiringSent(null);
+    return;
+  }
+  const loop = getActiveModelLoop();
+  const graph = loopGraphFor(captured, loop);
+  host.replaceChildren(renderWiringFlow(graph, {
+    onPick: (row, cardEl) => { if (!row) return; wiringPick = row.key; openWiringDrawer(row, cardEl); },
+    onReorder: wiringReorderIngredients,
+  }));
+  // If a card was expanded before this render (e.g. this render is the
+  // result of "apply to this loop" on that very card), re-expand the SAME
+  // card in the freshly-built flow so an edit lands in place rather than
+  // silently closing what the reader was just looking at.
+  if (wiringPick) {
+    const node = graph.nodes.find((n) => n.key === wiringPick);
+    const cardEl = host.querySelector(`.wiring-card[data-key="${CSS.escape(wiringPick)}"]`);
+    if (node && cardEl) openWiringDrawer(node.row, cardEl);
+    else wiringPick = null;
+  }
+  renderWiringSent(captured);
+}
+
+/** wiringReorderIngredients(ingredientOrder) — a drag-drop reorder applies
+ * to the loop exactly like any other edit: forks the default the first
+ * time, persists in place for a named loop. */
+async function wiringReorderIngredients(ingredientOrder) {
+  const loop = getActiveModelLoop();
+  await wiringApplyLoop({ ...loop, ingredientOrder });
+}
+
+// Which column a node's kind lands in — left-to-right on desktop, and (the
+// same DOM order) top-to-bottom on a phone, per the .wiring-flow/.wiring-col
+// CSS above. Not holograph-graph.js's general layered-DAG layout: this
+// canvas's own shape is small and fixed (stage → ingredient → assembled
+// message → sent), so a hand-placed column bucket is honest and far
+// simpler than forcing an arbitrary-topology algorithm sized for the
+// holograph's own referent graphs into a sideways orientation it was
+// never built for.
+// Two columns now, not four — the read-only fixed/assembled/sent nodes
+// that used to occupy the right two are gone (dropped outright, per "if we
+// can't adjust a parameter, it probably shouldn't be there"); every
+// remaining node is genuinely adjustable.
+const WIRING_COLUMN_OF = Object.freeze({ "pipeline-toggle": 0, "pipeline-value": 0, ingredient: 1 });
+
+/** renderWiringFlow(graph, {onPick}) → a .wiring-flow element: one .wiring-col
+ * per column bucket, in order, each holding its nodes' cards in the order
+ * loopGraphFor produced them. A card with drill:false (the read-only
+ * history/user nodes) renders but never opens the drawer. */
+// Only the draftMaterial blocks have a real, safe order to change (model-
+// loops.js's own header on ingredientOrder says why — nothing downstream
+// reads a position). Every other card kind is manipulate-only: a pipeline
+// toggle/value has a real parameter but no meaningful sequence between
+// stages, and a readOnly node (system/user/history/sent) has neither.
+let wiringDragKey = null;
+let wiringExpandedCard = null; // the .wiring-card currently holding #wiring-drawer, or null
+
+function renderWiringFlow(graph, { onPick, onReorder } = {}) {
+  const flow = document.createElement("div");
+  flow.className = "wiring-flow";
+  const columns = [[], []];
+  for (const node of graph.nodes) (columns[WIRING_COLUMN_OF[node.kind] ?? 1] ??= []).push(node);
+  for (const nodes of columns) {
+    if (!nodes.length) continue;
+    const col = document.createElement("div");
+    col.className = "wiring-col";
+    for (const node of nodes) {
+      const draggable = node.kind === "ingredient" && DRAFT_MATERIAL_KEYS.includes(node.key) && typeof onReorder === "function";
+      // The outer box is a plain div, never a <button>: a <button> can't
+      // legally contain the drawer's own <select>/<textarea>/<button> once
+      // it expands in place inside this card (openWiringDrawer). The click
+      // target is the inner .wiring-card-head button instead.
+      const card = document.createElement("div");
+      card.className = "wiring-card";
+      card.dataset.key = node.key;
+      card.dataset.drill = String(node.drill !== false);
+      if (node.state) card.dataset.state = node.state;
+      if (draggable) {
+        card.draggable = true;
+        card.classList.add("wiring-draggable");
+        card.title = "drag to change where this block's text lands in the joined prompt";
+        card.addEventListener("dragstart", (ev) => { wiringDragKey = node.key; ev.dataTransfer.effectAllowed = "move"; card.classList.add("dragging"); });
+        card.addEventListener("dragend", () => { wiringDragKey = null; card.classList.remove("dragging"); });
+        card.addEventListener("dragover", (ev) => { if (wiringDragKey && wiringDragKey !== node.key) ev.preventDefault(); });
+        card.addEventListener("drop", (ev) => {
+          ev.preventDefault();
+          if (!wiringDragKey || wiringDragKey === node.key) return;
+          const current = orderedDraftMaterialKeys(getActiveModelLoop()).filter((k) => k !== wiringDragKey);
+          current.splice(current.indexOf(node.key), 0, wiringDragKey);
+          onReorder(current);
+        });
+      }
+      const head = document.createElement("button");
+      head.type = "button";
+      head.className = "wiring-card-head";
+      const title = document.createElement("div");
+      title.className = "wiring-card-title";
+      title.textContent = node.title;
+      head.append(title);
+      if (node.meta) {
+        const meta = document.createElement("div");
+        meta.className = "wiring-card-meta";
+        meta.textContent = node.meta;
+        head.append(meta);
+      }
+      // The plain-English "what does this do" line, visible on the
+      // COLLAPSED card — not only inside the drawer once opened. Caught
+      // live (user, 2026-09-09): a reader scanning the canvas never
+      // clicked most cards, so an explanation that only existed inside
+      // the drawer was, for practical purposes, an explanation nobody saw.
+      if (node.hint) {
+        const hint = document.createElement("div");
+        hint.className = "wiring-card-hint";
+        hint.textContent = node.hint;
+        head.append(hint);
+      }
+      card.append(head);
+      if (node.drill !== false && typeof onPick === "function") head.addEventListener("click", () => onPick(node.row, card));
+      col.append(card);
+    }
+    flow.append(col);
+  }
+  return flow;
+}
+
+/** renderWiringLoopsBar() — the loop switcher: a trigger button naming the
+ * active loop, and (once opened) a searchable popover listbox. Default is
+ * always pinned first and never hidden by the filter (there must always
+ * be a visible way back to it); every saved loop after it is sorted
+ * alphabetically (case-insensitive) so a reader scanning dozens of names
+ * can actually find one. The list itself is a bounded, scrollable popover
+ * (CSS) — this function does not care how many rows exist. */
+function renderWiringLoopsBar() {
+  const list = $("wiring-loops");
+  const label = $("wiring-combo-label");
+  if (!list) return;
+  list.replaceChildren();
+  const loops = wiringLoopsCache ?? [];
+  const saved = loops.filter((l) => l.id !== DEFAULT_MODEL_LOOP.id)
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  const defaultLoop = loops.find((l) => l.id === DEFAULT_MODEL_LOOP.id) ?? DEFAULT_MODEL_LOOP;
+  list.append(wiringLoopRow(defaultLoop, { pinned: true }));
+  for (const l of saved) list.append(wiringLoopRow(l));
+  if (label) label.textContent = getActiveModelLoop().name;
+  wiringFilterLoopRows();
+}
+
+/** wiringLoopRow(loop, {pinned}) → the one `<li role="option">` for a loop
+ * in the popover — clicking its name activates and closes the popover;
+ * anything but Default also gets a delete (✕) that stops there instead of
+ * selecting. Pulled out of renderWiringLoopsBar so pinning Default ahead
+ * of the sorted rest doesn't need two near-duplicate blocks of DOM code. */
+function wiringLoopRow(l, { pinned = false } = {}) {
+  const row = document.createElement("li");
+  row.className = "wiring-loop-row";
+  row.role = "option";
+  row.dataset.loopName = l.name.toLowerCase();
+  row.setAttribute("aria-selected", String(l.id === wiringActiveId));
+  if (pinned) row.dataset.pinned = "1";
+  const name = document.createElement("span");
+  name.className = "wiring-loop-name";
+  name.textContent = l.name;
+  row.title = pinned ? "the wiring already running today — cannot be edited in place, duplicate it with + New" : l.id;
+  row.append(name);
+  row.addEventListener("click", async () => { await wiringActivate(l.id); wiringCloseLoopPanel(); });
+  if (!pinned) {
+    const del = document.createElement("button");
+    del.type = "button"; del.className = "wiring-loop-del"; del.textContent = "✕"; del.title = `delete ${l.name}`;
+    del.addEventListener("click", async (ev) => {
+      ev.stopPropagation();
+      try { await fetch(`${EXPLORE_BASE}/api/model-loops?id=${encodeURIComponent(l.id)}`, { method: "DELETE" }); } catch { /* nothing more to do locally */ }
+      wiringLoopsCache = null;
+      if (wiringActiveId === l.id) { await wiringActivate(DEFAULT_MODEL_LOOP.id); return; }
+      renderWiring();
+    });
+    row.append(del);
+  }
+  return row;
+}
+
+/** wiringFilterLoopRows() — hides (never removes) rows whose name doesn't
+ * contain the filter text; Default is exempt (there must always be a
+ * visible way back to it). Reads the filter input fresh each call rather
+ * than caching its value, so a filter typed before a re-render (activating
+ * a loop, deleting one, an import landing) still applies after
+ * renderWiringLoopsBar rebuilds the list. */
+function wiringFilterLoopRows() {
+  const list = $("wiring-loops");
+  const input = $("wiring-loop-filter");
+  if (!list) return;
+  const needle = (input?.value ?? "").trim().toLowerCase();
+  let shown = 0;
+  const total = list.children.length;
+  for (const row of list.children) {
+    const match = !needle || row.dataset.pinned || row.dataset.loopName.includes(needle);
+    row.hidden = !match;
+    if (match) shown++;
+  }
+  const count = $("wiring-loop-count");
+  if (count) {
+    count.hidden = total <= 1;
+    count.textContent = needle ? `${shown} of ${total}` : `${total} saved`;
+  }
+}
+
+/** wiringOpenLoopPanel() / wiringCloseLoopPanel() — the popover's own open
+ * state. Opening clears any leftover filter text so the full list shows
+ * first (typical searchable-select behavior: type to narrow, don't have
+ * to clear a stale search from last time). */
+function wiringOpenLoopPanel() {
+  const panel = $("wiring-loop-panel");
+  const trigger = $("wiring-combo-trigger");
+  const filter = $("wiring-loop-filter");
+  if (!panel || panel.hidden === false) return;
+  panel.hidden = false;
+  trigger?.setAttribute("aria-expanded", "true");
+  if (filter) { filter.value = ""; wiringFilterLoopRows(); filter.focus(); }
+}
+function wiringCloseLoopPanel() {
+  const panel = $("wiring-loop-panel");
+  const trigger = $("wiring-combo-trigger");
+  if (panel) panel.hidden = true;
+  trigger?.setAttribute("aria-expanded", "false");
+}
+
+/** wiringWireLoopToolbarOnce() — the trigger/panel/filter and the
+ * New/Download/Upload controls are static markup (index.html), not
+ * rebuilt on every render the way the loop rows are, so they're wired
+ * exactly once — the same guarded pattern wiringWireDrawerOnce already
+ * uses for the drawer's own static buttons. */
+function wiringWireLoopToolbarOnce() {
+  const trigger = $("wiring-combo-trigger");
+  if (!trigger || trigger.dataset.wired) return;
+  trigger.dataset.wired = "1";
+  trigger.addEventListener("click", () => {
+    if ($("wiring-loop-panel")?.hidden === false) wiringCloseLoopPanel();
+    else wiringOpenLoopPanel();
+  });
+  const filter = $("wiring-loop-filter");
+  filter.addEventListener("input", wiringFilterLoopRows);
+  filter.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { wiringCloseLoopPanel(); trigger.focus(); } });
+  // Click-away: a popover that only closes on selection/Escape is a trap
+  // the moment a reader clicks anywhere else on the canvas to look at
+  // something else.
+  document.addEventListener("click", (ev) => {
+    if ($("wiring-loop-panel")?.hidden !== false) return;
+    if (!$("wiring-combo")?.contains(ev.target)) wiringCloseLoopPanel();
+  });
+  $("wiring-new").addEventListener("click", wiringCreateLoop);
+  $("wiring-download").addEventListener("click", wiringDownloadLoop);
+  const upInput = $("wiring-upload-input");
+  upInput.addEventListener("change", async () => {
+    const file = upInput.files?.[0];
+    upInput.value = "";
+    if (file) await wiringImportLoop(file);
+  });
+  // "at any point" — load a made-up but representative turn through the
+  // exact same captureLastTurn a real one uses, so the canvas can be
+  // previewed and edited with no chat message sent and no model reachable.
+  $("wiring-sample")?.addEventListener("click", () => {
+    captureLastTurn(SAMPLE_CAPTURE.ingredients, SAMPLE_CAPTURE.shape, SAMPLE_CAPTURE.pipeline);
+    renderWiring();
+  });
+}
+
+/** wiringDownloadLoop() — "like n8n": the active loop's own saved shape,
+ * verbatim, as a downloadable file — the same createObjectURL+<a download>
+ * mechanism this file already uses for a build's own export (app.js's
+ * build-download button). The default loop has nothing saved to export
+ * (its `nodes` map ships empty from code) so the button is a no-op on it. */
+function wiringDownloadLoop() {
+  const loop = getActiveModelLoop();
+  if (loop.id === DEFAULT_MODEL_LOOP.id) { wiringStatus("Default has nothing saved to export — duplicate it with + New first."); return; }
+  const data = { name: loop.name, nodes: loop.nodes ?? {}, pipelineOptions: loop.pipelineOptions ?? {}, ingredientOrder: loop.ingredientOrder };
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+  a.download = `${loop.id}.model-loop.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/** wiringImportLoop(file) — reads, parses and shape-validates the file
+ * (validateModelLoopImport — a malformed or unknown-keyed file is a typed
+ * refusal, never a silently partial import), then saves it as a new loop
+ * through the exact route "+ New" already uses, so an imported loop is
+ * indistinguishable from a hand-built one — editable and re-exportable. */
+async function wiringImportLoop(file) {
+  let parsed;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    wiringStatus(`${file.name} is not valid JSON.`);
+    return;
+  }
+  const check = validateModelLoopImport(parsed);
+  if (!check.ok) { wiringStatus(`Refused to import ${file.name}: ${check.reason}.`); return; }
+  const data = await wiringSaveLoop(check.loop.name, check.loop.nodes, check.loop.pipelineOptions, check.loop.ingredientOrder);
+  if (!data?.loop) return;
+  wiringLoopsCache = null;
+  await wiringActivate(data.loop.id);
+}
+
+async function wiringSaveLoop(name, nodes, pipelineOptions = {}, ingredientOrder = undefined) {
+  try {
+    return await (await fetch(`${EXPLORE_BASE}/api/model-loops`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, nodes, pipelineOptions, ingredientOrder }),
+    })).json();
+  } catch {
+    wiringStatus("explore-server.mjs is not reachable on :8812 — a model-loop needs it to save.");
+    return null;
+  }
+}
+
+function wiringStatus(text) {
+  const s = $("wiring-status");
+  if (!s) return;
+  s.textContent = text;
+  s.hidden = false;
+  clearTimeout(wiringStatus._t);
+  wiringStatus._t = setTimeout(() => { s.hidden = true; }, 5000);
+}
+
+async function wiringCreateLoop() {
+  const active = getActiveModelLoop();
+  const name = await wiringPromptName(active.id === DEFAULT_MODEL_LOOP.id ? "" : `${active.name} copy`);
+  if (!name) return;
+  const data = await wiringSaveLoop(name, active.nodes ?? {}, active.pipelineOptions ?? {}, active.ingredientOrder);
+  if (!data?.loop) return;
+  wiringLoopsCache = null;
+  await wiringActivate(data.loop.id);
+}
+
+/** wiringPromptName(defaultValue) → Promise<string|null> — an inline
+ * name field beside the loop switcher (never a native prompt(), which
+ * this app uses nowhere else and which sandboxed/embedded contexts can
+ * refuse outright). Resolves to the trimmed name on save, null on cancel
+ * or an empty name. */
+function wiringPromptName(defaultValue = "") {
+  return new Promise((resolve) => {
+    const row = $("wiring-name-row");
+    const input = $("wiring-name-input");
+    if (!row || !input) { resolve(null); return; }
+    input.value = defaultValue;
+    row.hidden = false;
+    input.focus();
+    input.select();
+    const done = (value) => { row.hidden = true; cleanup(); resolve(value); };
+    const onSave = () => done(input.value.trim() || null);
+    const onCancel = () => done(null);
+    const onKey = (ev) => { if (ev.key === "Enter") onSave(); else if (ev.key === "Escape") onCancel(); };
+    const cleanup = () => {
+      $("wiring-name-save").removeEventListener("click", onSave);
+      $("wiring-name-cancel").removeEventListener("click", onCancel);
+      input.removeEventListener("keydown", onKey);
+    };
+    $("wiring-name-save").addEventListener("click", onSave);
+    $("wiring-name-cancel").addEventListener("click", onCancel);
+    input.addEventListener("keydown", onKey);
+  });
+}
+
+/** openWiringDrawer(row, cardEl) — expands the node's parameters IN PLACE,
+ * inside the clicked card, rather than in a separate side/bottom panel a
+ * reader could miss (caught live: "I wasn't seeing it down there" on
+ * mobile, where the old panel rendered below the whole canvas). There is
+ * only ever one #wiring-drawer element; it physically moves into whichever
+ * card is expanded and moves back to #wiring-drawer-home when collapsed —
+ * never cloned, so all its field-wiring stays the one implementation.
+ * Clicking the already-expanded card's own head collapses it back. */
+function openWiringDrawer(row, cardEl) {
+  const drawer = $("wiring-drawer");
+  if (!drawer || !row) return;
+  if (cardEl) {
+    if (wiringExpandedCard === cardEl && !drawer.hidden) {
+      wiringCollapseDrawer();
+      return;
+    }
+    wiringExpandedCard?.classList.remove("expanded");
+    cardEl.append(drawer);
+    cardEl.classList.add("expanded");
+    wiringExpandedCard = cardEl;
+  }
+  drawer.hidden = false;
+  const loop = getActiveModelLoop();
+  const stage = PIPELINE_STAGE_META[row.key];
+  $("wiring-drawer-title").textContent = row.title ?? (stage ? stage.title : row.key);
+  $("wiring-drawer-hint").textContent = row.hint ?? stage?.hint ?? "";
+  $("wiring-save-node").hidden = Boolean(row.readOnly);
+  if (row.readOnly) {
+    $("wiring-ingredient-fields").hidden = false;
+    $("wiring-pipeline-fields").hidden = true;
+    $("wiring-enable").hidden = true;
+    $("wiring-override-field").hidden = true;
+    $("wiring-computed").textContent = row.computed;
+    return;
+  }
+  $("wiring-enable").hidden = false;
+  $("wiring-override-field").hidden = false;
+  $("wiring-ingredient-fields").hidden = Boolean(stage);
+  $("wiring-pipeline-fields").hidden = !stage;
+  if (!stage) {
+    const node = loop?.nodes?.[row.key];
+    $("wiring-enabled").checked = node?.enabled !== false;
+    $("wiring-computed").textContent = row.computed || "(empty this turn)";
+    $("wiring-override").value = typeof node?.override === "string" ? node.override : "";
+    return;
+  }
+  const opt = loop?.pipelineOptions?.[row.key];
+  const computedText = row.computed === null || row.computed === undefined
+    ? "not disclosed this turn — settable below regardless"
+    : String(row.computed);
+  $("wiring-pipeline-computed").textContent = computedText;
+  const isToggle = stage.kind === "pipeline-toggle";
+  $("wiring-pipeline-toggle").hidden = !isToggle;
+  $("wiring-pipeline-value-select").hidden = !(!isToggle && Array.isArray(stage.domain));
+  $("wiring-pipeline-value-number").hidden = !(!isToggle && stage.domain === "number");
+  if (isToggle) {
+    $("wiring-pipeline-toggle").value = typeof opt?.enabled === "boolean" ? (opt.enabled ? "on" : "off") : "";
+  } else if (Array.isArray(stage.domain)) {
+    const sel = $("wiring-pipeline-value-select");
+    sel.replaceChildren();
+    const inherit = document.createElement("option");
+    inherit.value = ""; inherit.textContent = "no change";
+    sel.append(inherit);
+    for (const v of stage.domain) {
+      const o = document.createElement("option");
+      o.value = String(v); o.textContent = String(v);
+      sel.append(o);
+    }
+    sel.value = opt && "value" in opt ? String(opt.value) : "";
+  } else {
+    $("wiring-pipeline-value-number").value = opt && "value" in opt ? String(opt.value) : "";
+  }
+}
+
+/** wiringCollapseDrawer() — hides the drawer and parks it back at
+ * #wiring-drawer-home, clearing the expanded card's own highlight. Shared
+ * by the close button and by re-clicking an already-expanded card's head. */
+function wiringCollapseDrawer() {
+  const drawer = $("wiring-drawer");
+  if (drawer) {
+    drawer.hidden = true;
+    $("wiring-drawer-home")?.append(drawer);
+  }
+  wiringExpandedCard?.classList.remove("expanded");
+  wiringExpandedCard = null;
+  wiringPick = null;
+}
+
+function wiringWireDrawerOnce() {
+  const drawer = $("wiring-drawer");
+  if (!drawer || drawer.dataset.wired) return;
+  drawer.dataset.wired = "1";
+  $("wiring-drawer-close").addEventListener("click", wiringCollapseDrawer);
+  $("wiring-save-node").addEventListener("click", wiringSaveNode);
+}
+
+async function wiringSaveNode() {
+  const key = wiringPick;
+  if (!key) return;
+  const loop = getActiveModelLoop();
+  const stage = PIPELINE_STAGE_META[key];
+  if (!stage) {
+    const enabled = $("wiring-enabled").checked;
+    const overrideText = $("wiring-override").value;
+    if (enabled && overrideText.trim()) {
+      const check = validateOverride(overrideText);
+      if (!check.ok) {
+        wiringStatus(`{${check.illegal.join("}, {")}} is not a real ingredient — legal references are any ingredient's own key (see the canvas) or {value} for this node's own computed text. Not saved.`);
+        return;
+      }
+    }
+    const nodes = { ...(loop.nodes ?? {}) };
+    if (!enabled) nodes[key] = { enabled: false };
+    else if (overrideText.trim()) nodes[key] = { override: overrideText };
+    else delete nodes[key];
+    await wiringApplyLoop({ ...loop, nodes });
+    return;
+  }
+  const pipelineOptions = { ...(loop.pipelineOptions ?? {}) };
+  if (stage.kind === "pipeline-toggle") {
+    const picked = $("wiring-pipeline-toggle").value;
+    if (picked === "on") pipelineOptions[key] = { enabled: true };
+    else if (picked === "off") pipelineOptions[key] = { enabled: false };
+    else delete pipelineOptions[key];
+  } else if (Array.isArray(stage.domain)) {
+    const picked = $("wiring-pipeline-value-select").value;
+    if (picked === "") delete pipelineOptions[key];
+    else pipelineOptions[key] = { value: stage.domain.every((v) => typeof v === "number") ? Number(picked) : picked };
+  } else {
+    const raw = $("wiring-pipeline-value-number").value;
+    if (raw.trim() === "") delete pipelineOptions[key];
+    else pipelineOptions[key] = { value: Number(raw) };
+  }
+  await wiringApplyLoop({ ...loop, pipelineOptions });
+}
+
+/** wiringApplyLoop(nextLoop) — makes nextLoop the active loop and persists
+ * it. Editing the shipped default forks it into a new loop (named on the
+ * spot), since the default ships from code and this server refuses to
+ * overwrite it — the same "+ New" flow, triggered by the first edit. */
+async function wiringApplyLoop(nextLoop) {
+  if (nextLoop.id === DEFAULT_MODEL_LOOP.id) {
+    const name = await wiringPromptName("My loop");
+    if (!name) return;
+    const data = await wiringSaveLoop(name, nextLoop.nodes, nextLoop.pipelineOptions ?? {}, nextLoop.ingredientOrder);
+    if (!data?.loop) return;
+    wiringLoopsCache = null;
+    await wiringActivate(data.loop.id);
+    return;
+  }
+  setActiveModelLoop(nextLoop);
+  try {
+    await fetch(`${EXPLORE_BASE}/api/model-loops`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: nextLoop.id, name: nextLoop.name, nodes: nextLoop.nodes, pipelineOptions: nextLoop.pipelineOptions ?? {}, ingredientOrder: nextLoop.ingredientOrder }),
+    });
+  } catch { /* the change still applies for this session even if the save failed */ }
+  renderWiring();
+}
+
+function renderWiringSent(captured) {
+  const pre = $("wiring-sent");
+  if (!pre) return;
+  if (!captured) { pre.textContent = "(no turn captured yet)"; return; }
+  const loop = getActiveModelLoop();
+  const preview = previewFor(captured, loop);
+  const stageLines = Object.entries(loop?.pipelineOptions ?? {})
+    .filter(([, opt]) => typeof opt?.enabled === "boolean" || (opt && "value" in opt))
+    .map(([key, opt]) => `${PIPELINE_STAGE_META[key]?.title ?? key}: ${typeof opt.enabled === "boolean" ? (opt.enabled ? "forced on" : "forced off") : `set to ${opt.value}`}`);
+  const parts = [];
+  if (stageLines.length) parts.push(`[pipeline]\n${stageLines.join("\n")}`);
+  if (preview?.parts.length) parts.push(...preview.parts.map((p) => `[${p.key}]\n${p.value}`));
+  pre.textContent = parts.length ? parts.join("\n\n") : "(nothing — every ingredient this shape uses is empty or switched off)";
+}
+
 // ── views ────────────────────────────────────────────────────────────────────
 //
 // Wide, the chat and the panels sit side by side and the tabs switch only the
@@ -14706,14 +15373,23 @@ syncGroundedUI();
 // and the same click does both jobs. The editor and the terminal are panes
 // with no tab of their own — they open from a build or from its control.
 
+// Resources/Holograph/Wiring/GitHub are grouped behind one "More" tab
+// (2026-09-08, "too many tabs" — four peer tabs made the mobile bar
+// unreadable and the folded side-rail a long vertical scroll). They still
+// have their own tab-shaped buttons, in #more-subnav; MORE_GROUP (declared
+// above, beside panelWide) is what lets the top-level "More" tab show as
+// selected while any of the four is the active view, without a second
+// piece of state to keep in sync.
 function showView(name) {
   // Leaving the editor is an act: an uncommitted draft becomes a SUPERSEDE
   // on the way out, so the builds panel and the download never show older
   // bytes than the newest work (commitDraft is a no-op when there is none).
   if (name !== "editor") commitDraft(editorBuild);
   document.body.dataset.view = name;
+  if (MORE_GROUP.includes(name)) lastMorePane = name;
+  const tabName = MORE_GROUP.includes(name) ? "more" : name;
   for (const t of document.querySelectorAll('[role="tab"]'))
-    t.setAttribute("aria-selected", String(t.dataset.pane === name));
+    t.setAttribute("aria-selected", String(t.dataset.pane === name || t.dataset.pane === tabName));
   if (name === "chat") return; // the panels keep whichever pane they had
   for (const p of document.querySelectorAll(".pane"))
     p.classList.toggle("on", p.id === `pane-${name}`);
@@ -14721,12 +15397,19 @@ function showView(name) {
   if (name === "resources") renderResources();
   if (name === "editor") editorLayout();
   if (name === "holograph") renderHolograph();
+  if (name === "wiring") renderWiring();
 }
 
 for (const tab of document.querySelectorAll('[role="tab"]'))
   // A tab pressed while the panel is collapsed OPENS it on that pane: a tab
-  // that selects a thing nobody can see is not a tab.
-  tab.onclick = () => { if (panelCollapsed && tab.dataset.pane !== "chat") setPanelCollapsed(false); showView(tab.dataset.pane); };
+  // that selects a thing nobody can see is not a tab. The top-level "More"
+  // tab has no pane of its own — it opens whichever of the four was seen
+  // last (the first time, MORE_GROUP's own first entry).
+  tab.onclick = () => {
+    const pane = tab.dataset.pane === "more" ? lastMorePane : tab.dataset.pane;
+    if (panelCollapsed && pane !== "chat") setPanelCollapsed(false);
+    showView(pane);
+  };
 
 // THE PANEL AT FULL WIDTH (user, 2026-09-08). One class on <body>; the
 // conversation column keeps its own tabs as a rail (index.html carries the
@@ -14747,6 +15430,7 @@ function setPanelWide(on) {
   // The drawing is measured against the pane it is drawn in, so a width
   // change is a redraw, not a reflow (holograph-graph.js::place).
   if (document.body.dataset.view === "holograph") renderHolograph();
+  if (document.body.dataset.view === "wiring") renderWiring();
 }
 function setPanelCollapsed(on) {
   panelCollapsed = !!on;

@@ -69,6 +69,7 @@ import { parseSegments } from "./artifact.js";
 import { admitPassages } from "./read-on-arrival.js";
 import { asksAboutMaterial, materialView, abbreviate, aboutBlock } from "./about.js";
 import { interpretAsk } from "./about-call.js";
+import { getActiveModelLoop, applyModelLoop, captureLastTurn, joinDraftMaterial } from "./model-loops.js";
 
 // ── the decomposition gate ───────────────────────────────────────────────────
 //
@@ -2377,7 +2378,33 @@ export async function runPart({
   const compress = activated || material === "snips" || (material === "auto" && resolutions >= 2);
   const handed = activated ? "activated sentences" : compress ? (snipPrefix ? "snips" : "passages (no snips to hand)") : "passages";
   const rawSource = compress && snipPrefix ? null : (factBlock ? (spanBlock ?? dedupedSourceBlock) : dedupedSourceBlock);
-  const draftMaterial = [comparisonLine, declaredLine, aboutLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, factBlock ? factBlock.text : null, ledgerBlock, rawSource].filter(Boolean).join("\n\n");
+  // THE THREE RESOLUTIONS (resolutions.js): computed from the record, cut by the measurement, templated — never written by a model. The conversation-wide index is the caller's; this part's index stands in only when none was handed over, and the block says so.
+  const resolution = resolutions > 0 ? resolutionBlocks({ level: resolutions, question: task || question, transcript, index: conversationIndex ?? referentIndex, notes: foldedNotes, voids: Array.isArray(hyperlexiconVoids) && hyperlexiconVoids.length ? hyperlexiconVoids : (hyperlexicon?.foldVoids && beliefNotes ? (() => { try { return hyperlexicon.foldVoids(beliefNotes); } catch { return []; } })() : []), records, dmdWindow, prominence: mentionBook ? (id) => (mentionBook.byId?.get(id)?.length ?? 0) : null }) : null;
+  // Model-loops (model-loops.js): every named block/suffix below is tuned
+  // through the active model-loop before it is joined into the prompt —
+  // a no-op for the default loop, so nothing here changes unless a saved
+  // loop says to. Downstream checking (grounding, citations, the
+  // correction loop) still reads the ORIGINAL locals above, never the
+  // tuned copy — an override changes what the model is asked, never what
+  // its answer is checked against. The RAW ingredients (below) are what
+  // gets captured for the canvas — never the tuned copy — so switching
+  // the active loop later re-tunes against the real mechanism's output
+  // rather than against whatever loop happened to be active this turn.
+  const modelLoopIngredients = {
+    comparisonLine, declaredLine, aboutLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock,
+    factBlockText: factBlock ? factBlock.text : null,
+    ledgerBlock, rawSource,
+    resolutionText: resolution?.text ?? null,
+    s2Frame, flatExecuteSystemPrompt: FLAT_EXECUTE_SYSTEM_PROMPT, chatSystemPrompt: CHAT_SYSTEM_PROMPT,
+    shapeSuffix, notesSuffix, priorPassSuffix, searchedVoidSuffix, chatContext,
+  };
+  const activeModelLoop = getActiveModelLoop();
+  const modelLoopTuned = applyModelLoop(modelLoopIngredients, activeModelLoop);
+  // The block ORDER is genuinely user-tunable (model-loops.js's own header
+  // says why: nothing downstream reads a position, only which stages run
+  // and in what sequence is off limits) — joinDraftMaterial permutes per
+  // the active loop's own ingredientOrder, natural order by default.
+  const draftMaterial = joinDraftMaterial(modelLoopTuned, activeModelLoop);
   // A turn with nothing attached is exactly the turn that should stand on
   // what was read BEFORE — until 2026-09-03 the ledger block reached only
   // the material branches, so a from-memory question never saw the ledger
@@ -2400,11 +2427,17 @@ export async function runPart({
   // this only withholds what THIS prompt offers; the note stays on
   // `state.hyperlexiconLog` exactly as before, and reaches every other
   // question (a decomposed part, a turn with real material, or a genuinely
-  // bare chat with nothing attached at all) exactly as before.
-  const ledgerSuffix = (!unretrievedSuffix && ledgerBlock) ? `\n\n${ledgerBlock}` : "";
-  // THE THREE RESOLUTIONS (resolutions.js): computed from the record, cut by the measurement, templated — never written by a model. The conversation-wide index is the caller's; this part's index stands in only when none was handed over, and the block says so.
-  const resolution = resolutions > 0 ? resolutionBlocks({ level: resolutions, question: task || question, transcript, index: conversationIndex ?? referentIndex, notes: foldedNotes, voids: Array.isArray(hyperlexiconVoids) && hyperlexiconVoids.length ? hyperlexiconVoids : (hyperlexicon?.foldVoids && beliefNotes ? (() => { try { return hyperlexicon.foldVoids(beliefNotes); } catch { return []; } })() : []), records, dmdWindow, prominence: mentionBook ? (id) => (mentionBook.byId?.get(id)?.length ?? 0) : null }) : null;
+  // bare chat with nothing attached at all) exactly as before. Model-loop
+  // tuned (modelLoopTuned.ledgerBlock), same as every other ingredient here.
+  const ledgerSuffix = (!unretrievedSuffix && modelLoopTuned.ledgerBlock) ? `\n\n${modelLoopTuned.ledgerBlock}` : "";
+  // `resolution` is computed once, above (before modelLoopIngredients) —
+  // reused here, never recomputed.
   const resolutionSuffix = resolution?.text ? `\n\n${resolution.text}` : "";
+  // Shape follows the SAME branch origin/main's fix now uses (`flat` first,
+  // never `passages.length` first) — a decomposed part is "execute-part"
+  // regardless of whether its own retrieval came back empty; only a FLAT
+  // turn's three shapes depend on passages/chatHistory.
+  const modelLoopShape = flat ? (passages.length ? "flat-material" : (chatHistory.length ? "chat-history" : "chat-bare")) : "execute-part";
   // A DECOMPOSED part (!flat) always builds its prompt from its own label/
   // description via buildExecutePrompt — even when this part's own
   // retrieval came back with nothing. buildExecutePrompt already has the
@@ -2427,25 +2460,39 @@ export async function runPart({
       ? [
           {
             role: "system",
-            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + shapeSuffix + notesSuffix + priorPassSuffix + todaySuffix, draftMaterial].join("\n\n") + chatContext + resolutionSuffix,
+            content: [modelLoopTuned.s2Frame + modelLoopTuned.flatExecuteSystemPrompt + modelLoopTuned.shapeSuffix + modelLoopTuned.notesSuffix + modelLoopTuned.priorPassSuffix + todaySuffix, draftMaterial].join("\n\n") + modelLoopTuned.chatContext + resolutionSuffix,
           },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task || `${part.label}. ${part.description}` },
         ]
       : chatHistory.length
         ? [
-            { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${unretrievedSuffix}${notesSuffix}${priorPassSuffix}${todaySuffix}${chatContext}${ledgerSuffix}${resolutionSuffix}` },
+            { role: "system", content: `${modelLoopTuned.s2Frame}${modelLoopTuned.chatSystemPrompt}${modelLoopTuned.searchedVoidSuffix}${unretrievedSuffix}${modelLoopTuned.notesSuffix}${modelLoopTuned.priorPassSuffix}${todaySuffix}${modelLoopTuned.chatContext}${ledgerSuffix}${resolutionSuffix}` },
             ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
             { role: "user", content: task },
           ]
         : [
-            { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${unretrievedSuffix}${notesSuffix}${priorPassSuffix}${todaySuffix}${ledgerSuffix}` },
-            { role: "user", content: `${task}${chatContext}` },
+            { role: "system", content: `${modelLoopTuned.s2Frame}${modelLoopTuned.chatSystemPrompt}${modelLoopTuned.searchedVoidSuffix}${unretrievedSuffix}${modelLoopTuned.notesSuffix}${modelLoopTuned.priorPassSuffix}${todaySuffix}${ledgerSuffix}` },
+            { role: "user", content: `${task}${modelLoopTuned.chatContext}` },
           ]
     : [
         { role: "system", content: EXECUTE_SYSTEM_PROMPT + resolutionSuffix },
         { role: "user", content: buildExecutePrompt(part, draftMaterial, discourse, piece) },
       ];
+  // Pipeline-stage snapshot (v2): what actually ran this part, read off
+  // runPart's own bindings — never a second computation of it. `depth`
+  // itself is not in scope here (runHolonicTask converts it to these
+  // budgets before calling runPart), so it is disclosed as unset rather
+  // than guessed.
+  captureLastTurn(modelLoopIngredients, modelLoopShape, {
+    makeRelationReader: Boolean(makeRelationReader),
+    witnessSentences: Boolean(witnessSentences),
+    checkLink: Boolean(checkLink),
+    resolutions,
+    material,
+    passagesPerPart,
+    maxCorrections,
+  });
   onProgress?.("execute", part, {
     // What this call will actually carry — the page's pace ledger turns it
     // into an expected duration.
@@ -3361,7 +3408,10 @@ export async function runPart({
   // `addressed.absent`/`addressed.unestablished` a few lines above still
   // carry the same information as typed metadata for the record/thinking
   // panel, which is the "record-only" pattern the very next comment block
-  // describes for the sibling `owned` case.
+  // describes for the sibling `owned` case. (A narrower fix landed on the
+  // other side of this same merge, same day — gate the line on whether
+  // material existed at all, rather than dropping it outright. Superseded:
+  // this full removal already subsumes it, and is the more coherent rule.)
   // THE RECORD OWNS ITS CORRECTIONS (user, 2026-09-07: "I just want it to learn and own its mistakes"): a correction learned in this conversation and in scope of this question is said on the answer, in the record's own words — what was held, what the sources say.
   // Record-only (user, 2026-09-07: "we don't need apologies, just awareness in a way that makes future mistakes less likely"): the awareness is the corrected fact handed back in scope and the guard that catches a repeat; `owned` names them on the record, the answer is not decorated.
   const owned = ownedRows(learnedRows, { since: learnedSince });

@@ -35,6 +35,7 @@ import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { foldExtract } from "../eoreader7/legacy-eoreader6.1/packages/host/index.js";
 import { foldLibrary, sanitizeFileName, LIBRARY_UPLOAD_MAX_BYTES } from "./library.js";
+import { DEFAULT_MODEL_LOOP, INGREDIENT_KEYS } from "./model-loops.js";
 // the priors organ's GATE (toggle ledger fold, most-specific-wins
 // resolution, papers via priors.js's one frontmatter reading) — this file
 // owns only the crossings
@@ -177,6 +178,12 @@ const LIBRARY_LEDGER_PATH = path.join(LIBRARY_DIR, "library.jsonl");
 // server's to write, like library/ — never the corpus itself.
 const PRIORS_ROOT = path.resolve(ROOT, "..", "live_priors");
 const PRIORS_DIR = path.join(ROOT, "priors");
+// Model-loops (model-loops.js) — saved, named templates over the live
+// chat turn's prompt ingredients. One JSON file per loop, mirroring
+// priors/'s own directory-of-files convention. "default" is never a
+// file here — it ships as model-loops.js's own DEFAULT_MODEL_LOOP
+// constant and is immutable from this server (PUT/DELETE on it refuse).
+const MODEL_LOOPS_DIR = path.join(ROOT, "model-loops");
 const PRIORS_LEDGER_PATH = path.join(PRIORS_DIR, "toggles.jsonl");
 // The skill library's own persistence (skill-runner.mjs's declared path,
 // dormant there until a skill is actually admitted) — GET/import here read
@@ -274,10 +281,63 @@ const CODE_EXTS = new Set([".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".py", 
 mkdirSync(RECORD_DIR, { recursive: true });
 mkdirSync(MATERIALS_DIR, { recursive: true });
 mkdirSync(LIBRARY_FILES_DIR, { recursive: true });
+mkdirSync(MODEL_LOOPS_DIR, { recursive: true });
 function record(event, fields = {}) {
   const line = JSON.stringify({ at: new Date().toISOString(), event, ...fields });
   appendFileSync(RECORD_PATH, line + "\n");
   return line;
+}
+
+// ── model-loops ──────────────────────────────────────────────────────────────
+// One JSON file per saved loop, keyed by id — the priors/ directory's own
+// convention, one document per file rather than a single mutable blob.
+// "default" is never read from or written to disk here: it is
+// model-loops.js's own shipped constant, listed and served from code so
+// it can never drift from what holon.js's own no-op guarantee assumes.
+function modelLoopPath(id) {
+  return path.join(MODEL_LOOPS_DIR, `${sanitizeFileName(id)}.json`);
+}
+function slugForLoopName(name) {
+  const base = String(name ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "loop";
+  let id = base;
+  let n = 2;
+  while (id === DEFAULT_MODEL_LOOP.id || existsSync(modelLoopPath(id))) {
+    id = `${base}-${n}`;
+    n += 1;
+  }
+  return id;
+}
+function listModelLoops() {
+  let files = [];
+  try {
+    files = readdirSync(MODEL_LOOPS_DIR).filter((f) => f.endsWith(".json"));
+  } catch {
+    /* none saved yet */
+  }
+  const saved = files
+    .map((f) => {
+      try {
+        const loop = JSON.parse(readFileSync(path.join(MODEL_LOOPS_DIR, f), "utf8"));
+        return { id: loop.id, name: loop.name };
+      } catch {
+        return null;
+      }
+    })
+    .filter((l) => l && l.id && l.id !== DEFAULT_MODEL_LOOP.id);
+  return [{ id: DEFAULT_MODEL_LOOP.id, name: DEFAULT_MODEL_LOOP.name }, ...saved];
+}
+function readModelLoop(id) {
+  if (id === DEFAULT_MODEL_LOOP.id) return DEFAULT_MODEL_LOOP;
+  const abs = modelLoopPath(id);
+  if (!existsSync(abs)) return null;
+  try {
+    return JSON.parse(readFileSync(abs, "utf8"));
+  } catch {
+    return null;
+  }
+}
+function writeModelLoop(loop) {
+  writeFileSync(modelLoopPath(loop.id), JSON.stringify(loop, null, 2));
 }
 
 // ── the library ──────────────────────────────────────────────────────────────
@@ -959,7 +1019,7 @@ const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 function corsHeaders(req) {
   const origin = req.headers.origin;
   return origin && LOCAL_ORIGIN.test(origin)
-    ? { "access-control-allow-origin": origin, "access-control-allow-methods": "GET, POST", "access-control-allow-headers": "content-type" }
+    ? { "access-control-allow-origin": origin, "access-control-allow-methods": "GET, POST, PUT, DELETE", "access-control-allow-headers": "content-type" }
     : {};
 }
 
@@ -3178,6 +3238,63 @@ function mergeRelatingLedger(left, nominations) {
         ? lines.slice(offset, offset + (tail || 50))
         : lines.slice(-tail || -50);
       return send(res, 200, { path: relOf(RECORD_PATH), total, offset, tail: slice });
+    }
+
+    // model-loops (model-loops.js): saved templates over the live chat
+    // turn's prompt ingredients. "default" always lists first and is
+    // immutable here (it ships from code, not disk) — a save or delete
+    // naming it is refused.
+    if (req.method === "GET" && p === "/api/model-loops") {
+      const id = url.searchParams.get("id");
+      if (id) {
+        const loop = readModelLoop(id);
+        if (!loop) return send(res, 404, { error: `no such model-loop: ${id}` });
+        return send(res, 200, { loop });
+      }
+      return send(res, 200, { loops: listModelLoops(), ingredientKeys: INGREDIENT_KEYS });
+    }
+
+    if (req.method === "POST" && p === "/api/model-loops") {
+      const body = await readJsonBody(req);
+      if (typeof body.name !== "string" || !body.name.trim()) return send(res, 400, { error: "name (non-empty string) is required" });
+      const id = slugForLoopName(body.name);
+      const loop = {
+        id, name: body.name.trim(),
+        nodes: (body.nodes && typeof body.nodes === "object") ? body.nodes : {},
+        pipelineOptions: (body.pipelineOptions && typeof body.pipelineOptions === "object") ? body.pipelineOptions : {},
+        ingredientOrder: Array.isArray(body.ingredientOrder) && body.ingredientOrder.every((k) => typeof k === "string") ? body.ingredientOrder : undefined,
+      };
+      writeModelLoop(loop);
+      record("model-loop-create", { id, name: loop.name });
+      return send(res, 200, { loop, loops: listModelLoops() });
+    }
+
+    if (req.method === "PUT" && p === "/api/model-loops") {
+      const body = await readJsonBody(req);
+      const id = body.id;
+      if (typeof id !== "string" || !id) return send(res, 400, { error: "id is required" });
+      if (id === DEFAULT_MODEL_LOOP.id) return send(res, 400, { error: "the default model-loop ships from code and cannot be edited here — duplicate it into a new one instead" });
+      if (!readModelLoop(id)) return send(res, 404, { error: `no such model-loop: ${id}` });
+      const loop = {
+        id, name: (typeof body.name === "string" && body.name.trim()) || id,
+        nodes: (body.nodes && typeof body.nodes === "object") ? body.nodes : {},
+        pipelineOptions: (body.pipelineOptions && typeof body.pipelineOptions === "object") ? body.pipelineOptions : {},
+        ingredientOrder: Array.isArray(body.ingredientOrder) && body.ingredientOrder.every((k) => typeof k === "string") ? body.ingredientOrder : undefined,
+      };
+      writeModelLoop(loop);
+      record("model-loop-save", { id, name: loop.name });
+      return send(res, 200, { loop, loops: listModelLoops() });
+    }
+
+    if (req.method === "DELETE" && p === "/api/model-loops") {
+      const id = url.searchParams.get("id");
+      if (!id) return send(res, 400, { error: "id is required" });
+      if (id === DEFAULT_MODEL_LOOP.id) return send(res, 400, { error: "the default model-loop cannot be deleted" });
+      const abs = modelLoopPath(id);
+      if (!existsSync(abs)) return send(res, 404, { error: `no such model-loop: ${id}` });
+      unlinkSync(abs);
+      record("model-loop-delete", { id });
+      return send(res, 200, { loops: listModelLoops() });
     }
 
     if (req.method === "GET") return serveStatic(req, res, p);

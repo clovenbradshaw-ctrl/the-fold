@@ -131,6 +131,7 @@ import { reduce as audioReduce } from "../eoreader7/native/adapters/audio/reduce
 import { createDeclarationLog, proposeCandidate as proposeDeclaration, promote as promoteDeclaration, foldDeclarations } from "/engine-v7/interpretation/declarations.js";
 import { renderCrown } from "./crown.js";
 import { compose, coverageLine } from "./compose.js";
+import { formatReference, CITATION_STYLES, DEFAULT_CITATION_STYLE } from "./citation-style.js";
 
 import { transcribeBlob, fetchAudioFromUrl, WHISPER_DISCLOSURE } from "./transcribe.js";
 import { passagesFromSegments, citeAudio, AUDIO_STANDING } from "./audio-address.js";
@@ -1768,6 +1769,15 @@ const state = {
    * no claim taken to the web. Set from the header toggle; read per turn.
    */
   grounded: localStorage.getItem("fold-marks") !== "off",
+
+  /**
+   * Which style a composed document's References section prints in
+   * (citation-style.js) — a pure display choice over the SAME underlying
+   * byte-addressed anchors either way, never a re-compose. App-level, not
+   * per-conversation or per-workspace: it is about how this reader wants
+   * to SEE a citation, not a fact about any one document.
+   */
+  citationStyle: CITATION_STYLES[localStorage.getItem("fold-citation-style")] ? localStorage.getItem("fold-citation-style") : DEFAULT_CITATION_STYLE,
 
   /**
    * The thinking-depth slider (P123, depth.js): 0 quick · 1 plain (today's
@@ -4203,6 +4213,7 @@ function rememberPageFace(name, url, entry) {
   state.pageFaces[name] = { url, host: hostOf(url), rawPath: entry.rawPath, textPath: entry.textPath ?? null };
 }
 
+
 // ── /ranke — the primary-source chase, on request ────────────────────────
 // Budgets declared per run (P9): the caller — now only the explicit
 // /ranke <maxFetches> [maxSearches] door — names them (the ambient
@@ -4758,6 +4769,66 @@ function findFactsBuild() {
   return state.builds.find((b) => b.kind !== "database" && buildFold(b, null)?.caption === FACTS_CAPTION) ?? null;
 }
 
+/**
+ * What this instrument actually knows about a loaded source, for a
+ * References line (citation-style.js) — read straight off state, never
+ * asked of a model. User direction, 2026-09-09: "no model rewriting the
+ * source name and date stuff either." A field this instrument was never
+ * told is `null` here and stays a disclosed gap all the way to the
+ * rendered line ("n.d.", no site) — never guessed, never left to a
+ * draft's own paraphrase of its source.
+ *
+ * `accessedOn` is the one field manufactured rather than read: not a
+ * stored timestamp (none is kept per source today — a disclosed gap of
+ * its own), but `new Date()` at the moment a reference is RENDERED. That is
+ * still an honest fact, just not the one a citation usually reports: this
+ * instrument is reporting when IT is looking at the source, same as any
+ * reader citing a page that might change under them.
+ */
+function sourceMeta(name) {
+  const prov = state.provenance[name] ?? null;
+  const face = state.pageFaces[name] ?? null;
+  const fields = prov?.fields ?? {};
+  const url = face?.url ?? fields.url ?? null;
+  const host = face?.host ?? (url ? hostOf(url) : null);
+  // provenance.js's own `line` is a free-text display string built for a
+  // reader's eye ("Title — host"), not a structured field — split only
+  // the one shape it is actually built in (addPageFace's own template,
+  // above), and only ever for a TITLE; never guess an author out of it.
+  const title = fields.title ?? (prov?.line?.includes(" — ") ? prov.line.split(" — ")[0] : null);
+  return {
+    name,
+    title,
+    author: fields.author ?? null,
+    site: host ?? fields.site ?? null,
+    url,
+    accessedOn: new Date(),
+    kind: url ? "web" : "attached",
+  };
+}
+
+/**
+ * Wikipedia is an INDEX, never a citation (user direction, 2026-09-09:
+ * "let's never cite wikipedia... we only use it as an index for primary
+ * sources, and we seek multiple sources when possible"). It stays a
+ * loadable, readable source — a fine map of what to go read next, and
+ * `/ranke` already chases exactly that, from a page's own outbound
+ * citations to the primary face that actually states a claim (P84) — but
+ * its own bytes never back a composed fact or appear in References.
+ * Checked by host first (real, when a page was freshly fetched or its
+ * library attachment carried provenance — see existingItems' "saved
+ * pages" branch above); the source's own display NAME is the honest
+ * fallback for the many older/less-instrumented attachment paths that
+ * still don't populate state.pageFaces, since a Wikipedia article kept
+ * from the web organ is always titled "<article> - Wikipedia" or "<article>
+ * — Wikipedia" (source.js's own title-extraction convention).
+ */
+function isWikipediaSource(name) {
+  const host = state.pageFaces[name]?.host ?? (state.provenance[name]?.fields?.url ? hostOf(state.provenance[name].fields.url) : null);
+  if (host && /(^|\.)wikipedia\.org$/i.test(host)) return true;
+  return /\bwikipedia\b/i.test(String(name ?? ""));
+}
+
 async function factsTurn(argstr, typed) {
   const n = Number((argstr ?? "").trim());
   if (!Number.isInteger(n) || n < 1)
@@ -4770,6 +4841,17 @@ async function factsTurn(argstr, typed) {
   if (!allNotes.length) return usageTurn(typed, "the hyperlexicon is empty — nothing has been heard yet in this workspace, so there is no fact to compose.");
   const names = Object.keys(state.sources);
   if (!names.length) return usageTurn(typed, "no sources loaded — a fact is composed by checking it against what is loaded, and nothing is.");
+  // Wikipedia is an index, never a citation (isWikipediaSource's own
+  // header) — a claim only composes when a NON-Wikipedia source states
+  // it. Wikipedia stays loaded (still counts toward the relevance filter
+  // just below, and /ranke can still chase its own outbound citations to
+  // a primary face), it simply never grounds a sentence in the document.
+  const citableNames = names.filter((nm) => !isWikipediaSource(nm));
+  if (!citableNames.length)
+    return usageTurn(
+      typed,
+      `${names.join(", ")} ${names.length > 1 ? "are all" : "is"} Wikipedia — loaded as an index, never cited directly. Attach a primary or secondary source (a news article, an official record, a book excerpt) to compose grounded facts, or run /ranke to chase Wikipedia's own citations out to the primary sources it names first.`,
+    );
 
   // The hyperlexicon is per-WORKSPACE, so it holds every fact ever heard in
   // this workspace — including from unrelated earlier turns, other
@@ -4805,6 +4887,38 @@ async function factsTurn(argstr, typed) {
   const slice = notes.slice(0, n); // foldWithStanding's own order (post-filter): most-witnessed first — a declared order, never invented (compose.js's own rule)
   body.textContent = `composing: checking ${slice.length} of ${notes.length} fact(s) heard from ${names.join(", ")}…`;
 
+  // RANKE'S RULE (P84; user direction, 2026-09-09: "Ranke is our agent in
+  // charge of this type of thing, have him be in charge of these rules").
+  // Wikipedia never grounds a composed sentence (isWikipediaSource, above)
+  // — but rather than leave a Wikipedia-only note simply undetermined,
+  // Ranke is handed exactly the notes in THIS slice that currently stand
+  // on Wikipedia alone, and runs his own chase (rankeChase — the SAME
+  // mechanism /ranke exposes, reused whole, never re-implemented here):
+  // from each loaded Wikipedia page's own outbound citations, out to a
+  // primary face, read by the witness protocol, never by containment
+  // alone (P84's own "containment is a lead, never a landing"). A small,
+  // bounded, no-search budget (P9) — following a page's own already-known
+  // links is far more reliable in this environment than a fresh search
+  // (measured live this session: DuckDuckGo returned no results at all
+  // for a plain query, where direct fetches of known URLs kept working).
+  const wikiOnlyInSlice = slice.filter((note) =>
+    (note.witnesses ?? []).length > 0 && (note.witnesses ?? []).every((w) => isWikipediaSource(refOf(w))),
+  );
+  if (wikiOnlyInSlice.length) {
+    body.textContent = `Ranke: ${wikiOnlyInSlice.length} fact(s) in this batch stand on Wikipedia alone — chasing to primary sources before composing…`;
+    try {
+      const chase = await rankeChase({ maxFetches: 6, maxSearches: 0 });
+      if (chase.refused) {
+        body.textContent = `Ranke could not chase: ${chase.refused}`;
+      } else if (chase.report?.notesAttested) {
+        const hosts = [...new Set((chase.report.chased ?? []).flatMap((c) => (c.consulted ?? []).filter((x) => x.snipsFound > 0).map((x) => x.host)))];
+        body.textContent = `Ranke attested ${chase.report.notesAttested} fact(s) to a primary source${hosts.length ? ` (${hosts.join(", ")})` : ""}. Attach the found source(s) (Reading → RESEARCHED) and run /facts again to cite them — a fact Ranke could not yet place a primary under stays undetermined below, never cited to Wikipedia.`;
+      }
+    } catch (err) {
+      body.textContent = `Ranke's chase failed (${err?.message ?? err}) — continuing without it; Wikipedia-only facts stay undetermined rather than cited.`;
+    }
+  }
+
   const items = [];
   let step = 0;
   for (const note of slice) {
@@ -4825,28 +4939,115 @@ async function factsTurn(argstr, typed) {
       // Never checked before — check it now, the same per-source evaluate
       // crownTestimony runs per turn (above), just run here over the
       // ledger's own top claims instead of one turn's flagged ones.
+      // citableNames, not names: Wikipedia is never asked to ground a
+      // claim (isWikipediaSource's own header).
       const claimText = `${claim.end1} ${claim.label} ${claim.end2}`.replace(/"/g, "'");
-      for (const name of names) {
+      for (const name of citableNames) {
         const line = `evaluate "${claimText}" at Link from differentiate ground "${String(name).replace(/"/g, "'")}" broken:rotation`;
         const landed = landAct(grid, state.gridLog, line, { sources: state.sources, runCapacity, claimId });
         if (landed.ok && landed.event.ground === name && landed.event.object === claimText) state.gridLog = landed.log;
       }
       readings = perSourceReadings(grid, state.gridLog, claimId);
     }
-    items.push({ claim, merged: mergeTestimony(readings), order: step });
+    // Defense in depth against a Wikipedia-grounded reading landed in an
+    // EARLIER run this session (before this rule existed) and now read
+    // back from the cache above (P30's "not re-spent") rather than
+    // recomputed: a verdict that came from Wikipedia never counts toward
+    // the merge, so it can neither hold a sentence up nor cite it.
+    readings = readings.filter((r) => !isWikipediaSource(String(r.who ?? "").split(":")[0]));
+    // note.cell rides along for the table view's own "EOT" column (P58's
+    // moves.js: `${operator}·${grain}`, the SAME notation the hyperlexicon
+    // ledger already types every note with — see hyperlexicon-stance
+    // section, CLAUDE.md above) — a real classification of the ACT that
+    // heard this claim, never invented here.
+    items.push({ claim, merged: mergeTestimony(readings), order: step, cell: note.cell ?? null });
   }
   syncRecords();
 
   const result = compose(items, { renderClaim: (merged) => renderCrown(merged), orderBy: (a, b) => a.order - b.order });
+  // Every composed sentence gets its own real, byte-addressed anchor —
+  // the SAME `[ref#a-b]` bracket syntax the rest of this app already
+  // renders as a clickable "read these bytes back" control (refNodes,
+  // reopen) — so a reader can open the exact span and confirm the
+  // sentence is verbatim-backed, not a model's paraphrase wearing a
+  // citation (user direction, 2026-09-09: "we need these to be real
+  // anchors to the source spans... so we know its verbatim, no model
+  // paraphrasing"). Pulled straight from the winning reading's own edges
+  // — never asked of a model, never invented when a claim genuinely has
+  // no ref (a self-witness hold, say): that sentence simply carries none.
+  const anchorsFor = (claim) => {
+    const item = items.find((it) => it.claim === claim);
+    const refs = (item?.merged?.holds ?? []).flatMap((h) => (h.edges ?? []).flatMap((e) => e.refs ?? []));
+    return [...new Set(refs)];
+  };
   const text = result.refused
     ? `(nothing composed: ${result.refused.detail})`
-    : result.text || "(every checked fact came back undetermined — nothing here is composed enough yet to state as a document.)";
-  const doc = `# ${FACTS_CAPTION}\n\n${text}\n\n---\n\n*${coverageLine(result)}*`;
+    : result.sentences.length
+      ? result.sentences.map((s) => `${s.text}${anchorsFor(s.claim).map((r) => ` [${r}]`).join("")}`).join(" ")
+      : "(every checked fact came back undetermined — nothing here is composed enough yet to state as a document.)";
+  // The exported .md file (Folds' own ↓ download) is a static file — it
+  // cannot carry the live, toggleable APA/MLA/plain <select> the Folds
+  // panel renders (artifactNode, below). So the References list is baked
+  // in here too, once, in the reader's own last-chosen style (falling back
+  // to APA — CITATION_STYLES' own DEFAULT_CITATION_STYLE) — mechanically,
+  // from the SAME sourceMeta() every live render already reads, never a
+  // model asked to write a bibliography. A reader who wants a different
+  // style still gets one live in the Folds panel; the file just needs to
+  // hold ONE real answer rather than none (found live, 2026-09-09, user
+  // direction: facts should be "exportable... with MLA and APA citations").
+  const citedNames = [...new Set(items.flatMap((it) => anchorsFor(it.claim)).map((r) => r.split("#")[0]))];
+  const refsSection = citedNames.length
+    ? `\n\n## References\n\n${citedNames.map((n) => `- ${formatReference(sourceMeta(n), state.citationStyle || DEFAULT_CITATION_STYLE)}`).join("\n")}`
+    : "";
+  const doc = `# ${FACTS_CAPTION}\n\n${text}\n\n---\n\n*${coverageLine(result)}*${refsSection}`;
+  // The table view's structured rows — real end1/label/end2 and the
+  // note's own cell, never re-derived by re-parsing the composed prose
+  // (which would be guessing a structure crown.js's own template already
+  // dissolved into a sentence). Stored on the entry itself, not just in
+  // this closure, so a reload (persistBuilds/restoreBuilds, below) keeps
+  // the EOT column real rather than falling back to prose-reparsing.
+  const factsRows = result.sentences.map((s) => {
+    const item = items.find((it) => it.claim === s.claim);
+    // The table's Fact column shows the claim ALONE, without crown's own
+    // "According to X, " lead-in — redundant there since Source is its
+    // own column (user direction, 2026-09-09: "we need to pull out the
+    // 'according to'"). Stripping it by matching the source NAME as a
+    // string was tried first and was wrong: crown.js's own witnessWords()
+    // tokenizes a witness name before rendering it (tokenize() drops
+    // punctuation like "&"/"|"), so "Panama Canal: History, Impact &
+    // Canal Zone | HISTORY" renders as "...Impact Canal Zone HISTORY" —
+    // never byte-identical to the raw source name, so no string
+    // comparison against it can be reliable. renderCrown's own `trace`
+    // (crown.js's real, tested source-of-truth for which token came from
+    // where — the same array checkTraceCoverage verifies) is asked
+    // directly instead: joinCrownTokens re-renders only the tokens
+    // trace-tagged `claim`, from the first one on, mirroring crown.js's
+    // own private joinTypographically byte for byte so the two can never
+    // read differently.
+    const crown = renderCrown(item.merged);
+    const claimStart = crown.trace?.findIndex((t) => t.source?.kind === "claim") ?? -1;
+    const factOnly = claimStart >= 0 ? joinCrownTokens(crown.trace.slice(claimStart).map((t) => t.token)) : s.text;
+    const refs = anchorsFor(s.claim);
+    return {
+      text: s.text,
+      factOnly: factOnly.charAt(0).toUpperCase() + factOnly.slice(1),
+      refs,
+      // The verbatim bytes each citation actually rests on — read back
+      // from the loaded source NOW (not asked of a model, not cached
+      // from generation time — refContext is the SAME reader reopen()
+      // uses), so "verbatim, no paraphrasing" is checkable inline rather
+      // than only after a click (user direction, 2026-09-09: "we need to
+      // see the verbatim span it came from").
+      quotes: refs.map((r) => ({ ref: r, cited: refContext(state.sources, r)?.cited ?? null })),
+      end1: item.claim.end1, label: item.claim.label, end2: item.claim.end2, cell: item?.cell ?? null,
+    };
+  });
 
   let entry = findFactsBuild();
   if (entry) {
     entry.log = buildLog.reviseBuild(entry.log, { code: doc, reason: "facts regenerated" });
     entry.cursor = null;
+    entry.factsRows = factsRows;
     mirrorBuild(entry, entry.log.entries.length - 1);
   } else {
     entry = {
@@ -4857,7 +5058,7 @@ async function factsTurn(argstr, typed) {
         seg: { type: "code", lang: "markdown", code: doc }, caption: FACTS_CAPTION,
         instruction: "composed mechanically from the workspace's hyperlexicon by /facts — no model call",
       }),
-      cursor: null, draft: null,
+      cursor: null, draft: null, factsRows,
     };
     state.builds.push(entry);
     mirrorBuild(entry, 0);
@@ -8188,12 +8389,14 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
           show(`named source ${hostOf(url)}: fetched, but no readable text`);
           continue;
         }
-        addSource(name, text);
-        rememberPageFace(name, url, f.entry);
-        state.provenance[name] = {
+        const provenance = {
           line: f.entry.title ? `${f.entry.title} — ${hostOf(url)}` : hostOf(url),
           fields: { url: f.entry.finalUrl ?? url },
         };
+        const pageFace = f.entry.rawPath ? { url, host: hostOf(url), rawPath: f.entry.rawPath, textPath: f.entry.textPath ?? null } : null;
+        addSource(name, text, { provenance, pageFace });
+        rememberPageFace(name, url, f.entry);
+        state.provenance[name] = provenance;
         show(`named source: fetched ${hostOf(url)} — ${text.length.toLocaleString()} chars, archiving requested${f.entry.via ? ` — via ${f.entry.via.gateway} (the direct fetch was ${f.entry.via.why}; ${f.entry.via.sees})` : ""}`);
       } catch (e) {
         show(`named source ${hostOf(url)}: could not fetch — ${e.message}`);
@@ -9700,8 +9903,20 @@ async function crownTestimony(node, relationClaims) {
   $("status").textContent = readyLine();
 }
 
-/** An address, exactly as source.js writes and checkCitations reads it. */
-const REF_IN_TEXT = /\[([^\]\s]+#\d+-\d+)\]/g;
+/**
+ * An address, exactly as source.js writes and checkCitations reads it.
+ * The source-name half used to require NO whitespace ([^\]\s]+) — true of
+ * every test fixture this pattern was built against (pasted.txt,
+ * lincoln.txt), false of a real fetched web page's own title ("History of
+ * the Panama Canal - Wikipedia"). Found live 2026-09-09 building a real
+ * web-sourced /facts document: every citation into such a source silently
+ * failed to match, so refNodes() never turned it into a clickable ref and
+ * the References section (gated on `known.size`) never rendered at all.
+ * Widened to any non-`]` run — still anchored by the literal `#digits-
+ * digits]` suffix, so an unrelated bracketed aside ("[sic]") still never
+ * matches.
+ */
+const REF_IN_TEXT = /\[([^\]]+?#\d+-\d+)\]/g;
 
 /**
  * Turn every bracketed address in an answer into the thing it names.
@@ -11221,6 +11436,13 @@ function buildCard(entry, highlight) {
       // before the run and the frame locks again — the projection of the
       // log at that point had no consent in it yet.
       scripts: !!shown.lastRun,
+      // entry — so a /facts document's table view can read entry.factsRows
+      // (real end1/label/end2/cell) instead of falling back to re-parsing
+      // the prose. Omitted here before, this card is the ONE place a
+      // reader actually sees the Folds list, so the EOT column read "—"
+      // for every row regardless of whether factsRows existed (found live,
+      // 2026-09-09, right after building the column).
+      entry,
     }),
   );
   return wrap;
@@ -11240,7 +11462,7 @@ function openFoldViewer(entry) {
   $("fold-view-address").textContent = file?.name ?? "";
   const body = $("fold-view-body");
   body.textContent = "";
-  body.append(artifactNode(shown.seg, shown.caption, shown.code, { scripts: !!shown.lastRun }));
+  body.append(artifactNode(shown.seg, shown.caption, shown.code, { scripts: !!shown.lastRun, entry }));
   $("fold-view").showModal();
 }
 
@@ -11503,7 +11725,11 @@ function persistBuilds() {
     const data = state.builds.map((b) =>
       b.kind === "database"
         ? { n: b.n, turn: b.turn, kind: "database", entries: b.storeLog.entries }
-        : { n: b.n, turn: b.turn, entries: b.log.entries, draft: b.draft ?? null },
+        // factsRows: the /facts table view's structured rows (real
+        // end1/label/end2/cell) — additive, only ever present on the one
+        // markdown build /facts itself produces; absent on every other
+        // build, so this changes nothing for them.
+        : { n: b.n, turn: b.turn, entries: b.log.entries, draft: b.draft ?? null, ...(b.factsRows ? { factsRows: b.factsRows } : {}) },
     );
     localStorage.setItem(buildsKey(), JSON.stringify({ id: conv?.id, builds: data }));
   } catch (e) {
@@ -11548,7 +11774,7 @@ function restoreBuilds() {
               code: b.code,
               lastRun: b.lastRun,
             });
-        state.builds.push({ n: b.n, turn: b.turn ?? 0, log, cursor: null, draft: b.draft ?? null });
+        state.builds.push({ n: b.n, turn: b.turn ?? 0, log, cursor: null, draft: b.draft ?? null, ...(b.factsRows ? { factsRows: b.factsRows } : {}) });
       } catch {
         /* a row that violates the vocabulary does not load silently — this
            build is skipped, the rest are kept */
@@ -12633,6 +12859,257 @@ function codeBlock(text, lang) {
   return pre;
 }
 
+/**
+ * Recovers one row per composed sentence from a /facts document's own
+ * prose — never a second copy of the data. `factsTurn` never stores a
+ * separate structured form of what it composed; the `[ref#a-b]` anchors
+ * already in the text ARE the row boundaries (the identical brackets
+ * `refNodes` already renders as clickable controls in the prose view), so
+ * a table view is a pure re-reading of the same bytes, not a second
+ * source of truth that could drift from the prose. Consecutive refs with
+ * only whitespace between them (one sentence citing more than one
+ * passage) stay one row.
+ */
+function factsTableRows(text) {
+  const rows = [];
+  let cursor = 0;
+  let rowText = "";
+  let refs = [];
+  for (const m of String(text).matchAll(REF_IN_TEXT)) {
+    const between = text.slice(cursor, m.index);
+    if (between.trim() && rowText.trim()) {
+      rows.push({ text: rowText.trim(), refs });
+      rowText = "";
+      refs = [];
+    }
+    rowText += between;
+    refs.push(m[1]);
+    cursor = m.index + m[0].length;
+  }
+  if (rowText.trim()) rows.push({ text: rowText.trim(), refs });
+  return rows;
+}
+
+// crown.js's own private joinTypographically, reimplemented here (never
+// exported there) so factsTurn can re-render JUST the `claim`-tagged
+// tokens of a renderCrown trace — see factsTurn's own comment on why a
+// string-matched strip of "According to <source>, " cannot be reliable
+// (crown.js tokenizes a witness name before rendering it, which is
+// lossy). Token-for-token identical join logic, kept in sync by being
+// this small and this simple, not by import (crown.js's own module
+// boundary stays a pure, standalone render — no new export surface for
+// one display need one caller away).
+const FACTS_NO_SPACE_BEFORE = new Set([".", ",", ":", ";"]);
+function joinCrownTokens(tokens) {
+  let text = "";
+  tokens.forEach((token, i) => {
+    if (i > 0 && !FACTS_NO_SPACE_BEFORE.has(token)) text += " ";
+    text += token;
+  });
+  return text;
+}
+
+// FALLBACK ONLY — a document composed before factsTurn started storing
+// `factOnly` (the trace-derived, reliable strip) on each row. A string
+// match against the source name is known-lossy (see joinCrownTokens'
+// own comment) but an older row has nothing better to try; kept so an
+// old document still reads reasonably rather than not stripping at all.
+function factCellTextFallback(text, sourceName) {
+  if (!sourceName) return text;
+  const prefix = `According to ${sourceName}, `;
+  if (text.slice(0, prefix.length).toLowerCase() !== prefix.toLowerCase()) return text;
+  const rest = text.slice(prefix.length);
+  return rest.charAt(0).toUpperCase() + rest.slice(1);
+}
+
+/**
+ * A citation marker — "[N]", N matching this document's own References
+ * list (numberOf, built in first-citation order, the same order the
+ * References `<ol>` renders in) — never the full source name or byte
+ * range spelled out inline (user direction, 2026-09-09: prose citations
+ * as full-width address pills "still looks bad" — a real paper's inline
+ * citation is a short number, the full account lives in the
+ * bibliography). Still a real control: it opens the exact cited bytes
+ * (reopen), and a ref this turn never actually retrieved renders as a
+ * disabled, differently-styled "[?]" rather than a working-looking link.
+ */
+function citeBadge(ref, known, numberOf) {
+  const name = ref.split("#")[0];
+  const num = numberOf?.get(name);
+  const known_ = known.has(ref);
+  const el = document.createElement(known_ ? "button" : "span");
+  el.className = known_ ? "cite-badge" : "cite-badge bad";
+  el.textContent = num ? `[${num}]` : "[?]";
+  el.title = known_ ? `${ref} — read these bytes back out of the material` : `${ref} — not among the passages retrieved for this turn`;
+  if (known_) el.onclick = () => reopen(ref);
+  return el;
+}
+
+/**
+ * Switches to the Holograph tab and opens (drills) the named referent
+ * there — the SAME `renderHolograph({ pick })` a referent click inside
+ * the holograph itself already uses. "Pivot": a fact's own subject is a
+ * door into everything else this instrument has heard about it, not a
+ * dead label (user direction, 2026-09-09: "the EOT should be clickable
+ * and pivot things").
+ */
+function pivotToHolograph(name) {
+  if (!name) return;
+  if (panelCollapsed) setPanelCollapsed(false);
+  showView("holograph");
+  renderHolograph({ pick: name });
+}
+
+/**
+ * The "EOT" cell — end1/label/end2 read verbatim off the claim this row
+ * actually composed (P58's own reading of the cube: the arrangement
+ * carries the ends, "verb" is a declared overlay, never re-derived here),
+ * in the same `subject —verb→ object` shape this app's own linkNode()/
+ * linkText() already draw graph edges with (CLAUDE.md, "the UX pass",
+ * "One drawing of a link, everywhere"). Subject AND object are each their
+ * OWN button, independently pivoting the holograph to whichever end the
+ * reader actually cares about (user direction, 2026-09-09, after the
+ * first cut only pivoted on the subject: "now let us be able to click
+ * through and pivot on things" — plural). A plain, unclickable "—" when
+ * this row came from re-parsing an OLDER document's prose (no
+ * end1/label/end2 was ever stored for it), never a guessed pivot.
+ */
+function eotCell(row) {
+  const cell = document.createElement("span");
+  cell.className = "facts-table-eot";
+  if (!row.end1 || !row.label) {
+    cell.textContent = "—";
+    cell.title = "this document was composed before the EOT column existed — regenerate with /facts to get one";
+    return cell;
+  }
+  const endBtn = (name) => {
+    const b = document.createElement("button");
+    b.className = "facts-table-eot-end";
+    b.textContent = name;
+    b.title = `${row.cell ? `${row.cell} · ` : ""}pivot the holograph to "${name}"`;
+    b.onclick = () => pivotToHolograph(name);
+    return b;
+  };
+  const verb = document.createElement("span");
+  verb.className = "facts-table-eot-verb";
+  verb.textContent = `—${row.label}→`;
+  cell.append(endBtn(row.end1), document.createTextNode(" "), verb, document.createTextNode(" "));
+  if (row.end2) cell.append(endBtn(row.end2));
+  return cell;
+}
+
+/** The table view of a /facts document — one row per composed sentence:
+ * Fact prose, its EOT (the structured claim, clickable — pivots the
+ * holograph), Source, and Citation, in that column order (user
+ * direction, 2026-09-09, iterated live: "source | fact prose | EOT |
+ * citation", then "the EOT should be clickable and pivot things", then
+ * "lets put source 3rd actually"). `rows` is EITHER `entry.factsRows`
+ * (real structured data, stored by factsTurn itself — see its own
+ * comment) or, for a document generated before that field existed,
+ * factsTableRows' own re-parse of the prose (text and refs only — the
+ * EOT column degrades to "—" rather than fabricating a triple). */
+const FACTS_TABLE_HEAD = ["#", "Fact", "EOT", "Source", "Quote", "Citation"];
+function factsTable(rows, known, numberOf) {
+  const table = document.createElement("table");
+  table.className = "facts-table";
+  const thead = table.createTHead().insertRow();
+  for (const h of FACTS_TABLE_HEAD) {
+    const th = document.createElement("th");
+    th.textContent = h;
+    thead.append(th);
+  }
+  const tbody = table.createTBody();
+  rows.forEach((row, i) => {
+    const tr = tbody.insertRow();
+    // data-label rides every cell, read by the narrow-screen CSS below
+    // (content: attr(data-label)) to draw each cell as a labeled line in
+    // a stacked card instead of a table column — a five-column table has
+    // no honest narrow layout; a card that names its own fields does
+    // (user direction, 2026-09-09, after the horizontal-scroll fix still
+    // read as "still all looks bad").
+    tr.insertCell().textContent = String(i + 1);
+    tr.cells[0].dataset.label = FACTS_TABLE_HEAD[0];
+    const firstName = row.refs[0]?.split("#")[0] ?? null;
+    const factText = row.factOnly ?? factCellTextFallback(row.text, firstName);
+    tr.insertCell().append(...inlineMarkdown(factText));
+    tr.cells[1].dataset.label = FACTS_TABLE_HEAD[1];
+    tr.insertCell().append(eotCell(row));
+    tr.cells[2].dataset.label = FACTS_TABLE_HEAD[2];
+    const srcCell = tr.insertCell();
+    srcCell.className = "facts-table-src";
+    srcCell.dataset.label = FACTS_TABLE_HEAD[3];
+    // The verbatim span each citation actually rests on — read back from
+    // the loaded source right now (factsTurn's own `quotes`, or refContext
+    // here directly for an older document that has no factsRows.quotes
+    // stored), shown in the reader's own words, never a model's paraphrase
+    // of them (user direction, 2026-09-09: "we need to see the verbatim
+    // span it came from"). A quote too long to show whole is truncated
+    // with the FULL text still reachable — title attribute, and the same
+    // reopen() a click already opens elsewhere in this document.
+    const quoteCell = tr.insertCell();
+    quoteCell.className = "facts-table-quote";
+    quoteCell.dataset.label = FACTS_TABLE_HEAD[4];
+    const citeCell = tr.insertCell();
+    citeCell.className = "facts-table-cite";
+    citeCell.dataset.label = FACTS_TABLE_HEAD[5];
+    const seen = new Set();
+    const quotesByRef = new Map((row.quotes ?? []).map((q) => [q.ref, q.cited]));
+    for (const ref of row.refs) {
+      const name = ref.split("#")[0];
+      if (seen.has(name)) continue; // one row per SOURCE, not per span — matches References' own per-source numbering
+      seen.add(name);
+      const meta = known.has(ref) ? sourceMeta(name) : null;
+      // Clickable when the source is genuinely still loaded (Object.hasOwn,
+      // not truthiness — an attached-but-empty source is still "loaded")
+      // — opens the SAME in-app source viewer a Sources-panel pill already
+      // opens (openSourceViewer), never a working-looking control over a
+      // source that has since been detached (user direction, 2026-09-09:
+      // "let us be able to click through and pivot on things").
+      const loaded = Object.hasOwn(state.sources, name);
+      const nameSpan = document.createElement(loaded ? "button" : "span");
+      nameSpan.className = "facts-table-src-name";
+      nameSpan.textContent = meta?.site ?? name;
+      if (loaded) {
+        nameSpan.title = `open ${name}`;
+        nameSpan.onclick = () => openSourceViewer(name);
+      }
+      srcCell.append(nameSpan);
+      const cited = quotesByRef.has(ref) ? quotesByRef.get(ref) : refContext(state.sources, ref)?.cited ?? null;
+      const q = document.createElement(cited && known.has(ref) ? "button" : "span");
+      q.className = "facts-table-quote-text";
+      q.textContent = cited ? `“${cited}”` : "—";
+      if (cited) {
+        q.title = known.has(ref) ? `${ref} — read these bytes back out of the material` : cited;
+        if (known.has(ref)) q.onclick = () => reopen(ref);
+      }
+      quoteCell.append(q);
+      citeCell.append(citeBadge(ref, known, numberOf));
+    }
+  });
+  const wrap = document.createElement("div");
+  wrap.className = "table-wrap facts-table-wrap";
+  wrap.append(table);
+  return wrap;
+}
+
+/** The prose view's own ref renderer — bracketed addresses become compact
+ * `citeBadge` markers ("[N]") rather than refNodes' full-address chip, so
+ * a citation never wraps onto its own line and breaks the sentence it
+ * belongs to. Same trace-verified control underneath (reopen); only the
+ * DRAWING differs from the generic refNodes every other citation in this
+ * app still uses unchanged. */
+function factsRefNodes(text, known, numberOf) {
+  const out = [];
+  let last = 0;
+  for (const m of String(text).matchAll(REF_IN_TEXT)) {
+    if (m.index > last) out.push(...inlineMarkdown(text.slice(last, m.index)));
+    out.push(citeBadge(m[1], known, numberOf));
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(...inlineMarkdown(text.slice(last)));
+  return out;
+}
+
 /** One `<table>`, wrapped for horizontal scroll — factored out of
  * artifactNode's own `seg.type === "table"` branch so a database fold
  * (P25), which may need to draw several tables in one card, reuses the
@@ -12757,16 +13234,148 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
     // a monospace code box — correct for code, wrong for a document meant
     // to be READ (user direction, 2026-09-09: "it can be a more handsome
     // document than that"). Same renderer the chat answer's own prose uses
-    // (render.js), plain-text inline (no grounding marks — this is a
-    // composed document, not a checked turn to overlay marks onto), so
-    // headings/paragraphs/lists read as a document rather than a wall of
-    // literal "#"/"-" characters. Editing still opens the real source (the
-    // fold's own ✎ edit button, unchanged) — this only changes how the
-    // built version is READ.
+    // (render.js), so headings/paragraphs/lists read as a document rather
+    // than a wall of literal "#"/"-" characters. Editing still opens the
+    // real source (the fold's own ✎ edit button, unchanged) — this only
+    // changes how the built version is READ.
+    //
+    // Every `[ref#a-b]` bracket the text carries is rendered as a real,
+    // clickable anchor (refNodes/reopen — the SAME control the chat
+    // surface's own citations use) rather than plain text: this text was
+    // never drafted by a model, it was mechanically composed
+    // (factsTurn/compose.js) from evaluated claims, so — unlike a model's
+    // own prose, where an unresolved bracket is treated as suspect — every
+    // bracket here is trusted as real and pre-scanned into `known` before
+    // rendering.
+    const text = code ?? seg.code;
+    const known = new Set([...text.matchAll(REF_IN_TEXT)].map((m) => m[1]));
+    // Cited sources, in FIRST-CITATION order — known's own insertion order,
+    // since `known` was built by walking the text top to bottom. Computed
+    // ONCE, here, so the prose view's inline "[N]" markers, the table
+    // view's "[N]" markers, and the References list below are always the
+    // SAME numbering for the SAME source — a citation can never point at
+    // one number in the text and a different entry in the bibliography.
+    const citedNames = caption === FACTS_CAPTION ? [...new Set([...known].map((r) => r.split("#")[0]))] : [];
+    const numberOf = new Map(citedNames.map((n, i) => [n, i + 1]));
+    // factsTurn bakes a "## References" section into the stored/exported
+    // markdown (so a downloaded file carries real citations even though
+    // nothing renders it live) — the Folds panel already offers a richer,
+    // toggleable version of the same list a few lines below, so the plain
+    // baked-in copy is stripped from what's READ here to avoid showing the
+    // same bibliography twice. The exported file is untouched — this only
+    // trims what this function itself draws.
+    const proseText = caption === FACTS_CAPTION ? text.replace(/\n{2,}## References\n\n[\s\S]*$/, "") : text;
     const doc = document.createElement("div");
     doc.className = "artifact-doc";
-    renderBlocksInto(doc, code ?? seg.code, (chunk) => [document.createTextNode(chunk)]);
+
+    // Prose vs table is a DISPLAY choice over the identical composed
+    // sentences (factsTableRows re-reads the same `[ref#a-b]` anchors the
+    // prose view already renders) — never a second document, so the two
+    // views can never disagree. Only the facts document offers this: an
+    // ordinary markdown build has no per-sentence claim/citation shape to
+    // tabulate. (User direction, 2026-09-09: "toggle different ways to
+    // display, including table.")
+    const renderDoc = () => {
+      doc.replaceChildren();
+      const asTable = caption === FACTS_CAPTION && known.size && localStorage.getItem("fold-facts-view") === "table";
+      // The prose measure (68ch) reads well for a paragraph and cramps a
+      // multi-column table — widened only while the table view is active.
+      doc.classList.toggle("artifact-doc-wide", asTable);
+      if (asTable) {
+        // entry.factsRows — real end1/label/end2/cell, stored by factsTurn
+        // itself — wins when present. Its absence (a document composed
+        // before this field existed) falls back to factsTableRows' own
+        // re-parse of the prose (text and refs only; the "# Grounded
+        // facts" heading carries no ref, so it would otherwise fold into
+        // the first row's text — stripped the same way the fallback
+        // always has).
+        const tableRows = entry?.factsRows?.length ? entry.factsRows : factsTableRows(proseText.replace(/^#[^\n]*\n+/, ""));
+        doc.append(factsTable(tableRows, known, numberOf));
+      } else if (caption === FACTS_CAPTION) {
+        // factsRefNodes, not the generic refNodes: a full-address pill
+        // wrapping onto its own line inside a sentence "still looks bad"
+        // (user direction, 2026-09-09) — a numbered "[N]" marker reads
+        // like an actual paper's inline citation instead.
+        renderBlocksInto(doc, proseText, (chunk) => factsRefNodes(chunk, known, numberOf));
+      } else {
+        renderBlocksInto(doc, proseText, (chunk) => refNodes(chunk, known));
+      }
+    };
+    if (caption === FACTS_CAPTION && known.size) {
+      const viewHead = document.createElement("div");
+      viewHead.className = "artifact-doc-head";
+      const viewLabel = document.createElement("span");
+      viewLabel.textContent = "View";
+      const viewSel = document.createElement("select");
+      viewSel.className = "style-select";
+      viewSel.title = "How the composed facts are shown — the underlying document is the same either way.";
+      for (const [value, label] of [["prose", "Prose"], ["table", "Table"]]) {
+        const opt = document.createElement("option");
+        opt.value = value;
+        opt.textContent = label;
+        viewSel.append(opt);
+      }
+      viewSel.value = localStorage.getItem("fold-facts-view") === "table" ? "table" : "prose";
+      viewSel.onchange = () => {
+        localStorage.setItem("fold-facts-view", viewSel.value);
+        renderDoc();
+      };
+      viewHead.append(viewLabel, viewSel);
+      art.append(viewHead);
+    }
+    renderDoc();
     art.append(doc);
+
+    // The References section — built from the SAME anchors just rendered,
+    // never separately stored: a citation style is a display choice over
+    // one set of real addresses, so toggling it is a free, local re-render,
+    // and it can never drift from what the document actually cites. Only
+    // the facts document carries this; an ordinary markdown build (there
+    // is none yet, but the check costs nothing) is left as prose alone.
+    if (caption === FACTS_CAPTION && known.size) {
+      const names = citedNames; // same first-citation order the "[N]" markers above were numbered from
+      const refsBox = document.createElement("div");
+      refsBox.className = "artifact-refs";
+      const head = document.createElement("div");
+      head.className = "artifact-refs-head";
+      const label = document.createElement("span");
+      label.textContent = "References";
+      // A real <select>, not a cycle button — found live, 2026-09-09, user
+      // direction "im not seeing the MLA or APA": a single button showing
+      // only the CURRENT style's name (left on "plain" from testing) never
+      // showed the word "APA" or "MLA" anywhere until clicked through to,
+      // so both options were genuinely invisible rather than merely one
+      // click away. A <select> lists every option at once, open or closed.
+      const styleSel = document.createElement("select");
+      styleSel.className = "style-select";
+      styleSel.title = "Citation style. Every field is read from what this instrument actually recorded about the source, never asked of a model.";
+      for (const [key, { label: styleLabel }] of Object.entries(CITATION_STYLES)) {
+        const opt = document.createElement("option");
+        opt.value = key;
+        opt.textContent = styleLabel;
+        styleSel.append(opt);
+      }
+      const list = document.createElement("ol");
+      list.className = "artifact-refs-list";
+      const renderList = () => {
+        styleSel.value = state.citationStyle;
+        list.replaceChildren();
+        for (const name of names) {
+          const li = document.createElement("li");
+          li.textContent = formatReference(sourceMeta(name), state.citationStyle);
+          list.append(li);
+        }
+      };
+      styleSel.onchange = () => {
+        state.citationStyle = styleSel.value;
+        localStorage.setItem("fold-citation-style", styleSel.value);
+        renderList();
+      };
+      renderList();
+      head.append(label, styleSel);
+      refsBox.append(head, list);
+      art.append(refsBox);
+    }
   } else {
     art.append(codeBlock(code ?? seg.code, seg.lang));
   }
@@ -13172,7 +13781,7 @@ function attachStage(name, label, fn) {
   console.info(`attach ${name}: ${label} — ${ms}ms`);
   return out;
 }
-function addSource(name, text, { fromBoot = false, passages = null, kind = null, standing = null } = {}) {
+function addSource(name, text, { fromBoot = false, passages = null, kind = null, standing = null, provenance = null, pageFace = null } = {}) {
   if (!text.trim()) return;
   // The `self:` namespace is the instrument's own plane. A file wearing it
   // would make a self address ambiguous about which plane it names — the
@@ -13212,7 +13821,20 @@ function addSource(name, text, { fromBoot = false, passages = null, kind = null,
   else renderSources();
   // Persist to OPFS so the source survives a reload — not on boot, where
   // it came FROM OPFS and a rewrite would race the reading cursor's own row.
-  if (!fromBoot) { const tp = Date.now(); Promise.resolve(persistSource(name, text, { passages: countFor(name) })).then(() => { if (big) console.info(`attach ${name}: stored — ${Date.now() - tp}ms`); }); }
+  // provenance/pageFace ride this SAME write, never a follow-up
+  // updateSourceMeta call: a caller that instead set state.provenance and
+  // then called updateSourceMeta separately raced this write's own
+  // in-flight OPFS read-modify-write and silently lost — measured live,
+  // 2026-09-09, building a real /facts document: References read
+  // correctly right after attaching three real web pages, then reverted
+  // to "[Unpublished material attached to this conversation]" for the
+  // same three pages after one reload, because the follow-up write had
+  // read the index before this one's own write landed.
+  if (!fromBoot) {
+    const tp = Date.now();
+    const meta = { passages: countFor(name), ...(provenance ? { provenance } : {}), ...(pageFace ? { pageFace } : {}) };
+    Promise.resolve(persistSource(name, text, meta)).then(() => { if (big) console.info(`attach ${name}: stored — ${Date.now() - tp}ms`); });
+  }
   // Read it now (Pass 18, P99) — a book attached is a book read, before any
   // question. Boot resumes from the saved cursor instead (below).
   // The read is the long one, and it reports its own progress passage by
@@ -13597,9 +14219,79 @@ async function renderResearchedSection(list) {
         <div class="sources-file-meta">${esc(host)} · ${(e.textChars ?? 0).toLocaleString()} chars${e.challenge ? " · ⚠ challenge page" : ""}</div>
       </div>`;
     row.title = "Read during research for a turn, never attached as material — click to open what was actually read.";
-    row.onclick = () => window.open(pageFaceUrl(EXPLORE_BASE, e.textPath), "_blank", "noopener");
+    row.onclick = () => openResearchedPage(e);
     list.append(row);
   }
+}
+
+/**
+ * A RESEARCHED row's own in-app viewer — the house convention (Explore's
+ * preview.js: "a preview never starts a read... peeking costs a stat and a
+ * decode", applied here to a saved web page rather than a file). This used
+ * to be `window.open(pageFaceUrl(...), "_blank", "noopener")`, which reads
+ * as safe (a `_blank` target, `noopener` set) but is NOT: found live,
+ * 2026-09-09 — clicking a RESEARCHED row navigated the ACTIVE tab to the
+ * saved page's raw text file rather than opening a second one, taking the
+ * whole SPA's in-memory state with it (conversations reset to a blank
+ * "Conversation 1"). `window.open` with a `_blank` target is a real
+ * navigation request the browser is free to satisfy however it judges
+ * best, popup-blocked or not — never something this instrument gets to
+ * assume opens elsewhere. The fix is the SAME move `reopen()` and
+ * `openSourceViewer()` already make for every other "let me see the bytes"
+ * moment in this app: reuse the existing `#source-viewer` dialog, fetch and
+ * decode into it, never hand the browser a URL to act on for the primary
+ * click. A genuine "leave the instrument" door stays available, but as an
+ * ordinary `<a target="_blank" rel="noopener noreferrer">` a reader clicks
+ * on purpose — the same disclosed-and-deliberate shape `reopen()`'s own
+ * papers link and the web view's `saved.href` already use elsewhere.
+ */
+async function openResearchedPage(e) {
+  const host = hostOf(e.finalUrl ?? e.url);
+  const name = e.title || host;
+  mirrorTermRecord("source-open", { path: e.textPath, via: "chat" }); // the same record every other open lands on
+  $("source-viewer-name").textContent = name;
+  const meta = $("source-viewer-meta");
+  meta.textContent = "";
+  meta.append(
+    `${host} · ${(e.textChars ?? 0).toLocaleString()} chars${e.challenge ? " · ⚠ challenge page" : ""} — read during research, never attached as material `,
+  );
+  const liveUrl = e.finalUrl ?? e.url;
+  if (liveUrl) {
+    const a = document.createElement("a");
+    a.href = liveUrl;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = "↗ open the live page";
+    a.title = "opens in your own browser — leaves this instrument";
+    meta.append(a);
+  }
+  $("source-viewer-mode").style.display = "";
+  const body = $("source-viewer-body");
+  body.textContent = "";
+  const loading = document.createElement("p");
+  loading.className = "muted";
+  loading.textContent = "reading the saved page…";
+  body.append(loading);
+  $("source-viewer").showModal();
+
+  let text = "";
+  try {
+    let res;
+    try { res = await fetch(pageFaceUrl(EXPLORE_BASE, e.textPath)); }
+    catch { res = await fetch(pageFaceUrl(location.origin, e.textPath)); }
+    if (res?.ok) text = await res.text();
+  } catch { /* the dialog says so below, rather than throwing */ }
+  const info = { name, text: text.trim() ? text : "(could not read the saved page — the explore server may not be reachable)", ext: "txt" };
+  const modeEl = $("source-viewer-mode");
+  modeEl.querySelectorAll(".seg").forEach((b) => b.classList.toggle("active", b.dataset.mode === "read"));
+  modeEl.onclick = (ev) => {
+    const btn = ev.target.closest("[data-mode]");
+    if (!btn) return;
+    modeEl.querySelectorAll(".seg").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    renderSourceViewerMode(btn.dataset.mode, info);
+  };
+  renderSourceViewerMode("read", info);
 }
 
 /**
@@ -14169,9 +14861,31 @@ $("not-served")?.remove();
 (async () => {
   try {
     const saved = await loadSources();
-    for (const { name, text } of saved) {
-      if (!state.sources[name]) addSource(name, text, { fromBoot: true });
+    let restoredAny = false;
+    for (const { name, text, meta } of saved) {
+      if (!state.sources[name]) {
+        addSource(name, text, { fromBoot: true });
+        restoredAny = true;
+        // A source's real web provenance (title/host/URL, for
+        // sourceMeta()/citation-style.js) lives in the SAME OPFS index row
+        // as its text (addSource's own provenance/pageFace options, above)
+        // so it is restored right alongside the text rather than
+        // reverting to "attached, no author, no date" on every reload.
+        if (meta?.provenance) state.provenance[name] = meta.provenance;
+        if (meta?.pageFace) state.pageFaces[name] = meta.pageFace;
+      }
     }
+    // The Folds panel (a /facts table's Source/Citation controls, its
+    // References' real APA/MLA) may have already drawn once, synchronously,
+    // BEFORE this async restore landed — a render that read state.sources/
+    // state.provenance as empty and never re-reads them on its own. Found
+    // live, 2026-09-09: a source's name showed as plain, unclickable text
+    // (and References showed "Unpublished material") until an UNRELATED
+    // interaction (switching the citation style, say) forced a fresh
+    // render by coincidence. One redraw, only when it would actually
+    // change something and only for the panel a reader might already be
+    // looking at — never a redraw of a view nobody has open.
+    if (restoredAny && document.body.dataset.view === "builds") renderBuilds();
     // The record first, then the reads resume from their saved cursors on
     // top of it (a read that started before the restore would fork the log).
     try {
@@ -14410,6 +15124,23 @@ async function existingItems() {
         meta: `${hostOf(e.finalUrl ?? e.url)} · ${(e.textChars ?? 0).toLocaleString()} chars`,
         from: "saved pages",
         url: pageFaceUrl(EXPLORE_BASE, e.textPath),
+        // Carried through to the click handler below so a page attached
+        // from the library — not freshly fetched this turn — still gets
+        // real web provenance (state.pageFaces/state.provenance). Found
+        // live, 2026-09-09 building a real /facts document: this branch
+        // never set either, so sourceMeta() read every library-attached
+        // page as "attached" (unpublished, no date) rather than "web" —
+        // the References section cited real Wikipedia/news pages as if
+        // they were pasted text with no author or URL.
+        pageUrl: e.finalUrl ?? e.url,
+        pageTitle: e.title ?? null,
+        pageHost: hostOf(e.finalUrl ?? e.url),
+        textPath: e.textPath,
+        // The saved raw HTML's own path (web/pages/<sha>.html) — needed
+        // so a library-attached page is eligible for Ranke's own chase
+        // (rankeChase's `pages` filter requires it: the organ needs the
+        // page's real HTML to find its outbound links/citations).
+        rawPath: e.rawPath ?? null,
       });
     }
   } catch (e) {
@@ -14536,6 +15267,7 @@ async function openPicker() {
           let text;
           let name = item.name;
           let prov = null;
+          let pageFace = null;
           if (item.prior) {
             // one crossing: text + papers together, the open recorded with
             // the publisher's own source URL
@@ -14551,12 +15283,25 @@ async function openPicker() {
             const res = await fetch(item.url);
             if (!res.ok) throw new Error(`answered ${res.status}`);
             text = await res.text();
+            // A "saved pages" row is a real fetched web page, not a bare
+            // file — carry its provenance through exactly like a
+            // freshly-named-source fetch already does (rememberPageFace +
+            // state.provenance, above in gatherPreflightMaterial's named-URL
+            // branch), so sourceMeta()/citation-style.js read it as "web"
+            // (real title/host/URL/access-date) rather than "attached".
+            if (item.from === "saved pages" && item.pageUrl) {
+              prov = { line: item.pageTitle ? `${item.pageTitle} — ${item.pageHost}` : item.pageHost, fields: { url: item.pageUrl, title: item.pageTitle ?? undefined } };
+              if (item.rawPath) pageFace = { url: item.pageUrl, host: item.pageHost, rawPath: item.rawPath, textPath: item.textPath ?? null };
+            }
           }
           if (looksBinary(text)) {
             $("status").textContent = `${item.name} isn't text — skipped`;
             return;
           }
-          addSource(name, text);
+          // provenance/pageFace ride addSource's OWN persist call — see its
+          // header for why a follow-up write races and silently loses.
+          addSource(name, text, { provenance: prov, pageFace });
+          if (pageFace) rememberPageFace(name, pageFace.url, pageFace);
           if (prov && state.sources[name]) {
             state.provenance[name] = prov;
             renderSources(); // the pill was drawn before its papers landed

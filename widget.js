@@ -658,7 +658,24 @@ export function makeWidgetRouter(priors, pos = {}) {
    * conversation with no history yet) gets the narrower, correct read.
    */
   function routeMessage(message, builds = [], { hasMaterial = false, discourse } = {}) {
-    const live = (builds ?? []).filter((b) => b && b.type === "code");
+    // `lang !== "markdown"` — found live, 2026-09-09: every word-overlap
+    // tell below (resolved/judgment/anaphora) works by asking "does this
+    // message share a word with the candidate build's own bytes," which is
+    // a genuinely low-false-positive question for CODE (a widget's variable
+    // names and markup essentially never overlap with ordinary English) and
+    // a near-certain false positive for PROSE. A composed markdown document
+    // (the /facts door's own build; CLAUDE.md — a document ABOUT a topic)
+    // shares ordinary vocabulary with any real follow-up question about
+    // that same topic by construction, so every such question was routing
+    // as an instruction to edit the document instead of reaching the
+    // grounded-chat pipeline at all — the router correctly finding
+    // "evidence" that carries none, the same class of false positive this
+    // function's own header already closed twice for anaphora (material,
+    // then discourse), now closed for the type of candidate rather than
+    // the type of tell. A genuine "revise the facts document" instruction
+    // still has /facts itself (regenerate) and the fold's own ✎ edit
+    // button — this router was never the only door onto either.
+    const live = (builds ?? []).filter((b) => b && b.type === "code" && b.lang !== "markdown");
     if (!live.length) return null;
 
     const named = referencedBuild(message);

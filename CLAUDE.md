@@ -7292,6 +7292,45 @@ own footnote). Next rung: the witness on footnote-bound partials with the
 window chosen by referent activation, not word containment — never a
 tenth matcher.
 
+## Ranke's mandate: an index is never a citation (added 2026-09-09) — pointer
+
+POLICIES.md **P182** is the law; this is the map. P84 built Ranke as a
+chase MECHANISM; this is the POLICY it now stands for, by direct user
+instruction that Ranke be "in charge of the policies associated with"
+grounding, not only the chase — over every document this instrument
+composes, starting with `/facts` (today's only consumer): an index never
+grounds a citation directly, an index-only lead is chased to a primary
+source first, and corroboration across independent sources is preferred
+when more than one is available.
+
+**What ships.** `app.js::isWikipediaSource` (host-checked first, a
+display-name fallback second) gates `factsTurn`'s `citableNames` — a
+claim is only checked against non-Wikipedia sources, a stale
+Wikipedia-witnessed reading from before this rule is filtered out too —
+and, before composing, `factsTurn` runs `rankeChase({ maxFetches: 6,
+maxSearches: 0 })` on any note in the batch standing on Wikipedia alone,
+trying to promote it to a primary witness first. Wikipedia stays loaded
+and readable; it just never grounds a sentence.
+
+**Two things this does NOT yet do, named rather than implied.**
+`isWikipediaSource` is one hardcoded host check, not a general
+index-vs-primary classifier — a different encyclopedia, a link
+aggregator, or a mirror of Wikipedia under another host all slip past
+it, and it is wired into `/facts` alone (the ordinary chat ground ladder
+still cites Wikipedia directly). And "seek multiple sources when
+possible" has NO active-seeking mechanism behind it beyond the
+pre-existing corroboration/witness-counting machinery (P32/P39/P83, all
+older than this session) — nothing goes looking for a second source when
+a citable claim is single-witnessed. Both are real, disclosed, open
+follow-up work, not built here.
+
+**Why eoreader7 is untouched.** The existing P84/S46 split already
+separates Ranke's cross-repo chase MECHANISM (kernel witness kinds,
+`organs/ranke.js`) from the-fold's own SURFACE (the ledger block, the
+doors). This mandate is an application-level citation POLICY at one
+the-fold door, not a change to how a claim is chased or witnessed —
+`native/READING-SPEC.md` is not amended.
+
 ## The module census — every verb, held against the cube (added 2026-09-03) — pointer
 
 `eoreader7/native/docs/THE-MODULE-CENSUS.md` is the document; standing:

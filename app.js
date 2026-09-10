@@ -2303,6 +2303,10 @@ function renderThreads() {
   // survive every redraw untouched (a fresh clone would need its own
   // re-bound listener each time; this needs none).
   const checkingSwitch = $("checking-switch");
+  // web, paired beside checking (2026-09-10: "too busy" on the composer,
+  // then paired with checking specifically) — same capture-before-wipe,
+  // re-append-after move.
+  const webSwitch = $("web-switch");
   bar.textContent = "";
   state.convos.forEach((c, i) => {
     const tab = document.createElement("div");
@@ -2350,6 +2354,7 @@ function renderThreads() {
   fold.title = panelWide ? "open the conversation again" : "fold the conversation away — its tabs stay on the left, and this opens it again";
   fold.onclick = () => setPanelWide(!panelWide);
   if (checkingSwitch) bar.append(checkingSwitch);
+  if (webSwitch) bar.append(webSwitch);
   bar.append(fold);
 }
 

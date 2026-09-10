@@ -2279,8 +2279,16 @@
          renderThreads) so the two sit grouped at the true right edge, in
          front of the "+" new-conversation control and clear of the
          horizontally-scrolling tabs. */
-      .thread-row-switch { margin-left: auto; flex: none; align-self: center; padding: 4px 8px; }
+      /* Grouped as ONE pair at the far right — only the first of the two
+         (#checking-switch) carries the auto-margin that pushes the whole
+         pair away from the tabs; the second (#web-switch) sits flush after
+         it. Giving margin-left:auto to BOTH split them apart instead
+         (flexbox distributes leftover space across every auto-margin
+         sibling), measured live before this fix. */
+      .thread-row-switch { flex: none; align-self: center; padding: 4px 8px; }
+      #checking-switch.thread-row-switch { margin-left: auto; }
       body.panel-wide #col-chat .thread-row-switch { writing-mode: horizontal-tb; margin: 6px 0 0; align-self: center; }
+      body.panel-wide #col-chat #checking-switch.thread-row-switch { margin-left: 0; }
 
       /* AND THE PANEL COLLAPSES TOO (user, 2026-09-08: "lets allow the right
          panel to also be collapsed") — the mirror of the rail on the left, so
@@ -3357,6 +3365,17 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
             <input type="checkbox" id="use-checking" checked />
             <span class="track" aria-hidden="true"></span>
           </label>
+          <!-- web, paired beside checking (user direction, 2026-09-10: "this
+               is too busy" on the composer, then confirmed pairing the two
+               grounding toggles together) — same move-not-clone handling in
+               renderThreads (app.js): captured before the wipe, re-appended
+               right after #checking-switch on every redraw. -->
+          <label class="switch thread-row-switch" id="web-switch" title="Whether claims your attachments don't back are looked up online. One recorded search per claim, then up to 3 page reads.">
+            <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,24h0A104,104,0,1,0,232,128,104.12,104.12,0,0,0,128,24Zm88,104a87.61,87.61,0,0,1-3.33,24H174.16a157.44,157.44,0,0,0,0-48h38.51A87.61,87.61,0,0,1,216,128ZM102,168H154a115.11,115.11,0,0,1-26,45A115.27,115.27,0,0,1,102,168Zm-3.9-16a140.84,140.84,0,0,1,0-48h59.88a140.84,140.84,0,0,1,0,48ZM40,128a87.61,87.61,0,0,1,3.33-24H81.84a157.44,157.44,0,0,0,0,48H43.33A87.61,87.61,0,0,1,40,128ZM154,88H102a115.11,115.11,0,0,1,26-45A115.27,115.27,0,0,1,154,88Zm52.33,0H170.71a135.28,135.28,0,0,0-22.3-45.6A88.29,88.29,0,0,1,206.37,88ZM107.59,42.4A135.28,135.28,0,0,0,85.29,88H49.63A88.29,88.29,0,0,1,107.59,42.4ZM49.63,168H85.29a135.28,135.28,0,0,0,22.3,45.6A88.29,88.29,0,0,1,49.63,168Zm98.78,45.6a135.28,135.28,0,0,0,22.3-45.6h35.66A88.29,88.29,0,0,1,148.41,213.6Z"/></svg>
+            <span class="switch-label">web</span>
+            <input type="checkbox" id="use-web" checked />
+            <span class="track" aria-hidden="true"></span>
+          </label>
         </nav>
         <div class="scroll" id="chat"></div>
         <!-- Everything that decides what the next question is asked WITH sits
@@ -3381,12 +3400,6 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
               <span class="caret" aria-hidden="true">⌄</span>
             </button>
             <div id="attach-strip" aria-label="Attachments"></div>
-            <label class="switch" title="Whether claims your attachments don't back are looked up online. One recorded search per claim, then up to 3 page reads.">
-              <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,24h0A104,104,0,1,0,232,128,104.12,104.12,0,0,0,128,24Zm88,104a87.61,87.61,0,0,1-3.33,24H174.16a157.44,157.44,0,0,0,0-48h38.51A87.61,87.61,0,0,1,216,128ZM102,168H154a115.11,115.11,0,0,1-26,45A115.27,115.27,0,0,1,102,168Zm-3.9-16a140.84,140.84,0,0,1,0-48h59.88a140.84,140.84,0,0,1,0,48ZM40,128a87.61,87.61,0,0,1,3.33-24H81.84a157.44,157.44,0,0,0,0,48H43.33A87.61,87.61,0,0,1,40,128ZM154,88H102a115.11,115.11,0,0,1,26-45A115.27,115.27,0,0,1,154,88Zm52.33,0H170.71a135.28,135.28,0,0,0-22.3-45.6A88.29,88.29,0,0,1,206.37,88ZM107.59,42.4A135.28,135.28,0,0,0,85.29,88H49.63A88.29,88.29,0,0,1,107.59,42.4ZM49.63,168H85.29a135.28,135.28,0,0,0,22.3,45.6A88.29,88.29,0,0,1,49.63,168Zm98.78,45.6a135.28,135.28,0,0,0,22.3-45.6h35.66A88.29,88.29,0,0,1,148.41,213.6Z"/></svg>
-              <span class="switch-label">web</span>
-              <input type="checkbox" id="use-web" checked />
-              <span class="track" aria-hidden="true"></span>
-            </label>
             <!-- Not composer furniture: a bare "primary" switch with no room
                  for its own explanation read as unlabeled clutter (user
                  direction, 2026-09-08 — "i dont know what it does"). The

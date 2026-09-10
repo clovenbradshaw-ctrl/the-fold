@@ -12128,7 +12128,6 @@ const PROFILE_NOTICE_SYSTEM =
  * failure: a missed proposal costs nothing a person cannot just say again.
  */
 async function noticeAboutUser(text, turnRef) {
-  console.error("DEBUG noticeAboutUser called", JSON.stringify({ text, ready: state.ready, gate: profile.looksSelfReferential(text) }));
   if (!state.ready || !profile.looksSelfReferential(text)) return;
   try {
     const raw = await complete(
@@ -12138,14 +12137,12 @@ async function noticeAboutUser(text, turnRef) {
       ],
       { json: PROFILE_NOTICE_SCHEMA, maxTokens: 120, temperature: 0 },
     );
-    console.error("DEBUG noticeAboutUser raw", JSON.stringify(raw));
     const parsed = JSON.parse(raw);
     if (!parsed.fact?.trim()) return;
     state.profileLog = await profile.propose(state.profileLog, { text: parsed.fact.trim(), category: parsed.category, turnRef });
     persistProfile();
     if (document.body.dataset.view === "profile") renderProfile();
-  } catch (e) {
-    console.error("DEBUG noticeAboutUser caught", e?.message ?? e, e?.stack);
+  } catch {
     /* the model is only ever a proposal here — a failed or malformed call
        loses a suggestion, never anything already kept */
   }

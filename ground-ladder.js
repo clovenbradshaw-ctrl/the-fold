@@ -77,12 +77,31 @@ export function namesIn(sentence) {
   return [...new Set(out)];
 }
 
-/** The passage (by ref) whose folded text contains `needle`, or null. */
+/**
+ * The passage (by ref) whose folded text contains `needle`, or null.
+ * PREFERS A REAL, REOPENABLE PAGE OVER THE SEARCH-RESULTS DIGEST (found
+ * live, 2026-09-10, user direction: "source it please" — the "See
+ * original source" button on a real "named" citation opened, and said
+ * "That material is no longer loaded — the address outlived it."). The
+ * needle matched inside BOTH the ephemeral combined-snippet digest
+ * (`web:search-results#…`, gatherPreflightMaterial's own turn-scoped join
+ * of every result's title+snippet, never written to state.citedMaterial —
+ * see app.js's own comment on the identical preference already applied to
+ * a FINISHED address list) and the real per-page fetch that was ALSO
+ * retrieved for this turn, and this function returned whichever came
+ * first in `passages` — the digest chunk, since it is built and inserted
+ * ahead of the per-page chunks. That is the wrong side of app.js's own
+ * already-established rule to apply it AFTER, so it is applied HERE,
+ * where the address is actually chosen from every match rather than only
+ * the first.
+ */
 function passageHolding(needle, passages) {
   const f = fold(needle);
   if (!f) return null;
-  for (const p of passages ?? []) if (fold(p.text ?? "").includes(f)) return p.ref ?? null;
-  return null;
+  const matches = (passages ?? []).filter((p) => fold(p.text ?? "").includes(f));
+  if (!matches.length) return null;
+  const real = matches.find((p) => !String(p.ref ?? "").startsWith("web:search-results"));
+  return (real ?? matches[0]).ref ?? null;
 }
 
 /**
@@ -208,11 +227,38 @@ export function groundOf(sentence, ctx = {}) {
   }
   // 7. self
   const refused = witness?.witness === "refused";
+  // FED, NOT BOUND (2026-09-10, user direction: "this should disclose
+  // sources... even if it just says 'it was fed content from X site,
+  // here's the related passage'"). Every rung above this one already
+  // failed to place the sentence — none of them may say the fed material
+  // SUPPORTS it. What this discloses is narrower and still real: whether
+  // the mouth had ANYTHING in front of it when it wrote this, and where
+  // that material actually is, so "the model's own voice" never reads as
+  // "nothing was given" when something plainly was. `fedRefs` carries one
+  // real ref per distinct source so a reader can still open the bytes,
+  // even though no rung is claiming they back this particular sentence.
+  const fedSources = passages.length ? [...new Set(passages.map((p) => String(p.ref ?? "").split("#")[0]).filter(Boolean))] : [];
+  // Ranked the same way `passageHolding` now is (found live, same
+  // afternoon: `fedRefs[0]` picked the search-results digest purely
+  // because it sits first in `passages`, ahead of a real fetched page
+  // that was ALSO given this turn — "See original source" then always
+  // opened the one ref type that can never be reopened). A real per-page
+  // ref outranks the digest whenever both were fed; the digest still
+  // shows when it is genuinely the only thing that was.
+  const fedRefs = passages.length
+    ? [...new Map(passages.map((p) => [String(p.ref ?? "").split("#")[0], p.ref]).filter(([s]) => s)).values()]
+      .sort((a, b) => Number(String(a).startsWith("web:search-results")) - Number(String(b).startsWith("web:search-results")))
+    : [];
   // Trailing periods matter here: app.js's mark detail appends its own
   // sentence directly after this one with a bare space (found live,
   // 2026-09-09: "...this is the model's own testimony There is nothing to
   // cite here..." ran two sentences together with no punctuation between).
-  return { tier: "self", cell: CELL_OF.self, addresses: [], phrase: model ? `${model}` : "the model", detail: refused ? "the witness was asked and no passage states it; this is the model's own testimony." : reached.witness ? "no rung placed it; the model's own testimony." : "no rung placed it and the witness was not asked (budget); the model's own testimony, unexamined.", refused, reached };
+  return {
+    tier: "self", cell: CELL_OF.self, addresses: [], fedSources, fedRefs,
+    phrase: model ? `${model}` : "the model",
+    detail: `${refused ? "the witness was asked and no passage states it; this is the model's own testimony." : reached.witness ? "no rung placed it; the model's own testimony." : "no rung placed it and the witness was not asked (budget); the model's own testimony, unexamined."}${fedSources.length ? ` ${fedSources.length} page${fedSources.length === 1 ? "" : "s"} ${fedSources.length === 1 ? "was" : "were"} given to the model this turn (${fedSources.join(", ")}) — none was confirmed to state this, but here it is.` : ""}`,
+    refused, reached,
+  };
 }
 
 /** The reader's line for a ground, plain words and addresses. */

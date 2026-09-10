@@ -12923,10 +12923,13 @@ function pivotToHolograph(name) {
  * carries the ends, "verb" is a declared overlay, never re-derived here),
  * in the same `subject —verb→ object` shape this app's own linkNode()/
  * linkText() already draw graph edges with (CLAUDE.md, "the UX pass",
- * "One drawing of a link, everywhere"). Clickable — pivotToHolograph on
- * the subject — when a real triple is known; a plain, unclickable "—"
- * when this row came from re-parsing an OLDER document's prose (no
- * end1/label/end2 was ever stored for it), never a guessed one.
+ * "One drawing of a link, everywhere"). Subject AND object are each their
+ * OWN button, independently pivoting the holograph to whichever end the
+ * reader actually cares about (user direction, 2026-09-09, after the
+ * first cut only pivoted on the subject: "now let us be able to click
+ * through and pivot on things" — plural). A plain, unclickable "—" when
+ * this row came from re-parsing an OLDER document's prose (no
+ * end1/label/end2 was ever stored for it), never a guessed pivot.
  */
 function eotCell(row) {
   const cell = document.createElement("span");
@@ -12936,21 +12939,19 @@ function eotCell(row) {
     cell.title = "this document was composed before the EOT column existed — regenerate with /facts to get one";
     return cell;
   }
-  const b = document.createElement("button");
-  b.className = "facts-table-eot-btn";
-  b.title = `${row.cell ? `${row.cell} · ` : ""}pivot the holograph to "${row.end1}"`;
-  const subj = document.createElement("span");
-  subj.className = "facts-table-eot-end";
-  subj.textContent = row.end1;
+  const endBtn = (name) => {
+    const b = document.createElement("button");
+    b.className = "facts-table-eot-end";
+    b.textContent = name;
+    b.title = `${row.cell ? `${row.cell} · ` : ""}pivot the holograph to "${name}"`;
+    b.onclick = () => pivotToHolograph(name);
+    return b;
+  };
   const verb = document.createElement("span");
   verb.className = "facts-table-eot-verb";
   verb.textContent = `—${row.label}→`;
-  const obj = document.createElement("span");
-  obj.className = "facts-table-eot-end";
-  obj.textContent = row.end2 ?? "";
-  b.append(subj, document.createTextNode(" "), verb, document.createTextNode(" "), obj);
-  b.onclick = () => pivotToHolograph(row.end1);
-  cell.append(b);
+  cell.append(endBtn(row.end1), document.createTextNode(" "), verb, document.createTextNode(" "));
+  if (row.end2) cell.append(endBtn(row.end2));
   return cell;
 }
 
@@ -13015,9 +13016,20 @@ function factsTable(rows, known, numberOf) {
       if (seen.has(name)) continue; // one row per SOURCE, not per span — matches References' own per-source numbering
       seen.add(name);
       const meta = known.has(ref) ? sourceMeta(name) : null;
-      const nameSpan = document.createElement("span");
+      // Clickable when the source is genuinely still loaded (Object.hasOwn,
+      // not truthiness — an attached-but-empty source is still "loaded")
+      // — opens the SAME in-app source viewer a Sources-panel pill already
+      // opens (openSourceViewer), never a working-looking control over a
+      // source that has since been detached (user direction, 2026-09-09:
+      // "let us be able to click through and pivot on things").
+      const loaded = Object.hasOwn(state.sources, name);
+      const nameSpan = document.createElement(loaded ? "button" : "span");
       nameSpan.className = "facts-table-src-name";
       nameSpan.textContent = meta?.site ?? name;
+      if (loaded) {
+        nameSpan.title = `open ${name}`;
+        nameSpan.onclick = () => openSourceViewer(name);
+      }
       srcCell.append(nameSpan);
       const cited = quotesByRef.has(ref) ? quotesByRef.get(ref) : refContext(state.sources, ref)?.cited ?? null;
       const q = document.createElement(cited && known.has(ref) ? "button" : "span");
@@ -14791,9 +14803,11 @@ $("not-served")?.remove();
 (async () => {
   try {
     const saved = await loadSources();
+    let restoredAny = false;
     for (const { name, text, meta } of saved) {
       if (!state.sources[name]) {
         addSource(name, text, { fromBoot: true });
+        restoredAny = true;
         // A source's real web provenance (title/host/URL, for
         // sourceMeta()/citation-style.js) lives in the SAME OPFS index row
         // as its text (addSource's own provenance/pageFace options, above)
@@ -14803,6 +14817,17 @@ $("not-served")?.remove();
         if (meta?.pageFace) state.pageFaces[name] = meta.pageFace;
       }
     }
+    // The Folds panel (a /facts table's Source/Citation controls, its
+    // References' real APA/MLA) may have already drawn once, synchronously,
+    // BEFORE this async restore landed — a render that read state.sources/
+    // state.provenance as empty and never re-reads them on its own. Found
+    // live, 2026-09-09: a source's name showed as plain, unclickable text
+    // (and References showed "Unpublished material") until an UNRELATED
+    // interaction (switching the citation style, say) forced a fresh
+    // render by coincidence. One redraw, only when it would actually
+    // change something and only for the panel a reader might already be
+    // looking at — never a redraw of a view nobody has open.
+    if (restoredAny && document.body.dataset.view === "builds") renderBuilds();
     // The record first, then the reads resume from their saved cursors on
     // top of it (a read that started before the restore would fork the log).
     try {

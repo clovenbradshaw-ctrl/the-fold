@@ -1665,7 +1665,22 @@
       .facts-table th:nth-child(5), .facts-table td:nth-child(5) { width: 16em; }
       .facts-table th:nth-child(6), .facts-table td:nth-child(6) { width: 4.5em; }
       .facts-table-src { display: flex; flex-direction: column; gap: 4px; }
-      .facts-table-src-name { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+      .facts-table-src-name {
+        font: inherit;
+        font-size: 12.5px;
+        color: var(--muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: none;
+        border: none;
+        padding: 0;
+      }
+      button.facts-table-src-name { cursor: pointer; }
+      button.facts-table-src-name:hover { color: var(--accent); text-decoration: underline; }
       /* The verbatim quote — italic, the material's own words set apart
          from this app's own prose, truncated on one line on a wide
          screen (the full text rides `title`, and reopen() on click) but
@@ -1692,27 +1707,24 @@
       button.facts-table-quote-text:hover { color: var(--accent); text-decoration: underline; }
       .facts-table-cite { display: flex; flex-direction: column; gap: 4px; }
       /* The EOT cell — subject —verb→ object, the same shape explore.js's
-         own linkNode()/linkText() already draw a graph edge with. A real
-         button (pivotToHolograph), not decoration. */
-      .facts-table-eot-btn {
-        display: block;
+         own linkNode()/linkText() already draw a graph edge with. Subject
+         and object are each their OWN pivotToHolograph button — a reader
+         may care about either end of the claim, not only the first. */
+      .facts-table-eot { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px; font-family: var(--mono); font-size: 11.5px; line-height: 1.4; }
+      .facts-table-eot-end {
         font: inherit;
-        font-family: var(--mono);
-        font-size: 11.5px;
-        line-height: 1.4;
-        text-align: left;
+        font-family: inherit;
         padding: 2px 4px;
         border: 1px solid transparent;
         border-radius: 5px;
         background: none;
-        color: var(--ink);
+        color: var(--accent);
         cursor: pointer;
+        text-align: left;
         overflow-wrap: break-word;
       }
-      .facts-table-eot-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
-      .facts-table-eot-end { color: var(--accent); }
+      .facts-table-eot-end:hover { border-color: var(--accent); background: var(--accent-soft); }
       .facts-table-eot-verb { color: var(--muted); }
-      .facts-table-eot { color: var(--muted); font-size: 11.5px; }
       /* A citation marker in running prose or a table cell — "[N]", never
          the full address spelled out: a real paper's inline citation is a
          short number, not its own bibliography entry repeated inline

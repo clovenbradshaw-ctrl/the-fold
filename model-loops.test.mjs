@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_MODEL_LOOP, INGREDIENT_KEYS, DRAFT_MATERIAL_KEYS, applyModelLoop, captureLastTurn, getLastCapturedTurn, loopGraphFor, previewFor,
   applyModelLoopOptions, pipelineToggle, pipelineValue, orderedDraftMaterialKeys, joinDraftMaterial, validateOverride, validateModelLoopImport,
+  PIPELINE_STAGE_ORDER, PIPELINE_TOGGLE_KEYS, PIPELINE_VALUE_KEYS,
 } from "./model-loops.js";
 
 const INGREDIENTS = Object.freeze({
@@ -131,9 +132,15 @@ test("loopGraphFor(chat-bare) shows only the safe ingredient (chatSystemPrompt �
   // sent nodes are gone outright, never merely hidden (see loopGraphFor's
   // own comment: "if we can't adjust a parameter, it probably shouldn't
   // be there").
+  // real execution order (PIPELINE_STAGE_ORDER, model-loops.js), not
+  // grouped by parameter type — webPreflight's search runs before any
+  // drafting; material/passagesPerPart/resolutions/depth shape the draft;
+  // makeRelationReader/maxCorrections/checkLink/witnessSentences are the
+  // checking stages, which only ever run once a draft exists, in the
+  // order the mechanism actually runs them.
   assert.deepEqual(keys.slice(0, 9), [
-    "makeRelationReader", "witnessSentences", "checkLink", "webPreflight",
-    "depth", "maxCorrections", "resolutions", "material", "passagesPerPart",
+    "webPreflight", "material", "passagesPerPart", "resolutions", "depth",
+    "makeRelationReader", "maxCorrections", "checkLink", "witnessSentences",
   ]);
   assert.deepEqual(keys.slice(9), ["chatSystemPrompt"]);
   assert.ok(!keys.includes("ledgerBlock"), "ledgerBlock is a checking-apparatus output, pruned from the canvas");
@@ -215,6 +222,12 @@ test("loopGraphFor(execute-part) shows no ingredient node at all, and only the 9
   const graph = loopGraphFor(getLastCapturedTurn(), DEFAULT_MODEL_LOOP);
   const keys = graph.nodes.filter((n) => n.kind !== "pipeline-toggle" && n.kind !== "pipeline-value").map((n) => n.key);
   assert.deepEqual(keys, []);
+});
+
+test("PIPELINE_STAGE_ORDER is a genuine permutation of PIPELINE_TOGGLE_KEYS+PIPELINE_VALUE_KEYS — the display order and the type grouping must never silently drift apart", () => {
+  const combined = [...PIPELINE_TOGGLE_KEYS, ...PIPELINE_VALUE_KEYS];
+  assert.equal(PIPELINE_STAGE_ORDER.length, combined.length);
+  assert.deepEqual([...PIPELINE_STAGE_ORDER].sort(), [...combined].sort());
 });
 
 test("loopGraphFor always carries the 9 pipeline-stage nodes, tagged with pipeline-toggle/pipeline-value kinds and an honest unset meta when the capture has no snapshot", () => {

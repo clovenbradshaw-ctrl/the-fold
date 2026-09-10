@@ -14,8 +14,10 @@ import {
   PROOF_TARGETS_PER_TURN,
   PREFLIGHT_PAGES_CONSULTED,
   PREFLIGHT_QUERY_MAX_TERMS,
+  PREFLIGHT_BARE_TOPIC_PAGES,
   assessPage,
   foldProof,
+  preflightCeilingFor,
   preflightQuery,
   proofQuery,
   proofTargets,
@@ -26,6 +28,14 @@ import { checkGrounding, extractCheckableAtoms } from "./grounding.js";
 // widget.js already injects (Amendment IV: a closed class lives in the
 // engine's prior register, never as a private list in this repo).
 import { ANAPHORIC_PRONOUNS } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
+// void-narration.test.mjs's own bootstrap, reused rather than re-derived:
+// real `briefFor`/`declaredSlotShape` over the real engine cube, so
+// `preflightCeilingFor`'s wiring is proven against the actual void a live
+// turn declares — never a hand-typed brief a real one could disagree with.
+import { briefFor } from "./void-brief.js";
+import { declaredSlotShape } from "./web-claim.js";
+import { cellOf } from "../eoreader7/native/kernel/cube.js";
+import * as enginePriors from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
 
 test("the query is the claim's own words — atom quoted, context words following, nothing invented", () => {
   const q = proofQuery({
@@ -173,6 +183,54 @@ test("the declared budgets are declarations", () => {
   assert.equal(PROOF_TARGETS_PER_TURN, 4);
   assert.equal(PREFLIGHT_PAGES_CONSULTED, 3);
   assert.equal(PREFLIGHT_QUERY_MAX_TERMS, 12);
+  assert.equal(PREFLIGHT_BARE_TOPIC_PAGES, 2);
+});
+
+// ── preflightCeilingFor: the void's own shape scoping the hunt ──────────────
+// "Once we know the shape of an answer, we know the shape of what it needs
+// to be fed" (user direction, 2026-09-10) — but never by reading declared
+// CARDINALITY as an invitation to fetch less: that is the exact mistake
+// void-brief.js's own header records and refuses ("'who was Lincoln's vice
+// president?' is grammatically singular and factually two-valued").
+
+test("preflightCeilingFor never narrows below the default on its own — pure arithmetic, checked directly", () => {
+  assert.equal(preflightCeilingFor({ slotDeclared: false, anchorDeclared: false }, 3), 3, "no slot at all — nothing to act on");
+  assert.equal(preflightCeilingFor({ slotDeclared: true, anchorDeclared: true }, 3), 3, "a relational slot — the Lincoln shape — stays at the full ceiling");
+  assert.equal(preflightCeilingFor({ slotDeclared: true, anchorDeclared: false }, 3), 2, "a bare topic slot narrows to the corroborating floor");
+  assert.equal(preflightCeilingFor({ slotDeclared: true, anchorDeclared: false }, 1), 1, "never widens past whatever ceiling it was handed");
+  assert.deepEqual(preflightCeilingFor(), undefined, "no arguments at all — never throws, never invents a default");
+});
+
+test("preflightCeilingFor over REAL void briefs: a bare topic narrows, a relational anchor (the Lincoln shape) does not, an explanatory question passes through untouched", () => {
+  const shapeOf = (q) =>
+    declaredSlotShape(q, {
+      definiteDeterminers: enginePriors.DEFINITE_DETERMINERS,
+      inflectionalSuffixes: enginePriors.INFLECTIONAL_SUFFIXES,
+      interrogativePronouns: enginePriors.INTERROGATIVE_PRONOUNS,
+      mannerReasonPronouns: enginePriors.MANNER_REASON_PRONOUNS,
+    });
+  const brief = (q) => briefFor(q, [], { slotShapeOf: shapeOf, cellOf });
+  const anchorDeclaredOf = (b) => Boolean(b?.declaration?.cells?.find((c) => c.field === "anchor")?.declared);
+  const shapeFor = (b) => ({ slotDeclared: Boolean(b?.declaration), anchorDeclared: anchorDeclaredOf(b) });
+
+  // The specimen the mistake was made on — void-brief.js's own header.
+  // Wiring this in must never narrow it, on the real engine, not a stub.
+  const vp = brief("Who was Abraham Lincoln's vice president?");
+  assert.ok(vp, "a real slot is declared");
+  assert.equal(anchorDeclaredOf(vp), true, "a real anchor is recovered — Lincoln");
+  assert.equal(preflightCeilingFor(shapeFor(vp), PREFLIGHT_PAGES_CONSULTED), PREFLIGHT_PAGES_CONSULTED);
+
+  // The specimen that motivated this: a bare topic, no second party for the
+  // void's own multi-filler machinery to have ever protected against.
+  const revolution = brief("What year did the French Revolution begin?");
+  assert.ok(revolution, "a real slot is declared");
+  assert.equal(anchorDeclaredOf(revolution), false, "no relational anchor — a bare topic");
+  assert.equal(preflightCeilingFor(shapeFor(revolution), PREFLIGHT_PAGES_CONSULTED), PREFLIGHT_BARE_TOPIC_PAGES);
+
+  // No slot at all — an explanatory question. Nothing here to act on.
+  const explain = brief("How does photosynthesis work?");
+  assert.equal(explain, null);
+  assert.equal(preflightCeilingFor(shapeFor(explain), PREFLIGHT_PAGES_CONSULTED), PREFLIGHT_PAGES_CONSULTED);
 });
 
 // ── the preflight gate: search BEFORE a draft exists, not after ─────────────

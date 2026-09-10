@@ -103,7 +103,21 @@ export function groundOf(sentence, ctx = {}) {
   }
   // 2. witnessed
   if (witness?.witness === "states") {
-    const ref = witness.span?.ref ?? passageHolding(witness.decider, passages);
+    // `witness.span.ref` is witness-sentences.js's own internal placeholder
+    // — it joins every passage into ONE text so the witness can be pointed
+    // at any of them ("const source = { ref: 'passages', text }", that
+    // file's own `witnessSentences`), so a "states" verdict's span always
+    // carries the literal string "passages" as its ref, never a real
+    // address. Read raw, that made the label itself say "a passage states
+    // this passages" and the address line say the bare word "passages"
+    // (found live, 2026-09-10, user direction: "this needs to show the
+    // source and the verbatim claim it came from"). The real source is
+    // recovered the way `passageHolding` already exists to do it: which of
+    // the ORIGINAL, individually-addressed passages actually contains the
+    // witness's own quoted decider text — that text is always verbatim
+    // (this module's own "precision guard": "every attest is the passage's
+    // verbatim sentence, never the model's words").
+    const ref = passageHolding(witness.decider, passages);
     return { tier: "witnessed", cell: CELL_OF.witnessed, addresses: ref ? [ref] : [], phrase: "a passage states this", detail: witness.decider ? `the witness pointed at: “${String(witness.decider).slice(0, 120)}”` : "the witness pointed at a passage", reached };
   }
   // 3. recorded / 5. contested — the sentence's claims (any verdict) matched to notes on the ledger

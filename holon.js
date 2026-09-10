@@ -41,7 +41,7 @@ import { attribute, attributedRefs, splitSentences } from "./cite.js";
 import { editPiece } from "./piece-edit.js";
 import { isCodeSource, topicTerms } from "./longform.js";
 import { snipsFor, snipBlock, checkSection, reviseAsk, applyRewrite } from "./snip-check.js";
-import { traceReading, traceLine, actsFor, VERDICT } from "./reading-trace.js";
+import { traceReading } from "./reading-trace.js";
 import { REVISION_ASKS, REVISION_ROUNDS, revisePiece } from "./piece-revise.js";
 import { budgetsFor, depthLine } from "./depth.js";
 import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard, repeatsAbsentPremise, turnSnipBlock } from "./correction.js";
@@ -3308,17 +3308,24 @@ export async function runPart({
   // used whichever bore, and dropped the rest in silence — so a reader could
   // not tell an answer that searched and found nothing from one that never
   // looked. That distinction is this instrument's oldest law. It is a fact
-  // about the SEARCH, computed here and stated as the instrument's own
-  // sentence; it is never asked of the mouth, and the excluded passages are
-  // never described to it (P126: naming what is not there teaches a small
-  // model to say it).
+  // about the SEARCH, computed here and carried on the record (below); it is
+  // never asked of the mouth, and the excluded passages are never described
+  // to it (P126: naming what is not there teaches a small model to say it).
+  //
+  // NO LONGER FOLDED INTO THE ANSWER'S OWN PROSE (user direction, 2026-09-10:
+  // "stop it from ever saying things like this"). `traceLine`'s own sentence
+  // — "Also looked at: en.wikipedia.org was read and speaks of the same
+  // things without answering this" — read as the instrument talking about
+  // itself rather than answering, the exact class of thing P127's
+  // `cutProcessTalk` exists to keep out of a checked answer, except this
+  // sentence was appended AFTER that pass ran and so never went through it.
+  // `traceReading`'s own finding still matters and is still computed and
+  // still lands on the result (`reading`, below) for whatever reads it off
+  // the record; it simply no longer becomes a sentence in what the reader
+  // sees.
   const reading = passages.length
     ? traceReading({ passages: prosePassages.length ? prosePassages : passages, question: task || question, used: [...(check.used ?? []), ...(check.refs ?? [])] })
     : [];
-  const readingLine = (!piece && text && reading.some((r) => r.verdict !== VERDICT.BORE) && reading.some((r) => r.verdict === VERDICT.BORE))
-    ? traceLine(reading)
-    : "";
-  if (readingLine) text = `${text.trim()}\n\n${readingLine}`;
 
   // What this turn learned, in the chain's entry shape (P126) — handed out on
   // the result for the caller to append to its durable store. Both halves:

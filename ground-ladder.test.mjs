@@ -42,6 +42,22 @@ test("the ladder places a sentence on its highest rung and names the cell backst
   assert.deepEqual(TIERS, ["bound", "witnessed", "recorded", "derived", "contested", "named", "self"]);
 });
 
+test("witnessed tier: the engine's own placeholder span.ref (witness-sentences.js's joined 'passages' source) is never leaked as the address — the real per-passage ref is recovered instead (live bug, 2026-09-10)", () => {
+  const s = "The observatory opened in 1889.";
+  // The exact shape witness-sentences.js's rowFor/corroboration.js's span
+  // builder actually produce: `span.ref` is the literal string "passages"
+  // — the label for the ONE text every passage got joined into before the
+  // witness was asked — never a real, individually addressable passage.
+  const wit = groundOf(s, {
+    ...ctx,
+    witness: { sentence: s, witness: "states", decider: "The observatory opened in 1889.", span: { ref: "passages", at: "passages#12-44", text: "The observatory opened in 1889." } },
+  });
+  assert.equal(wit.tier, "witnessed");
+  assert.deepEqual(wit.addresses, ["b.txt#0-40"], "the real passage holding the decider, never the engine's own internal placeholder");
+  assert.doesNotMatch(groundLine(wit), /passages/, "the placeholder never reaches the reader's own line");
+  assert.equal(groundLine(wit), "a passage states this b.txt#0-40");
+});
+
 test("a witness refusal on THIS sentence outranks the named tier's bare name-match — the stronger, more specific check wins the display (live bug, 2026-09-09)", () => {
   // "Amelia Hartley loved comets" alone lands "named" (checked above): her
   // name resolves, nothing placed the claim, and no witness was ever asked

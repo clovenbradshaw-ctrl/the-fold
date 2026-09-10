@@ -59,6 +59,16 @@ export const MAX_PERIOD = 4;
 export const CONTEXT_LINES = 4;
 
 /**
+ * A line that is nothing but one list-bullet character — Unicode's own
+ * general-punctuation bullets alongside the plain ASCII markers a
+ * readable-text extraction actually emits, never a closed list of sites.
+ * Matched only when the WHOLE trimmed line is the marker, so a line that
+ * starts with one and says more ("- John Nance Garner (1933–1941)") is
+ * untouched and still typed on its own merits below.
+ */
+const BULLET_LINE_RE = /^[-*•‣◦·]$/;
+
+/**
  * makeNetworkBinder({ shapes }) — `shapes` is an ordered list of
  * `{ name, read(line) }`. The FIRST whose `read` returns non-null types the
  * line, so order is precedence and the caller owns it. A line nothing reads is
@@ -98,6 +108,22 @@ export function makeNetworkBinder({ shapes = [] } = {}) {
       at += raw.length + 1;
       const trimmed = raw.trim();
       if (!trimmed) continue;
+      // A LONE BULLET MARKER IS RENDERING, NOT THE ARRANGEMENT — the exact
+      // same reason a blank line is dropped above, one register over.
+      // Found live, 2026-09-10: a real Wikipedia infobox renders its list
+      // as "-\nJohn Nance Garner\n(1933–1941)\n\n-\nHenry A. Wallace\n
+      // (1941–1945)" — the extracted page puts each bullet's "-" on its
+      // OWN line, ahead of the name it introduces. Typed alone, a bare
+      // "-" matches neither `extentShape` nor `surfaceShape` (there is no
+      // date, and `extractSurfaces` finds nothing in one dash), so it
+      // types `null` — a hole `bindRecurring`'s own header already says a
+      // cycle may never be built over — and the whole three-member,
+      // two-shape arrangement was refused for want of a punctuation mark
+      // that names nothing. `BULLET_LINE_RE` is deliberately narrow: a
+      // line that is NOTHING BUT one bullet character (never a line that
+      // starts with one and says more, which stays real content for the
+      // shapes below to type on their own merits).
+      if (BULLET_LINE_RE.test(trimmed)) continue;
       const typed = typeLine(trimmed);
       // P5.2: the offset has to name the trimmed text's own first byte, so a
       // span sliced back out of the source reproduces the line exactly. The
@@ -196,6 +222,29 @@ export const MONTHS = Object.freeze([
 export const MONTH_GIVER = Object.freeze({ of: "proleptic Gregorian calendar", language: "en" });
 
 const MONTH_ALT = MONTHS.join("|");
+// Three-letter month abbreviations, the same closed class one register
+// abbreviated — "Jan", "Apr", never a second calendar.
+const MONTH_ABBR = MONTHS.map((m) => m.slice(0, 3));
+const MONTH_ABBR_ALT = MONTH_ABBR.join("|");
+const monthAbbrIndex = (name) => MONTH_ABBR.findIndex((m) => m.toLowerCase() === String(name).slice(0, 3).toLowerCase());
+/**
+ * "Jan–Apr 1945" — a short tenure inside one calendar year, written with the
+ * year stated once and shared by both ends rather than repeated on each
+ * side. Found live, 2026-09-10: real Wikipedia infobox text for a vice
+ * president who served under four months (Harry S. Truman, Jan 20 – Apr 12
+ * 1945) — `RANGE_RE` requires each side to be a COMPLETE date on its own,
+ * and a bare month name never is one, so this shape fell through as no
+ * range at all, not merely an imprecise one. A separate pattern rather than
+ * a `RANGE_RE` alternative — the shared trailing year has to be copied onto
+ * BOTH ends, which is a different reading, not a wider version of the same
+ * one.
+ */
+// Wrapped in the SAME allowed punctuation `extentShape`'s own residue check
+// tolerates around a range ("(1933–1941)") — this pattern is anchored to
+// the WHOLE line rather than searched-and-residue-checked like the main
+// loop, so the tolerance has to be declared here instead of caught after.
+const EDGE_PUNCT = "[\\s;,()·|]*";
+const MONTH_RANGE_SHARED_YEAR_RE = new RegExp(`^${EDGE_PUNCT}(${MONTH_ABBR_ALT}|${MONTH_ALT})\\.?\\s*(?:[-–—]|to)\\s*(${MONTH_ABBR_ALT}|${MONTH_ALT})\\.?\\s+(\\d{4})${EDGE_PUNCT}$`, "i");
 // Day-first ("20 June 1837") and month-first ("March 4, 1861") both occur in
 // real material and neither is more correct; a reader that took only one would
 // silently drop half the world's pages.
@@ -260,7 +309,23 @@ export const extentShape = Object.freeze({
       ranges.push({ from, to, fromText: m[1], toText: m[2] });
       residue = residue.replace(m[0], " ");
     }
-    if (!ranges.length) return null;
+    if (!ranges.length) {
+      // The shared-year month range ("Jan–Apr 1945") is checked against the
+      // WHOLE trimmed line, not folded into the loop above — see its own
+      // note where it is declared.
+      const shared = MONTH_RANGE_SHARED_YEAR_RE.exec(t);
+      if (!shared) return null;
+      const year = +shared[3];
+      const fromM = monthAbbrIndex(shared[1]);
+      const toM = monthAbbrIndex(shared[2]);
+      if (fromM < 0 || toM < 0) return null;
+      return [{
+        from: { year, month: fromM + 1, day: null, text: `${shared[1]} ${year}` },
+        to: { year, month: toM + 1, day: null, text: `${shared[2]} ${year}` },
+        fromText: shared[1],
+        toText: shared[2],
+      }];
+    }
     // Only separators may remain. Anything else means this line says more
     // than its dates, so it is not an extent line.
     if (/[^\s;,()·|]/.test(residue)) return null;
@@ -277,12 +342,31 @@ export const extentShape = Object.freeze({
  * capitalized run is used to FIND a candidate and then to veto it, never to
  * admit one on capitalization alone.
  */
-export function surfaceShape({ extractSurfaces }) {
+export function surfaceShape({ extractSurfaces, isAbbreviationBoundary } = {}) {
   return Object.freeze({
     name: "surface",
     read(line) {
       const t = String(line ?? "").trim();
-      if (!t || /[.!?]\s/.test(t) || /[.!?]$/.test(t)) return null;
+      if (!t) return null;
+      // A period/!/? that closes a genuine SENTENCE means this line runs on
+      // into prose, not a name — the veto this shape has always had. Found
+      // live, 2026-09-10: a real Wikipedia infobox row, "Henry A. Wallace",
+      // was rejected by that same veto for the identical reason this repo's
+      // own founding "mouth is not censored" specimen was ("Harry S.
+      // Truman") — a middle initial's period is not a sentence boundary.
+      // `isAbbreviationBoundary(textEndingHere)` is the caller's own guard
+      // for exactly that distinction (grounding.js's shared `ABBREV`, this
+      // file's own standing rule: shape recognizers are supplied, never
+      // imported) — omitted, every existing caller is byte-identical: the
+      // check below fires on the FIRST period/!/? boundary found, same as
+      // the bare regex it replaces.
+      const re = /[.!?]+(?=\s|$)/g;
+      let m;
+      while ((m = re.exec(t))) {
+        const before = t.slice(0, m.index + m[0].length);
+        if (typeof isAbbreviationBoundary === "function" && isAbbreviationBoundary(before)) continue;
+        return null;
+      }
       // `extractSurfaces` reads SENTENCES — objects with `.text` — not a bare
       // string; passing the string ran it over the characters and threw.
       const found = extractSurfaces([{ text: t }]) ?? [];

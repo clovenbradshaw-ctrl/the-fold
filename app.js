@@ -10992,7 +10992,17 @@ function taggedProse(text, offered, classified = [], marks = []) {
       // actually opens something) — preferred here so a reader lands on
       // real, still-loaded bytes instead of a stale-material message when
       // there was a working address to pick all along.
-      const knownRef = g.addresses?.find((a) => !a.startsWith("web:search-results")) ?? g.addresses?.[0] ?? null;
+      // FED, NOT BOUND (2026-09-10, user direction: "this should disclose
+      // sources... even if it just says 'it was fed content from X site,
+      // here's the related passage'"). `g.addresses` stays empty at self
+      // tier — nothing bound, and this button must never claim it did —
+      // but `g.fedRefs` (ground-ladder.js's own new field) names what was
+      // actually retrieved and handed to the mouth this turn. Falling
+      // back to it here is what actually fixes the self-tier "does
+      // nothing" case the comment above already diagnoses for a different
+      // ref shape: without it, a self-tier sentence had NO ref of any kind
+      // to fall back to and always hit `groundHunt`'s own zero-hit floor.
+      const knownRef = g.addresses?.find((a) => !a.startsWith("web:search-results")) ?? g.addresses?.[0] ?? g.fedRefs?.[0] ?? null;
       sentMarks.push({
         label: `◎ ${groundLine(g)}`,
         // Self tier means the model is citing itself — nothing read placed
@@ -11000,7 +11010,8 @@ function taggedProse(text, offered, classified = [], marks = []) {
         // here because the inline mark for this case is an underline, not
         // a numbered citation (see the sentMarks.length block below); the
         // explanation has to live where a reader who clicks the underline
-        // actually lands.
+        // actually lands. `g.detail` already carries the fed-sources
+        // sentence when this turn retrieved anything (ground-ladder.js).
         detail: g.tier === "self"
           ? `${g.detail} There is nothing to cite here, so this sentence is underlined rather than marked with a numbered citation — the underline means "the model's own voice, unbacked."`
           : g.detail,

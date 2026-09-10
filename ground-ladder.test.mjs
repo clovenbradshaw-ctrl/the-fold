@@ -115,6 +115,51 @@ test("tier 4 (derived) compares referent identity when the index is available, n
   assert.equal(noIndex.tier, "derived", "with no resolvable identity either side, the token check still applies");
 });
 
+test("passageHolding prefers a real, reopenable page over the search-results digest when both contain the needle (live bug, 2026-09-10: 'See original source' on a real 'named' citation opened an address that had already outlived the turn)", () => {
+  const mixed = [
+    { ref: "web:search-results#0-2001", text: "Amelia Hartley founded the Northgate Observatory in 1887." },
+    { ref: "web:example.com-0#40-99", text: "Amelia Hartley founded the Northgate Observatory in 1887, according to historians." },
+  ];
+  const named = groundOf("Amelia Hartley discovered a comet.", { passages: mixed, model: "gemma2:2b", resolveName: (n) => (/hartley/i.test(n) ? new Set(["r1"]) : new Set()) });
+  assert.equal(named.tier, "named");
+  assert.deepEqual(named.addresses, ["web:example.com-0#40-99"], "the real per-page ref wins over the ephemeral search-results digest, even though the digest matched first");
+  // When the ONLY match is the digest (no real page ever carried the
+  // needle), it is still the honest answer — never refused just because
+  // it is the weaker kind of address.
+  const digestOnly = groundOf("Amelia Hartley discovered a comet.", { passages: [mixed[0]], model: "gemma2:2b", resolveName: (n) => (/hartley/i.test(n) ? new Set(["r1"]) : new Set()) });
+  assert.deepEqual(digestOnly.addresses, ["web:search-results#0-2001"]);
+});
+
+test("self tier discloses what was fed even though nothing bound (2026-09-10, user direction: 'this should disclose sources... even if it just says it was fed content from X site, here's the related passage')", () => {
+  const fedPassages = [
+    { ref: "web:fdrlibrary.marist.edu-0#0-200", text: "Some unrelated sentence." },
+    { ref: "web:en.wikipedia.org-0#0-200", text: "Another unrelated sentence." },
+  ];
+  const self = groundOf("The show ran nine seasons.", { passages: fedPassages, model: "gemma2:2b", witness: { witness: "refused" } });
+  assert.equal(self.tier, "self");
+  assert.deepEqual(self.fedSources, ["web:fdrlibrary.marist.edu-0", "web:en.wikipedia.org-0"]);
+  assert.deepEqual(self.fedRefs, ["web:fdrlibrary.marist.edu-0#0-200", "web:en.wikipedia.org-0#0-200"], "one real ref per distinct source, so a reader can still open the bytes");
+  assert.match(self.detail, /2 pages were given to the model this turn \(web:fdrlibrary\.marist\.edu-0, web:en\.wikipedia\.org-0\)/);
+  assert.match(self.detail, /none was confirmed to state this/, "never claims the fed material backs the sentence — only that it existed");
+  // No passages retrieved at all this turn — byte-identical to before this
+  // existed: no fed fields worth mentioning, and the detail says nothing
+  // about pages.
+  const nothingFed = groundOf("The show ran nine seasons.", { model: "gemma2:2b", witness: { witness: "refused" } });
+  assert.deepEqual(nothingFed.fedSources, []);
+  assert.doesNotMatch(nothingFed.detail, /given to the model/);
+
+  // The search-results digest sits FIRST in `passages` (gatherPreflightMaterial's
+  // own build order) but is the one ref type that can never actually be
+  // reopened (live bug, 2026-09-10: "See original source" always opened
+  // it, even with a real fetched page fed the SAME turn). `fedRefs[0]`
+  // must be the real page, not whichever source happened to sort first.
+  const digestFirst = groundOf("The show ran nine seasons.", {
+    passages: [{ ref: "web:search-results#0-100", text: "x" }, { ref: "web:en.wikipedia.org-0#0-200", text: "x" }],
+    model: "gemma2:2b", witness: { witness: "refused" },
+  });
+  assert.equal(digestFirst.fedRefs[0], "web:en.wikipedia.org-0#0-200", "a real, reopenable page outranks the digest for the action button, even though the digest was fed first");
+});
+
 test("names in a sentence are capitalised runs, never sentence-initial function words", () => {
   assert.deepEqual(namesIn("The X-Files was created by Chris Carter and aired on Fox."), ["X-Files", "Chris Carter", "Fox"]);
   assert.deepEqual(namesIn("Some viewers loved \"I Want to Believe\" and its tagline Trust No One, said Chris Carter."), ["Trust No One", "Chris Carter"], "a lone capitalised word at the sentence's start or inside a quoted title is capitalisation, not a name; a multi-word run still counts");

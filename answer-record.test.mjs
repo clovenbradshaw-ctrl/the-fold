@@ -16,6 +16,7 @@ test("a record carries what was handed, what was said with its verdict and addre
   });
   assert.equal(r.schema, ANSWER_RECORD_SCHEMA);
   assert.deepEqual(r.retrieved, ["a.txt#0-10"]);
+  assert.deepEqual(r.retrievedSources, ["a.txt"], "the source of what was RETRIEVED, read off the ref itself — distinct from `sources` (state.sources, the attached-file list)");
   assert.equal(r.claims.length, 2);
   assert.equal(r.claims[0].key, "amelia hartley|founded|the northgate observatory");
   assert.deepEqual(r.claims[0].spans, [{ ref: "a.txt#0-10", start: 0, end: 10 }]);
@@ -91,7 +92,7 @@ test("answerRecordProse reads as plain language — no organ names, no JSON, no 
   assert.match(prose, /It made 2 claims about the material — 1 backed by what it read, 1 the reading couldn't settle either way\./);
   assert.match(prose, /1 statement the material didn't support/);
   assert.match(prose, /1 statement with nothing to check against/);
-  assert.match(prose, /It drew on 1 passage from 1 source\./);
+  assert.match(prose, /It drew on 1 passage from 1 source \(a\.txt\)\./);
   assert.match(prose, /Reading is still going on 1 source \(b\.txt 2 of 44\)\./);
   // The developer's own view — organ names, the recipe hash, schema/frame
   // internals — belongs to "view raw", one click deeper, never the default
@@ -99,6 +100,29 @@ test("answerRecordProse reads as plain language — no organ names, no JSON, no 
   for (const leak of ["discoverRelationVocab", "recipe", "schema", "EOAnswerRecord", "{", "}", "r1"]) {
     assert.ok(!prose.includes(leak), `plain summary leaked "${leak}": ${prose}`);
   }
+});
+
+test("answerRecordProse names what was RETRIEVED from, never the attached-file count — live bug 2026-09-10: a materialless preflight turn read 'it drew on 3 passages from 0 sources', a self-contradicting sentence", () => {
+  // The exact live shape: nothing attached (`sources: []`, `state.sources`
+  // empty), three passages fetched by the preflight web search across two
+  // real pages plus the combined search-results digest.
+  const r = answerRecord({
+    question: "Who was Franklin D. Roosevelt's vice president?",
+    sections: [{
+      passages: [
+        { ref: "web:docs.fdrlibrary.marist.edu-0#0-300", text: "x" },
+        { ref: "web:en.wikipedia.org-0#0-300", text: "x" },
+        { ref: "web:search-results#0-500", text: "x" },
+      ],
+      relations: { claims: [] },
+    }],
+    sources: [],
+  });
+  assert.equal(r.sources.length, 0, "nothing was attached");
+  assert.deepEqual(r.retrievedSources, ["web:docs.fdrlibrary.marist.edu-0", "web:en.wikipedia.org-0", "web:search-results"]);
+  const prose = answerRecordProse(r);
+  assert.match(prose, /It drew on 3 passages from 3 sources \(web:docs\.fdrlibrary\.marist\.edu-0, web:en\.wikipedia\.org-0, web:search-results\)\./);
+  assert.doesNotMatch(prose, /from 0 sources/, "never names the attached-file count when real passages were retrieved from elsewhere");
 });
 
 test("answerRecordProse: nothing to say is said plainly, never a blank box", () => {

@@ -103,6 +103,16 @@ export function answerRecord({ question, answer = "", model = null, frame = null
     question: String(question ?? ""),
     model, recipe, frame,
     retrieved,
+    // THE SOURCES OF WHAT WAS RETRIEVED (2026-09-10, user direction: "this
+    // should disclose sources" — found live, a materialless preflight turn
+    // read "it drew on 3 passages from 0 sources", because `sources` below
+    // is `state.sources` alone (attached files, kept for the constitutional
+    // hash) and a passage fetched by the preflight search was never one of
+    // those. The two questions are different — "what is attached" and
+    // "where did what was actually read come from" — and this answers the
+    // second one, straight off `retrieved`'s own refs, never off the
+    // attached-file list.
+    retrievedSources: [...new Set(retrieved.map((r) => String(r ?? "").split("#")[0]).filter(Boolean))],
     unread: (unread ?? []).map((u) => ({ name: u.name, read: u.read, total: u.total })),
     claims,
     tally,
@@ -187,8 +197,15 @@ export function answerRecordProse(r) {
 
   const sources = r.sources?.length ?? 0;
   const retrieved = r.retrieved?.length ?? 0;
-  if (retrieved) sentences.push(`It drew on ${plural(retrieved, "passage")} from ${plural(sources, "source")}.`);
-  else if (sources) sentences.push(`Nothing attached came up for this question, though ${plural(sources, "source")} ${sources === 1 ? "was" : "were"} available.`);
+  // Named by the RETRIEVED passages' own sources, never the attached-file
+  // list (`sources`, above) — a preflight-fetched page is a real source of
+  // what was read even when nothing was attached, and the two counts must
+  // not be conflated the way "3 passages from 0 sources" once read.
+  const retrievedSources = r.retrievedSources ?? [];
+  if (retrieved) {
+    const named = retrievedSources.length && retrievedSources.length <= 6 ? ` (${retrievedSources.join(", ")})` : "";
+    sentences.push(`It drew on ${plural(retrieved, "passage")} from ${plural(retrievedSources.length || sources, "source")}${named}.`);
+  } else if (sources) sentences.push(`Nothing attached came up for this question, though ${plural(sources, "source")} ${sources === 1 ? "was" : "were"} available.`);
 
   const stillReading = (r.unread ?? []).filter((u) => (u.total ?? 0) > (u.read ?? 0));
   if (stillReading.length) sentences.push(`Reading is still going on ${plural(stillReading.length, "source")} (${stillReading.map((u) => `${u.name} ${u.read} of ${u.total}`).join(", ")}).`);

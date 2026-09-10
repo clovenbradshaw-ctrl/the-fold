@@ -1627,10 +1627,15 @@ test("an answer that already names every filler never trips the completeness gat
   assert.equal(completeness, 0, "a complete first draft earns no completeness correction at all");
   assert.equal(drafts, 1, "one draft");
   assert.ok(!result.open.some((o) => o.includes("names only one of several")));
-  assert.equal(atomChecks, 1, "the fabricated year earns exactly one atom-check ask");
+  // THE MOUTH IS NOT CENSORED (2026-09-10): the mechanical atom check still
+  // runs (no model call) and still flags 1861, but nothing asks the model
+  // to rewrite it and nothing could splice a rewrite back in even if one
+  // came back — see holon.js's own note above `let text = stripFraming
+  // (draft)`.
+  assert.equal(atomChecks, 0, "the fabricated year is flagged mechanically; nothing asks the model to rewrite it");
   assert.deepEqual(result.correction.flags.map((f) => f.flags.map((x) => x.value)).flat(), ["1861"], "1861 is in no passage");
-  assert.deepEqual(result.correction.outcomes.map((o) => o.outcome), ["refused"], "the mouth repeated itself, so the flag stands rather than a worse sentence landing");
-  assert.match(result.output, /1861/, "a refused rewrite leaves the original, flagged — never silently deleted");
+  assert.deepEqual(result.correction.outcomes.map((o) => o.outcome), [], "no rewrite was asked for, so there is no outcome to report");
+  assert.match(result.output, /1861/, "the model's own original sentence ships exactly as it drafted it — flagged, never edited");
 });
 
 test("a single-filler slot never trips the completeness gate — singular is the ordinary, unremarked case", async () => {
@@ -2321,7 +2326,11 @@ test("P110: the piece's own checks — obligations from the cast, the duplicate 
   const dup = sent.filter((m) => /Every claim here was made in an earlier section/.test(m.at(-1)?.content ?? ""));
   assert.equal(dup.length, 1, "the second section's claims were all already said — asked once for something new");
   assert.ok(hunts >= 1, "a section whose retrieval was thin hunted on its own words");
-  assert.doesNotMatch(r.output, /restate the question/, "the mouth's talk about the writing is cut");
+  // THE MOUTH IS NOT CENSORED (2026-09-10): cutMetaTalk still runs (its own
+  // direct unit test above pins it unchanged) but the finding is no longer
+  // applied to what ships — see holon.js's own note above `let text =
+  // stripFraming(draft)`.
+  assert.match(r.output, /restate the question/, "the model's own draft ships exactly as it wrote it, narration and all");
   assert.ok(r.sections.every((s) => s.piece && Array.isArray(s.piece.obligations)), "every section carries its obligations and coverage");
 });
 
@@ -2390,9 +2399,16 @@ test("P122: the snips are handed above the material; a drafted year no snip carr
   assert.equal(sec.piece.snipCheck.flagged, 1);
   assert.equal(sec.piece.snipCheck.contradictions.length, 1);
   assert.deepEqual(sec.piece.snipCheck.contradictions[0].source, ["1841"]);
-  assert.deepEqual(sec.piece.snipCheck.outcomes.map((o) => o.outcome), ["rewritten"], "the preamble line is not a sentence; the rewrite passed its atoms");
-  assert.match(sec.text, /built in 1841 by Ada Rowe/); assert.doesNotMatch(sec.text, /1847/);
-  assert.equal(sec.piece.snipCheck.after.flagged, 0);
+  // THE MOUTH IS NOT CENSORED (2026-09-10): the rewrite ask still runs and
+  // its outcome is still recorded (the pure `applyRewrite` this reads is
+  // unchanged, it is just never spliced back into `sec.text` — see
+  // holon.js's own note above `let text = stripFraming(draft)`), so the
+  // model's own original sentence — 1847, not the corrected 1841 — is what
+  // ships, still flagged.
+  assert.deepEqual(sec.piece.snipCheck.outcomes.map((o) => o.outcome), ["rewritten"], "the rewrite is computed and its outcome recorded, even though it never lands");
+  assert.match(sec.text, /built in 1847 by Ada Rowe/, "the model's own original sentence ships unedited");
+  assert.doesNotMatch(sec.text, /1841/, "the rewrite was never applied");
+  assert.equal(sec.piece.snipCheck.after.flagged, 1, "checked against the SAME unedited text as before, so the flag stands");
   assert.equal(witnessed.length, 2, "the witness saw both sentences");
 });
 
@@ -2444,11 +2460,20 @@ test("P123: the depth slider — depth 0 spends no rewrite and no witness ask; d
   assert.equal(quick.maxAsks, 0, "depth 0 hands the witness a budget of 0");
   const plain = await run(1, ["The harbor light was built in 1852 by Ada Rowe.", "The harbor light was built in 1841 by Ada Rowe."]);
   assert.equal(plain.rewrites, 1, "depth 1: one rewrite ask, as before"); assert.equal(plain.maxAsks, 24);
-  assert.match(plain.r.sections[0].text, /1847/, "the refused rewrite leaves the original");
+  assert.match(plain.r.sections[0].text, /1847/, "the model's own original ships — the mouth is not censored");
+  // THE MOUTH IS NOT CENSORED (2026-09-10): a rewrite is never spliced back
+  // in regardless of how it comes back (see holon.js's own note above `let
+  // text = stripFraming(draft)`), so a SECOND round asking about the exact
+  // same still-standing flag would just be a second wasted call — capped
+  // at one ask at every depth above 0 now, not scaled by the slider. The
+  // slider still widens the witness budget (maxAsks below), which is a
+  // real check that still runs; it just no longer buys extra rewrite rounds
+  // that could never land anyway.
   const careful = await run(2, ["The harbor light was built in 1852 by Ada Rowe.", "The harbor light was built in 1841 by Ada Rowe."]);
-  assert.equal(careful.rewrites, 2, "depth 2: the refused first rewrite earns a second ask"); assert.equal(careful.maxAsks, 48);
-  assert.deepEqual(careful.r.sections[0].piece.snipCheck.outcomes.map((o) => [o.round, o.outcome]), [[1, "refused"], [2, "rewritten"]]);
-  assert.match(careful.r.sections[0].text, /1841/); assert.doesNotMatch(careful.r.sections[0].text, /1847/);
+  assert.equal(careful.rewrites, 1, "depth 2: still one rewrite ask — a second would only re-ask about the identical unapplied flag"); assert.equal(careful.maxAsks, 48);
+  assert.deepEqual(careful.r.sections[0].piece.snipCheck.outcomes.map((o) => [o.round, o.outcome]), [[1, "refused"]]);
+  assert.match(careful.r.sections[0].text, /1847/, "the model's own original ships unedited at every depth");
+  assert.doesNotMatch(careful.r.sections[0].text, /1841/, "the rewrite is never applied, however deep the slider is set");
   assert.match(careful.r.depthLine, /^Thinking depth 2 of 3 \(careful\)/);
 });
 
@@ -2476,13 +2501,17 @@ test("P125: a plain turn's wrong answer is corrected too — the flagged year is
   assert.match(first, /What the sources say, verbatim:/, "a plain turn stands on snips too"); assert.doesNotMatch(first, /#\d+-\d+/, "and no address reaches the mouth");
   assert.ok(r.correction, "a plain turn carries its correction");
   assert.equal(r.correction.flagged, 1);
-  assert.deepEqual(r.correction.outcomes.map((o) => o.outcome), ["rewritten"]);
-  assert.match(r.output, /1841/); assert.doesNotMatch(r.output, /1847/);
-  assert.equal(r.correction.after.flagged, 0);
+  // THE MOUTH IS NOT CENSORED (2026-09-10): the mechanical flag still fires,
+  // but nothing asks the model to rewrite it and nothing could splice a
+  // rewrite back in — see holon.js's own note above `let text =
+  // stripFraming(draft)`. The premise check above (a SEPARATE mechanism —
+  // information handed to the model BEFORE it drafts, never an edit of what
+  // it said after) is untouched and still runs.
+  assert.deepEqual(r.correction.outcomes.map((o) => o.outcome), []);
+  assert.match(r.output, /1847/, "the model's own original ships unedited"); assert.doesNotMatch(r.output, /1841/);
+  assert.equal(r.correction.after.flagged, 1, "checked against the same unedited text, so the flag stands");
   assert.equal(r.premises.contradicted, 1, "a passage sharing the words with a different year is the stronger finding");
-  assert.ok(r.learned.length >= 2, "both the answer's error and the question's false premise are learned");
-  assert.ok(r.learned.some((e) => e.caught === "premise" && /1996/.test(e.claimed) && /1841/.test(e.corrected ?? "")));
-  assert.ok(r.learned.some((e) => e.caught === "answer" && /1847/.test(e.claimed) && /1841/.test(e.corrected)));
+  assert.ok(r.learned.some((e) => e.caught === "premise" && /1996/.test(e.claimed) && /1841/.test(e.corrected ?? "")), "the question's false premise is still learned — the premise check never edited anything, it only ever informs the draft");
 });
 
 test("P126: a correction already learned is handed back on the next turn, and a turn with no material or no store is byte-identical to before (control)", async () => {
@@ -2528,9 +2557,14 @@ test("P126: the negative half of what was learned never reaches the mouth — it
   assert.match(prompt, /Established here already, from these sources:\n- The harbor light was built in 1841 by Ada Rowe\./, "the positive correction goes in as a statement");
   assert.doesNotMatch(prompt, /1847/, "the error it replaces never reaches the mouth");
   assert.doesNotMatch(prompt, /700 keepers/, "nor does a claim we only know to be unplaced");
-  assert.equal(r.repeatedKnownFalse?.length, 1, "the draft repeated it and was caught mechanically");
+  // THE MOUTH IS NOT CENSORED (2026-09-10): the sentence is still caught
+  // mechanically — twice, in fact, once by the guard scan and once more by
+  // the admissible gate's own independent scan of the same still-present
+  // text (see holon.js's own note above `let text = stripFraming(draft)`)
+  // — but neither detection cuts it from what ships anymore.
+  assert.equal(r.repeatedKnownFalse?.length, 2, "the draft repeated it and was caught mechanically, twice over");
   assert.match(r.repeatedKnownFalse[0].sentence, /700 keepers/);
-  assert.doesNotMatch(r.output, /700 keepers/, "and it is cut from what ships");
+  assert.match(r.output, /700 keepers/, "the model's own original ships unedited, however unsupported");
   assert.match(r.output, /1841/, "the rest of the answer stands");
 });
 
@@ -2728,7 +2762,11 @@ test("P133: a quotation with one token swapped is caught as a misquote, the sour
   assert.doesNotMatch(ours.split("What that passage actually says")[1] ?? "", /Lincoln/, "the misquotation is not repeated back in our own block");
   assert.deepEqual(r.misquote.said, ["Lincoln"]);
   assert.deepEqual(r.misquote.shouldBe, ["Pierre"]);
-  assert.doesNotMatch(r.output, /Lincoln/, "the false token is cut before the answer ships");
+  // THE MOUTH IS NOT CENSORED (2026-09-10): the misquote is still caught
+  // and still recorded (r.misquote above), it just no longer gets to
+  // silently swap the model's own word for the source's — see holon.js's
+  // own note above `let text = stripFraming(draft)`.
+  assert.match(r.output, /Lincoln/, "the model's own word ships, flagged rather than silently swapped");
 });
 
 test("P134: a SEG finding binds EVA — a rewrite cannot reinstate what the cut established, and the refusal names the cell that bound it", async () => {
@@ -2743,8 +2781,11 @@ test("P134: a SEG finding binds EVA — a rewrite cannot reinstate what the cut 
   assert.deepEqual(r.misquote.said, ["Lincoln"]);
   assert.ok(r.inadmissible?.length, "the finding refused what a later cell wrote");
   assert.equal(r.inadmissible[0].cell, "SEG", "and names the cell that established it");
-  assert.doesNotMatch(r.output, /Lincoln/, "no later cell can put it back");
-  assert.match(r.output, /Pierre began/, "the earlier cell's own statement stands in its place");
+  // THE MOUTH IS NOT CENSORED (2026-09-10): the SEG finding still binds
+  // (r.inadmissible above) — it no longer gets to splice "Pierre began"
+  // back over what the model actually said. See holon.js's own note
+  // above `let text = stripFraming(draft)`.
+  assert.match(r.output, /Lincoln/, "the model's own word ships, flagged rather than silently swapped");
 });
 
 test("P134: every cut registers a finding at its cell — the learned guard's CON cut survives an EVA rewrite, and REC cannot learn the forbidden claim back as truth (the audit's repro)", async () => {
@@ -2762,7 +2803,11 @@ test("P134: every cut registers a finding at its cell — the learned guard's CO
     makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
   });
   assert.ok(r.repeatedKnownFalse?.length, "CON cut it");
-  assert.doesNotMatch(r.output, /chaired/, "and no later cell can put it back in other words");
+  // THE MOUTH IS NOT CENSORED (2026-09-10): the CON guard still finds and
+  // records the repeated known-false claim (r.repeatedKnownFalse above);
+  // it no longer deletes the sentence out of what the model actually
+  // said. See holon.js's own note above `let text = stripFraming(draft)`.
+  assert.match(r.output, /chaired/, "the model's own sentence ships, flagged rather than silently deleted");
   assert.ok(!(r.learned ?? []).some((e) => /chaired/.test(e.corrected ?? "")), "REC may not mint the forbidden claim as the truth");
 });
 
@@ -2789,8 +2834,12 @@ test("P135/P136 end to end: the cited passage's own cast decides, and a rendered
   const flags = r.premises.rows[0].flags;
   assert.deepEqual(flags, ["Kutúzov"], "only the stranger is flagged");
   assert.ok(!flags.includes("Yosemite Grant"), "what the passage does introduce is left alone");
-  assert.match(r.output, /"Kutúzov" is not someone or something this passage introduces/);
-  assert.doesNotMatch(r.output, /do not use "Kutúzov".*do not use "Kutúzov"/s, "the referent reading supersedes the string reading");
+  // THE MOUTH IS NOT CENSORED (2026-09-10): the premise check still reads
+  // by referent, not by string — the stranger is named in r.premises.rows
+  // above, correctly, without the passage's own "Yosemite Grant" caught
+  // alongside it. It is no longer spliced a warning sentence into what the
+  // model actually said; the model's own sentence ships as it was drafted.
+  assert.equal(r.output, "The Kutúzov region was protected by the grant Lincoln signed.", "the model's own sentence ships unedited");
 });
 
 test("P137: a finding leaves the part and binds the later cells — the section heading and the piece's revision (the audit's two piece-path leaks)", async () => {

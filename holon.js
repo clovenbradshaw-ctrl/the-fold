@@ -3101,6 +3101,27 @@ export async function runPart({
   }
   let text = stripFraming(draft);
   let metaCut = [];
+  // THE MOUTH IS NOT CENSORED (2026-09-10, user direction, verbatim: "remove
+  // any editing of what the model says, we just need to get the talking
+  // model to respond well... we do not censor the mouth"). Caught live: told
+  // "who was Franklin D. Roosevelt's vice president?", the model's own
+  // answer was correct and complete — "Franklin D. Roosevelt's vice
+  // presidents were John Nance Garner for his first three terms, and Harry
+  // S. Truman for his fourth." — and this file's own snip-rewrite pass
+  // (further down, `correctTurn`) flagged it, asked the model to redo it,
+  // and SHIPPED the rewrite instead of the original: "For his fourth term,
+  // Roosevelt's vice president was Harry S." — cut off mid-name, strictly
+  // worse than what it replaced. Every mechanism below that used to
+  // OVERWRITE `text` from a check's own finding — cutMetaTalk/cutProcessTalk,
+  // the known-false-repeat cut, the piece snip-rewrite splice, correctTurn's
+  // own rewrite, and the admissible gate's reconstruction — still RUNS and
+  // still computes its finding (metaCut/snipCheck/turnCorrection/
+  // inadmissible/repeated all still populate, so the marks, the thinking
+  // disclosure and the record stay exactly as informative as before); none
+  // of them may assign back into `text` anymore. What the model actually
+  // said is what ships. Asking it to answer again in full (a fresh call,
+  // its own new complete attempt) is untouched — that is the model getting
+  // another try, not this instrument editing the one it already gave.
   // THE MOUTH TALKING ABOUT THE WRITING, CUT FROM ANY GROUNDED TURN (P127).
   // This ran only for a piece until now, and a plain turn shipped whatever
   // scaffolding came back — measured through the long-stream run, where
@@ -3121,16 +3142,18 @@ export async function runPart({
       : `${task ?? ""} ${question ?? ""}`;
     const materialText = `${passages.map((p) => p.text ?? "").join(" ")} ${own}`;
     const r = cutMetaTalk(text, { instructionText: INSTRUCTION_TEMPLATE, materialText, splitSentences });
-    // A cut that would empty the answer is not a cut — an answer that is ALL
-    // scaffolding is a finding for the marks to carry, not a blank to ship.
-    if (r.cut.length && String(r.text ?? "").trim()) { text = r.text; metaCut = r.cut; check = inspect(text); }
-    else if (r.cut.length) metaCut = r.cut;
+    // Computed for the finding, never applied to `text` (see the mouth-is-
+    // not-censored note above) — a cut that would empty the answer was
+    // already never applied even before that direction, for the identical
+    // reason: an answer that is ALL scaffolding is a finding for the marks
+    // to carry, not a blank to ship.
+    if (r.cut.length) metaCut = r.cut;
     // And the process narration `cutMetaTalk` cannot see, since it matches the
     // piece's instruction vocabulary and this is the model describing its own
     // answering (P127). Narrow by construction: a stated absence stays, and so
     // does anything carrying a name, a number, or the material's own words.
     const pr = cutProcessTalk(text, { materialText, splitSentences });
-    if (pr.cut.length && String(pr.text ?? "").trim()) { text = pr.text; metaCut = [...metaCut, ...pr.cut]; check = inspect(text); }
+    if (pr.cut.length) metaCut = [...metaCut, ...pr.cut];
   }
   // ATTRIBUTE SUBSTITUTION (P174): the answer that quietly answers an easier
   // question. Read without a model, from the question's own words against the
@@ -3216,22 +3239,18 @@ export async function runPart({
     const before = checkSection(splitSentences(text), snips);
     let outcomes = [];
     let asked = 0;
-    // Up to `snipRounds` asks (P123): each round is the flags still standing
-    // after the last; a round that moved nothing ends the loop early.
-    let standing = before.flagged;
-    let lastReply = null;
-    for (let round = 0; round < snipRounds && standing.length && !mechanical; round++) {
-      asked += 1;
-      const again = await call([...executeMessages, { role: "assistant", content: text }, { role: "user", content: reviseAsk(standing, snips) }], { effort: "low", maxTokens: executeMaxTokens, ...streaming });
-      const applied = applyRewrite(text, standing, again, snips);
-      outcomes.push(...applied.outcomes.map((o) => ({ ...o, round: round + 1 })));
-      const moved = applied.outcomes.some((o) => o.outcome === "rewritten" || o.outcome === "dropped");
-      if (moved && applied.text !== text && applied.text.length > 0) { text = applied.text; check = inspect(text); }
-      standing = checkSection(splitSentences(text), snips).flagged;
-      // A refused round earns another at a deeper rung (the flags are put
-      // again, as facts); a round whose reply repeats the last one ends it.
-      if (String(again ?? "") === lastReply) break;
-      lastReply = String(again ?? "");
+    // ONE ask, computed for the record, never applied (the mouth is not
+    // censored — see the note above `let text = stripFraming(draft)`).
+    // `snipRounds` used to bound a whole loop of ask-and-splice rounds;
+    // since nothing here can change `text` anymore, a second or third round
+    // would only ever ask about the identical still-standing flags for
+    // nothing, so this asks at most once — what a rewrite would have looked
+    // like stays on the record either way.
+    if (snipRounds > 0 && before.flagged.length && !mechanical) {
+      asked = 1;
+      const again = await call([...executeMessages, { role: "assistant", content: text }, { role: "user", content: reviseAsk(before.flagged, snips) }], { effort: "low", maxTokens: executeMaxTokens, ...streaming });
+      const applied = applyRewrite(text, before.flagged, again, snips);
+      outcomes.push(...applied.outcomes.map((o) => ({ ...o, round: 1 })));
     }
     const after = checkSection(splitSentences(text), snips);
     snipCheck = {
@@ -3251,33 +3270,31 @@ export async function runPart({
   // store's negative half is spent on the draft, never in the prompt (P126).
   let repeated = [];
   if (guards.length && text) {
-    const kept = [];
     for (const sent of splitSentences(text)) {
       const known = repeatsKnownFalse(sent, guards);
-      if (known) { repeated.push({ sentence: sent, id: known.id, claimed: known.claimed, why: "already found unplaced here" }); continue; }
-      kept.push(sent);
+      if (known) repeated.push({ sentence: sent, id: known.id, claimed: known.claimed, why: "already found unplaced here" });
     }
-    // A CUT REGISTERS ITS FINDING AT ITS OWN CELL (P134). Cutting the sentence
-    // here is not enough: a rewrite at EVA can put the claim back in different
-    // words, and it did — reproduced end to end by the dependency-order audit
-    // (2026-09-06), with REC then learning the forbidden claim back as a
-    // POSITIVE correction and feeding it to the mouth on later turns. Every
-    // guard that cuts must leave a standing constraint, not just a hole.
+    // A CUT REGISTERS ITS FINDING AT ITS OWN CELL (P134) — computed for the
+    // finding, never applied to `text` (the mouth is not censored, see the
+    // note above `let text = stripFraming(draft)`). Every guard that fires
+    // still leaves a standing constraint on the record, not just a hole.
     for (const r of repeated) {
       const g = guards.find((x) => x.id === r.id);
       if (g) findings.push(finding("CON", `already found unplaced on this material: "${String(g.claimed).slice(0, 120)}"`, { forbids: g.atoms.filter((a) => String(a).length > 2), says: "" }));
     }
-    // A draft that is ENTIRELY known-false does not ship whole because cutting
-    // would empty it — the audit found that too. `admissible` below decides
-    // what stands in its place.
-    if (repeated.length) { text = kept.join(" ").trim(); check = inspect(text); }
   }
   let turnCorrection = null;
   if (!piece && passages.length && !mechanical && snipRounds > 0) {
     const pool = prosePassages.length ? prosePassages : passages;
-    const r = await correctTurn({ text, passages: pool, question, call, messages: executeMessages, splitSentences, rounds: snipRounds, maxTokens: executeMaxTokens, streaming });
+    // `rounds: 0` — the mechanical `before`/`after` snip check still runs
+    // (no model call, so the disclosure stays exactly as informative), but
+    // no rewrite is asked for and none could be spliced back in even if one
+    // came back. This is the exact site the founding specimen shipped from
+    // (see the note above `let text = stripFraming(draft)`): the model's
+    // own original answer was right, this pass's rewrite was not, and it
+    // still overwrote the right one.
+    const r = await correctTurn({ text, passages: pool, question, call, messages: executeMessages, splitSentences, rounds: 0, maxTokens: executeMaxTokens, streaming });
     if (r.check) {
-      if (r.text !== text) { text = r.text; check = inspect(text); }
       turnCorrection = { snips: r.check.snips, atoms: r.check.atoms, supported: r.check.supported, flagged: r.check.flagged, asked: r.asked, outcomes: r.outcomes, after: r.check.after, flags: r.check.flags };
     }
   }
@@ -3295,8 +3312,10 @@ export async function runPart({
     if (gated.refused.length) {
       inadmissible = gated.refused;
       repeated.push(...gated.refused.map((r) => ({ sentence: r.sentence, value: (r.forbids ?? [])[0], why: `${r.because} — established at ${r.cell}, which binds every later cell` })));
-      text = gated.text || premiseBlock || misquoteBlock || "Nothing in the sources supports what was drafted here.";
-      check = inspect(text);
+      // Computed for the finding, never applied (the mouth is not censored
+      // — see the note above `let text = stripFraming(draft)`); `gated.text`
+      // (and its own premiseBlock/misquoteBlock/placeholder fallbacks) is no
+      // longer a candidate replacement for what ships.
     }
   }
 

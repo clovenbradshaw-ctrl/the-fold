@@ -2296,17 +2296,14 @@ function renderThreads() {
   const total = $("turn-total");
   if (total) total.hidden = true;
   const bar = $("threads");
-  // Moved here from the composer (user direction, 2026-09-10: "move this to
-  // top right of the tab") — captured BEFORE the wipe below and re-appended
-  // at the end, the same move-not-clone pattern the fold-side control
-  // already uses on this same bar, so its event binding and checked state
-  // survive every redraw untouched (a fresh clone would need its own
-  // re-bound listener each time; this needs none).
-  const checkingSwitch = $("checking-switch");
-  // web, paired beside checking (2026-09-10: "too busy" on the composer,
-  // then paired with checking specifically) — same capture-before-wipe,
-  // re-append-after move.
-  const webSwitch = $("web-switch");
+  // Checking/web do NOT live in this bar or in a tab's own pill — three
+  // placements were tried live and rejected (the bar's right edge, inside
+  // the active tab's own button, the header's icon cluster) before the
+  // user annotated the actual target directly on the live page: floating
+  // in the top-right corner of the CHAT CONTENT panel itself (#chat-panel-
+  // switches, static HTML beside #chat, positioned by CSS alone) — not
+  // this tab bar at all. Nothing here moves them; renderThreads has no
+  // reason to touch them anymore.
   bar.textContent = "";
   state.convos.forEach((c, i) => {
     const tab = document.createElement("div");
@@ -2353,8 +2350,6 @@ function renderThreads() {
   fold.textContent = panelWide ? "›" : "‹";
   fold.title = panelWide ? "open the conversation again" : "fold the conversation away — its tabs stay on the left, and this opens it again";
   fold.onclick = () => setPanelWide(!panelWide);
-  if (checkingSwitch) bar.append(checkingSwitch);
-  if (webSwitch) bar.append(webSwitch);
   bar.append(fold);
 }
 

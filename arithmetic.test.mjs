@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as math from "mathjs";
 
-import { checkArithmetic, claimedValue, detectArithmetic, normalizeArithmeticPhrase, checkComparison } from "./arithmetic.js";
+import { checkArithmetic, claimedValue, detectArithmetic, normalizeArithmeticPhrase, checkComparison, detectClock, checkClock } from "./arithmetic.js";
 
 test("normalizeArithmeticPhrase: English operator words become symbols, longest phrase first", () => {
   assert.equal(normalizeArithmeticPhrase("17 times 24"), "17 * 24");
@@ -208,4 +208,43 @@ test("P173: ordering and distance are computed, not asked of the mouth — and a
   assert.equal(cited.first, 1805); assert.equal(cited.difference, 36);
   // No engine is a typed gap, never a hand-rolled subtraction.
   assert.match(checkComparison("Which is earlier, 1841 or 1996?", {}).gap, /engine is not available/);
+});
+
+test("detectClock/checkClock: computed from the injected wall clock, never generated", () => {
+  const now = new Date(2026, 8, 9, 15, 45, 12); // local: Sep 9 2026, 3:45:12 PM
+  assert.equal(detectClock("what time is it?").op, "time");
+  assert.equal(detectClock("What's the time?").op, "time");
+  assert.equal(detectClock("current time").op, "time");
+  assert.equal(detectClock("do you know what time it is").op, "time");
+  assert.equal(detectClock("what day is it today?").op, "weekday");
+  assert.equal(detectClock("what's today's date?").op, "date");
+  assert.equal(detectClock("what's the date?").op, "date");
+  assert.equal(detectClock("what year is it?").op, "year");
+  // A real question about the material, or a date it names, is not this
+  // module's to answer.
+  assert.equal(detectClock("what time did the meeting start?"), null);
+  assert.equal(detectClock("what day was March 3, 2020?"), null);
+  assert.equal(detectClock("what year did the war end?"), null);
+
+  const time = checkClock("what time is it?", { now });
+  assert.equal(time.display, "3:45:12 PM (" + Intl.DateTimeFormat().resolvedOptions().timeZone + ")");
+  const weekday = checkClock("what day is it?", { now });
+  assert.equal(weekday.display, "Wednesday");
+  const date = checkClock("what's the date?", { now });
+  assert.equal(date.value, "2026-09-09");
+  const year = checkClock("what year is it?", { now });
+  assert.equal(year.display, "2026");
+
+  // No injected clock is a typed gap, never a fabricated time.
+  assert.match(checkClock("what time is it?", {}).gap, /system clock is not available/);
+  assert.equal(checkClock("what is the capital of France?", { now }), null);
+});
+
+test("checkQuantity: the clock joins the ladder after the calendar, before comparison", () => {
+  const now = new Date(2026, 8, 9, 15, 45, 12);
+  const found = checkQuantity("what time is it?", { math, now });
+  assert.equal(found.kind, "clock");
+  assert.equal(found.op, "time");
+  // Arithmetic still claims a pure expression even when `now` is supplied.
+  assert.equal(checkQuantity("17 times 24", { math, now }).value, 408);
 });

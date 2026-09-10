@@ -15589,7 +15589,7 @@ async function syncForegroundPriors() {
   if (landed) renderSources();
   const remaining = pending.length - toAttach.length;
   $("status").textContent = landed
-    ? `priors: foreground attached ${landed} document(s) from live_priors${remaining ? ` — ${remaining} more enabled, toggle foreground again (or /priors sync) to continue` : ""}`
+    ? `priors: foreground attached ${landed} document(s) from live_priors${remaining ? ` — ${remaining} more enabled, run /priors sync to continue` : ""}`
     : `priors: foreground found ${pending.length} enabled document(s) to attach but none could be read`;
 }
 
@@ -15807,10 +15807,19 @@ bindSwitch("use-priors", "fold-use-priors", () => state.usePriors, (v) => {
     priorsBtn.title = PRIORS_TITLE[mode];
     priorsBtn.dataset.mode = mode;
   };
+  // Cycling to "foreground" is a UI preference, not a fetch trigger — user
+  // direction, 2026-09-10: a single click on a three-state icon-only button
+  // (off → background → foreground → off) landing on foreground must never
+  // by itself start reading and attaching real documents as sources. The
+  // explicit door for that stays `/priors sync` (or `syncForegroundPriors`
+  // called from wherever a turn actually needs the attached material) —
+  // consent for a real, batch network read belongs to a deliberate action,
+  // never a side effect of cycling a mode dial. Measured before this fix:
+  // both the click handler AND page load (when the stored preference was
+  // already "foreground") called syncForegroundPriors() unconditionally.
   const applyPriorsMode = (mode) => {
     state.priorsMode = mode;
     priorsLabel(mode);
-    if (mode === "foreground") syncForegroundPriors().catch((e) => console.warn("priors: foreground sync failed:", e?.message ?? e));
   };
   priorsBtn.onclick = () => {
     const next = { off: "background", background: "foreground", foreground: "off" }[state.priorsMode] ?? "background";
@@ -15818,7 +15827,6 @@ bindSwitch("use-priors", "fold-use-priors", () => state.usePriors, (v) => {
     applyPriorsMode(next);
   };
   priorsLabel(state.priorsMode);
-  if (state.priorsMode === "foreground") syncForegroundPriors().catch((e) => console.warn("priors: foreground sync failed:", e?.message ?? e));
 }
 
 // Checking, on or off. This is a MODE, not a paint setting: off, the relation

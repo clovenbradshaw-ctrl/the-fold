@@ -1167,6 +1167,13 @@ export async function runPart({
   // against a different reading without editing the turn. Absent, it is
   // `source.js::retrieve` and every existing caller is byte-identical.
   retrieveWith = null,
+  // shape-fallback.js's re-rank, consulted by `retrieve()` itself ONLY on an
+  // exact top-score tie (see source.js's own doc comment) — a low, cheap,
+  // always-safe-to-check bar deciding what is POSSIBLE, wired unconditionally;
+  // the function's own null-band clearing is the high bar deciding what is
+  // PROBABLE. Absent (every existing caller), retrieve()'s own byte-identical
+  // tiebreak (earliest chunk wins) is untouched.
+  shapeFallback = null,
   // The tower (P175/P132): the stream's own coverage history, the engine's
   // null apparatus, and whether the audit above has licensed the measured cut.
   coverageHistory = [],
@@ -1344,7 +1351,7 @@ export async function runPart({
   // prompt split above already fixed the SAME day for the model-facing
   // text — the meta label leaked into content here too, just one layer
   // over, in the query rather than the prompt.
-  const pick = (chunks, q, limit, folded) => (retrieveWith ? retrieveWith(chunks, q, limit, folded) : retrieve(chunks, q, limit, folded));
+  const pick = (chunks, q, limit, folded) => (retrieveWith ? retrieveWith(chunks, q, limit, folded) : retrieve(chunks, q, limit, folded, { shapeFallback }));
   const partWords = flat ? part.description : `${part.label} ${part.description}`;
   const live = chunks ?? [];
   let question = partWords;
@@ -3538,6 +3545,10 @@ export async function runHolonicTask({
   // The arithmetic engine, injected (arithmetic.js's pattern), threaded to every part.
   math = null,
   retrieveWith = null,
+  // shape-fallback.js's re-rank (see runPart's own doc comment above),
+  // threaded to every part and to this function's own pre-model retrieval
+  // pool below. Absent, byte-identical to before.
+  shapeFallback = null,
   // The tower's inputs (P175/P132), threaded to every part.
   coverageHistory = [],
   nul = null,
@@ -3620,7 +3631,7 @@ export async function runHolonicTask({
   // retrieves, and when it answers, NO MODEL IS CALLED AT ALL. A question
   // wanting prose never reaches it (answerable.js::wantsProse).
   if (chunks.length || transcript.length || math) {
-    const pool = chunks.length ? retrieve(chunks, task, passagesPerPart, foldedRefs) : [];
+    const pool = chunks.length ? retrieve(chunks, task, passagesPerPart, foldedRefs, { shapeFallback }) : [];
     const known = answerBeforeTheModel({ question: task, passages: pool, transcript, math, chunksByRef: new Map(chunks.map((c) => [c?.ref, c]).filter(([k]) => k)) });
     if (known) {
       return {
@@ -3764,6 +3775,7 @@ export async function runHolonicTask({
       makeReferentIndexFor,
       askedDepth: depth,
       retrieveWith,
+      shapeFallback,
       coverageHistory,
       nul,
       useMeasuredCut,

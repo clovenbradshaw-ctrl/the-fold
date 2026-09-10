@@ -226,6 +226,7 @@ import { createLemmatizer as nativeLemmatizer, morphologyFromPrior } from "/engi
 import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "/engine-v7/adapters/text/surfaces.js";
 import { resolvePronouns } from "/engine-v7/adapters/text/pronouns.js";
 import { makeCastResolver, makeCastHandles, makeReferentIndex } from "./cast.js";
+import { makeShapeFallback } from "./shape-fallback.js";
 
 // The relation tier — the answer read against the edges the material itself
 // binds (hypergraph.js; the P12 amendment). Same mount, same injection
@@ -696,6 +697,20 @@ const referentIndexFor = makeReferentIndex({
   diaNorm,
   blankFurniture: castBlankFurniture,
 });
+
+// shape-fallback.js's tie-triggered re-rank for source.js::retrieve() (built
+// on relative.js's Field/nullBand mechanism over a bounded local
+// neighbourhood — see that file's own header for the measured incident this
+// closes: 2 of 9 War and Peace retrieval failures were exact term-overlap
+// ties that the byte-offset tiebreak picked wrong, both recovered by this
+// mechanism). `extractSurfaces`/`discoverReferents` are the SAME stateless
+// pure organs castFor/referentIndexFor already close over above — one
+// discovery pass either way, no second import. Built once at module scope:
+// the function is stateless and takes no per-turn argument, so every turn
+// and every session shares this one instance, exactly like `castFor`.
+// Declared numbers are the evidence chain's own already-settled defaults
+// (never re-tuned here) — see shape-fallback.js's own header.
+const shapeFallbackRetrieve = makeShapeFallback({ extractSurfaces, discoverReferents });
 // `skillLibrary`/`callModel`/`relationsFor` are live accessors, not values
 // captured now — `state`, `complete`, and `relationsFor` itself are all
 // declared LATER in this module (`state` a plain const, `complete` a
@@ -6959,7 +6974,10 @@ async function boundTurn(question, typed) {
 
   const live = liveChunks();
   const foldedRefs = (state.summary.records || []).flatMap((r) => r.refs);
-  const passages = live.length ? retrieve(live, question, 3, foldedRefs) : [];
+  // shape-fallback.js: consulted only on an exact top-score tie inside
+  // retrieve() itself; declines (falls through to the untouched byte-offset
+  // tiebreak) unless a real margin clears its own null band.
+  const passages = live.length ? retrieve(live, question, 3, foldedRefs, { shapeFallback: shapeFallbackRetrieve }) : [];
   const sourceBlock = buildSourceBlock(passages);
   const handles = handlesFor(passages);
   const cells = extractCells(passages);
@@ -7131,7 +7149,8 @@ async function reflectTurn(question, typed) {
   // messages — so the recency slice is RECENCY_WINDOW/2 paragraphs: the
   // same declared present the fold sends raw, converted, not a new number.
   const recent = all.slice(-Math.floor(RECENCY_WINDOW / 2));
-  const matched = retrieve(all, question, 3);
+  // shape-fallback.js's tie-triggered re-rank (see boundTurn's own comment above).
+  const matched = retrieve(all, question, 3, [], { shapeFallback: shapeFallbackRetrieve });
   const offered = [...new Map([...recent, ...matched].map((p) => [p.ref, p])).values()]
     .sort((a, b) => a.start - b.start);
 
@@ -7566,7 +7585,12 @@ function conversationIndexNow() { return currentIndexAndBook().index; }
 function activationRetrievalNow() {
   const { index, book } = currentIndexAndBook();
   if (!index || !book) return null;
-  return makeActivationRetrieval({ index, book, dmdWindow, fallback: retrieve, notes: () => (state.hyperlexiconLog && hyperlexiconFor?.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : []), transcript: transcriptNow, resolutions: RESOLUTIONS_LEVEL });
+  // shape-fallback.js's tie-triggered re-rank, bound into activation
+  // retrieval's own term-retrieval fallback (consulted only on an exact
+  // top-score tie inside retrieve() itself; declines to the untouched
+  // byte-offset tiebreak otherwise).
+  const fallbackWithShape = (chunks, question, limit, folded) => retrieve(chunks, question, limit, folded, { shapeFallback: shapeFallbackRetrieve });
+  return makeActivationRetrieval({ index, book, dmdWindow, fallback: fallbackWithShape, notes: () => (state.hyperlexiconLog && hyperlexiconFor?.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : []), transcript: transcriptNow, resolutions: RESOLUTIONS_LEVEL });
 }
 /** The turns of one conversation, paired and numbered as that conversation counts them. */
 function turnRowsOf(history, records, { chat = null, chatTitle = null } = {}) {
@@ -9169,6 +9193,10 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       resolutions: pipelineValue(getActiveModelLoop(), "resolutions", RESOLUTIONS_LEVEL),
       material: pipelineValue(getActiveModelLoop(), "material", "auto"),
       retrieveWith: activationRetrievalNow(),
+      // shape-fallback.js: consulted only on an exact top-score tie inside
+      // retrieve() itself (holon.js's own pre-model pool, and runPart's
+      // `pick` when no activation retrieval is available) — see shape-fallback.js.
+      shapeFallback: shapeFallbackRetrieve,
       mentionBook: conversationIndexCache.book,
       dmdWindow,
       conversationIndex: conversationIndexNow(),
@@ -9992,7 +10020,8 @@ function findSentence(hay, sentence) {
  */
 function groundHunt(text) {
   const live = liveChunks();
-  const hits = live.length ? retrieve(live, text, 1) : [];
+  // shape-fallback.js's tie-triggered re-rank (see boundTurn's own comment above).
+  const hits = live.length ? retrieve(live, text, 1, [], { shapeFallback: shapeFallbackRetrieve }) : [];
   if (!hits.length) {
     $("status").textContent = "no material matches that sentence's words";
     return;
@@ -12099,6 +12128,7 @@ const PROFILE_NOTICE_SYSTEM =
  * failure: a missed proposal costs nothing a person cannot just say again.
  */
 async function noticeAboutUser(text, turnRef) {
+  console.error("DEBUG noticeAboutUser called", JSON.stringify({ text, ready: state.ready, gate: profile.looksSelfReferential(text) }));
   if (!state.ready || !profile.looksSelfReferential(text)) return;
   try {
     const raw = await complete(
@@ -12108,12 +12138,14 @@ async function noticeAboutUser(text, turnRef) {
       ],
       { json: PROFILE_NOTICE_SCHEMA, maxTokens: 120, temperature: 0 },
     );
+    console.error("DEBUG noticeAboutUser raw", JSON.stringify(raw));
     const parsed = JSON.parse(raw);
     if (!parsed.fact?.trim()) return;
     state.profileLog = await profile.propose(state.profileLog, { text: parsed.fact.trim(), category: parsed.category, turnRef });
     persistProfile();
     if (document.body.dataset.view === "profile") renderProfile();
-  } catch {
+  } catch (e) {
+    console.error("DEBUG noticeAboutUser caught", e?.message ?? e, e?.stack);
     /* the model is only ever a proposal here — a failed or malformed call
        loses a suggestion, never anything already kept */
   }

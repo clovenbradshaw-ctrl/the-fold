@@ -1274,6 +1274,7 @@
       .folds-bar input[type="search"] { flex: 1; min-width: 0; font-size: 13px; }
       .folds-bar select,
       .folds-bar button { font-size: 12px; color: var(--muted); white-space: nowrap; }
+      .folds-new-folder-input { width: 130px; font-size: 12px; }
       .fold-row {
         display: flex;
         align-items: baseline;
@@ -1328,6 +1329,31 @@
         background: var(--panel);
         cursor: pointer;
         transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+      }
+      /* The "about you" panel. Plain rows, no card chrome — this is a list
+         of short facts, not artifacts, so it reads more like the Log pane
+         than like Folds. */
+      .profile-section { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin: 16px 0 6px; }
+      .profile-section:first-child { margin-top: 0; }
+      .profile-row { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+      .profile-cat { flex: 0 0 auto; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); width: 90px; }
+      .profile-text { flex: 1; min-width: 0; font-size: 13px; }
+      .profile-edit-input { flex: 1; min-width: 0; font-size: 13px; }
+      .profile-btns { flex: 0 0 auto; display: flex; gap: 4px; }
+      .profile-add { display: flex; gap: 8px; margin-top: 14px; }
+      .profile-add input[type="text"] { flex: 1; min-width: 0; font-size: 13px; }
+      .profile-add select,
+      .profile-add button { font-size: 12px; color: var(--muted); white-space: nowrap; }
+      .build-folder {
+        font-size: 10.5px;
+        text-transform: none;
+        letter-spacing: normal;
+        color: var(--muted);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: var(--panel);
+        height: 22px;
+        padding: 0 8px;
       }
       .build-run:first-of-type { margin-left: auto; }
       .build-run + .build-run { margin-left: 6px; }
@@ -2618,7 +2644,8 @@
       body[data-view="resources"] .more-subnav,
       body[data-view="holograph"] .more-subnav,
       body[data-view="wiring"] .more-subnav,
-      body[data-view="github"] .more-subnav { display: flex; }
+      body[data-view="github"] .more-subnav,
+      body[data-view="profile"] .more-subnav { display: flex; }
       .more-subnav button { flex: 1; text-align: center; }
       /* .seg's own selected state is the "active" class (explore-subnav's
          own convention); this subnav's buttons are real [role="tab"]s
@@ -3397,15 +3424,17 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
           <button role="tab" data-pane="explore" aria-selected="true" title="The reading — the source in focus, and everything read from it">Reading</button>
           <button role="tab" data-pane="builds" aria-selected="false">Folds</button>
           <button role="tab" data-pane="log" aria-selected="false" title="The record — everything this instrument did, newest first">Log</button>
-          <!-- Resources/Holograph/Wiring/GitHub are all instrument-facing,
-               not content the reading is about — four peer tabs here made
-               the bar unreadable on a phone (nowrap forced each label to
-               shrink) and made the folded side-rail a long vertical
-               scroll (2026-09-08, "too many tabs"). One tab opens the
-               group; #more-subnav (below) is the segmented control that
-               picks among the four, so adding a fifth instrument surface
-               never grows this bar again. -->
-          <button role="tab" data-pane="more" aria-selected="false" title="Resources, Holograph, Wiring, GitHub — everything about the instrument itself, grouped off the main bar">More</button>
+          <!-- Resources/Holograph/Wiring/GitHub/About-you are all
+               instrument-facing, not content the reading is about — peer
+               tabs here made the bar unreadable on a phone (nowrap forced
+               each label to shrink) and made the folded side-rail a long
+               vertical scroll (2026-09-08, "too many tabs"). One tab opens
+               the group; #more-subnav (below) is the segmented control
+               that picks among them, so a new instrument surface never
+               grows this bar again — "About you" (added same day) is the
+               fifth entry this grouping was built to absorb. -->
+          <button role="tab" data-pane="more" aria-selected="false" title="Resources, Holograph, Wiring, GitHub, About you — everything about the instrument itself, grouped off the main bar">More</button>
+
           <button type="button" id="term-toggle" class="term-toggle" aria-expanded="false" title="terminal — a sandboxed command line over the instrument; nothing here reaches the machine (ctrl+`)">&gt;_</button>
           <!-- Give this panel the whole width; the conversation stays live in
                a rail of its own tabs on the left, still selectable. -->
@@ -3417,6 +3446,11 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
           <button type="button" role="tab" class="seg" data-pane="holograph" title="The holograph — this conversation as the record holds it: what it is about, the loops on each referent, the gaps; press a referent to expand what holds it">Holograph</button>
           <button type="button" role="tab" class="seg" data-pane="wiring" title="Every named block the last turn's prompt was built from, as nodes — toggle one off or type exact text and the next turn is built from that instead. Save a set as a named model-loop to switch back to it later.">Wiring</button>
           <button type="button" role="tab" class="seg" data-pane="github" title="Connect a GitHub account: pull/push one file, or sync skills and history — needs explore-server.mjs">GitHub</button>
+          <!-- Deliberately not called "Memory" — the composer's own memory
+               sheet already owns that word for material "beyond the model"
+               (attach-menu). This is about the SPEAKER, not the source
+               material, so it gets a name that cannot be confused with it. -->
+          <button type="button" role="tab" class="seg" data-pane="profile" title="What this instrument has noticed about you — your own name, role, projects, preferences. Proposed from what you say, never invented; review, edit or forget anything here.">About you</button>
         </nav>
         <div class="scroll">
           <div class="pane" id="pane-builds">
@@ -3424,6 +3458,9 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
             <div class="folds-bar">
               <input id="folds-search" type="search" spellcheck="false" placeholder="search folds — words, code, or an address like fold 2" aria-label="search folds" />
               <select id="folds-sort" aria-label="order folds"></select>
+              <select id="folds-folder" aria-label="filter by folder" title="show only the folds filed in one folder"></select>
+              <button type="button" id="folds-del-folder" class="folds-new-folder-btn" hidden title="delete this folder — the folds in it are kept, unfiled">✕</button>
+              <button type="button" id="folds-new-folder" class="folds-new-folder-btn" title="make a new folder to file folds into">+ folder</button>
               <button type="button" id="folds-view" title="switch between full cards and a compact list">≡ list</button>
             </div>
             <div id="builds-list">
@@ -3665,6 +3702,30 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
                 <summary>Use a different account or token</summary>
                 <div id="gh-token-slot"></div>
               </details>
+            </div>
+          </div>
+
+          <!-- "About you" (profile.js): a durable, reviewable note of what
+               this instrument has been told about the PERSON — never the
+               material. Plain words throughout, on purpose (this app's own
+               canon stays backstage in a UI): "noticed", "kept", never a
+               cell name, a grain, an operator. -->
+          <div class="pane" id="pane-profile">
+            <h2>About you <button type="button" class="why" aria-label="what this is" title="What this instrument has noticed about you as you talk to it — your own name, role, what you're working on, a standing preference. Proposed from what you actually say, never invented. Review, edit or forget anything here at any time. Kept on this device, and — signed in under /matrix — synced privately to your own account across your own devices; never shared into a room."><svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm16-40a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176ZM112,84a12,12,0,1,1,12,12A12,12,0,0,1,112,84Z"/></svg></button></h2>
+            <div id="profile-list">
+              <p class="empty">Nothing yet — say something about yourself in the chat, or add a note below.</p>
+            </div>
+            <div class="profile-add">
+              <input id="profile-add-text" type="text" spellcheck="false" placeholder="add a note yourself — e.g. “goes by Alex”" aria-label="add a note about yourself" />
+              <select id="profile-add-category" aria-label="category">
+                <option value="identity">who you are</option>
+                <option value="role">your role</option>
+                <option value="project">a project</option>
+                <option value="preference">a preference</option>
+                <option value="goal">a goal</option>
+                <option value="fact">worth remembering</option>
+              </select>
+              <button type="button" id="profile-add-btn">add</button>
             </div>
           </div>
 

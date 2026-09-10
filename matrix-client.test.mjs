@@ -603,3 +603,26 @@ test("presence: a homeserver that does not serve it (this adversary never implem
   await alice.access(room);
   assert.equal(presenceRequests(), afterFirst, "no new presence requests once this homeserver has proved it does not serve them");
 });
+
+test("the 'about you' ledger syncs through account data — private to one account, never a room — and a second device signed into the SAME account reads what the first pushed", async () => {
+  assert.equal(await alice.pullProfile(), null, "nothing pushed yet reads as null, not an error and not {}");
+  const log = { entries: [{ id: "abc123", text: "goes by Alice", category: "identity", status: "kept", createdAt: 1, updatedAt: 1 }] };
+  await alice.pushProfile(log);
+  assert.deepEqual(await alice.pullProfile(), log);
+
+  // A second browser, same account: this is the whole cross-device promise
+  // — no room, no invite, no chat key, just the same login.
+  const aliceLaptop = new FoldMatrix({ storage: mapStorage(), record: () => {} });
+  await aliceLaptop.login(hs.base, "alice", PW.alice);
+  assert.deepEqual(await aliceLaptop.pullProfile(), log, "a second device signed into the same account reads the first device's push");
+});
+
+test("the 'about you' ledger never crosses accounts: bob cannot read or overwrite alice's profile, even by asking directly", async () => {
+  const aliceId = alice.status().user;
+  await assert.rejects(() => bob.http().getAccountData(aliceId, "fold.profile"), (e) => e instanceof MatrixError && e.status === 403);
+  await assert.rejects(() => bob.http().setAccountData(aliceId, "fold.profile", { entries: [] }), (e) => e instanceof MatrixError && e.status === 403);
+  // And bob pushing his OWN profile never touches alice's.
+  await bob.pushProfile({ entries: [{ id: "z", text: "goes by Bob", category: "identity", status: "kept", createdAt: 1, updatedAt: 1 }] });
+  const alicesCopy = await alice.pullProfile();
+  assert.ok(alicesCopy.entries.every((e) => e.text !== "goes by Bob"));
+});

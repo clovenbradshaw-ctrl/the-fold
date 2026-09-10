@@ -194,6 +194,12 @@ export const paths = Object.freeze({
   // pane holds (P178).
   presence: (user) => `/_matrix/client/v3/presence/${encodeURIComponent(user)}/status`,
   allState: (room) => `/_matrix/client/v3/rooms/${encodeURIComponent(room)}/state`,
+  // Account data — private key/value storage that syncs to every device
+  // signed into this SAME account and is never exposed to a room or its
+  // other members (a room's own state/timeline, above, is the opposite of
+  // this). The one place `profile.js`'s ledger is pushed/pulled from —
+  // never a room, so it can never leak into a shared chat.
+  accountData: (user, type) => `/_matrix/client/v3/user/${encodeURIComponent(user)}/account_data/${encodeURIComponent(type)}`,
   state: (room, type, key = "") => `/_matrix/client/v3/rooms/${encodeURIComponent(room)}/state/${encodeURIComponent(type)}/${encodeURIComponent(key)}`,
   send: (room, type, txn) => `/_matrix/client/v3/rooms/${encodeURIComponent(room)}/send/${encodeURIComponent(type)}/${encodeURIComponent(txn)}`,
   sync: ({ since = null, filter, timeout = 0 }) => `/_matrix/client/v3/sync?filter=${encodeURIComponent(JSON.stringify(filter))}&timeout=${timeout}${since ? `&since=${encodeURIComponent(since)}` : ""}`,

@@ -2296,13 +2296,14 @@ function renderThreads() {
   const total = $("turn-total");
   if (total) total.hidden = true;
   const bar = $("threads");
-  // Moved here from the composer (user direction, 2026-09-10: "move this to
-  // top right of the tab") — captured BEFORE the wipe below and re-appended
-  // at the end, the same move-not-clone pattern the fold-side control
-  // already uses on this same bar, so its event binding and checked state
-  // survive every redraw untouched (a fresh clone would need its own
-  // re-bound listener each time; this needs none).
-  const checkingSwitch = $("checking-switch");
+  // Checking/web do NOT live in this bar or in a tab's own pill — three
+  // placements were tried live and rejected (the bar's right edge, inside
+  // the active tab's own button, the header's icon cluster) before the
+  // user annotated the actual target directly on the live page: floating
+  // in the top-right corner of the CHAT CONTENT panel itself (#chat-panel-
+  // switches, static HTML beside #chat, positioned by CSS alone) — not
+  // this tab bar at all. Nothing here moves them; renderThreads has no
+  // reason to touch them anymore.
   bar.textContent = "";
   state.convos.forEach((c, i) => {
     const tab = document.createElement("div");
@@ -2349,7 +2350,6 @@ function renderThreads() {
   fold.textContent = panelWide ? "›" : "‹";
   fold.title = panelWide ? "open the conversation again" : "fold the conversation away — its tabs stay on the left, and this opens it again";
   fold.onclick = () => setPanelWide(!panelWide);
-  if (checkingSwitch) bar.append(checkingSwitch);
   bar.append(fold);
 }
 
@@ -17143,7 +17143,16 @@ const statusEl = $("status");
  * where it shows is the status line by the composer, which is allowed to
  * change without moving anything else.
  */
-const TRANSIENT = /^(marks |attachments |web lookups |pasted text|.* · (attached|from Explore))/;
+// "checking (on|off)" only — never a prefix match on the *other*
+// "checking …" status lines this file also writes (setPhase's "checking
+// for material", the proof-seeking walk's "checking against each source
+// · N/M" and "checking claims online · N/M"), which are work IN FLIGHT
+// and must stay exactly as long as the work does. Found live, 2026-09-10:
+// the checking switch's own "checking on"/"checking off — plain answers"
+// acknowledgement (the same settings-ack shape as "marks on"/"attachments
+// on", already transient below) had never been added here, so it sat
+// permanently above the composer until something else overwrote it.
+const TRANSIENT = /^(marks |attachments |web lookups |pasted text|checking (on|off)\b|.* · (attached|from Explore))/;
 const syncChip = () => {
   const s = statusEl.textContent;
   syncModelPick();

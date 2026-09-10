@@ -111,6 +111,33 @@ export const S1_MODEL = "hf.co/allenai/OLMo-2-0425-1B-Instruct-GGUF:latest";
 // model every corroboration and witness measurement in this repo was taken on, at temperature 0.
 export const S2_MODEL = "gemma2:2b";
 
+// WITNESS_MODEL — the model that answers the witness/select asks
+// (buildWitnessMessages/buildSelectMessages, up to WITNESS_ASKS_PER_PART
+// per part) and the sibling-swap arm beside them. Its own name, its own
+// duty, declared separately from S1_MODEL even though the value is the
+// same today — a quick honest DRAFT and a bounded yes/no/pick-an-index
+// JUDGMENT are not the same question and may not stay the same answer.
+//
+// Measured live (2026-09-10, user direction: "including using quantized
+// models"), the real prompts this app builds, against the two protocols
+// witnessNote actually uses: on the SELECT protocol (buildSelectMessages —
+// the preferred path; its own header notes the decider is "verbatim by
+// construction," so a smaller model's weaker prose ability is not at risk
+// the way free generation would be) OLMo-2-1B ran 30-65% faster per call
+// than gemma2:2b on every case tried, correctly REFUSED two cases gemma2:2b
+// answered indiscriminately (a sibling-swapped false claim, an absent one —
+// exactly the failure mode witnessNote's own "arm" step was already built
+// to catch), and missed two true matches gemma2:2b found. Under-confirming
+// (a missed citation, landing self-tier) is the safer of the two failure
+// shapes this instrument holds anywhere — a witness refusal is disclosed as
+// a fact about the passages read, never a conviction — so the asymmetry
+// favors the smaller model even though neither won outright on a small,
+// six-case sample. Disclosed, not proven at scale: this is six specimens,
+// not a battery, and the honest next step is a real eval (the "long-stream"
+// style this repo already runs elsewhere) rather than trusting six cases
+// forever.
+export const WITNESS_MODEL = "hf.co/allenai/OLMo-2-0425-1B-Instruct-GGUF:latest";
+
 /**
  * The named model if Ollama actually has it pulled (`available`, the
  * full raw set fillModels() sees — not `offered`, which is filtered to

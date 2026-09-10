@@ -6,6 +6,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   CHAT_SYSTEM_PROMPT,
@@ -2554,6 +2555,27 @@ test("P125: the premise is checked against the TASK, so a decomposed turn cannot
   assert.match(seen, /What these sources say about it:|do not use "1996"/, "the check fires even though no part's own words carry the premise");
   assert.ok(r.premises.checked >= 1);
   assert.ok(r.premises.contradicted + r.premises.unverified >= 1);
+});
+
+test("P142: the reading is still computed and carried on the record, but never folded into the answer's own prose (regression, 2026-09-10 user direction: \"stop it from ever saying things like this\")", async () => {
+  const chunks = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The tide turns twice a day.");
+  const r = await runHolonicTask({
+    task: "When was the harbor light built?", chunks, planMode: "flat",
+    call: async () => "The harbor light was built in 1841 by Ada Rowe.",
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.doesNotMatch(r.output, /Also looked at/i, "the mechanical disclosure sentence never ships in the answer");
+  assert.doesNotMatch(r.output, /speaks of the same things without answering this/i);
+  // The underlying finding is not deleted — only its old landing in the
+  // prose is. `reading` (P142's own field, spread onto the part's result)
+  // is still there, for whatever reads it off the record.
+  assert.ok(r.sections?.[0]?.reading?.length, "the reading is still computed and carried on the section's own result");
+});
+
+test("P142: `runPart`'s own source no longer builds a sentence from the reading and folds it into the draft — the specific append this regression is pinned against", () => {
+  const src = readFileSync(new URL("./holon.js", import.meta.url), "utf8");
+  assert.ok(!/traceLine\(/.test(src), "traceLine is computed nowhere in holon.js — reading-trace.js's own tests cover it in isolation");
+  assert.ok(!/readingLine/.test(src), "the variable that used to carry the sentence into `text` is gone, not merely unused");
 });
 
 test("P127: the mouth's talk about the writing is cut from a plain grounded turn too, and a passage-less chat turn keeps its own voice (control)", async () => {

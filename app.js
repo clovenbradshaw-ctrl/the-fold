@@ -95,7 +95,7 @@ import { stripPastTurnBoundary, turnBoundaryIndex } from "./turn-boundary.js";
 
 import { MAX_CORRECTIONS, needsDecomposition, PASSAGES_PER_PART, runHolonicTask, SEARCHED_VOID_PREFIX, S1_SYSTEM_PROMPT, buildPlanPrompt, parsePlan, PLAN_SCHEMA, PLAN_MAX_TOKENS, PLAN_SYSTEM_PROMPT, depthBudgets, todayLine } from "./holon.js";
 
-import { MODEL_PICKER, ROUTE_KINDS, routeModel, isPinnedModel, resolveNamedModel } from "./model-routing.js";
+import { MODEL_PICKER, ROUTE_KINDS, routeModel, isPinnedModel, resolveNamedModel, WITNESS_MODEL } from "./model-routing.js";
 
 import { parseBlocks, renderBlocksInto } from "./render.js";
 
@@ -251,6 +251,7 @@ import {
   PREFLIGHT_PAGES_CONSULTED,
   assessPage,
   foldProof,
+  preflightCeilingFor,
   preflightQuery,
   proofQuery,
   proofTargets,
@@ -4237,10 +4238,18 @@ PRIOR_LOADS.push(fetch("/eoreader7/native/eval/the-fold/fixtures/unimorph-morpho
   .catch(() => {}));
 const witnessTestimony = () => ({ witnessSlice, siblingSwap, foldTestimony, buildSelectMessages, foldSelect, ...(sameFormOrgan ? { sameForm: sameFormOrgan } : {}) });
 
+// The model that answers a witness/select ask — model-routing.js's
+// WITNESS_MODEL, own header carries the measurement — resolved against
+// what Ollama actually has pulled the same way every other named-model
+// read in this file is (resolveNamedModel: never a name that would fail
+// on first use). Read fresh per call rather than cached: `state.
+// availableModels` can grow between two asks of the same turn.
+const witnessModelFor = () => resolveNamedModel(WITNESS_MODEL, { available: state.availableModels, offered: state.offeredModels });
+
 const witnessAskOrgan = async (s, slice) =>
-  readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0 }));
+  readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0, model: witnessModelFor() }));
 const witnessSelectOrgan = async (messages) => {
-  try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0 })); } catch { return {}; }
+  try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0, model: witnessModelFor() })); } catch { return {}; }
 };
 const witnessSentencesFor = (sentences, claims, passages, { maxAsks }) =>
   witnessSentences(sentences, claims, passages, {
@@ -4279,8 +4288,8 @@ async function rankeChase({ maxFetches, maxSearches, consult = 3, show = null })
   // same witness protocol /corroborate uses, over the lead's face, and
   // only the model's own "states" lands a primary: witness. Reads are
   // capped by the SAME declared fetch budget — one lead, one read.
-  const ask = async (sen, sl) => readTestimony(await complete(buildWitnessMessages(sen, sl), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0 }));
-  const selectAsk = async (messages) => { try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0 })); } catch { return {}; } };
+  const ask = async (sen, sl) => readTestimony(await complete(buildWitnessMessages(sen, sl), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0, model: witnessModelFor() }));
+  const selectAsk = async (messages) => { try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0, model: witnessModelFor() })); } catch { return {}; } };
   const byId = new Map(notes.map((n) => [n.id, n]));
   let reads = 0;
   const verdicts = { states: 0, refused: 0, other: 0 };
@@ -4742,7 +4751,7 @@ async function corroborateTurn(argstr, typed) {
   logAct("asked", { text: typed });
 
   const ask = async (s, slice) =>
-    readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0 }));
+    readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0, model: witnessModelFor() }));
   // SELECT is the default protocol: the model POINTS at a mechanically
   // gathered stating sentence by index and never writes a because. Measured
   // at full budget on one real two-page ledger (2026-09-02): select attested
@@ -4751,7 +4760,7 @@ async function corroborateTurn(argstr, typed) {
   // generate path stays as witnessNote's own fallback when no co-present
   // candidate can be offered.
   const selectAsk = async (messages) => {
-    try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0 })); } catch { return {}; }
+    try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0, model: witnessModelFor() })); } catch { return {}; }
   };
   let report;
   try {
@@ -5579,6 +5588,454 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
   releaseBusy();
 }
 
+// Same epistemic-humility standing AUDIO_STANDING already carries for a
+// transcript, one register over: a detected box's label is what OpenCV's
+// contour/color detector cropped and Tesseract OCR read off those pixels
+// at this moment — not verified prose, and only what actually landed on
+// the ledger below was observed. Nothing else in the image is claimed.
+const VISUAL_STANDING = "detected by OpenCV contour/color analysis and read by Tesseract OCR at this moment; a label is what OCR made of the cropped pixels, not a verified transcription of the image";
+
+/**
+ * Fuse the mechanically-detected senses (color, OCR text, connections)
+ * into ONE plain description — a small, tightly-scoped model call whose
+ * only job is PHRASING, never invention. The fact list handed in is the
+ * only ground truth; the prompt forbids adding anything not listed,
+ * the same posture this codebase's own witness protocol (P32,
+ * organs/witness-sentences.js) already holds for a model asked to judge
+ * rather than originate. Falls back to a plain mechanical join (still
+ * real facts, just less readable) if the model call throws — a synthesis
+ * failure must not mean the image never gets attached at all.
+ *
+ * Discourse-aware, not a cold isolated call (user direction: "the fusion
+ * be discourse aware, similar to the talking model, its not being
+ * activated out of nowhere") — the same recent-history slice
+ * widgetRouter.routeMessage already folds in (RECENCY_WINDOW, "the reach
+ * of the present," READING-POLICY P1) rides along so a synthesized
+ * description can be framed by what the conversation is actually about
+ * (a coffee-shop menu, a lab diagram) — used only to phrase what's
+ * already there, never to license a fact the detector didn't find.
+ */
+// Where a region actually sits, computed from its own pixels — never
+// guessed by a model, which has no privileged access to geometry a
+// mechanical measurement already settles exactly (user direction: "we
+// need relative locations of things using their pixels"). A plain 3x3
+// grid over the image's own width/height (thirds — no hand-picked
+// threshold to tune), reported only when the caller actually knows the
+// image's dimensions; a caller with just a region and no frame to place
+// it in gets nothing rather than a coordinate dressed up as a place.
+function positionLabel(region, width, height) {
+  if (!width || !height) return null;
+  const [x, y, w, h] = region;
+  const cx = x + w / 2, cy = y + h / 2;
+  const col = cx < width / 3 ? "left" : cx < (2 * width) / 3 ? "center" : "right";
+  const row = cy < height / 3 ? "top" : cy < (2 * height) / 3 ? "middle" : "bottom";
+  if (row === "middle" && col === "center") return "center";
+  return row === "middle" ? col : col === "center" ? row : `${row} ${col}`;
+}
+
+// Same epistemic-humility standing as VISUAL_STANDING, one register
+// over: a local vision model's own read of the WHOLE image, not derived
+// from any mechanical detector. This session's own earlier testing found
+// this exact local model (moondream) hallucinating specific facts
+// (a receipt total it never actually read) — real, disclosed, why this
+// standing exists at all. It is still the right tool for the general
+// "what is this a picture of" question a mechanical box/OCR detector
+// structurally cannot answer (a photo, a scene, a face, anything without
+// discrete labeled regions) — moondream's failure mode was PRECISION on
+// small factual details, not holistic scene description, and this is
+// used only for the latter.
+const VISION_STANDING = "a local vision model's own impression of the whole image at this moment, not a verified transcription — this exact model has been measured hallucinating specific factual details (a number, an exact reading) elsewhere in this project, so treat a precise claim in it with real skepticism; a general description of the scene is what it is actually reasonably good at";
+
+async function blobToBase64(blob) {
+  const buf = await blob.arrayBuffer();
+  let binary = "";
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+// The vision instruments this app can call on, ordered cheapest/fastest
+// first — user direction, verbatim: "let's have options and we auto
+// escalate using DMD [disagreement]." Rung 0 is tried first and is the
+// terminal read whenever nothing disagrees with it (a diagram with rich
+// mechanical facts never pays for a second, heavier model); a later rung
+// is only reached on a real, named disagreement or when the mechanical
+// detector found nothing at all to check the first rung's read against
+// (settleImageRead, below) — never called speculatively "just in case."
+// Measured, not assumed: qwen2.5vl is a real, separately-trained model
+// family from moondream (not a bigger version of the same weights), so a
+// cross-model agreement between the two is genuine corroboration from a
+// second instrument, the same evidentiary shape this project's own
+// corroboration/witness machinery already requires elsewhere (two
+// independent sources beat one, however confident).
+const VISION_LADDER = [
+  { model: "moondream", label: "moondream" },
+  { model: "qwen2.5vl:7b", label: "qwen2.5vl" },
+];
+
+/**
+ * A real vision-model read of the whole image — the sense a mechanical
+ * OpenCV/OCR pipeline structurally cannot provide (user direction,
+ * verbatim: "it needs to be like when i upload an image to claude, it
+ * just 'knows' what the image is of"). Ollama's own `/api/chat` accepts
+ * an `images` field per message (base64, no data-URI prefix) for a
+ * vision-capable model — `completeOnce` passes `messages` straight
+ * through to that same call, so this needed no new plumbing, only the
+ * field this app had never sent (a disclosed, named gap before this).
+ * `model` names which VISION_LADDER rung to call, defaulting to the
+ * cheapest — never `state.model`, since whatever text model the person
+ * picked for chat is very unlikely to also be vision-capable; the fusion
+ * call downstream still uses `state.model` for phrasing. Returns null
+ * (never throws) if that model isn't pulled or the call fails — a
+ * missing vision sense should degrade to the mechanical read (or to a
+ * cheaper ladder rung), never break the attach.
+ */
+async function describeImageVision(blob, backgroundUniformity, correction, model = VISION_LADDER[0].model) {
+  // Measured live, not assumed: moondream read three flat-colored labeled
+  // rectangles as "a kitchen" — a hallucinated SETTING (the box labels
+  // themselves came back correct). backgroundUniformity is a real,
+  // mechanically-computed signal for exactly this confusion (a rendered
+  // diagram is dominated by flat, uniform regions; a photograph almost
+  // never is) — fed into the vision model's OWN prompt, not only into the
+  // later fusion step, so the read that comes back doesn't need
+  // correcting after the fact. 0.3 is a disclosed judgment call, not a
+  // derived cutoff — the real kitchen-diagram specimen measured 0.687.
+  const diagramHint = backgroundUniformity != null && backgroundUniformity > 0.3
+    ? " Note: this image is mostly a large uniform background color, which usually means it is a rendered diagram, chart, or screenshot, not a photograph of a real place or object — describe it as a diagram if that's what the shapes and labels suggest, rather than assuming it depicts a real photographed scene."
+    : "";
+  // A targeted correction from an escalation turn (settleImageRead, below)
+  // — a SPECIFIC disagreement another sense already found, not a generic
+  // hint. Distinct from diagramHint: that one is proactive and always
+  // offered; this one only exists on a retry, and names exactly what was
+  // wrong with the last attempt.
+  const escalationHint = correction ? ` A second look is being taken because: ${correction} Look again and correct that specifically if it's right.` : "";
+  try {
+    const b64 = await blobToBase64(blob);
+    const { text } = await completeOnce([
+      { role: "user", content: `Describe this image plainly and factually: what is it a picture of, what does it show.${diagramHint}${escalationHint} A few sentences.`, images: [b64] },
+    ], { model: "moondream", temperature: 0, maxTokens: 250 });
+    return text?.trim() || null;
+  } catch (e) {
+    console.warn(`[visual] vision read failed (moondream not pulled, or Ollama unreachable): ${e.message}`);
+    return null;
+  }
+}
+
+/** The same fact-line shape describeImageScene builds for the fusion
+ * prompt, factored out so settleImageRead's judge call and the fusion
+ * call read the identical facts rather than two independently-maintained
+ * copies. */
+function imageFactLines(boxes, connectors, width, height) {
+  const readable = boxes.filter((b) => b.text && b.text.trim());
+  const byId = new Map(readable.map((b) => [b.id, { text: b.text.replace(/\n/g, " "), color: b.color, pos: positionLabel(b.region, width, height) }]));
+  const lines = readable.map((b) => {
+    const info = byId.get(b.id);
+    return `- a${info.color ? ` ${info.color}` : ""} box labeled "${info.text}"${info.pos ? `, positioned in the ${info.pos} of the image` : ""}`;
+  });
+  for (const c of connectors) {
+    if (!byId.has(c.connects[0]) || !byId.has(c.connects[1])) continue;
+    lines.push(`- a line connects the "${byId.get(c.connects[0]).text}" box to the "${byId.get(c.connects[1]).text}" box`);
+  }
+  return lines;
+}
+
+/**
+ * A judge call: does the vision model's read plausibly agree with what
+ * the mechanical detector actually found? The model POINTS at agreement
+ * or disagreement (one word, then its reason) — it never freely narrates
+ * a verdict, the same witness-protocol shape this codebase already uses
+ * elsewhere (organs/witness-sentences.js, P32) for exactly this reason:
+ * a constrained pointing question is much harder for a small model to
+ * get subtly wrong than an open "is this right?" essay.
+ */
+async function judgeSenseAgreement(visionRead, factLines, backgroundUniformity) {
+  if (!visionRead) return { agrees: true, reason: "no vision read to check" };
+  if (!factLines.length && backgroundUniformity == null) return { agrees: true, reason: "no mechanical facts to check against" };
+  const uniformityLine = backgroundUniformity != null && backgroundUniformity > 0.3
+    ? `\nMeasured directly from the pixels: ${Math.round(backgroundUniformity * 100)}% of the image is one uniform background color — strong evidence this is a diagram or screenshot, not a photograph.`
+    : "";
+  try {
+    const { text } = await completeOnce([
+      {
+        role: "user",
+        content: `A vision model said an image shows: "${visionRead}"\n\nA mechanical detector separately found:\n${factLines.length ? factLines.join("\n") : "(no labeled boxes)"}${uniformityLine}\n\nDoes the vision model's description plausibly agree with the mechanical findings, or does it contradict them (for example, claiming a real photographed scene — a kitchen, a person, an outdoor place — that the mechanical evidence doesn't support)? Reply with exactly one word first, AGREES or DISAGREES, then a colon and one short sentence naming the specific problem if it disagrees.`,
+      },
+    ], { model: state.model, temperature: 0, maxTokens: 60 });
+    const t = text?.trim() ?? "";
+    return { agrees: !/^DISAGREES/i.test(t), reason: t };
+  } catch (e) {
+    return { agrees: true, reason: `judge call failed, proceeding without escalation: ${e.message}` };
+  }
+}
+
+/**
+ * The escalation loop — user direction, verbatim: "let's have various
+ * levels of escalation of model calls to read things in different ways,
+ * multiple eyes, triggered by [disagreement]." Same shape as this
+ * session's own earlier helix-read.mjs work (propose a candidate,
+ * independently measure it, escalate only on a real disagreement, stop
+ * on measured settlement rather than a fixed ladder) — reimplemented
+ * here rather than imported, because that module runs in Node
+ * (eoreader7's own eval tree) and this is browser JS; the ARCHITECTURE
+ * is the same, the runtime cannot be shared.
+ *
+ * Turn 1 already carries the proactive diagram/photo hint
+ * (describeImageVision's own backgroundUniformity check). A judge call
+ * (another "eye," the SAME model asked to check rather than narrate)
+ * checks that read against the mechanical facts; only a real, named
+ * disagreement escalates to a second vision call carrying that specific
+ * correction. MAX_ESCALATIONS is a hard safety backstop, not the
+ * intended stop — settlement (the judge agreeing) is. An unresolved
+ * disagreement after the cap is disclosed on the returned object rather
+ * than silently presented as settled.
+ */
+const MAX_IMAGE_ESCALATIONS = 2;
+async function settleImageRead(blob, boxes, connectors, width, height, backgroundUniformity) {
+  const factLines = imageFactLines(boxes, connectors, width, height);
+  let visionRead = await describeImageVision(blob, backgroundUniformity);
+  let turns = 1;
+  let judged = await judgeSenseAgreement(visionRead, factLines, backgroundUniformity);
+  while (!judged.agrees && turns < MAX_IMAGE_ESCALATIONS) {
+    const correction = judged.reason.replace(/^DISAGREES:?\s*/i, "").trim();
+    console.warn(`[visual] escalating vision read (turn ${turns + 1}) — disagreement: ${correction}`);
+    visionRead = await describeImageVision(blob, backgroundUniformity, correction);
+    turns += 1;
+    judged = await judgeSenseAgreement(visionRead, factLines, backgroundUniformity);
+  }
+  return { visionRead, turns, settled: judged.agrees, unresolvedReason: judged.agrees ? null : judged.reason };
+}
+
+/**
+ * Fuse EVERY sense actually available — a vision model's holistic read
+ * of the whole image, plus whatever a mechanical OpenCV/OCR pass found
+ * (color, exact text, positions, connections) — into ONE plain
+ * description. Never both raw and unmerged: the talking model receives
+ * only this fused experience (user direction, verbatim: "we need to
+ * compute this into something the model can actually TALK about... it
+ * should receive an experience, even if it requires another model call
+ * to combine these elements"). The mechanical facts are the only thing
+ * trusted for PRECISE claims (an exact label, an exact color) — the
+ * prompt tells the model so explicitly, since the vision read alone is
+ * disclosed as capable of hallucinating specifics (VISION_STANDING).
+ */
+async function describeImageScene(name, visionRead, boxes, connectors, width, height, backgroundUniformity) {
+  const readable = boxes.filter((b) => b.text && b.text.trim());
+  const byId = new Map(readable.map((b) => [b.id, { text: b.text.replace(/\n/g, " "), color: b.color, pos: positionLabel(b.region, width, height) }]));
+  const factLines = readable.map((b) => {
+    const info = byId.get(b.id);
+    return `- a${info.color ? ` ${info.color}` : ""} box labeled "${info.text}"${info.pos ? `, positioned in the ${info.pos} of the image` : ""}`;
+  });
+  for (const c of connectors) {
+    if (!byId.has(c.connects[0]) || !byId.has(c.connects[1])) continue;
+    factLines.push(`- a line connects the "${byId.get(c.connects[0]).text}" box to the "${byId.get(c.connects[1]).text}" box`);
+  }
+  // Second check on the same disagreement describeImageVision's own hint
+  // already tries to prevent — belt and suspenders, since a vision model
+  // can still ignore an instruction in its own prompt. Real measurement
+  // (backgroundUniformity), not the vision model's own self-report.
+  if (backgroundUniformity != null && backgroundUniformity > 0.3) {
+    factLines.push(`- (measured directly from the pixels: ${Math.round(backgroundUniformity * 100)}% of the image is a single uniform background color — this is almost certainly a rendered diagram, chart, or screenshot, NOT a photograph of a real place; if the vision model's impression below describes a real scene, that part of its impression is wrong)`);
+  }
+  const fallback = visionRead
+    ? `An attached image, "${name}": ${visionRead}`
+    : readable.length
+      ? `An attached image, "${name}", shows: ${readable.map((b) => `"${byId.get(b.id).text}"`).join(", ")}.`
+      : `An attached image, "${name}" — nothing could be read from it (no vision model available, no text or boxes detected).`;
+  if (!visionRead && !factLines.length) return fallback;
+
+  const discourse = state.history.slice(-RECENCY_WINDOW).map((h) => h.content).join("\n");
+  try {
+    const { text } = await completeOnce([
+      {
+        role: "user",
+        content: `${discourse ? `The conversation so far, for context on what this image is likely about:\n${discourse}\n\n` : ""}Two independent senses looked at an image named "${name}":\n\n1. A VISION MODEL's own holistic impression of the whole picture:\n${visionRead ? `"${visionRead}"` : "(no vision model was available)"}\n\n2. A MECHANICAL detector's exact findings (trust these for any precise detail — a label, a color — over the vision model's impression, which can be wrong on specifics):\n${factLines.length ? factLines.join("\n") : "(no labeled boxes or text detected)"}\n\nWrite one or two plain sentences describing what the image shows, the way a person glancing at it would describe it, combining both senses into one coherent description. Where they agree, just describe it plainly. Where the mechanical findings contradict the vision model, go with the mechanical findings for that detail. Do not invent anything neither sense reported. Do not mention "vision model", "mechanical detector", OCR, pixels, or that anything analyzed the image — just describe the picture itself.`,
+      },
+    ], { model: state.model, temperature: 0, maxTokens: 220 });
+    const description = text?.trim();
+    return description ? `An attached image, "${name}": ${description}` : fallback;
+  } catch (e) {
+    console.warn(`[visual] scene synthesis failed, using fallback description: ${e.message}`);
+    return fallback;
+  }
+}
+
+/**
+ * The reusable core: read an already-attached image's structure (OpenCV
+ * box/connector detection plus per-region OCR, server-side — see
+ * serve.mjs's /api/visual) and land it as an ordinary text source via
+ * addSource, so the existing retrieval/citation/grounding pipeline reads
+ * it for free — deliberately not a second chat mechanism. Shared by the
+ * explicit /visual door and the automatic "you attached an image and
+ * asked about it" path below, so the two can never drift into two
+ * different readings of the same image. No custom pixel-region address
+ * type yet (visual-rec.mjs's own `{image, region}` shape is real but
+ * unwired here) — each detected box is one addressable line in the
+ * attached text, named by its own label.
+ *
+ * Returns { sourceName, boxCount, edgeCount, text } on success. Throws on
+ * a missing/wrong-kind attachment or a server failure — callers render
+ * their own message around that, since a chat turn and an automatic
+ * pre-turn read want different wording for the same failure.
+ */
+async function attachImageStructure(name) {
+  const m = state.media[name];
+  if (!m) throw new Error(`no attached image named "${name}" — attached: ${Object.keys(state.media).filter((k) => state.media[k].kind === "image").join(", ") || "(none)"}`);
+  if (m.kind !== "image") throw new Error(`"${name}" is attached as ${m.kind}, not an image`);
+
+  // Every available sense runs, not just the one that happens to find
+  // structure — a plain photo has no labeled boxes at all, and used to
+  // mean "nothing could be attached" outright (the OCR/box pipeline is
+  // structurally blind to anything that isn't a diagram). Sequential, not
+  // parallel, on purpose: the mechanical detector's own real
+  // backgroundUniformity measurement feeds INTO the vision call's own
+  // prompt (describeImageVision), so a diagram never has to be corrected
+  // after the fact — measured live, moondream read three flat-colored
+  // labeled rectangles as "a kitchen" before this was wired in.
+  const resp = await fetch("/api/visual", {
+    method: "POST",
+    headers: { "content-type": "application/octet-stream", "x-file-name": name },
+    body: m.blob,
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    throw new Error(err.error || "visual detection failed");
+  }
+  const { boxes, connectors, edgeCount, width, height, backgroundUniformity } = await resp.json();
+  // settleImageRead: propose a vision read, have another "eye" (a judge
+  // call) check it against the mechanical facts, escalate with a targeted
+  // correction only on a real named disagreement, stop on measured
+  // agreement rather than a fixed number of tries — user direction:
+  // "various levels of escalation of model calls to read things in
+  // different ways, multiple eyes, triggered by disagreement."
+  const { visionRead, turns: visionTurns, settled: visionSettled, unresolvedReason } = await settleImageRead(m.blob, boxes, connectors, width, height, backgroundUniformity);
+  if (!boxes.length && !visionRead) return { sourceName: null, boxCount: 0, edgeCount: 0, text: "" };
+
+  // The talking model never sees the raw detector output — user
+  // direction, verbatim: "the talking model should never receive the raw
+  // data about what's in there, it should receive an experience, even if
+  // it requires another model call to combine these elements." A single,
+  // tightly-scoped SYNTHESIS call (describeImageScene, below) fuses EVERY
+  // sense that ran — the vision model's holistic read, plus whatever a
+  // mechanical OpenCV/OCR pass found (color, exact text, connections) —
+  // into one plain description, never handing the talking model raw,
+  // unmerged sense data. That description leads the attached source; the
+  // addressed per-region facts follow as supporting, citable detail —
+  // still real, just no longer the FIRST thing a reader encounters.
+  const sceneDescription = await describeImageScene(name, visionRead, boxes, connectors, width, height, backgroundUniformity);
+  const readable = boxes.filter((b) => b.text && b.text.trim());
+  const lines = [sceneDescription];
+  if (readable.length || connectors.length) {
+    lines.push("", "Detected regions (OpenCV + OCR, addresses kept for citation):");
+    for (const b of readable) {
+      const pos = positionLabel(b.region, width, height);
+      lines.push(`Region ${b.id}${b.color ? ` (${b.color})` : ""}${pos ? ` [${pos}]` : ""} (pixel area ${JSON.stringify(b.region)}): "${b.text.replace(/\n/g, " ")}"`);
+    }
+    for (const c of connectors) {
+      lines.push(`Connector between region ${c.connects[0]} and region ${c.connects[1]}${c.direction !== "undetermined" ? ` (direction: ${c.direction})` : " (direction not determined)"}.`);
+    }
+  }
+  // An escalation that never settled is disclosed on the record, not
+  // silently presented as agreement — the same withhold-not-convict
+  // posture this project holds for every other unresolved gap.
+  if (!visionSettled) lines.push("", `(the vision read and the mechanical findings still disagree after ${visionTurns} tries: ${unresolvedReason})`);
+  const standing = readable.length ? `${VISION_STANDING} A mechanical detector also ran: ${VISUAL_STANDING}` : VISION_STANDING;
+  const text = lines.join("\n");
+  const sourceName = `${name}.visual-structure.txt`;
+  addSource(sourceName, text, { kind: "image-structure", standing });
+  mirrorTermRecord("visual", { name, boxes: boxes.length, connectors: connectors.length, vision: Boolean(visionRead), visionTurns, visionSettled, via: "chat" });
+  logAct("recorded", { where: "visual", name, boxes: boxes.length, vision: Boolean(visionRead), visionTurns, visionSettled });
+  return { sourceName, boxCount: boxes.length, edgeCount, text };
+}
+
+// Every attached image not yet read into its own "<name>.visual-structure.txt"
+// source — the set attachImageIntent (below) and /visual's own "already
+// attached" refusal both check against.
+function unreadAttachedImages() {
+  return Object.keys(state.media).filter((n) => state.media[n].kind === "image" && !(`${n}.visual-structure.txt` in state.sources));
+}
+
+// A small, disclosed, closed noun set for "this looks like it's about an
+// attached image" — this codebase has no existing closed class for it
+// (unlike the pronoun check below, which reuses the engine's own received
+// ANAPHORIC_PRONOUNS rather than inventing one). Kept deliberately narrow,
+// the same standing MEDIA_EXTS's own hardcoded extension list already has.
+const IMAGE_REFERRING_WORDS = new Set(["image", "images", "picture", "pictures", "photo", "photos", "diagram", "diagrams", "screenshot", "screenshots", "graphic", "graphics", "drawing", "drawings"]);
+
+/**
+ * Should THIS question trigger an automatic image read before answering?
+ * Two ways to fire, both narrow on purpose — this must never guess when
+ * an attached image is just along for the ride on an unrelated question
+ * (user direction: "ignore an image if it's attached and we're not
+ * explicitly asking about it"):
+ *   1. The question names an unread image directly (its filename, or the
+ *      filename's stem) — unambiguous regardless of how many are attached.
+ *   2. Exactly ONE unread image is attached, and the question carries a
+ *      bare deictic ("what is this?", "describe that") or a generic
+ *      image-referring noun. Two or more unread images with no name given
+ *      is refused rather than guessed — the same "never guess which"
+ *      posture DOORS' own no-such-door refusal holds.
+ * Returns the image's name to read, or null.
+ */
+function imageIntentFor(question) {
+  const unread = unreadAttachedImages();
+  if (!unread.length) return null;
+  const q = question.toLowerCase();
+  const named = unread.find((n) => q.includes(n.toLowerCase()) || q.includes(n.split(".")[0].toLowerCase()));
+  if (named) return named;
+  if (unread.length !== 1) return null;
+  const words = q.split(/[^a-z']+/).filter(Boolean);
+  const hasAnaphor = words.some((w) => enginePriors.ANAPHORIC_PRONOUNS?.has(w));
+  const hasImageWord = words.some((w) => IMAGE_REFERRING_WORDS.has(w));
+  return (hasAnaphor || hasImageWord) ? unread[0] : null;
+}
+
+/**
+ * /visual <name> — the explicit door onto attachImageStructure, for
+ * naming an image directly rather than relying on imageIntentFor's
+ * automatic detection.
+ */
+async function visualTurn(arg, typed) {
+  addMessage("user", typed);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  logAct("asked", { text: typed });
+
+  const name = arg.trim();
+  if (!name) {
+    body.textContent = "/visual <name> — reads an already-attached image's structure. Attach an image first (paperclip or drag-and-drop), then name it here.";
+    $("status").textContent = readyLine();
+    releaseBusy();
+    return;
+  }
+
+  body.textContent = `reading ${name}'s structure — OpenCV detection, then OCR per region…`;
+  $("status").textContent = "reading image structure…";
+  try {
+    const { sourceName, boxCount, edgeCount, text } = await attachImageStructure(name);
+    if (!sourceName) {
+      body.textContent = `nothing could be read from "${name}" — no labeled boxes detected and no vision model answered (is moondream pulled? "ollama pull moondream").`;
+      $("status").textContent = readyLine();
+      releaseBusy();
+      return;
+    }
+
+    body.textContent = `"${name}": ${boxCount} region(s) detected, ${edgeCount} connector(s) folded → attached as "${sourceName}" (${text.length.toLocaleString()} chars). Ask about it like any other source.`;
+    const historyNote = `read ${name}'s visual structure (${boxCount} regions) → attached as "${sourceName}"`;
+    state.history.push({ role: "user", content: typed }, { role: "assistant", content: historyNote });
+    const turn = state.summary.turnCount + 1;
+    observeExchange(turn, typed, historyNote);
+    const fold = mechanicalFoldLine(typed, historyNote);
+    state.turnFolds.push(fold);
+    state.summary = advanceSummaryFold(state.summary, fold);
+    renderFold(node, { fold });
+    renderThreads();
+  } catch (e) {
+    body.textContent = `visual read failed: ${e.message}`;
+  }
+  $("status").textContent = readyLine();
+  releaseBusy();
+}
+
 /**
  * Transcribe an audio Blob directly (for dropped files, no file picker).
  * Runs the full 3-layer pipeline: raw whisper → priors-coref → self-coref.
@@ -6188,6 +6645,16 @@ async function send(question) {
     return transcribeTurn(question);
   }
 
+  // /visual <name> — read an attached image's structure (OpenCV box and
+  // connector detection, per-region OCR) and attach the folded ledger as
+  // an ordinary text source. See visualTurn's own header for why this
+  // needs a server crossing and why it reuses addSource rather than a
+  // second chat mechanism.
+  const visualArg = question.match(/^\/visual\s+(\S[\s\S]*)/)?.[1];
+  if (visualArg) return visualTurn(visualArg, question);
+  if (/^\/visual\s*$/.test(question))
+    return usageTurn(question, "/visual <name> — reads an already-attached image's structure (OpenCV box/connector detection + per-region OCR) and attaches the result as a citable text source. Attach an image first, then run this with its name.");
+
   // /learn's door: the terminal's own `learn` walk is graded on real
   // keystrokes there, which chat cannot offer — so here it points to
   // where that walk lives, and lists the vendored handbook's chapters
@@ -6342,13 +6809,33 @@ async function send(question) {
   // the web toggle on, a search) as if it were a question.
   if (/^\/[a-z][a-z-]*\b/i.test(question))
     return usageTurn(question, `no door named ${question.split(/\s+/)[0]} — the doors: ${DOORS.join(" ")}`, { what: "no-such-door" });
+
+  // An attached, not-yet-read image the question actually gestures at
+  // ("what is this?", naming the file, "describe the diagram") gets read
+  // BEFORE the turn answers, so the material exists in time to be
+  // retrieved for THIS turn rather than only future ones — see
+  // imageIntentFor's own header for exactly when this fires and why it
+  // refuses to guess. An attached image the question never mentions is
+  // left alone; nothing here forces it into every turn.
+  const wantsImage = imageIntentFor(question);
+  if (wantsImage) {
+    try {
+      await attachImageStructure(wantsImage);
+    } catch (e) {
+      // A failed auto-read must not silently swallow the question — fall
+      // through to the ordinary turn, which will answer without the
+      // image rather than answering nothing at all.
+      console.warn(`[visual] automatic read of "${wantsImage}" failed: ${e.message}`);
+    }
+  }
+
   if (needsDecomposition(question)) return holonicTurn(question, question, "model");
   return twoPassTurn(question);
 }
 
 /** Every door the composer routes, read off the dispatch above — kept as one
  * list so the refusal for an unknown slash names all of them. */
-const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/facts", "/fold", "/gateways", "/holograph", "/ingest", "/join", "/learn", "/matrix", "/measure", "/model-loop", "/must", "/pool", "/preserve", "/priors", "/ranke", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/task", "/transcribe", "/void"]);
+const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/facts", "/fold", "/gateways", "/holograph", "/ingest", "/join", "/learn", "/matrix", "/measure", "/model-loop", "/must", "/pool", "/preserve", "/priors", "/ranke", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/task", "/transcribe", "/visual", "/void"]);
 
 /**
  * /ingest — a repo becomes folds, mechanically. Every admissible file (the
@@ -8128,24 +8615,21 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // `show`.
   const log = [];
   const reasoning = [];
-  const tickEl = document.createElement("div");
-  tickEl.className = "thinking";
-  const draftEl = document.createElement("div");
-  // `draft-pending` (found live, user direction 2026-09-09: "it needs to be
-  // greyed out before a final answer is locked in") — this element streams
-  // the model's raw draft while it is still subject to the correction loop
-  // (holon.js's bounded correction over unsupported claims) and, before
-  // that, the online proof-seeking pass — real content that can still be
-  // rewritten out from under it. It shares the `.prose` class with the
-  // FINAL, checked answer `renderAnswer` draws once the turn actually
-  // lands, so until now a reader had no visual signal that what they were
-  // reading was provisional: a wrong first draft looked exactly as settled
-  // as the real answer, right up to the moment it silently got replaced.
-  // `draft-pending` mutes it (index.html, same treatment `.thinking`
-  // already uses for "not yet settled") for as long as this element is
-  // live; `renderAnswer`'s own `.prose` node is never given the class, so
-  // the real answer always renders at full weight from the moment it exists.
-  draftEl.className = "prose draft-pending";
+  // NO LIVE DRAFT (removed 2026-09-10, user direction: "don't have it show
+  // an answer until it is settled, it keeps rewriting its answer"). This
+  // used to be a `draftEl` streaming the model's raw text token by token,
+  // muted (`draft-pending`) to disclose it was still provisional — but the
+  // correction loop (and, for a piece, its own continuation/obligation/snip
+  // rewrite passes) reuses the SAME streaming channel for every rewrite
+  // (holon.js's `streaming` object, shared by the first write and every
+  // later `call(...)` it makes), so a reader watched a full draft stream
+  // in, vanish, and restream a different one — sometimes more than once —
+  // with nothing telling them which pass they were looking at. The fix is
+  // not a label distinguishing the passes; it is not showing a draft at
+  // all. The collapsed panel above (`traceDetails`) still says what the
+  // turn is doing right now, live, with its own pulsing cue — the only
+  // thing that changed is that no candidate ANSWER is on screen until
+  // `renderAnswer` draws the one that actually settled.
   // ONE TRACE, TWO VOICES, IN THE ORDER THEY HAPPENED.
   //
   // The run log is a log — mono, one fact per line, "3 passage(s) retrieved"
@@ -8165,6 +8649,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // log line opens a fresh run. The log lines end up reading as stage
   // directions between thoughts, which is what they are.
   const traceEl = document.createElement("div");
+  traceEl.className = "thinking-live-body";
   // ONE THINKING AFFORDANCE, NOT TWO. A `<details class="fold">` was built
   // here to hold the trace — but `addMessage` already gives every assistant
   // turn one (the turn-meta disclosure), and `renderFold` already takes a
@@ -8173,7 +8658,32 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // has to open both to find out which one has the work in it. The trace
   // streams into the body while the turn runs and moves into the existing
   // disclosure when it lands.
-  body.replaceChildren(traceEl, tickEl, draftEl);
+  //
+  // COLLAPSED BY DEFAULT (2026-09-10, user direction: "more like claude so
+  // it doesn't show more info without clicking"). The trace above — log
+  // lines, the void's own reasoning, the model's own deliberation — used to
+  // render straight into the message, fully visible the entire time a turn
+  // ran. It now sits behind a `<details>`, closed by default: the same
+  // chevron-and-summary language `.loops-fold` already uses elsewhere on
+  // this page, one click for detail nothing here deletes. What stays
+  // visible without a click is the `<summary>` alone — a small dot that
+  // only pulses while the turn is actually running (`.live`, removed the
+  // instant it lands — see `stopPulse()` below), beside the SAME phase text
+  // `setPhase()` already drives a few hundred lines down: a real,
+  // present-tense account of what this turn is doing right now ("reading
+  // for the answer", "checking for material", "searching the web: …"),
+  // never a generic "thinking…".
+  const traceDetails = document.createElement("details");
+  traceDetails.className = "thinking-live live";
+  const traceSummary = document.createElement("summary");
+  const traceDot = document.createElement("span");
+  traceDot.className = "thinking-dot";
+  const traceVerb = document.createElement("span");
+  traceVerb.className = "thinking-verb";
+  traceVerb.textContent = "thinking…";
+  traceSummary.append(traceDot, traceVerb);
+  traceDetails.append(traceSummary, traceEl);
+  body.replaceChildren(traceDetails);
 
   let logBlock = null;
   const show = (line) => {
@@ -8228,7 +8738,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // same epistemic footing PAST DISCOURSE already holds elsewhere in this
   // app ("real, visible, never treated as settled"). Kept visually distinct
   // (`.model-thinking`, its own label) so the two can never be mistaken for
-  // one another, and kept — not wiped like `draftEl` — because disclosed
+  // one another, and kept — never cleared mid-turn — because disclosed
   // deliberation is exactly the kind of thing this trace exists to hold.
   // Born lazily on the first real delta, so a model with nothing to say
   // here (gemma2:2b, this app's default) never adds an empty box.
@@ -8497,7 +9007,10 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     phaseStart = performance.now();
     phasePromptChars = promptChars;
   };
-  const ticker = setInterval(() => {
+  // Painted once immediately, not only on the first `setInterval` tick a
+  // second later — the summary is now the one thing a reader sees without
+  // clicking, and a blank line for the first second reads as not-yet-working.
+  const paintTicker = () => {
     const secs = Math.round((performance.now() - phaseStart) / 1000);
     const pace = foldPace(state.paceLog, turnModel);
     // Expected duration from the measured pace: prefill for what this call
@@ -8508,12 +9021,18 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       const p = predictCall(pace, phasePromptChars, pace.meanOutTokens ?? 0);
       if (p.ms) expect = ` / ~${Math.round(p.ms / 1000)}s expected (${p.basis})`;
     }
-    tickEl.textContent =
-      `⋯ ${phaseLabel} · ${secs}s${expect}` +
+    traceVerb.textContent =
+      `${phaseLabel} · ${secs}s${expect}` +
       (pace.decodeTps ? ` · ${Math.round(pace.decodeTps)} tok/s` : " · pace unmeasured");
-  }, 1000);
+  };
+  paintTicker();
+  const ticker = setInterval(paintTicker, 1000);
+  // The dot pulses only for as long as the turn genuinely is working — every
+  // exit from this function clears the ticker interval, so stopping the
+  // pulse there (rather than on a timer of its own) can never drift from the
+  // fact it is reporting.
+  const stopPulse = () => { clearInterval(ticker); traceDetails.classList.remove("live"); };
 
-  let lastDraftPaint = 0;
   let lastThinkPaint = 0;
   // The plan's parts, kept from the `planned` event so a later part event
   // can be matched to its loop by id or label.
@@ -8578,18 +9097,41 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // S1/S2 turn; every other turn passes null and gets the plain
     // constants back untouched). The budgets handed in are ALWAYS the
     // declared constants — holon.js's own MAX_CORRECTIONS/
-    // PASSAGES_PER_PART, proof.js's own PREFLIGHT_PAGES_CONSULTED — never
-    // a prior escalated value, so the factor can never compound across
-    // turns. Asymmetric by construction: escalationFor only ever raises
-    // budgets on `contested`; `established` and `unproven` alike come
-    // back byte-identical to the constants, so a good record never
-    // quietly removes checking. The engagement lands on the reflex
-    // ledger (reflex.js's designed unknown-act fallback, the same door
+    // PASSAGES_PER_PART, proof.js's own PREFLIGHT_PAGES_CONSULTED (or its
+    // shape-narrowed reading, below) — never a PRIOR turn's ALREADY-
+    // escalated value, so the factor can never compound turn over turn.
+    // Asymmetric by construction: escalationFor only ever raises budgets
+    // on `contested`; `established` and `unproven` alike come back
+    // byte-identical to the constants, so a good record never quietly
+    // removes checking. The engagement lands on the reflex ledger
+    // (reflex.js's designed unknown-act fallback, the same door
     // `measured`/`carried`/`narrowed` already entered through) — a
     // decision the instrument made is never silent.
+    //
+    // SCOPED TO THE VOID'S OWN SHAPE (user direction, 2026-09-10: "once we
+    // know the shape of an answer, we know the shape of what it needs to
+    // be fed") — `preflightCeilingFor`'s own header carries the full
+    // reasoning and the one case it deliberately leaves untouched (a
+    // RELATIONAL slot, "Lincoln's vice president" — the exact shape a past
+    // mistake was made on, per void-brief.js's own header). Read from the
+    // question-only void (`voidBrief`, set just above by `narrateTheVoid`
+    // before any material exists) — recomputed FRESH from THIS question
+    // every turn, never a value escalation itself produced, so it cannot
+    // compound the way the law above forbids either.
+    const shapeCells = voidBrief?.declaration?.cells;
+    const shapedPreflightPages = preflightCeilingFor(
+      {
+        slotDeclared: Boolean(voidBrief?.declaration),
+        anchorDeclared: Boolean(shapeCells?.find((c) => c.field === "anchor")?.declared),
+      },
+      PREFLIGHT_PAGES_CONSULTED,
+    );
+    if (shapedPreflightPages < PREFLIGHT_PAGES_CONSULTED) {
+      logAct("scoped", { slot: voidBrief?.declaration?.slot ?? null, pages: shapedPreflightPages, of: PREFLIGHT_PAGES_CONSULTED });
+    }
     const escalation = escalationFor(
       opts.priorPass ? metaLedger.standingOf(state.metaLedger, "s1-draft") : null,
-      { maxCorrections: MAX_CORRECTIONS, passagesPerPart: PASSAGES_PER_PART, pagesConsulted: PREFLIGHT_PAGES_CONSULTED },
+      { maxCorrections: MAX_CORRECTIONS, passagesPerPart: PASSAGES_PER_PART, pagesConsulted: shapedPreflightPages },
     );
     if (escalation.escalated) {
       logAct("escalated", {
@@ -9033,16 +9575,16 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
                 renderThreads();
                 $("status").textContent = readyLine();
                 // This path answers and returns before the try block below
-                // ever reaches its own `clearInterval(ticker)` (success path)
-                // or its catch's (failure path) — the only two places this
-                // function otherwise stops the busy ticker. Missing here, the
-                // 1s `setInterval` created above keeps firing for the rest of
+                // ever reaches its own `stopPulse()` (success path) or its
+                // catch's (failure path) — the only two places this function
+                // otherwise stops the busy ticker. Missing here, the 1s
+                // `setInterval` created above keeps firing for the rest of
                 // the page's life on every entity-seek turn that answers this
-                // way: harmless to what is on screen (`tickEl` was already
-                // detached from `body` a few lines up) but a genuine leaked
-                // timer nonetheless, and exactly the class of defect that
-                // makes a later turn's OWN busy indicator untrustworthy.
-                clearInterval(ticker);
+                // way: harmless to what is on screen (`traceDetails` was
+                // already detached from `body` a few lines up) but a genuine
+                // leaked timer nonetheless, and exactly the class of defect
+                // that makes a later turn's OWN busy indicator untrustworthy.
+                stopPulse();
                 releaseBusy();
                 return;
               }
@@ -9276,16 +9818,10 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
           $("status").textContent = `writing: ${part.label}…`;
           if (opts.longForm) mirrorTermRecord("longform-part", { topic: opts.longForm.topic, part: part.label, via: "chat" });
         } else if (phase === "draft") {
-          // The part being written, streamed as blocks — display-only until
-          // the checks run on the whole.
-          const now = performance.now();
-          if (now - lastDraftPaint > 200) {
-            lastDraftPaint = now;
-            const d = document.createElement("div");
-            renderBlocksInto(d, info.partial, (chunk) => [document.createTextNode(chunk)]);
-            draftEl.replaceChildren(...d.childNodes);
-            node.scrollIntoView({ block: "end" });
-          }
+          // No live draft (see the block comment above `traceDetails`'s own
+          // creation, above): this phase fires for the first write AND every
+          // later rewrite alike, so nothing here is drawn — the ticker's
+          // phase label is what a reader watches instead.
         } else if (phase === "thinking") {
           // The model's OWN deliberation, live — see `showModelThinking`'s
           // own header for why this is a separate voice from the void's
@@ -9302,7 +9838,6 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
           show(`${part.label}: ${info.failures.length} unsupported claim(s), rewriting`);
           logAct("corrected", { part: part.label, failures: info.failures.length });
         } else if (phase === "checked") {
-          draftEl.replaceChildren();
           show(
             `${part.label}: ${info.refs.length} address(es)` +
               (info.unsupported.length ? `, ${info.unsupported.length} unsupported` : "") +
@@ -9356,9 +9891,9 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // passages while this turn ran; both chains started from `ledgerBase`.
     if (result.hyperlexiconLog) state.hyperlexiconLog = mergeAppendOnly(state.hyperlexiconLog, result.hyperlexiconLog, ledgerBase, { append: nativeTaskLog.append });
     syncRecords();
-    clearInterval(ticker);
+    stopPulse();
   } catch (err) {
-    clearInterval(ticker);
+    stopPulse();
     const answer = `[engine error: ${err.message || err}]`;
     body.textContent = answer;
     state.history.push(
@@ -10435,6 +10970,29 @@ function taggedProse(text, offered, classified = [], marks = []) {
       const g = groundOf(entry.text, { ...state.lastGround, claims: [...own, ...(state.lastGround.claims ?? []).filter((c) => c.sentence === entry.text)], witness: wrow });
       sent.dataset.groundTier = g.tier;
       tier = g.tier;
+      // The action: open the real bytes when we already have a real
+      // address, search for them when we don't. `groundHunt` only ever
+      // searches `liveChunks()` — the ATTACHED pool — so on an answer built
+      // from a turn-scoped web fetch (nothing attached, `state.sources`
+      // empty) it always finds zero hits and silently sets the status line,
+      // which read as "does nothing" (found live, 2026-09-10). `g.addresses`
+      // is frequently already a real, resolvable ref by this point (bound
+      // and witnessed tiers both carry one whenever the ladder actually
+      // placed the sentence) — `reopen()` already resolves a ref through
+      // BOTH `state.sources` and `state.citedMaterial` (the turn-scoped
+      // archive a web fetch lands in), so it is strictly more capable than
+      // a fresh search and never needs to guess.
+      // A "web:search-results#…" address names the turn-scoped combined
+      // SNIPPET digest (gatherPreflightMaterial's own join of every result's
+      // title+snippet) — never written to `state.citedMaterial` (only a
+      // fully fetched page is, keyed `web:<host>-<i>`), so `reopen()` always
+      // reports it outlived, even seconds after the turn that cited it. A
+      // real per-page address sits right beside it whenever one was fetched
+      // (found live, 2026-09-10, clicking through to confirm this button
+      // actually opens something) — preferred here so a reader lands on
+      // real, still-loaded bytes instead of a stale-material message when
+      // there was a working address to pick all along.
+      const knownRef = g.addresses?.find((a) => !a.startsWith("web:search-results")) ?? g.addresses?.[0] ?? null;
       sentMarks.push({
         label: `◎ ${groundLine(g)}`,
         // Self tier means the model is citing itself — nothing read placed
@@ -10447,8 +11005,8 @@ function taggedProse(text, offered, classified = [], marks = []) {
           ? `${g.detail} There is nothing to cite here, so this sentence is underlined rather than marked with a numbered citation — the underline means "the model's own voice, unbacked."`
           : g.detail,
         addresses: g.addresses,
-        action: () => groundHunt(entry.text),
-        actionLabel: "Search the material",
+        action: knownRef ? () => reopen(knownRef) : () => groundHunt(entry.text),
+        actionLabel: knownRef ? "See original source" : "Search the material",
       });
     }
 
@@ -12562,7 +13120,7 @@ async function witnessProof(target, out, faces, onStep = null) {
     // sampling, which is not a defect this instrument's checking ladder
     // should tolerate on its own witness.
     const ask = async (s) =>
-      readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0 }));
+      readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0, model: witnessModelFor() }));
     const real = await ask(sentence);
     // The swap is half the measurement, not an optional calibration: a
     // contradiction is only ever DERIVED from the page affirming the
@@ -14278,47 +14836,36 @@ function countFor(name) {
  * about its own state — it greys the whole strip, and its own label carries
  * the count that is out of play.
  */
+/**
+ * Attachments no longer get one pill each in the composer bar — user
+ * direction, 2026-09-10: "the attachments get cluttered, lets have these
+ * only disclosed with 'memory' but clearly there." Presence is now a live
+ * count on the "memory" button itself (#memory-count), and the detailed
+ * per-file list (checkbox, peek, remove — unchanged, still #attach-sheet)
+ * is one row inside the memory menu (#memory-view-attachments) instead of
+ * one click per pill. Nothing about WHAT is attached, muted, or removable
+ * changed — only where a reader goes to see and manage it.
+ */
 function renderAttachStrip() {
-  const strip = $("attach-strip");
-  if (!strip) return;
   const names = Object.keys(state.sources);
-  strip.textContent = "";
-  strip.style.opacity = state.useAttachments ? "" : "0.45";
-  for (const name of names) {
-    const on = !state.muted.has(name);
-    const pill = document.createElement("span");
-    pill.className = on ? "pill" : "pill off";
+  const mediaNames = Object.keys(state.media);
+  const total = names.length + mediaNames.length;
 
-    const label = document.createElement("button");
-    label.type = "button";
-    label.className = "name";
-    const labelText = document.createElement("span");
-    labelText.className = "txt";
-    labelText.textContent = `${name} · ${countFor(name).toLocaleString()}`;
-    label.append(labelText);
-    // The pill opens the sheet (user, 2026-08-17) — choosing what the chat
-    // reads is a considered act over the whole set, and a click that
-    // silently silenced one file was a state change wearing a label's
-    // clothes. The ✕ stays immediate; everything else lives in the sheet.
-    // a prior's pill wears its papers — the publisher line above the control hint
-    const prov = state.provenance[name];
-    label.title = `${prov ? `${prov.line}\n` : ""}${name}${on ? "" : " — silenced"} · click to see and choose what's read`;
-    label.onclick = () => openAttachSheet(name);
-
-    const drop = document.createElement("button");
-    drop.type = "button";
-    drop.className = "drop";
-    drop.textContent = "✕";
-    drop.title = `Remove ${name} — its addresses stop resolving`;
-    drop.onclick = () => removeSource(name);
-
-    pill.append(label, drop);
-    strip.append(pill);
+  const badge = $("memory-count");
+  if (badge) {
+    badge.textContent = String(total);
+    badge.hidden = !total;
+    badge.style.display = total ? "inline-flex" : "";
+  }
+  const sub = $("memory-view-attachments-sub");
+  if (sub) {
+    sub.textContent = total
+      ? `${total} attached — ${names.length} document${names.length === 1 ? "" : "s"}${mediaNames.length ? `, ${mediaNames.length} file${mediaNames.length === 1 ? "" : "s"}` : ""}`
+      : "nothing attached yet";
   }
 
   // The switch is not there until there is something for it to govern — a
-  // lever over an empty set is furniture that teaches nothing. The count
-  // itself is the pills above; nothing restates it in text any more.
+  // lever over an empty set is furniture that teaches nothing.
   const sw = $("attach-switch");
   if (sw) sw.hidden = !names.length;
 }
@@ -14405,7 +14952,13 @@ function openAttachSheet(focus = null) {
     line.className = "att-line";
     const label = document.createElement("span");
     label.className = "name";
-    label.textContent = `${name} · ${fmtBytes(m.blob.size)} ${m.kind} · /measure ${name}`;
+    label.textContent = `${name} · ${fmtBytes(m.blob.size)} ${m.kind} · /measure ${name}${m.kind === "image" ? " · /visual " + name : ""}`;
+    // The same viewer renderSourcesPanel's own media rows already open
+    // (openMediaViewer — a real <img> in the #source-viewer dialog for a
+    // kind:"image" entry) — this row just never called it.
+    label.title = m.kind === "image" ? "open the image" : `open this ${m.kind}`;
+    label.style.cursor = "pointer";
+    label.onclick = () => openMediaViewer(name);
     line.append(label);
     row.append(line);
     list.append(row);
@@ -15039,6 +15592,23 @@ function openSourceViewer(name) {
   // Store current file info for toggle
   const info = { name, text, ext };
   renderSourceViewerMode("read", info);
+  // A "<image>.visual-structure.txt" source is a READING of a picture,
+  // not the picture — user direction: "when 'attached' we should be able
+  // to see the image in that thing." If the original image is still
+  // attached, show it above the derived text rather than making a reader
+  // separately hunt down the image's own row to see what any of this is
+  // actually describing.
+  const imgMatch = name.match(/^(.*)\.visual-structure\.txt$/);
+  const srcImage = imgMatch && state.media[imgMatch[1]];
+  const existingThumb = $("source-viewer-body").previousElementSibling;
+  if (existingThumb?.classList?.contains("source-viewer-image")) existingThumb.remove();
+  if (srcImage?.kind === "image") {
+    const thumb = document.createElement("img");
+    thumb.className = "source-viewer-image";
+    thumb.src = srcImage.url;
+    thumb.style.cssText = "max-width:100%;max-height:240px;display:block;margin-bottom:12px;border-radius:6px;";
+    $("source-viewer-body").before(thumb);
+  }
   // Wire mode toggle
   const modeEl = $("source-viewer-mode");
   modeEl.onclick = (e) => {
@@ -15436,6 +16006,10 @@ $("memory-open").onclick = () => $("memory-menu").showModal();
 $("memory-add-attachment").onclick = () => {
   $("memory-menu").close();
   $("attach-menu").showModal();
+};
+$("memory-view-attachments").onclick = () => {
+  $("memory-menu").close();
+  openAttachSheet();
 };
 // The sheet's own add door closes the sheet first — two stacked modals would
 // leave the reader closing dialogs like nested parentheses.

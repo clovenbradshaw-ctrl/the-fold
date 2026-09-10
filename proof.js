@@ -49,6 +49,48 @@ export const PROOF_TARGETS_PER_TURN = 4; // automatic seeking per turn is bounde
 // two questions are not the same question and may not stay the same number.
 export const PREFLIGHT_PAGES_CONSULTED = 3;
 export const PREFLIGHT_QUERY_MAX_TERMS = 12; // a topic anchor, not a claim — room for the task's own words plus the fold's one-line discourse
+// The smallest ceiling that still lets a bare-topic answer be CORROBORATED
+// (a second source, so "unproven" stays distinguishable from "confirmed")
+// rather than resting on exactly one page — never picked by checking what
+// it does to any one question's own answer (P9).
+export const PREFLIGHT_BARE_TOPIC_PAGES = 2;
+
+/**
+ * How many pages a preflight hunt needs, once the question's own void SHAPE
+ * is already known — void-brief.js's `briefFor`, read on the question
+ * alone, before any material exists to read. "Once we know the shape of an
+ * answer, we know the shape of what it needs to be fed" (user direction,
+ * 2026-09-10). Returns a ceiling at or below `defaultPages`: this only ever
+ * NARROWS, and only in the one case it can reason about safely.
+ *
+ * Deliberately NOT keyed on declared CARDINALITY. void-brief.js's own
+ * header already names why a singular-SOUNDING question is not license to
+ * assume a single-valued world: "'who was Lincoln's vice president?' is
+ * grammatically singular and factually two-valued... declaring the space
+ * single-filler before any material is consulted is the unearned overlay
+ * this codebase already refuses elsewhere." Reading a singular slot as "one
+ * page will do" would be exactly that mistake, wearing a new name.
+ *
+ * What IS safe: whether the slot is RELATIONAL — named as something OF or
+ * BELONGING TO a separate anchor ("Lincoln's vice president", "capital of
+ * Brazil", "who was in Van Halen"). A relational slot is precisely the
+ * shape where a second term, a second office-holder, a second member can
+ * hide — the Lincoln mistake's own shape — so it keeps the full ceiling,
+ * unconditionally. A BARE topic slot ("what year did the French Revolution
+ * begin?") names no second party for the void's own multi-filler machinery
+ * to ever have been checking for; there is nothing here that machinery
+ * protects against today, with or without this function, so a smaller,
+ * still-corroborating ceiling is a genuine efficiency gain rather than a
+ * narrower bet on the world.
+ *
+ * `slotDeclared: false` (an explanatory or conversational question — no
+ * slot at all, `briefFor` returned null) passes through unchanged: there is
+ * no shape here to act on.
+ */
+export function preflightCeilingFor({ slotDeclared = false, anchorDeclared = false } = {}, defaultPages) {
+  if (!slotDeclared || anchorDeclared) return defaultPages;
+  return Math.min(defaultPages, PREFLIGHT_BARE_TOPIC_PAGES);
+}
 
 /**
  * The search query for a claim, built from the claim's own words — never

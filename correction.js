@@ -317,7 +317,17 @@ const HEADING_RE = /^\s*(?:#{1,6}\s|\*\*[^*]+\*\*\s*:?\s*$|\d+\.\s*\*\*)/;
 // first-person pronoun in sight. Added as its own alternative rather than
 // widening `i \w+\b` to match mid-sentence, which would risk matching real
 // content ("Also, Napoleon invaded Russia in 1812.").
-const PROCESS_RE = /^\s*(?:let(?:'|’)?s\b|let me\b|i(?:'|’)?(?:ll|m|d|ve)\b|i \w+\b|we(?:'|’)?(?:ll|re|ve)\b|here(?:'|’)?s\b|this (?:analysis|passage|section|code|snippet|document|text|response|answer|breakdown)\b|the (?:following|passage|snippet|code) (?:is|describes|shows|focuses)\b|to (?:answer|summarize|understand|break)\b|in (?:short|summary|conclusion)\b|also (?:looked at|checked|consulted|searched|read)\b|first,|next,|finally,|okay|sure|certainly)/i;
+// FOUND LIVE 2026-09-10 (a real correction turn, driven live: told "that
+// doesn't make sense, that's when hamlin was VP", gemma2:2b answered "You
+// are absolutely right! My apologies. I seem to have gotten confused..." —
+// two sentences of pure apology and zero corrected content). Neither
+// opener is first-person the way the rest of this list is: the model is
+// addressing the READER ("You are...") or naming its own error as a
+// possessive ("My apologies/mistake") rather than narrating an action with
+// "I" — this file's own header names the identical shape ("You're right,
+// we established that…") as the specimen this whole module was built to
+// stop, so it belongs in the cut list too, not just the premise check.
+const PROCESS_RE = /^\s*(?:let(?:'|’)?s\b|let me\b|i(?:'|’)?(?:ll|m|d|ve)\b|i \w+\b|we(?:'|’)?(?:ll|re|ve)\b|here(?:'|’)?s\b|this (?:analysis|passage|section|code|snippet|document|text|response|answer|breakdown)\b|the (?:following|passage|snippet|code) (?:is|describes|shows|focuses)\b|to (?:answer|summarize|understand|break)\b|in (?:short|summary|conclusion)\b|also (?:looked at|checked|consulted|searched|read)\b|first,|next,|finally,|okay|sure|certainly|you(?:'|’)?re (?:right|correct)\b|you are (?:absolutely |quite |completely )?(?:right|correct)\b|my (?:apologies|mistake|bad)\b)/i;
 // KEEPS_RE is snip-check.js's own ABSENCE_RE, imported above — the one
 // implementation, shared: moved there 2026-09-08 so that module's atom/
 // company check could exempt an absence sentence the same way this file's

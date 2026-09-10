@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { MODEL_PICKER, ROUTE_KINDS, routeModel, S1_MODEL, S2_MODEL, resolveNamedModel , isPinnedModel} from "./model-routing.js";
+import { MODEL_PICKER, ROUTE_KINDS, routeModel, S1_MODEL, S2_MODEL, WITNESS_MODEL, resolveNamedModel , isPinnedModel} from "./model-routing.js";
 
 const OFFERED = [...MODEL_PICKER];
 const SELECTED = MODEL_PICKER[MODEL_PICKER.length - 1];
@@ -53,6 +53,16 @@ test("S1 and S2 are distinct, fixed models", () => {
   // MODEL_PICKER[0] (both gemma2:2b) -- an accident of this assignment, not
   // a structural requirement of the abstraction.
   assert.ok(!MODEL_PICKER.includes(S1_MODEL), "S1's model is a specialist, never offered as a picker rung");
+});
+
+test("WITNESS_MODEL is its own declared choice, not a silent alias of S1_MODEL's identity", () => {
+  // The value is the same as S1_MODEL today (both name the smallest pulled
+  // instruct model) — that is a coincidence of what happens to be measured
+  // best for each job right now, not a structural requirement. Declared as
+  // its own export, own comment, own giver, so changing one never silently
+  // moves the other.
+  assert.equal(WITNESS_MODEL, "hf.co/allenai/OLMo-2-0425-1B-Instruct-GGUF:latest");
+  assert.ok(!MODEL_PICKER.includes(WITNESS_MODEL), "a specialist pick, never offered as a picker rung");
 });
 
 test("resolveNamedModel returns the named model when Ollama actually has it", () => {

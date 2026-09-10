@@ -695,6 +695,50 @@
         overflow-wrap: anywhere;
       }
       .reasoning p:last-child { margin-bottom: 0; }
+      /* Collapsed by default (2026-09-10, user direction: "more like claude
+         so it doesn't show more info without clicking") — the log lines,
+         the void's reasoning and the model's own deliberation above all
+         land inside `.thinking-live-body`, and this `<details>` is the door
+         onto it: closed by default, the same chevron-and-summary language
+         `.loops-fold` already uses below for the loop cards. What shows
+         without a click is the `<summary>` alone. */
+      .thinking-live { margin: 2px 0 10px; }
+      .thinking-live > summary {
+        list-style: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        cursor: pointer;
+        font-size: 12px;
+        color: var(--muted);
+        user-select: none;
+      }
+      .thinking-live > summary::-webkit-details-marker { display: none; }
+      .thinking-live > summary::before { content: "▸"; font-size: 9px; transition: transform 0.15s; flex: none; }
+      .thinking-live[open] > summary::before { transform: rotate(90deg); }
+      .thinking-live > summary:hover { color: var(--accent); }
+      .thinking-live .thinking-verb { font-family: var(--mono); }
+      .thinking-live-body { margin-top: 6px; }
+      /* The dot: the same pulsing vocabulary the header's model chip already
+         uses for "this is happening now" (chip-pulse, below) — the cue reads
+         identically whether a reader is looking at the header or at the
+         turn itself. It exists only while the turn this panel belongs to is
+         actually running (`.live`, removed by `stopPulse()` the instant the
+         turn lands or errors) — gone, not merely stopped, so nothing here
+         can read as "still working" once the work is over. */
+      .thinking-live .thinking-dot { display: none; }
+      .thinking-live.live .thinking-dot {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--accent);
+        flex: none;
+        animation: chip-pulse 1.4s ease-in-out infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .thinking-live.live .thinking-dot { animation: none; }
+      }
       /* THE LOOPS (loops.js, 2026-09-08): the turn's face — one card per loop
          the answer owes, in the chain's order, above the body so the
          answer's own rendering never clears them, behind ONE line that says
@@ -1778,12 +1822,6 @@
       .msg .body .prose:last-child { margin-bottom: 0; }
       .msg .body .prose strong { font-weight: 700; }
       .msg .body .prose em { font-style: italic; }
-      /* The draft, streamed before the correction loop and proof-seeking
-         have had their say — the same "not settled" signal `.thinking`
-         already carries, so a reader never mistakes a still-checkable
-         draft for the locked-in answer (found live, 2026-09-09). Cleared
-         the moment `renderAnswer` draws the real, checked text. */
-      .msg .body .prose.draft-pending { color: var(--muted); }
       .msg .body .prose code {
         font-family: var(--mono);
         font-size: 12px;
@@ -3481,11 +3519,12 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
             <button type="button" id="memory-open" aria-label="Attach material, or set what this question may draw on beyond the model's own answer." title="Attach material, or set what this question may draw on beyond the model's own answer.">
               <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M209.66,122.34a8,8,0,0,1,0,11.32l-82.05,82a56,56,0,0,1-79.2-79.21L147.67,35.73a40,40,0,1,1,56.61,56.55L105,193A24,24,0,1,1,71,159L154.3,74.38A8,8,0,1,1,165.7,85.6L82.39,170.31a8,8,0,1,0,11.27,11.36L192.93,81A24,24,0,1,0,159,47L59.76,147.68a40,40,0,1,0,56.53,56.62l82.06-82A8,8,0,0,1,209.66,122.34Z"/></svg>
               <span>memory</span>
+              <span class="memory-count" id="memory-count" hidden style="align-items:center;justify-content:center;min-width:1.1em;height:1.1em;padding:0 0.3em;margin-left:0.35em;border-radius:999px;background:var(--accent, #6f5bd6);color:#fff;font-size:0.72em;line-height:1;"></span>
             </button>
             <button type="submit" class="primary" id="send" aria-label="Send" disabled><span>Send</span></button>
           </div>
         </form>
-        <input type="file" id="file" multiple accept=".txt,.md,.markdown,.csv,.tsv,.json,.log,text/*" hidden />
+        <input type="file" id="file" multiple accept=".txt,.md,.markdown,.csv,.tsv,.json,.log,text/*,.png,.jpg,.jpeg,.gif,.webp,.svg,.bmp,.ico,.mp4,.webm,.ogv,.mov,.m4v,.mp3,.wav,.ogg,.oga,.flac,.m4a,.pdf,image/*,audio/*,video/*,application/pdf" hidden />
       </section>
 
       <section class="col" id="col-panel">
@@ -3890,6 +3929,16 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
         <button type="button" class="sheet-row" id="memory-add-attachment">
           <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M209.66,122.34a8,8,0,0,1,0,11.32l-82.05,82a56,56,0,0,1-79.2-79.21L147.67,35.73a40,40,0,1,1,56.61,56.55L105,193A24,24,0,1,1,71,159L154.3,74.38A8,8,0,1,1,165.7,85.6L82.39,170.31a8,8,0,1,0,11.27,11.36L192.93,81A24,24,0,1,0,159,47L59.76,147.68a40,40,0,1,0,56.53,56.62l82.06-82A8,8,0,0,1,209.66,122.34Z"/></svg>
           <span>Add attachment<small>upload, browse what's already here, or paste</small></span>
+        </button>
+        <!-- The per-file list (checkboxes, peek, remove) moved off the
+             composer bar (user direction, 2026-09-10: attachment pills
+             cluttered the bar; disclose them through memory, "clearly
+             there" but not one chip per source) — this row is now the one
+             door to it, badged with a live count so presence stays
+             visible without a strip of chips. -->
+        <button type="button" class="sheet-row" id="memory-view-attachments">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-32-80a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,136Zm0,32a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,168Z"/></svg>
+          <span>View attachments<small id="memory-view-attachments-sub">nothing attached yet</small></span>
         </button>
         <label class="switch sheet-toggle sheet-row" id="attach-switch" hidden title="Whether attachments are read at all. Off answers this question without them — nothing is removed and nothing is lost.">
           <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-32-80a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,136Zm0,32a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,168Z"/></svg>

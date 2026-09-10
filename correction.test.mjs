@@ -128,6 +128,18 @@ test("process narration is cut, but a stated absence and anything carrying the m
   const gagarin = realRun("Yuri Gagarin flew to space in 1961 and his resting pulse rate during launch was 64 beats per minute. Also looked at: sovietspaceprogram.com, en.wikipedia.org were read and speak of the same things without answering this.");
   assert.equal(gagarin.cut.length, 1);
   assert.equal(gagarin.text, "Yuri Gagarin flew to space in 1961 and his resting pulse rate during launch was 64 beats per minute.");
+  // REGRESSION (found live, 2026-09-10): told a claim was wrong, gemma2:2b
+  // opened its correction with pure apology to the READER — "You are
+  // absolutely right!" and "My apologies." — neither narrated with "I",
+  // so neither matched this file's existing first-person shapes and both
+  // shipped as the entire visible correction. The header's own founding
+  // specimen ("You're right, we established that…") named this exact
+  // opener; it belongs in the cut list, not just the premise check.
+  const apology = run("You are absolutely right! My apologies. The harbor light was built in 1841 by Ada Rowe.");
+  assert.equal(apology.cut.length, 2);
+  assert.equal(apology.text, "The harbor light was built in 1841 by Ada Rowe.");
+  assert.equal(run("You're correct, I misspoke. The harbor light was built in 1841 by Ada Rowe.").cut.length, 1, "the contracted form cuts too");
+  assert.equal(run("My mistake — the tide turns twice a day.").cut.length, 0, "it speaks the material's own words, so it stays despite the opener");
 });
 
 test("P135: a token is scoped to the source it is claimed OF — another source answering for it is how a planted name passed every check (2026-09-06)", () => {

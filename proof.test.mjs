@@ -42,6 +42,27 @@ test("the query is the claim's own words — atom quoted, context words followin
   assert.ok(!proofQuery({ kind: "number", text: "1974", tokens: ["1974"], sentence: "" }).includes('"'));
 });
 
+test("proofQuery: a caller handing an entire clause as `text` (an unbound relation's composed sentence, not a short atom) is never quoted as one exact phrase", () => {
+  // Measured live, 2026-09-09: exactly this shape — an unbound relation's
+  // own composed sentence — reached this function and came back
+  // `"The Mona Lisa was painted by Leonardo da Vinci"`, a quoted 8-word
+  // phrase that found zero results on a real search, even with the correct
+  // Wikipedia page already sitting in this turn's own pool.
+  const q = proofQuery({
+    text: "The Mona Lisa was painted by Leonardo da Vinci",
+    sentence: "The Mona Lisa was painted by Leonardo da Vinci",
+  });
+  assert.ok(!q.includes('"'), q);
+  assert.ok(/Leonardo|Vinci|Mona|Lisa/.test(q), q);
+  // A genuine short name/figure — the common, intended case — still quotes.
+  const short = proofQuery({
+    text: "Kessington Report",
+    tokens: ["Kessington", "Report"],
+    sentence: "The Kessington Report was released in 1974.",
+  });
+  assert.ok(short.startsWith('"Kessington Report"'), short);
+});
+
 test("a page states a claim by the same containment rule the local check uses", () => {
   const claim = {
     kind: "name",

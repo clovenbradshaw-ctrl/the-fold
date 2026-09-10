@@ -59,6 +59,21 @@ export const PREFLIGHT_QUERY_MAX_TERMS = 12; // a topic anchor, not a claim — 
  * first — longer words carry more identity than shorter ones in the absence
  * of any corpus statistics about the web, which this module honestly does
  * not have.
+ *
+ * Measured live 2026-09-09: a caller (an unbound relation claim's composed
+ * sentence, not this module's own atom shape) handed `claim.text` an entire
+ * clause — "The Mona Lisa was painted by Leonardo da Vinci" — and this
+ * function quoted it whole as an exact phrase. DuckDuckGo's exact-phrase
+ * match needs that literal string to appear verbatim somewhere on the web;
+ * an ordinary paraphrased clause almost never does, so the search returned
+ * zero results even with the correct page already sitting in the pool.
+ * `atom`'s own docstring already says what it is for — "a name or figure",
+ * something genuinely quotable — so a caller handing this something longer
+ * than the query's own term budget (PROOF_QUERY_MAX_TERMS, already
+ * declared, reused rather than a second number invented here) is handing a
+ * clause, not a figure: its words join the ranked, capped pool exactly as
+ * the sentence's own remaining words do, unquoted, instead of being wrapped
+ * in a phrase match nothing on the web can be expected to contain.
  */
 export function proofQuery(claim) {
   const atom = String(claim?.text ?? "").trim();
@@ -66,22 +81,25 @@ export function proofQuery(claim) {
   const atomWords = new Set(
     atom.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean),
   );
+  const quotable = atom && atomWords.size <= PROOF_QUERY_MAX_TERMS;
+  const restPool = quotable ? sentence : `${atom} ${sentence}`;
+  const restExclude = quotable ? atomWords : new Set();
   const rest = [
     ...new Set(
-      sentence
+      restPool
         .split(/[^\p{L}\p{N}'’]+/u)
         .map((w) => w.replace(/['’]s$/, ""))
         .filter(
           (w) =>
             w.length > 2 &&
-            !atomWords.has(w.toLowerCase()) &&
+            !restExclude.has(w.toLowerCase()) &&
             !CLAIM_STOPWORDS.has(w.toLowerCase()),
         ),
     ),
   ]
     .sort((a, b) => b.length - a.length)
-    .slice(0, Math.max(0, PROOF_QUERY_MAX_TERMS - (atom ? 1 : 0)));
-  const quoted = atom && /\s/.test(atom) ? `"${atom}"` : atom;
+    .slice(0, Math.max(0, PROOF_QUERY_MAX_TERMS - (quotable && atom ? 1 : 0)));
+  const quoted = quotable && /\s/.test(atom) ? `"${atom}"` : quotable ? atom : "";
   return [quoted, ...rest].filter(Boolean).join(" ").trim();
 }
 

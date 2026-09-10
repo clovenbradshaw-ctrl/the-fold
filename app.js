@@ -17143,7 +17143,16 @@ const statusEl = $("status");
  * where it shows is the status line by the composer, which is allowed to
  * change without moving anything else.
  */
-const TRANSIENT = /^(marks |attachments |web lookups |pasted text|.* · (attached|from Explore))/;
+// "checking (on|off)" only — never a prefix match on the *other*
+// "checking …" status lines this file also writes (setPhase's "checking
+// for material", the proof-seeking walk's "checking against each source
+// · N/M" and "checking claims online · N/M"), which are work IN FLIGHT
+// and must stay exactly as long as the work does. Found live, 2026-09-10:
+// the checking switch's own "checking on"/"checking off — plain answers"
+// acknowledgement (the same settings-ack shape as "marks on"/"attachments
+// on", already transient below) had never been added here, so it sat
+// permanently above the composer until something else overwrote it.
+const TRANSIENT = /^(marks |attachments |web lookups |pasted text|checking (on|off)\b|.* · (attached|from Explore))/;
 const syncChip = () => {
   const s = statusEl.textContent;
   syncModelPick();

@@ -104,6 +104,123 @@ test("THE SPECIMEN: the whole real page, and the ten holders the Link-grain orga
   }
 });
 
+// Three fixes below, found live 2026-09-10 driving the real chat page on
+// "Who was Franklin D. Roosevelt's vice president?" — the real saved
+// Wikipedia infobox (web/pages/bc8ea4d9eb20adb1.txt, gitignored, not
+// committed) reads:
+//
+//   Vice President
+//   -
+//   John Nance Garner
+//   (1933–1941)
+//   -
+//   Henry A. Wallace
+//   (1941–1945)
+//   -
+//   Harry S. Truman
+//   (Jan–Apr 1945)
+//
+// A synthetic fixture reproduces the exact shape rather than depending on
+// that gitignored file — source-short-run-merge.test.mjs's own precedent,
+// for the same reason: a test that only passes on one machine's web cache
+// is not a test.
+const FDR_INFOBOX = [
+  "Vice President",
+  "-",
+  "John Nance Garner",
+  "(1933–1941)",
+  "-",
+  "Henry A. Wallace",
+  "(1941–1945)",
+  "-",
+  "Harry S. Truman",
+  "(Jan–Apr 1945)",
+].join("\n");
+
+test("a lone bullet marker is rendering, not the arrangement — bindRecurring steps over it", () => {
+  // Without the fix, each bare "-" types null (no date, no name) and breaks
+  // the cycle between rows that would otherwise bind cleanly.
+  const withBullets = "John Nance Garner\n(1933–1941)\n-\nLord John Russell\n(1846–1852)";
+  const { systems } = binder.bindRecurring(withBullets);
+  assert.equal(systems.length, 1, "the bullet line does not fracture the arrangement");
+  assert.equal(systems[0].count, 2);
+
+  // A line that STARTS with a bullet and says more is untouched — only a
+  // line that is nothing BUT the marker is skipped.
+  assert.equal(extentShape.read("- John Nance Garner (1933–1941)"), null, "the dash is real content here, not typed as an extent alone");
+});
+
+test("surfaceShape admits a name broken by a middle-initial period only when given isAbbreviationBoundary — every existing caller is byte-identical", async () => {
+  const { ABBREV } = await import("../eoreader7/native/organs/index.js");
+  // Byte-identical for the existing, unwired shape: the veto still fires on
+  // a real sentence terminator, and STILL fires on "Henry A." without the
+  // guard — this is the regression the omission must not silently fix.
+  const bareShape = surfaceShape({ extractSurfaces });
+  assert.equal(bareShape.read("Henry A. Wallace"), null, "no isAbbreviationBoundary supplied: the period still reads as a sentence end");
+
+  const guardedShape = surfaceShape({ extractSurfaces, isAbbreviationBoundary: (t) => ABBREV.test(t) });
+  const wallace = guardedShape.read("Henry A. Wallace");
+  assert.ok(wallace, "with the guard, a middle initial's period is not mistaken for a sentence end");
+  // extractSurfaces drops the sentence-INITIAL capitalized word by its own
+  // design (capitalization alone is never evidence, L2) — "Henry A. Wallace"
+  // surfaces as "A Wallace", not the full three-word name. That is the real
+  // engine's behavior, asserted here rather than assumed.
+  assert.ok(wallace.longest.includes("Wallace"));
+
+  const truman = guardedShape.read("Harry S. Truman");
+  assert.ok(truman, "the founding P186 specimen's own name reads clean here too");
+  assert.ok(truman.longest.includes("Truman"));
+
+  // A genuine sentence still vetoes — the guard is scoped to abbreviations,
+  // never a blanket "ignore periods."
+  assert.equal(guardedShape.read("He was a Conservative."), null);
+});
+
+test("extentShape reads a shared-year month range — 'Jan–Apr 1945', a tenure inside one calendar year", () => {
+  const read = extentShape.read("(Jan–Apr 1945)");
+  assert.ok(read, "the shared-year form is recognized as a range, not rejected as an incomplete date");
+  assert.equal(read.length, 1);
+  assert.deepEqual(read[0].from, { year: 1945, month: 1, day: null, text: "Jan 1945" });
+  assert.deepEqual(read[0].to, { year: 1945, month: 4, day: null, text: "Apr 1945" });
+
+  // Full month names work too, not only the three-letter abbreviation.
+  const full = extentShape.read("January–April 1945");
+  assert.ok(full);
+  assert.equal(full[0].from.month, 1);
+  assert.equal(full[0].to.month, 4);
+
+  // "to" as a written-out range word, and surrounding punctuation the main
+  // loop's own residue check already tolerates.
+  assert.ok(extentShape.read("(Jan to Apr 1945)"));
+
+  // A genuinely unparseable single year is still refused by this pattern —
+  // it is a NEW alternative reading, not a wider net that admits anything.
+  assert.equal(extentShape.read("(1945)"), null, "extentShape alone does not parse a bare single year as a range");
+});
+
+test("THE SPECIMEN: all three fixes together bind the real infobox shape — Garner, Wallace, AND Truman, not just the first two", async () => {
+  const { ABBREV } = await import("../eoreader7/native/organs/index.js");
+  const guardedBinder = makeNetworkBinder({
+    shapes: [extentShape, surfaceShape({ extractSurfaces, isAbbreviationBoundary: (t) => ABBREV.test(t) })],
+  });
+  const { systems } = guardedBinder.bindRecurring(FDR_INFOBOX);
+  assert.equal(systems.length, 1, "one arrangement: the whole VP list");
+  assert.equal(systems[0].count, 3, "all three vice presidents bound, not two");
+
+  const names = systems[0].instances.map((i) => i.rows[0].text);
+  assert.ok(names.some((n) => n.includes("Garner")));
+  assert.ok(names.some((n) => n.includes("Wallace")));
+  assert.ok(names.some((n) => n.includes("Truman")), "Truman is bound, not dropped for his shared-year month range and middle initial");
+
+  // Without EITHER fix, the same text regresses to what P186's own live
+  // specimen actually showed: Truman lost, either to the bullet break or
+  // to the un-guarded abbreviation veto (or both).
+  const unguardedBinder = makeNetworkBinder({ shapes: [extentShape, surfaceShape({ extractSurfaces })] });
+  const bare = unguardedBinder.bindRecurring(FDR_INFOBOX);
+  const bareNames = (bare.systems[0]?.instances ?? []).map((i) => i.rows[0].text);
+  assert.ok(!bareNames.some((n) => n.includes("Truman")), "the regression this fix closes: Truman was the one dropped");
+});
+
 test("THE CONTROL: the Link-grain organ really does get zero here, so this is a grain gap", { skip: !havePage }, async () => {
   // Without this the whole diagnosis is an assertion. A vocabulary gap
   // degrades; a grain mismatch floors — and it floors.

@@ -269,6 +269,7 @@ import { dayOf, renderHolders } from "./wikidata.js";
 // record blocks a Link-grain extractor structurally cannot see; `read-source.js`
 // presents them through the same four questions the Wikidata walk uses.
 import { makeNetworkBinder, extentShape, surfaceShape } from "./network.js";
+import { ABBREV } from "../eoreader7/native/organs/index.js";
 import { makeReadSource } from "./read-source.js";
 import { seekBindings } from "./seek.js";
 import { createClaimLedger, claimKey, composedSentence } from "./claims.js";
@@ -8499,7 +8500,12 @@ function voidBriefFor(task, texts, observed = []) {
  */
 async function seekWhatWeRead(anchorTerm, slotTerm, chunks) {
   try {
-    const binder = makeNetworkBinder({ shapes: [extentShape, surfaceShape({ extractSurfaces })] });
+    // ABBREV (grounding.js, shared with cite.js's own sentence-boundary
+    // scan) is the same standing rule applied here: "Harry S. Truman"'s
+    // middle-initial period is not a sentence end, so surfaceShape must not
+    // veto the line on it — see surfaceShape's own header for the specimen
+    // this closes.
+    const binder = makeNetworkBinder({ shapes: [extentShape, surfaceShape({ extractSurfaces, isAbbreviationBoundary: (t) => ABBREV.test(t) })] });
     const passages = (chunks ?? [])
       .map((c) => ({ ref: c.ref ?? c.address ?? null, text: c.text ?? "", title: c.title ?? c.sourceName ?? null }))
       .filter((p) => p.text.trim());
@@ -12949,6 +12955,20 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
           // Same fix, same reason as addSource — a fetched page's cast
           // deserves the identical furniture wall a pasted one now gets.
           blankFurniture: (t) => blankLabelRows(t, { minRun: 4, maxCell: 60 }),
+          // A SHORT LABEL AND ITS LIST STAY ONE CHUNK (2026-09-10, live
+          // finding: "Who was Franklin D. Roosevelt's vice president?"
+          // dropped Truman — every message sent to the model was checked
+          // and none named him, and the app's own saved fetch of this
+          // exact page DOES state it, in an infobox list chunkProse's
+          // default blank-line split shredded into isolated, unretrievable
+          // fragments: "Vice President" alone never even cleared the
+          // 20-char floor, and each bare name+date chunk shared no
+          // vocabulary with a question about "vice president"). Scoped to
+          // web fetches only — a preflight search reads a page it has no
+          // other chance to widen, unlike an attachment a person can
+          // re-paste; source.js's own declared default (mergeShortRuns.js
+          // header) is unchanged for every other caller.
+          mergeShortRuns: true,
         }),
       );
       // Kept for audit, not for retrieval: any address cited into this page

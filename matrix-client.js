@@ -19,7 +19,7 @@
 // each room's chat key and chain cursor — is at rest in the person's own
 // browser exactly like the reading record is, and nowhere else.
 import {
-  TYPES, EVENTS, EVENT_SEAL_MAX_BYTES, b64, unb64, sha256B64, generateChatKey, generateIdentity, exportPublicKey, exportPrivateKey, importPrivateKey,
+  NS, TYPES, EVENTS, EVENT_SEAL_MAX_BYTES, b64, unb64, sha256B64, generateChatKey, generateIdentity, exportPublicKey, exportPrivateKey, importPrivateKey,
   wrapChatKey, unwrapChatKey, entryId, encodeBlock, decodeBlock, mergeChains, capManifest, manifestEntry, chainIsLinked,
   generateInviteSecret, INVITE_TTL_MS, inviteProof, verifyInviteProof, fingerprint, keyFromPassphrase, generateSalt, sealVault, openVault,
   paths, homeserverBase, loginBody, createRoomBody, memberKeyContent, chatKeyContent, chainContent,
@@ -93,6 +93,14 @@ export class MatrixHttp {
     }
   }
   async allState(room) { return this.json("GET", paths.allState(room)); }
+  /** Account data: private to this account, synced to every device signed
+   * into it, never exposed to any room. A homeserver with nothing stored
+   * under `type` yet answers 404 — that is "nothing there", not an error. */
+  async getAccountData(user, type) {
+    try { return await this.json("GET", paths.accountData(user, type)); }
+    catch (e) { if (e.status === 404) return null; throw e; }
+  }
+  async setAccountData(user, type, content) { return this.json("PUT", paths.accountData(user, type), { json: content }); }
   async getState(room, type, key = "") {
     try { return await this.json("GET", paths.state(room, type, key)); }
     catch (e) { if (e.status === 404) return null; throw e; }
@@ -231,6 +239,25 @@ export class FoldMatrix {
     return this.data.identity;
   }
   async myFingerprint() { return fingerprint((await this.identity()).pub); }
+
+  // ── the "about you" ledger ──
+  // Account data, not a room: this account's own profile.js log, plain JSON
+  // (Matrix account_data is never end-to-end sealed the way a room's own
+  // chain is — this is the same trust boundary as the account's password
+  // itself, no worse and no better; a person who does not want their
+  // homeserver operator to hold this stays signed out, exactly as they
+  // would for anything else account_data could carry). Never touches a
+  // room, so it can never reach another member of one.
+  async pullProfile() {
+    if (!this.data.session) return null;
+    const data = await this.http().getAccountData(this.data.session.user_id, `${NS}.profile`);
+    return data && Array.isArray(data.entries) ? data : null;
+  }
+  async pushProfile(log) {
+    if (!this.data.session) throw new MatrixError("not signed in — /matrix login <homeserver>", { status: 0 });
+    await this.http().setAccountData(this.data.session.user_id, `${NS}.profile`, log);
+    this.record("matrix-profile", { entries: log.entries?.length ?? 0 });
+  }
   /** The current epoch's key, or null. */
   keyOf(roomId) { const r = this.data.rooms[roomId]; if (!r) return null; const k = r.keys[r.epoch]; return k ? unb64(k) : null; }
   keysOf(roomId) { const r = this.data.rooms[roomId]; const out = new Map(); for (const [e, k] of Object.entries(r?.keys ?? {})) out.set(Number(e), unb64(k)); return out; }

@@ -49,6 +49,8 @@ import { extractObject, createSkillLog, appendSkill, SKILL_ENTRY_KINDS, projectL
 // list face, and the /fold door's mechanics — all testable in node, all
 // walls; this file only draws what they return.
 import { FOLD_SORTS, filterFolds, parseFoldCommand, pickRevisionSegment, sortFolds } from "./folds-pane.js";
+import { UNFILED as UNFILED_FOLDER, addFolder, removeFolder, filterByFolder, folderCounts } from "./folders.js";
+import * as profile from "./profile.js";
 
 import {
   ensureEditor,
@@ -1339,7 +1341,7 @@ let panelCollapsed = (() => { try { return localStorage.getItem("fold-panel-coll
 // declaration beside the function that uses it (which is where this first
 // lived) put boot in the same temporal dead trap panelWide's own comment
 // already names — caught live, 2026-09-08, the "More" tab's own first click.
-const MORE_GROUP = ["resources", "holograph", "wiring", "github"];
+const MORE_GROUP = ["resources", "holograph", "wiring", "github", "profile"];
 let lastMorePane = MORE_GROUP[0];
 function setViewMode(mode) {
   viewMode = mode === "eot" ? "eot" : "text";
@@ -1864,6 +1866,12 @@ const state = {
    * (persisted under whichever conversation is active, but rendered for all).
    */
   builds: [],
+  /** The Folds panel's own buckets (folders.js) — names only, per workspace
+   * like `builds` itself: "the folds made from THIS material" extends to
+   * "and however this workspace likes them grouped." A fold's own
+   * `.folder` field (on the build entry, persisted alongside it) names one
+   * of these, or is null/unfiled. */
+  foldFolders: [],
   lastMessages: [],
   lastMaterialChars: 0,
 
@@ -1908,6 +1916,16 @@ const state = {
    * about one conversation, and a fresh page load is a fresh reading.
    */
   metaLedger: metaLedger.createLedger(),
+
+  /**
+   * The "about you" ledger (profile.js) — app-wide like `metaLedger`
+   * immediately above, but UNLIKE it this one IS persisted across reloads
+   * (localStorage, `persistProfile`/`restoreProfile`) and, signed in,
+   * synced through the person's own Matrix account (never a room — see
+   * matrix-client.js's `pullProfile`/`pushProfile`). What this instrument
+   * has been told about the PERSON, not about the material or itself.
+   */
+  profileLog: profile.createLog(),
 
   /**
    * The declarations register (Pass 21, P102) — app-wide, persisted with the
@@ -2055,6 +2073,7 @@ const PER_WORKSPACE = [
   // instrument rather than to one conversation — true, and this is the
   // instrument's scope: the folds made from THIS material.
   "builds",
+  "foldFolders",
   // The room this workspace is preserved to and shared through.
   "matrixRoom",
 ];
@@ -2076,6 +2095,7 @@ function newWorkspace(name) {
     media: {},
     pageFaces: {},
     builds: [],
+    foldFolders: [],
     matrixRoom: null,
   };
 }
@@ -9646,6 +9666,12 @@ function addMessage(role, text) {
     body.append(span);
   } else {
     el.querySelector(".body").textContent = text;
+    // Fire-and-forget, on every organic (non-command) user message,
+    // regardless of which door eventually answers it — this is the one
+    // choke point every "you" bubble already passes through (64 call
+    // sites, one function). Never awaited: the "about you" ledger is a
+    // side note on the turn, not part of answering it.
+    if (role === "user" && text.trim()) noticeAboutUser(text.trim(), `turn:${turnSeq}`);
   }
   state.convos[state.active].el.append(el);
   el.scrollIntoView({ block: "end" });
@@ -11099,6 +11125,9 @@ let foldsQuery = "";
 let foldsSort = "newest"; // the panel's declared default: recency
 let foldsView = "cards";
 let foldsOpen = null;
+/** The folder filter: "all" (default, everything), folders.js's own UNFILED
+ * sentinel, or one of `state.foldFolders`' own names. */
+let foldsFolder = "all";
 
 /** One fold, summarized off its own log for the search and the orderings —
  * derived at render time, never stored. A database fold produces the
@@ -11145,14 +11174,52 @@ function foldRow(entry) {
   };
 }
 
+/** Redraw the folder <select> from `state.foldFolders`, each option carrying
+ * its own live count (folders.js::folderCounts — dangling/deleted names
+ * counted as unfiled, never dropped silently). Rebuilt on every render
+ * rather than diffed: the list is short, and a folder created or deleted
+ * elsewhere (another card's own control) must show up here regardless of
+ * which control caused the redraw. */
+function renderFoldFolders(rows) {
+  const sel = $("folds-folder");
+  if (!sel) return;
+  const { byFolder, unfiled } = folderCounts(rows, state.foldFolders);
+  const prior = foldsFolder;
+  sel.textContent = "";
+  const optAll = document.createElement("option");
+  optAll.value = "all";
+  optAll.textContent = `all folders (${rows.length})`;
+  sel.append(optAll);
+  const optUnfiled = document.createElement("option");
+  optUnfiled.value = UNFILED_FOLDER;
+  optUnfiled.textContent = `unfiled (${unfiled})`;
+  sel.append(optUnfiled);
+  for (const name of state.foldFolders) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = `${name} (${byFolder.get(name) ?? 0})`;
+    sel.append(opt);
+  }
+  // A folder the select no longer offers (deleted from elsewhere) falls
+  // back to "all" rather than silently keeping an invalid selected value.
+  sel.value = prior === "all" || prior === UNFILED_FOLDER || state.foldFolders.includes(prior) ? prior : "all";
+  foldsFolder = sel.value;
+  const del = $("folds-del-folder");
+  if (del) del.hidden = foldsFolder === "all" || foldsFolder === UNFILED_FOLDER;
+}
+
 /** Newest first — the thing just produced is the thing being looked at. */
 function renderBuilds(highlight) {
   const list = $("builds-list");
   list.textContent = "";
   const all = state.builds.map(foldRow).filter(Boolean);
-  const rows = sortFolds(filterFolds(all, foldsQuery), foldsSort);
+  renderFoldFolders(all);
+  const inFolder = filterByFolder(all, foldsFolder, state.foldFolders);
+  const rows = sortFolds(filterFolds(inFolder, foldsQuery), foldsSort);
   // The count says what the filter did, where it did it: "2 of 3" is the
-  // exclusion counted at the same weight as the result.
+  // exclusion counted at the same weight as the result — folder and search
+  // are two separate reasons a fold can be hidden, so both count against
+  // the SAME total rather than against each other.
   $("builds-count").textContent = all.length
     ? rows.length === all.length
       ? `${all.length}`
@@ -11165,7 +11232,10 @@ function renderBuilds(highlight) {
   if (!rows.length) {
     const p = document.createElement("p");
     p.className = "empty";
-    p.textContent = `No fold matches “${foldsQuery}” — ${all.length} hidden by the search.`;
+    const folderNote = foldsFolder !== "all" ? (foldsFolder === UNFILED_FOLDER ? "everything is filed into a folder" : `nothing is filed in “${foldsFolder}”`) : null;
+    p.textContent = foldsQuery
+      ? `No fold matches “${foldsQuery}” — ${all.length} hidden by the search${folderNote ? " and folder" : ""}.`
+      : `${folderNote} — ${all.length} hidden by the folder filter.`;
     list.append(p);
     return;
   }
@@ -11211,6 +11281,46 @@ function renderBuilds(highlight) {
   }
 }
 
+/** The per-fold "file into a folder" control — shared by buildCard and
+ * databaseFoldCard (a fold's `.folder` field is one plain string on the
+ * entry regardless of kind, so filing works identically for both). Moving
+ * a fold OUT of every folder is "unfiled", the first option — never a
+ * blank/placeholder option that reads as "nothing chosen yet" when it
+ * actually means something (unfiled is as real a state as any folder). */
+function folderSelectFor(entry) {
+  const sel = document.createElement("select");
+  sel.className = "build-folder";
+  sel.title = "file this fold into a folder";
+  const optNone = document.createElement("option");
+  optNone.value = "";
+  optNone.textContent = "unfiled";
+  sel.append(optNone);
+  for (const name of state.foldFolders) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    sel.append(opt);
+  }
+  // A fold naming a folder since deleted keeps that name selected (an
+  // <option> minted for it here) rather than silently snapping to
+  // "unfiled" — the field itself is untouched until a person actually
+  // picks something, so a folder recreated under the same name still
+  // matches the folds that named it.
+  if (entry.folder && !state.foldFolders.includes(entry.folder)) {
+    const opt = document.createElement("option");
+    opt.value = entry.folder;
+    opt.textContent = `${entry.folder} (deleted)`;
+    sel.append(opt);
+  }
+  sel.value = entry.folder ?? "";
+  sel.onchange = () => {
+    entry.folder = sel.value || null;
+    persistBuilds();
+    renderBuilds(entry.n);
+  };
+  return sel;
+}
+
 /**
  * A database fold's card (P25) — deliberately NOT buildCard: no cursor
  * scrubber (a database fold has no versioned "as of" cursor to scrub — the
@@ -11239,6 +11349,7 @@ function databaseFoldCard(entry, highlight) {
   const from = document.createElement("p");
   from.className = "build-from";
   from.textContent = `turn ${entry.turn} · database fold`;
+  from.append(folderSelectFor(entry));
   wrap.append(from);
   wrap.append(
     artifactNode(
@@ -11281,6 +11392,7 @@ function buildCard(entry, highlight) {
   const from = document.createElement("p");
   from.className = "build-from";
   from.textContent = `turn ${entry.turn} · v${shown.version}`;
+  from.append(folderSelectFor(entry));
   wrap.append(from);
   if (shown.seg.type === "code" && atLive) {
     const edit = document.createElement("button");
@@ -11724,14 +11836,17 @@ function persistBuilds() {
     const conv = state.convos[state.active];
     const data = state.builds.map((b) =>
       b.kind === "database"
-        ? { n: b.n, turn: b.turn, kind: "database", entries: b.storeLog.entries }
+        ? { n: b.n, turn: b.turn, kind: "database", entries: b.storeLog.entries, ...(b.folder ? { folder: b.folder } : {}) }
         // factsRows: the /facts table view's structured rows (real
         // end1/label/end2/cell) — additive, only ever present on the one
         // markdown build /facts itself produces; absent on every other
         // build, so this changes nothing for them.
-        : { n: b.n, turn: b.turn, entries: b.log.entries, draft: b.draft ?? null, ...(b.factsRows ? { factsRows: b.factsRows } : {}) },
+        : { n: b.n, turn: b.turn, entries: b.log.entries, draft: b.draft ?? null, ...(b.factsRows ? { factsRows: b.factsRows } : {}), ...(b.folder ? { folder: b.folder } : {}) },
     );
-    localStorage.setItem(buildsKey(), JSON.stringify({ id: conv?.id, builds: data }));
+    // The folder list rides beside the builds it buckets — one workspace,
+    // one localStorage entry, the same posture `draft`/`factsRows` already
+    // hold: additive fields nothing else has to know about.
+    localStorage.setItem(buildsKey(), JSON.stringify({ id: conv?.id, builds: data, folders: state.foldFolders }));
   } catch (e) {
     // Not worth a crash, but never silent either: from here on a reload
     // would lose builds, and that has to be visible somewhere.
@@ -11743,8 +11858,9 @@ function restoreBuilds() {
   try {
     const raw = localStorage.getItem(buildsKey());
     if (!raw) return;
-    const { builds } = JSON.parse(raw);
+    const { builds, folders } = JSON.parse(raw);
     if (!Array.isArray(builds)) return;
+    if (Array.isArray(folders)) state.foldFolders = folders;
     for (const b of builds) {
       try {
         if (b.kind === "database") {
@@ -11758,7 +11874,7 @@ function restoreBuilds() {
           // legacy-migration branch below already holds).
           let storeLog = engineTaskLog.createTaskLog();
           for (const e of b.entries ?? []) storeLog = engineTaskLog.append(storeLog, e);
-          state.builds.push({ n: b.n, turn: b.turn ?? 0, kind: "database", storeLog, cursor: null, draft: null });
+          state.builds.push({ n: b.n, turn: b.turn ?? 0, kind: "database", storeLog, cursor: null, draft: null, folder: b.folder ?? null });
           continue;
         }
         // Pre-log builds ({seg, code, lastRun} — the mutable shape this
@@ -11774,7 +11890,7 @@ function restoreBuilds() {
               code: b.code,
               lastRun: b.lastRun,
             });
-        state.builds.push({ n: b.n, turn: b.turn ?? 0, log, cursor: null, draft: b.draft ?? null, ...(b.factsRows ? { factsRows: b.factsRows } : {}) });
+        state.builds.push({ n: b.n, turn: b.turn ?? 0, log, cursor: null, draft: b.draft ?? null, folder: b.folder ?? null, ...(b.factsRows ? { factsRows: b.factsRows } : {}) });
       } catch {
         /* a row that violates the vocabulary does not load silently — this
            build is skipped, the rest are kept */
@@ -11782,6 +11898,211 @@ function restoreBuilds() {
     }
   } catch {
     /* corrupted storage — start clean */
+  }
+}
+
+// ── the "about you" ledger ───────────────────────────────────────────────────
+//
+// What this instrument has been told about the PERSON — distinct from the
+// composer's own "memory" sheet (attach-menu, material "beyond the model")
+// and from `state.sources` (the corpus). App-wide and persisted across
+// reloads (unlike gridLog/hyperlexiconLog/metaLedger, which are a fresh
+// reading every load) — a person is not a fresh reading. profile.js holds
+// the vocabulary (propose/keep/dismiss/edit/remove/merge); everything here
+// is DOM, storage and the one model call that proposes a candidate.
+
+const PROFILE_KEY = "fold-profile";
+
+function persistProfile() {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(state.profileLog)); }
+  catch (e) { console.warn(`profile not persisted (storage full or blocked): ${e.message}`); }
+}
+
+function restoreProfile() {
+  try {
+    const raw = localStorage.getItem(PROFILE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed?.entries)) state.profileLog = parsed;
+  } catch {
+    /* corrupted storage — start clean, same posture restoreBuilds holds */
+  }
+}
+
+/**
+ * Pull the account's own copy (private, never a room — matrix-client.js),
+ * merge with what this browser already has (profile.js::merge — last write
+ * wins by id, no locking needed because the id is content-derived), persist
+ * and redraw. If the merge changed anything the remote side did not already
+ * have, push the merged result back — the same "converge, don't clobber"
+ * shape `preserve`'s own re-push-skips-what-is-known already holds. Silent
+ * on any Matrix error: sync is a convenience on top of local storage, which
+ * already has the whole ledger regardless of whether this call succeeds.
+ */
+async function syncProfileWithMatrix() {
+  if (!foldMatrix.status().signedIn) return;
+  try {
+    const remote = await foldMatrix.pullProfile();
+    const merged = profile.merge(state.profileLog, remote ?? { entries: [] });
+    const changed = JSON.stringify(merged) !== JSON.stringify(state.profileLog);
+    state.profileLog = merged;
+    if (changed) { persistProfile(); if (document.body.dataset.view === "profile") renderProfile(); }
+    const remoteHasEverything = remote && JSON.stringify(profile.merge(remote, { entries: [] })) === JSON.stringify(merged);
+    if (!remoteHasEverything) await foldMatrix.pushProfile(state.profileLog);
+  } catch (e) {
+    console.warn(`profile sync skipped: ${e.message}`);
+  }
+}
+
+/**
+ * After a KEPT change (confirm, edit, manual add, dismiss, delete), push to
+ * the account if signed in — fire-and-forget, the local ledger is already
+ * the source of truth for this browser regardless of whether this succeeds.
+ */
+function pushProfileIfSignedIn() {
+  if (!foldMatrix.status().signedIn) return;
+  foldMatrix.pushProfile(state.profileLog).catch((e) => console.warn(`profile push skipped: ${e.message}`));
+}
+
+/** One category → its plain-worded, non-jargon label for the pane. Never
+ * the app's own EO vocabulary (CLAUDE.md: canon stays backstage in a UI). */
+const PROFILE_CATEGORY_LABEL = { identity: "who you are", role: "your role", project: "what you're working on", preference: "a preference", goal: "a goal", fact: "worth remembering" };
+
+function renderProfile() {
+  const list = $("profile-list");
+  if (!list) return;
+  list.textContent = "";
+  const pend = profile.pending(state.profileLog);
+  const have = profile.kept(state.profileLog).sort((a, b) => b.updatedAt - a.updatedAt);
+  if (!pend.length && !have.length) {
+    list.innerHTML = '<p class="empty">Nothing yet — say something about yourself in the chat, or add a note below.</p>';
+    return;
+  }
+  if (pend.length) {
+    const h = document.createElement("h3");
+    h.className = "profile-section";
+    h.textContent = "noticed — worth remembering?";
+    list.append(h);
+    for (const e of pend) list.append(profileRow(e, true));
+  }
+  if (have.length) {
+    const h = document.createElement("h3");
+    h.className = "profile-section";
+    h.textContent = "kept";
+    list.append(h);
+    for (const e of have) list.append(profileRow(e, false));
+  }
+}
+
+function profileRow(entry, isPending) {
+  const row = document.createElement("div");
+  row.className = "profile-row";
+  const cat = document.createElement("span");
+  cat.className = "profile-cat";
+  cat.textContent = PROFILE_CATEGORY_LABEL[entry.category] ?? entry.category;
+  row.append(cat);
+  const text = document.createElement("span");
+  text.className = "profile-text";
+  text.textContent = entry.text;
+  row.append(text);
+  const btns = document.createElement("span");
+  btns.className = "profile-btns";
+  if (isPending) {
+    const keepBtn = document.createElement("button");
+    keepBtn.type = "button"; keepBtn.className = "build-run icon"; keepBtn.textContent = "✓"; keepBtn.title = "remember this";
+    keepBtn.onclick = () => { state.profileLog = profile.keep(state.profileLog, entry.id); persistProfile(); pushProfileIfSignedIn(); renderProfile(); };
+    const dropBtn = document.createElement("button");
+    dropBtn.type = "button"; dropBtn.className = "build-run icon"; dropBtn.textContent = "✕"; dropBtn.title = "not worth remembering";
+    dropBtn.onclick = () => { state.profileLog = profile.dismiss(state.profileLog, entry.id); persistProfile(); pushProfileIfSignedIn(); renderProfile(); };
+    btns.append(keepBtn, dropBtn);
+  } else {
+    const editBtn = document.createElement("button");
+    editBtn.type = "button"; editBtn.className = "build-run icon"; editBtn.textContent = "✎"; editBtn.title = "edit";
+    editBtn.onclick = () => {
+      // Swaps the text span for a field in place — the same posture the
+      // Folds panel's own "+ folder" control holds (a whole dialog would
+      // outweigh what one line of text needs).
+      const input = document.createElement("input");
+      input.type = "text";
+      input.value = entry.text;
+      input.className = "profile-edit-input";
+      input.onkeydown = (ev) => {
+        if (ev.key === "Escape") { renderProfile(); return; }
+        if (ev.key !== "Enter") return;
+        const trimmed = input.value.trim();
+        if (!trimmed) return;
+        state.profileLog = profile.edit(state.profileLog, entry.id, trimmed);
+        persistProfile(); pushProfileIfSignedIn(); renderProfile();
+      };
+      input.onblur = () => renderProfile();
+      text.replaceWith(input);
+      input.focus();
+      input.select();
+    };
+    const delBtn = document.createElement("button");
+    delBtn.type = "button"; delBtn.className = "build-run icon"; delBtn.textContent = "🗑"; delBtn.title = "forget this";
+    delBtn.onclick = () => { state.profileLog = profile.remove(state.profileLog, entry.id); persistProfile(); pushProfileIfSignedIn(); renderProfile(); };
+    btns.append(editBtn, delBtn);
+  }
+  row.append(btns);
+  return row;
+}
+
+/**
+ * Structured-output shape for the one model call this ledger makes. No
+ * "is this worth remembering" field — measured live against gemma2:2b
+ * (2026-09-09) and found to contradict itself: given a message that
+ * plainly stated a fact, it restated the fact correctly and STILL
+ * answered `worth_remembering: "no"`. Worse, freed to judge an arbitrary
+ * message on its own, it conflated judging with ANSWERING — asked about
+ * "What's the capital of France?" it came back with `fact: "Paris"`. Both
+ * are the exact failure this codebase's own WITNESS_SCHEMA header already
+ * names and fixes the same way: never ask a small model for a verdict
+ * that could contradict its own content. `profile.js::looksSelfReferential`
+ * is the mechanical gate (below) that decides whether a message is even
+ * SENT here at all; once it has been, the model's only job is restating
+ * the already-flagged self-reference and naming its category — never
+ * deciding whether one exists.
+ */
+const PROFILE_NOTICE_SCHEMA = {
+  type: "object",
+  properties: {
+    fact: { type: "string" },
+    category: { type: "string", enum: [...profile.CATEGORIES] },
+  },
+  required: ["fact", "category"],
+};
+
+const PROFILE_NOTICE_SYSTEM =
+  "The person's latest message already contains a first-person statement about themselves. Restate ONLY the self-descriptive part in third person, using nothing but words and details actually in their message — never invent, never add, never answer any question they asked. If nothing in the message is actually self-descriptive, set fact to an empty string. Pick the single best category: identity (their own name), role (their job or position), project (something they are working on), preference (something they like or want), goal (something they intend to do), or fact (anything else durable about them).";
+
+/**
+ * Fired once per organic (non-command) user message, fire-and-forget —
+ * never blocks or delays the turn it rides beside. The mechanical gate
+ * (`looksSelfReferential`) runs FIRST and for free: most messages (a
+ * question, a task, small talk with no "I") never reach the model at all,
+ * which is also what keeps the model from ever being asked to judge a
+ * message that was never a candidate in the first place. Silent on any
+ * failure: a missed proposal costs nothing a person cannot just say again.
+ */
+async function noticeAboutUser(text, turnRef) {
+  if (!state.ready || !profile.looksSelfReferential(text)) return;
+  try {
+    const raw = await complete(
+      [
+        { role: "system", content: PROFILE_NOTICE_SYSTEM },
+        { role: "user", content: text },
+      ],
+      { json: PROFILE_NOTICE_SCHEMA, maxTokens: 120, temperature: 0 },
+    );
+    const parsed = JSON.parse(raw);
+    if (!parsed.fact?.trim()) return;
+    state.profileLog = await profile.propose(state.profileLog, { text: parsed.fact.trim(), category: parsed.category, turnRef });
+    persistProfile();
+    if (document.body.dataset.view === "profile") renderProfile();
+  } catch {
+    /* the model is only ever a proposal here — a failed or malformed call
+       loses a suggestion, never anything already kept */
   }
 }
 
@@ -14977,6 +15298,14 @@ renderAccountChips();
 restoreBuilds();
 renderBuilds();
 
+// The "about you" ledger comes back the same way, then reconciles with the
+// account's own copy if this browser is already signed in from a previous
+// session — a fresh page load must not forget who it is talking to, and
+// must not silently diverge from what another of the person's own devices
+// already knows either.
+restoreProfile();
+syncProfileWithMatrix();
+
 // No Connect button any more: choosing a model in the picker IS connecting,
 // and the boot path connects on its own when a model is reachable.
 $("model").onchange = () => {
@@ -16143,6 +16472,7 @@ function showView(name) {
   if (name === "editor") editorLayout();
   if (name === "holograph") renderHolograph();
   if (name === "wiring") renderWiring();
+  if (name === "profile") renderProfile();
 }
 
 for (const tab of document.querySelectorAll('[role="tab"]'))
@@ -16216,6 +16546,67 @@ $("folds-view").onclick = () => {
   foldsView = foldsView === "cards" ? "list" : "cards";
   $("folds-view").textContent = foldsView === "cards" ? "≡ list" : "▤ cards";
   renderBuilds();
+};
+$("folds-folder").onchange = () => {
+  foldsFolder = $("folds-folder").value;
+  renderBuilds();
+};
+// The "about you" panel's manual add — a note goes straight to kept,
+// bypassing the pending/confirm step entirely (profile.js::addKept):
+// something a person deliberately typed here needs no separate
+// confirmation of its own.
+if ($("profile-add-btn")) {
+  $("profile-add-btn").onclick = async () => {
+    const text = $("profile-add-text").value.trim();
+    if (!text) return;
+    const category = $("profile-add-category").value;
+    state.profileLog = await profile.addKept(state.profileLog, { text, category, turnRef: null });
+    $("profile-add-text").value = "";
+    persistProfile();
+    pushProfileIfSignedIn();
+    renderProfile();
+  };
+  $("profile-add-text").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("profile-add-btn").click(); } });
+}
+
+$("folds-del-folder").onclick = () => {
+  if (foldsFolder === "all" || foldsFolder === UNFILED_FOLDER) return;
+  // Retraction, not erasure — the same posture a fold's own ✕ delete
+  // holds (buildCard, above): the folds that named this folder are kept,
+  // untouched, and simply read as unfiled from here on (filterByFolder's
+  // own dangling-name handling).
+  state.foldFolders = removeFolder(state.foldFolders, foldsFolder);
+  foldsFolder = "all";
+  persistBuilds();
+  renderBuilds();
+};
+// "+ folder": swaps itself for a name field rather than a dialog (this
+// panel's own bar has no room for one, and a folder is a name and nothing
+// else — a whole dialog would outweigh what it collects). Enter creates it
+// and selects it; Escape or losing focus with nothing typed cancels back.
+$("folds-new-folder").onclick = () => {
+  const btn = $("folds-new-folder");
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = "folder name";
+  input.maxLength = 60;
+  input.spellcheck = false;
+  input.className = "folds-new-folder-input";
+  const cancel = () => { input.replaceWith(btn); };
+  input.onkeydown = (ev) => {
+    if (ev.key === "Escape") cancel();
+    if (ev.key !== "Enter") return;
+    const name = input.value.trim();
+    if (!name) return cancel();
+    state.foldFolders = addFolder(state.foldFolders, name);
+    foldsFolder = name;
+    persistBuilds();
+    cancel();
+    renderBuilds();
+  };
+  input.onblur = () => { if (!input.value.trim()) cancel(); };
+  btn.replaceWith(input);
+  input.focus();
 };
 
 // ── the theme toggle ─────────────────────────────────────────────────────────
@@ -16516,6 +16907,7 @@ async function signInFromSheet(hs, user, pass) {
     if (state.matrixRoom && !st.rooms.some((x) => x.id === state.matrixRoom)) { const was = forgetRoom(`signed in as ${st.user}, which holds no key for it`); addMessage("assistant", `this chat no longer points at ${was} — ${st.user} holds no key for it; /preserve makes a room this account owns`); }
     if (state.matrixPendingLink) { const line = await joinInto(state.matrixPendingLink); addMessage("assistant", line); }
     renderPool();
+    syncProfileWithMatrix();
   } catch (e) { addMessage("assistant", `sign-in failed: ${matrixGap(e)} — nothing but the login call went to ${hs}`); }
 }
 async function sheetAct(mode, hs, user, secret) {

@@ -15,14 +15,47 @@ export const WHISPER_DISCLOSURE = `(first use fetches the ${MODEL} weights from 
 
 let _asr = null;
 
+/**
+ * Deliberately `device: "wasm", dtype: "fp32"` — measured live
+ * (2026-09-09), not the library's per-hardware default. Whichever quantized
+ * or GPU-routed load this app tried before either loaded fine and
+ * transcribed WRONG, or failed to load at all:
+ *
+ *   - webgpu + fp16 (what this file used to request when a GPU was
+ *     present): loads without error, but on a clean 5.6s test clip
+ *     ("This is a test of the fold transcription pipeline. The quick
+ *     brown fox jumps over the lazy dog.", real speech, confirmed correct
+ *     by a second, independent model) it returned the single word "I'm" —
+ *     silently wrong, nothing here would have caught it.
+ *   - wasm + q8 (this file's old fallback for no-GPU): onnxruntime-web
+ *     refuses to create a session at all — "Missing required scale:
+ *     model.decoder.embed_tokens.weight_merged_0_scale" — so the OLD
+ *     try/catch below silently re-tried with no dtype specified at all,
+ *     which is not full precision either (see next point) and was never
+ *     actually exercised in this measurement because...
+ *   - device left unset, or device: "webgpu" with dtype: "fp32": BOTH hit
+ *     the identical missing-scale error above, on this exact
+ *     onnxruntime-web build. This is eopm's own sibling implementation's
+ *     already-diagnosed bug (`eopm/src/transcribe-worker.js`, citing
+ *     `ab/vendor/voice.js`'s fix commit e1b89d5) — onnx-community/
+ *     whisper-base's own default/webgpu dtype resolution picks a
+ *     mixed-precision decoder file whose embed_tokens weight is quantized
+ *     without the scale tensor DequantizeLinear needs. eopm's own fix
+ *     (`dtype: 'fp32'`, device left unset) does not fully generalize here
+ *     — this app's browser has WebGPU, and requesting fp32 without pinning
+ *     wasm still resolves onto the broken webgpu path.
+ *
+ * The one combination that has actually been run against real speech and
+ * produced the correct words, with correct segment timestamps, is wasm +
+ * fp32 — slower than GPU inference would be, but a transcription feature
+ * whose whole value is the addressable words it produces cannot trade
+ * correctness for speed. No try/catch fallback: every other path measured
+ * here is either wrong or refuses to load, so there is nothing worth
+ * falling back TO.
+ */
 async function loadASR(onProgress) {
   if (!_asr) {
     _asr = (async () => {
-      let device = "wasm";
-      try {
-        if (navigator.gpu && (await navigator.gpu.requestAdapter())) device = "webgpu";
-      } catch {}
-
       const { pipeline } = await import(
         "/node_modules/@huggingface/transformers/dist/transformers.web.js"
       );
@@ -32,19 +65,11 @@ async function loadASR(onProgress) {
           onProgress(Math.max(0, Math.min(1, p.progress / 100)));
       };
 
-      const dtype = device === "webgpu" ? "fp16" : "q8";
-      try {
-        return await pipeline("automatic-speech-recognition", MODEL, {
-          device,
-          dtype,
-          progress_callback,
-        });
-      } catch {
-        return await pipeline("automatic-speech-recognition", MODEL, {
-          device,
-          progress_callback,
-        });
-      }
+      return await pipeline("automatic-speech-recognition", MODEL, {
+        device: "wasm",
+        dtype: "fp32",
+        progress_callback,
+      });
     })().catch((e) => {
       _asr = null;
       throw e;

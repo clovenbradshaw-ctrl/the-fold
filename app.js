@@ -2296,6 +2296,13 @@ function renderThreads() {
   const total = $("turn-total");
   if (total) total.hidden = true;
   const bar = $("threads");
+  // Moved here from the composer (user direction, 2026-09-10: "move this to
+  // top right of the tab") — captured BEFORE the wipe below and re-appended
+  // at the end, the same move-not-clone pattern the fold-side control
+  // already uses on this same bar, so its event binding and checked state
+  // survive every redraw untouched (a fresh clone would need its own
+  // re-bound listener each time; this needs none).
+  const checkingSwitch = $("checking-switch");
   bar.textContent = "";
   state.convos.forEach((c, i) => {
     const tab = document.createElement("div");
@@ -2342,6 +2349,7 @@ function renderThreads() {
   fold.textContent = panelWide ? "›" : "‹";
   fold.title = panelWide ? "open the conversation again" : "fold the conversation away — its tabs stay on the left, and this opens it again";
   fold.onclick = () => setPanelWide(!panelWide);
+  if (checkingSwitch) bar.append(checkingSwitch);
   bar.append(fold);
 }
 
@@ -15786,7 +15794,14 @@ bindSwitch("use-priors", "fold-use-priors", () => state.usePriors, (v) => {
 // in localStorage and this button only moves the stamp. What each state
 // actually DOES lives where priors get consulted (the claim-checking
 // cascade, foreground's source-sync below) — this is only the dial.
-{
+// The dial button is removed from the composer (user direction,
+// 2026-09-10: "kill this") — state.priorsMode still exists (initialized
+// from localStorage, defaulting to "background") and still gates the
+// claim-checking cascade at its own read site; there is simply no UI
+// control left to cycle it. `/priors sync` (still wired, priorsTurn)
+// remains the explicit door for a foreground-style read regardless of
+// the dial's own value.
+if ($("priors-mode")) {
   const PRIORS_KEY = "fold-priors-mode";
   const priorsBtn = $("priors-mode");
   const PRIORS_TITLE = {

@@ -5870,14 +5870,27 @@ async function arithmeticTurn(question, found) {
     ? `${found.expression} — ${found.gap}`
     : `${found.expression} = ${found.display} — computed, not generated`;
   body.textContent = "";
-  if (!found.gap && found.tex) {
+  if (!found.gap) {
+    // The chip is the certification: every computed answer gets the same
+    // box `.artifact`/tables already use, with "computed, not generated" a
+    // quiet `.note` footer beneath it — never folded into the sentence
+    // itself, so the mark reads as a caption on the chip, not a claim the
+    // model is making about its own prose. KaTeX renders it when the
+    // engine gave a formula (found.tex); a shaped answer with no formula
+    // (a date, a weekday, the clock) still gets the identical chip, just
+    // as plain text — the box is what says "this was computed", not the math markup.
     const wrap = document.createElement("div");
     wrap.className = "arithmetic-result";
-    try {
-      wrap.innerHTML = katex.renderToString(found.tex, { displayMode: true, throwOnError: false });
-    } catch {
-      wrap.textContent = `${found.expression} = ${found.display}`;
+    let rendered = false;
+    if (found.tex) {
+      try {
+        wrap.innerHTML = katex.renderToString(found.tex, { displayMode: true, throwOnError: false });
+        rendered = true;
+      } catch {
+        rendered = false;
+      }
     }
+    if (!rendered) wrap.textContent = `${found.expression} = ${found.display}`;
     const note = document.createElement("p");
     note.className = "note";
     note.textContent = "computed, not generated";
@@ -6191,7 +6204,7 @@ async function send(question) {
   // widget doors below. checkArithmetic itself refuses to claim anything
   // with a free symbol left after normalizing, so a real question about
   // the world (or the material) always falls through untouched.
-  const arithmetic = checkQuantity(question, { math: window.math });
+  const arithmetic = checkQuantity(question, { math: window.math, now: new Date() });
   if (arithmetic) return arithmeticTurn(question, arithmetic);
 
   // ABOUT the material ("what is this?", "what's this book about?", "is it

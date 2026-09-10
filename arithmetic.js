@@ -387,6 +387,70 @@ export function checkCalendar(question) {
   return { ...found, expression: `${found.date.iso} ${found.direction > 0 ? "+" : "−"} ${found.days} days`, value, display: `${value} (${WEEKDAYS[t.getUTCDay()]})`, tex: null };
 }
 
+// ── THE CLOCK (added 2026-09-09) ────────────────────────────────────────────
+//
+// `detectCalendar`'s own header names the reason "today"/"now" bail here:
+// this module is handed no wall clock. Measured live: asked "what time is
+// it?" with nothing attached, the app fell through to a web search and the
+// model answered from a world-clock site's own marketing copy ("7 million
+// locations, 58 languages…"), mislabeled as the model's own unaddressed
+// voice — neither a real answer nor an honest one. The fix is not a bigger
+// prompt or a smarter search: the wall clock is a fact this machine already
+// has, the same way mathjs already has arithmetic, so it is injected exactly
+// the way `math` is (`now`, a real `Date`) and answered the identical
+// computed-not-generated way, zero model calls.
+//
+// This is also the shape "activation, not a standing recitation" takes at
+// its smallest scale (P55: apparatus vocabulary — and capability vocabulary
+// — is not model-facing). The model is never told "you can tell time"; the
+// question's OWN words are what activate this door, structurally, the same
+// as every other shape in this file. A capability that cannot be reduced to
+// a closed set of phrasings (unlike a clock) is the next lever, and it
+// activates the identical way: from what the question's own words already
+// declare (the void's SIG/headPhrase reading, `void-brief.js`, already
+// computed before any draft) — never from a tool list stated up front.
+const TIME_NOW_RE = /^(?:what(?:'s|\s+is)\s+the\s+(?:current\s+|local\s+)?time(?:\s+right\s+now)?|what\s+time\s+is\s+it(?:\s+right\s+now)?|(?:the\s+)?current\s+time|do\s+you\s+know\s+what\s+time\s+it\s+is)\s*\??$/i;
+const WEEKDAY_NOW_RE = /^what\s+(?:day(?:\s+of\s+the\s+week)?|weekday)\s+is\s+it(?:\s+today)?\s*\??$/i;
+const DATE_NOW_RE = /^what(?:'s|\s+is)\s+(?:today'?s\s+date|the\s+date(?:\s+today)?)\s*\??$|^today'?s\s+date\s*\??$/i;
+const YEAR_NOW_RE = /^what\s+year\s+is\s+it\s*\??$/i;
+
+export function detectClock(question) {
+  const q = String(question ?? "").trim();
+  if (!q) return null;
+  if (TIME_NOW_RE.test(q)) return { kind: "clock", op: "time" };
+  if (WEEKDAY_NOW_RE.test(q)) return { kind: "clock", op: "weekday" };
+  if (DATE_NOW_RE.test(q)) return { kind: "clock", op: "date" };
+  if (YEAR_NOW_RE.test(q)) return { kind: "clock", op: "year" };
+  return null;
+}
+
+/** Computed from the injected `now` (a real `Date`, the caller's own wall
+ * clock — never this module's to read) exactly the way `checkArithmetic`
+ * computes from the injected `math`. Local time throughout: a person asking
+ * "what time is it" means their own clock, not UTC. */
+export function checkClock(question, { now } = {}) {
+  const found = detectClock(question);
+  if (!found) return null;
+  if (!(now instanceof Date) || Number.isNaN(now.getTime()))
+    return { ...found, expression: "now", gap: "the system clock is not available" };
+  if (found.op === "weekday") {
+    const value = WEEKDAYS[now.getDay()];
+    return { ...found, expression: "day of the week", value, display: value, tex: null };
+  }
+  if (found.op === "date") {
+    const value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const display = now.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+    return { ...found, expression: "today's date", value, display, tex: null };
+  }
+  if (found.op === "year") {
+    const value = now.getFullYear();
+    return { ...found, expression: "current year", value, display: String(value), tex: null };
+  }
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "local time";
+  const display = `${now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", second: "2-digit" })} (${zone})`;
+  return { ...found, expression: "current time", value: now.toISOString(), display, tex: null };
+}
+
 /**
  * Every computed answer this organ can give, in order of how little it
  * reads into the question: the pure expression first (unchanged), then the
@@ -529,6 +593,6 @@ export function enforceComparison(text, comparison, { splitSentences } = {}) {
   return { text: kept.join(" ").replace(/\s{2,}/g, " ").trim(), fixed };
 }
 
-export function checkQuantity(question, { math } = {}) {
-  return checkArithmetic(question, { math }) ?? checkShaped(question, { math }) ?? checkCalendar(question) ?? checkComparison(question, { math });
+export function checkQuantity(question, { math, now } = {}) {
+  return checkArithmetic(question, { math }) ?? checkShaped(question, { math }) ?? checkCalendar(question) ?? checkClock(question, { now }) ?? checkComparison(question, { math });
 }

@@ -16620,11 +16620,25 @@ const WIRING_COLUMN_OF = Object.freeze({ "pipeline-toggle": 0, "pipeline-value":
  * per column bucket, in order, each holding its nodes' cards in the order
  * loopGraphFor produced them. A card with drill:false (the read-only
  * history/user nodes) renders but never opens the drawer. */
-// Only the draftMaterial blocks have a real, safe order to change (model-
+// Only the draftMaterial blocks have a USER-changeable order (model-
 // loops.js's own header on ingredientOrder says why — nothing downstream
-// reads a position). Every other card kind is manipulate-only: a pipeline
-// toggle/value has a real parameter but no meaningful sequence between
-// stages, and a readOnly node (system/user/history/sent) has neither.
+// reads a position, so reordering them is pure presentation). The
+// pipeline-stage cards are not draggable, but their fixed order is not
+// arbitrary: it is PIPELINE_STAGE_ORDER (model-loops.js), the mechanism's
+// own real execution sequence — webPreflight's search, then what shapes
+// the draft (material/passagesPerPart/resolutions/depth), then the
+// checking stages that only ever run once a draft exists
+// (makeRelationReader, the maxCorrections-bounded correction loop,
+// checkLink, and last, witnessSentences) — so the flow arrows below
+// (index.html's .wiring-card::after) tell the truth rather than a
+// plausible-looking guess. Caught live, 2026-09-10: an earlier build
+// ordered these by parameter TYPE (all toggles, then all values) with a
+// comment disclaiming any sequence between them, while the arrows next to
+// them asserted one anyway — reordered to match the real mechanism rather
+// than de-arrowed, since a genuine sequence exists and this canvas is
+// explicitly styled as an n8n-style flow, where an arrow means exactly
+// that. A readOnly node (system/user/history/sent) has no order question
+// at all — those kinds were dropped from the canvas outright, above.
 let wiringDragKey = null;
 let wiringExpandedCard = null; // the .wiring-card currently holding #wiring-drawer, or null
 

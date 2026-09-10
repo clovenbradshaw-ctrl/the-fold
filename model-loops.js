@@ -262,7 +262,7 @@ export function loopGraphFor(capturedTurn, loop = DEFAULT_MODEL_LOOP) {
   // Pipeline-stage nodes (v2): which STAGES ran, not what text they
   // produced.
   const snapshot = capturedTurn.pipeline ?? {};
-  for (const key of [...PIPELINE_TOGGLE_KEYS, ...PIPELINE_VALUE_KEYS]) {
+  for (const key of PIPELINE_STAGE_ORDER) {
     const meta = PIPELINE_STAGE_META[key];
     const fallback = key in snapshot ? snapshot[key] : undefined;
     const computed = fallback === undefined ? null : fallback;
@@ -330,6 +330,28 @@ export function loopGraphFor(capturedTurn, loop = DEFAULT_MODEL_LOOP) {
 const ORGAN_OPTION_KEYS = Object.freeze(["makeRelationReader", "witnessSentences", "checkLink"]);
 export const PIPELINE_TOGGLE_KEYS = Object.freeze([...ORGAN_OPTION_KEYS, "webPreflight"]);
 export const PIPELINE_VALUE_KEYS = Object.freeze(["depth", "maxCorrections", "resolutions", "material", "passagesPerPart"]);
+
+/** PIPELINE_STAGE_ORDER — the canvas's own display order for the 9
+ * pipeline-stage nodes, kept apart from PIPELINE_TOGGLE_KEYS/VALUE_KEYS
+ * above (which group by parameter TYPE — boolean vs. value-knob, the
+ * axis applyModelLoopOptions actually reads, order-independent there).
+ * This is the mechanism's real execution sequence, so the canvas's own
+ * flow arrows (index.html's .wiring-card::after) tell the truth instead
+ * of a plausible-looking guess: webPreflight's search runs before any
+ * drafting (app.js's gatherPreflightMaterial ahead of runHolonicTask);
+ * material/passagesPerPart/resolutions/depth all shape what goes into
+ * that draft; makeRelationReader's reader is built once retrieval is
+ * known and consulted through the draft and the correction loop that
+ * maxCorrections bounds; checkLink runs once that loop has settled
+ * (holon.js's own comment: "once, after the model's own corrections
+ * have settled"); witnessSentences runs once more after THAT ("once,
+ * after the loop" — holon.js, i.e. after checkLink). A permutation of
+ * [...PIPELINE_TOGGLE_KEYS, ...PIPELINE_VALUE_KEYS], pinned as one in
+ * model-loops.test.mjs so the two lists cannot silently drift apart. */
+export const PIPELINE_STAGE_ORDER = Object.freeze([
+  "webPreflight", "material", "passagesPerPart", "resolutions", "depth",
+  "makeRelationReader", "maxCorrections", "checkLink", "witnessSentences",
+]);
 
 // Titles, hints, and domains for the drawer and the canvas — never
 // consulted by applyModelLoop/applyModelLoopOptions themselves, display

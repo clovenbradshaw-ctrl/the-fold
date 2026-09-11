@@ -96,6 +96,44 @@ test("the flow: sign in, a room, two hash-linked blocks, a re-push that skips, a
   assert.equal(j.blocks, 2);
 });
 
+test("same account, one chat: a second device signed in as the same account discovers the room, its key is granted automatically by the first device, and the homeserver still holds only ciphertext", async () => {
+  const alice2 = new FoldMatrix({ storage: mapStorage(), record: recordInto("alice2") });
+  await alice2.login(hs.base, "alice", PW.alice);
+  assert.equal(alice2.keyOf(room), null, "a fresh browser mints its own identity — no key yet");
+  // discovery off the account's own membership (Matrix membership is per account)
+  const found = await alice2.findFoldRooms();
+  assert.ok(found.some((r) => r.id === room && r.name === "Lincoln's cabinet"), "the account's fold room is found by a sibling device");
+  // a plain room (no fold.chat meta) is never a fold room
+  const plain = await alice2.http().json("POST", "/_matrix/client/v3/createRoom", { json: { name: "unrelated" } });
+  assert.ok(!(await alice2.findFoldRooms()).some((r) => r.id === plain.room_id));
+  // the sibling publishes its key; the account's existing device grants it
+  // automatically (same account = same person = same chat), with no link proof
+  const ann = await alice2.announceSibling(room);
+  assert.equal(ann.announced, true);
+  const g = await alice.grantPending(room);
+  assert.deepEqual(g.siblings.map((x) => x.user), ["@alice:fake.test"], "the account's own sibling is granted");
+  assert.deepEqual(g.granted, [], "no bound-link proof was involved — this is the account's own device");
+  // the sibling opens every block the first device preserved, in order
+  const loaded = await alice2.load(room);
+  assert.equal(loaded.partial, false, `gaps: ${loaded.gaps}`);
+  assert.deepEqual(loaded.entries.map((e) => e.content), [...TURNS, ...MORE].map((t) => t.content), "the same history reads on the second device");
+  // ENCRYPTED AT REST, proven adversarially: the homeserver's log and store
+  // searched for the turns, the chat key and the sibling's own secrets — the
+  // token may sit in Authorization headers (the server issued it), nothing else.
+  const secrets = new SecretSet();
+  secrets.add("alice2 private key", alice2.data.identity.priv);
+  secrets.add("alice2 token", alice2.data.session.access_token);
+  secrets.add("chat key", alice2.keyOf(room));
+  for (const t of [...TURNS, ...MORE]) secrets.add("a turn", t.content).add("a turn (canary)", /CANARY-\w+/.exec(t.content)[0]);
+  const offences = [];
+  for (const l of hs.log) {
+    for (const hit of secrets.leaks(l.path)) offences.push({ where: "path", path: l.path, hit });
+    for (const [name, value] of Object.entries(l.headers)) if (name !== "authorization") for (const hit of secrets.leaks(String(value))) offences.push({ where: `header ${name}`, path: l.path, hit });
+    for (const hit of secrets.leaks(l.body)) offences.push({ where: "body", path: l.path, hit });
+  }
+  assert.deepEqual(offences, [], `the homeserver saw ${JSON.stringify(offences.slice(0, 3))}`);
+});
+
 test("check 1 — by the bytes: the password only in the login bodies, the token only in Authorization headers, and the chat key, the private keys and every turn nowhere the homeserver can see, one base64 layer down included", async () => {
   const secrets = new SecretSet();
   secrets.add("chat key", alice.keyOf(room));
@@ -141,8 +179,12 @@ test("check 2 — by the structure: every state event carries only declared, poi
       assert.deepEqual(Object.keys(c).filter((k) => !["grants", "older"].includes(k)).sort(), ["blob", "eph_pub", "epoch", "pub", "v"]);
       assert.equal(unb64(c.blob).length, 12 + 32 + 16, "a wrapped key is iv + 32 bytes + tag");
       for (const o of c.older ?? []) { assert.deepEqual(Object.keys(o).sort(), ["blob", "eph_pub", "epoch"]); assert.equal(unb64(o.blob).length, 60); }
-      for (const g of Object.values(c.grants ?? {})) { assert.deepEqual(Object.keys(g).filter((k) => k !== "older").sort(), ["blob", "eph_pub", "epoch", "pub", "v"]); assert.equal(unb64(g.blob).length, 60); }
+      for (const g of Object.values(c.grants ?? {})) {
+        const list = Array.isArray(g) ? g : [g];
+        for (const entry of list) { assert.deepEqual(Object.keys(entry).filter((k) => k !== "older").sort(), ["blob", "eph_pub", "epoch", "pub", "v"]); assert.equal(unb64(entry.blob).length, 60); }
+      }
     },
+    [TYPES.sibling]: (c) => { assert.deepEqual(Object.keys(c).sort(), ["devices", "v"]); for (const p of c.devices) assert.match(p, /^[A-Za-z0-9+/=]{80,}$/); },
     [TYPES.chain]: (c) => {
       assert.deepEqual(Object.keys(c).sort(), ["count", "head", "idx", "manifest", "manifestBase", "updated_at", "v"]);
       assert.deepEqual(Object.keys(c.head).sort(), ["epoch", "mxc", "sha256"]);

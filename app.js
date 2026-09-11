@@ -104,7 +104,7 @@ import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, ROSTER, run
 // modules and tests had shipped unwired). The decisions are webllm-rung.js's;
 // webllm-client.js is the worker + the streaming call; the roster is three
 // models chosen for what their publishers disclose about the training data.
-import { WEBLLM_MODELS, isWebLLMModel, webllmModelOf, webllmLabelFor, mergeOffered, webgpuBlocker } from "./webllm-rung.js";
+import { WEBLLM_MODELS, isWebLLMModel, webllmModelOf, webllmLabelFor, mergeOffered, webgpuBlocker, offerableRungs, classifyWebLLMFailure } from "./webllm-rung.js";
 import { webllmClient } from "./webllm-client.js";
 // The three homes (P118): where the page is and what it can reach are probed
 // at boot and said once; /routes prints the table. routes.js decides and
@@ -115,7 +115,7 @@ import { whereAmI, describeRoutes } from "./routes.js";
 // machine through a Matrix homeserver the person names — every byte that
 // leaves this page for it sealed under a key the homeserver never holds.
 import { FoldMatrix, localStorageStorage, MatrixError } from "./matrix-client.js";
-import { parseShareLink, stripShareFragment, SERVER_SEES, MAGIC_KEY_WARNING, deviceContent, deviceLine } from "./matrix.js";
+import { parseShareLink, stripShareFragment, SERVER_SEES, MAGIC_KEY_WARNING, deviceContent, deviceLine, fallbackMouth, ROOM_FALLBACK_KINDS } from "./matrix.js";
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
@@ -146,6 +146,14 @@ import { classifySentences, sentenceSpans } from "./provenance.js";
 import { emptyPaceLog, recordCall, foldPace, predictCall } from "./pace.js";
 
 import { persistSource, unpersistSource, loadSources } from "./sources-store.js";
+// The /source door and the auto-source path (user direction, 2026-09-11):
+// paste a large block into the composer and it becomes a source of its own
+// accord once it clears the declared floor; /source names one explicitly.
+// The decisions are pure and tested; this file only wires the act.
+import { isAutoSourceCandidate, parseSourceCommand, nextPastedName, previewSavedText } from "./source-door.js";
+// The /help tutorial (user direction, 2026-09-11): every door, its syntax,
+// an example, and a walkthrough — data, computed and printed, never a model.
+import { renderHelp } from "./help.js";
 // One durable reading record (Pass 17, P98): the three kernel logs this app
 // holds persist to OPFS as append-only JSONL and replay on boot through the
 // kernel's own `append`, so the accumulated reading no longer ends at reload.
@@ -2400,22 +2408,53 @@ async function fillModels() {
   // is the faster summary rung where Ollama answers; where it does not, the
   // in-tab rung is offered[0] and every kind routes there). Offered only
   // where WebGPU can actually run them — the blocker names its own fix in
-  // the status line, never a picker entry that would fail on use.
+  // the status line, never a picker entry that would fail on use. And only
+  // rungs THIS adapter can run: the adapter is probed, and a rung whose
+  // declared requirement (shader-f16, a storage-buffer floor) the adapter
+  // lacks is never offered at all — the phone whose WebGPU cannot run
+  // SmolLM2 or RedPajama still gets OLMo 2 1B (it declares nothing), never
+  // a model that loads and dies (2026-09-11).
   const blocker = webgpuBlocker({ gpu: navigator.gpu, secureContext: window.isSecureContext });
   if (!blocker) {
-    state.offeredModels = mergeOffered(state.offeredModels, true);
-    for (const m of WEBLLM_MODELS) {
-      state.availableModels.add(m.id);
-      const opt = document.createElement("option");
-      opt.value = m.id;
-      opt.textContent = `${m.label} · ${m.publisher}, ${m.license}`;
-      opt.title = m.origin;
-      sel.append(opt);
+    const adapter = await webgpuAdapterInfo();
+    const offerable = offerableRungs(webllmClient.appConfig, adapter);
+    if (offerable.length) {
+      state.offeredModels = mergeOffered(state.offeredModels, true, offerable);
+      for (const id of offerable) {
+        const m = webllmModelOf(id);
+        state.availableModels.add(id);
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = `${m.label} · ${m.publisher}, ${m.license}`;
+        opt.title = m.origin;
+        sel.append(opt);
+      }
+      if (!sel.value || !state.offeredModels.includes(sel.value)) sel.value = state.offeredModels[0];
+      if (!state.offeredModels.some((n) => !isWebLLMModel(n))) $("status").textContent = `no Ollama here — the in-tab models are offered (weights from ${webllmClient.weights})`;
+    } else if (!state.offeredModels.length) {
+      $("status").textContent = `${$("status").textContent} · in-tab models unavailable: ${adapter ? "this WebGPU adapter meets none of the roster's requirements" : "WebGPU is present, but the adapter would not report its features"}`;
     }
-    if (!sel.value || !state.offeredModels.includes(sel.value)) sel.value = state.offeredModels[0];
-    if (!state.offeredModels.some((n) => !isWebLLMModel(n))) $("status").textContent = `no Ollama here — the in-tab models are offered (weights from ${webllmClient.weights})`;
   } else if (!state.offeredModels.length) {
     $("status").textContent = `${$("status").textContent} · in-tab models unavailable: ${blocker}`;
+  }
+}
+
+/** The WebGPU adapter's own report — its feature set and storage-buffer
+ *  limit — or null when the probe failed. A rung whose required feature the
+ *  adapter lacks is refused before it is offered (rungBlockers); null means
+ *  "unknown", and a rung that DECLARES a requirement is then refused too.
+ */
+async function webgpuAdapterInfo() {
+  try {
+    if (!navigator.gpu) return null;
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) return null;
+    return {
+      features: new Set(adapter.features),
+      maxStorageBufferBindingSize: adapter.limits?.maxStorageBufferBindingSize ?? null,
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -2486,21 +2525,68 @@ async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, mo
   // bound, reflect) spends the model the user chose. Whatever it is, the
   // request, the pace ledger, and the status line all name the SAME model.
   const modelName = model ?? state.model;
-  if (isRoomModel(modelName)) {
-    // The same contract as the two local branches below, through the room:
-    // the prompt sealed under the chat key to ONE member who offered this
-    // model, their sealed answer read back. The homeserver saw an address,
-    // an id, a seal and a size; the status line names who answered.
-    const { user, model: remote } = roomModelParts(modelName);
-    if (!state.matrixRoom) throw new Error("no room is open — /join a share link or /preserve first");
-    $("status").textContent = `asking ${user} for ${remote} through the room…`;
-    const a = await foldMatrix.ask(state.matrixRoom, { messages, model: remote, to: user, options: { maxTokens: maxTokens ?? MAX_TOKENS, temperature, json: json ?? null } }, { onWait: ({ ms }) => { $("status").textContent = `waiting on ${user} · ${Math.round(ms / 1000)}s`; } });
-    noteMouth(`on ${user}'s ${a.device?.home ?? "machine"}, through the room`, a.model ?? remote, a.ms, callSeq);
-    tokensSeen.calls += 1; tokensSeen.in += a.usage?.promptTokens ?? 0; tokensSeen.out += a.usage?.outTokens ?? 0;
-    onDelta?.(a.text);
-    $("status").textContent = `ready · ${modelName} · answered by ${a.by} in ${Math.round(a.ms / 1000)}s`;
-    return { text: a.text, thinking: "", doneReason: "stop", via: { room: state.matrixRoom, by: a.by, model: a.model, ms: a.ms } };
+  if (isRoomModel(modelName)) return completeViaRoom(messages, { onDelta, onThinking, maxTokens, json, temperature }, roomModelParts(modelName), modelName, callSeq);
+  // A LOCAL rung first; on a typed "this machine cannot run the model"
+  // failure, the work rolls over to a mouth in the open room (2026-09-11) —
+  // the phone whose WebGPU will not load the in-tab model answers through
+  // the desktop, sealed under the chat key, with nothing the person picked.
+  // A wrong answer is NOT a failover: only a device-shaped failure is.
+  try {
+    return await completeLocal(messages, { onDelta, onThinking, maxTokens, json, model: modelName, temperature }, callSeq);
+  } catch (err) {
+    const fallback = await roomFallbackFor(modelName, err);
+    if (fallback) {
+      // The rollover is an attempt, not a promise: if the room mouth fails
+      // too, the ORIGINAL device failure is the one the person acts on.
+      try { return await completeViaRoom(messages, { onDelta, onThinking, maxTokens, json, temperature }, fallback, modelName, callSeq); }
+      catch { throw err; }
+    }
+    throw err;
   }
+}
+
+/**
+ * The typed rollover: which mouth in the open room takes a local call that
+ * just failed, or null when none should. `kind` "machine" is this page's
+ * own typing for "Ollama was unreachable at all"; the WebLLM kinds come
+ * from classifyWebLLMFailure. Excludes this device's own mouth — rolling
+ * the work onto the very machine that failed is a loop — and refuses while
+ * this page is itself SERVING the room (a worker must never bounce its own
+ * job back into the room).
+ */
+async function roomFallbackFor(modelName, err) {
+  if (servingTurn) return null;
+  if (!state.matrixRoom || !foldMatrix.status().signedIn) return null;
+  const kind = isWebLLMModel(modelName)
+    ? classifyWebLLMFailure(err, { online: navigator.onLine !== false }).kind
+    : err?.machineFailure ? "machine" : null;
+  if (!kind || (kind !== "machine" && !ROOM_FALLBACK_KINDS.includes(kind))) return null;
+  let offers = foldMatrix.pool(state.matrixRoom).offers;
+  if (!offers.length) { try { offers = await foldMatrix.mouths(state.matrixRoom); } catch { return null; } }
+  const mouth = fallbackMouth(offers, { kind: kind === "machine" ? null : kind, exclude: foldMatrix.status().user });
+  if (!mouth) return null;
+  return { user: mouth.user, model: null };
+}
+
+/** A request through the room: the prompt sealed to one member's mouth, the
+ *  sealed answer read back. `who` is `{user, model}` for a picked room rung,
+ *  or `{user, model: null}` for a failover mouth ("that machine's own
+ *  fastest"). The homeserver sees an address, an id, a seal and a size. */
+async function completeViaRoom(messages, { onDelta, onThinking, maxTokens, json, temperature }, who, modelName, callSeq) {
+  const { user, model: remote } = who;
+  if (!state.matrixRoom) throw new Error("no room is open — /join a share link or /preserve first");
+  $("status").textContent = `asking ${user} for ${remote ?? "its fastest model"} through the room…`;
+  const a = await foldMatrix.ask(state.matrixRoom, { messages, model: remote, to: user, options: { maxTokens: maxTokens ?? MAX_TOKENS, temperature, json: json ?? null } }, { onWait: ({ ms }) => { $("status").textContent = `waiting on ${user} · ${Math.round(ms / 1000)}s`; } });
+  noteMouth(`on ${user}'s ${a.device?.home ?? "machine"}, through the room`, a.model ?? remote, a.ms, callSeq);
+  tokensSeen.calls += 1; tokensSeen.in += a.usage?.promptTokens ?? 0; tokensSeen.out += a.usage?.outTokens ?? 0;
+  onDelta?.(a.text);
+  $("status").textContent = `ready · ${modelName} · answered by ${a.by} in ${Math.round(a.ms / 1000)}s`;
+  return { text: a.text, thinking: "", doneReason: "stop", via: { room: state.matrixRoom, by: a.by, model: a.model, ms: a.ms, fallback: true } };
+}
+
+/** The local rungs — the in-tab engine and Ollama — one request, with the
+ *  device-shaped failures left typed for the caller to roll over. */
+async function completeLocal(messages, { onDelta, onThinking, maxTokens, json, model: modelName, temperature }, callSeq) {
   if (isWebLLMModel(modelName)) {
     // Same contract as the Ollama branch below — {text, thinking, doneReason},
     // the pace ledger fed from the engine's own telemetry, the status line
@@ -2532,31 +2618,41 @@ async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, mo
     return { text, thinking: "", doneReason: cancelled ? "cancelled" : "stop" };
   }
   const ollamaStarted = Date.now();
-  const res = await fetch(`${OLLAMA}/api/chat`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      model: modelName,
-      messages,
-      stream: true,
-      // A token cap bounds the damage; constrained decoding removes it. Asked
-      // for JSON in prose, a small model writes the object and then keeps
-      // talking until the cap — 300 tokens at 6/s is fifty seconds of a turn
-      // spent on nothing. Told the grammar, it closes the brace and stops.
-      // `json` may be `true` (plain JSON mode) or a JSON schema — Ollama's
-      // structured outputs constrain decoding to the schema, which is how a
-      // caller gets a SHAPE by physics instead of by asking the model nicely.
-      ...(json ? { format: json === true ? "json" : json } : {}),
-      // Undefined (the default) leaves Ollama's own sampling untouched —
-      // every ordinary generative turn keeps its diversity. A caller doing
-      // binary CLASSIFICATION (testimony.js's witness reads) may pass 0:
-      // measured live 2026-08-19, the identical witness prompt flipped its
-      // yes/no answer between two runs with no code change, purely from
-      // sampling — a fact-check whose verdict depends on the dice is not a
-      // check. temperature is the argmax knob, not a behavior instruction.
-      options: { num_predict: maxTokens ?? MAX_TOKENS, ...(temperature !== undefined ? { temperature } : {}) },
-    }),
-  });
+  // A connection refused / dropped / never-answered is a MACHINE failure —
+  // typed so completeOnce can roll the turn over to a room mouth. A non-2xx
+  // RESPONSE is not: the model answered, badly, and that is the caller's.
+  let res;
+  try {
+    res = await fetch(`${OLLAMA}/api/chat`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: modelName,
+        messages,
+        stream: true,
+        // A token cap bounds the damage; constrained decoding removes it. Asked
+        // for JSON in prose, a small model writes the object and then keeps
+        // talking until the cap — 300 tokens at 6/s is fifty seconds of a turn
+        // spent on nothing. Told the grammar, it closes the brace and stops.
+        // `json` may be `true` (plain JSON mode) or a JSON schema — Ollama's
+        // structured outputs constrain decoding to the schema, which is how a
+        // caller gets a SHAPE by physics instead of by asking the model nicely.
+        ...(json ? { format: json === true ? "json" : json } : {}),
+        // Undefined (the default) leaves Ollama's own sampling untouched —
+        // every ordinary generative turn keeps its diversity. A caller doing
+        // binary CLASSIFICATION (testimony.js's witness reads) may pass 0:
+        // measured live 2026-08-19, the identical witness prompt flipped its
+        // yes/no answer between two runs with no code change, purely from
+        // sampling — a fact-check whose verdict depends on the dice is not a
+        // check. temperature is the argmax knob, not a behavior instruction.
+        options: { num_predict: maxTokens ?? MAX_TOKENS, ...(temperature !== undefined ? { temperature } : {}) },
+      }),
+    });
+  } catch (e) {
+    const m = new Error(`ollama is not answering on :11434 (${e?.message ?? e})`);
+    m.machineFailure = true;
+    throw m;
+  }
   if (!res.ok) throw new Error(`ollama ${res.status}: ${await res.text()}`);
 
   const reader = res.body.getReader();
@@ -2769,7 +2865,38 @@ function observeExchange(turn, question, answer) {
   // and releases at the discourse tier's own gamma — one clock, belief's
   // own. Consumed at the next turn's raw-history slice; drawn nowhere.
   state.regime = regimeAfter(state.regime, arrivals, state.aperture.tiers[0]);
+  autoPreserve();
   return arrivals;
+}
+
+/** Every finished turn, sealed to the open room automatically (2026-09-11,
+ *  user direction: "if we're the same account, even though we're different
+ *  devices, share everything"). observeExchange is the one choke-point every
+ *  turn-ending path calls through, so no turn path has to remember to
+ *  preserve — and the seal is the /preserve door's own: hash-linked blocks,
+ *  chat-key encrypted, the homeserver holding only ciphertext. Best-effort
+ *  and never awaited — a slow homeserver must not slow the chat — and
+ *  idempotent (preserve's pushed-list never re-pushes). Only real turns
+ *  reach state.history; a door's usage line does not.
+ */
+let sealedHistoryCount = 0;
+let preserveChain = Promise.resolve();
+function autoPreserve() {
+  if (!state.matrixRoom || foldMatrix.locked || !foldMatrix.status().signedIn) return;
+  if (state.history.length <= sealedHistoryCount) return;
+  const room = state.matrixRoom;
+  const target = state.history.length;
+  // Serialized: observeExchange can fire more than once in one turn, and two
+  // concurrent preserves would compute the same fresh entries and push TWO
+  // blocks for them. One chain; a later beat that already sealed `target`
+  // (or a room that changed under the queue) is a no-op.
+  preserveChain = preserveChain.then(async () => {
+    if (state.matrixRoom !== room || target <= sealedHistoryCount) return;
+    try {
+      const r = await foldMatrix.preserve(room, chatEntries());
+      if (r.pushed) sealedHistoryCount = Math.max(sealedHistoryCount, target);
+    } catch { /* the next turn tries again — a missed beat is never data loss, the turns stay here */ }
+  });
 }
 
 /**
@@ -2813,6 +2940,54 @@ function usageTurn(question, usage, { what = "usage" } = {}) {
   releaseBusy();
 }
 
+/**
+ * Save text as a source — mechanically, no model call anywhere. Two doors
+ * reach it: the explicit `/source <name>` door, and the AUTO-source path (a
+ * pasted block over SOURCE_AUTO_MIN_CHARS lands here by itself). The text
+ * becomes an ordinary source through addSource — chunked, identified, read
+ * on arrival, persisted to OPFS — and the turn is a plain mechanical
+ * confirmation. Material is never model output, so nothing here ever asks a
+ * model what the text is.
+ */
+function sourceTurn(name, text, typed) {
+  const saved = name || nextPastedName(Object.keys(state.sources));
+  // The user bubble shows where the text came from — the door line, or a
+  // one-line preview of the pasted block — never a second copy of the whole
+  // thing (the full bytes ARE the source, and history must not grow by the
+  // size of every pasted document).
+  const userLine = String(typed ?? "").trimStart().startsWith("/source")
+    ? String(typed).split("\n", 1)[0]
+    : `pasted — ${previewSavedText(text)}`;
+  addMessage("user", userLine);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  body.textContent = `saving "${saved}" as a source…`;
+  logAct("asked", { text: userLine });
+  addSource(saved, text);
+  const identity = identifyMaterial(saved, text);
+  const passages = countFor(saved);
+  const kind = identity.kind ?? "prose";
+  const note =
+    `saved as a source — "${saved}"\n` +
+    `${text.length.toLocaleString()} characters · ${kind} · ${passages.toLocaleString()} passage${passages === 1 ? "" : "s"}\n\n` +
+    `It is now material: ask questions about it, cite it, check claims against it. ` +
+    `/help source explains the door; paste a big block straight into the composer and it saves itself the same way.`;
+  body.textContent = "";
+  const p = document.createElement("p");
+  p.className = "prose";
+  p.textContent = note;
+  body.append(p);
+  state.history.push({ role: "user", content: userLine }, { role: "assistant", content: note });
+  const turn = state.summary.turnCount + 1;
+  observeExchange(turn, userLine, note);
+  const fold = mechanicalFoldLine(userLine, note);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+  renderFold(node, { fold });
+  renderThreads();
+  $("status").textContent = readyLine();
+  releaseBusy();
+}
 /**
  * The measuring door (P19), from the chat: `/measure` teaches the
  * declaration; `/measure <media>` probes the file's own measurable surface;
@@ -2864,18 +3039,33 @@ const matrixUsage = [
   "/matrix logout · rooms · open <room id> · request <room id> · members · fingerprint · forget",
   "/matrix lock · unlock · unlock off — seal what this browser keeps under a passphrase (a sheet)",
   "/matrix rotate · remove @who:server — a new key epoch; removal takes the seat and rotates",
-  "/preserve [name] — seal this chat's turns into blocks on the homeserver (new turns only, each time)",
+  "/preserve [name] — seal this chat's turns into blocks on the homeserver (new turns only, each time; with a room open, turns are preserved automatically)",
   "/share @who:server — a link that works for that account alone (no key in it; one use; 7 days)",
   "/share open — the magic key: whoever holds the link reads the chat · /share words <three or more words> — the key sealed under words you say aloud",
+  "/share mine — a link for your OWN other device (sign in there and open it; same account, one chat)",
   "/share grant @who:server — trust an unverified key after comparing fingerprints · /share pending",
   "/join <link> [words] — open a shared chat: join, publish your key, read every block back here",
-  "/serve [stop] — answer sealed prompts for the room with this machine's models",
+  "/serve [stop] — answer sealed prompts for the room with this machine's models (automatic when signed in with a room and a local model, until stopped)",
   "/pool — the devices offering a mouth, what each machine is, and what it has answered",
   "/pool want @who:server <model> — ask a machine to take up a model it has spare · /pool drop @who [model]",
+  "— signing into the SAME account on another device finds this chat: its key is granted automatically, still encrypted (ECDH-wrapped) so the homeserver reads nothing",
   "/reading — which build is running, which reading assembly and prior, per-source progress, and which reader actually decided the last turn's identity",
 ].join("\n");
 const roomLabel = (id) => { const r = foldMatrix.status().rooms.find((x) => x.id === id); return r?.name ? `${r.name} (${id})` : id; };
 const matrixGap = (e) => (e instanceof MatrixError ? e.message : e?.message ?? String(e));
+/** Reset this browser's pointer to a room — used when a fresh sign-in cannot
+ *  reach the room the last account pointed at. Returns the dropped room's
+ *  label so the caller can say which one it was. */
+function forgetRoom() {
+  const was = state.matrixRoom ? roomLabel(state.matrixRoom) : "the last room";
+  stopRoomGrantWatch(state.matrixRoom);
+  if (inviteWatch?.room === state.matrixRoom) { inviteWatch.controller.abort(); inviteWatch = null; }
+  if (roomServing?.room === state.matrixRoom) { roomServing.controller.abort(); roomServing = null; }
+  state.matrixRoom = null; localStorage.removeItem("fold-matrix-room");
+  sealedHistoryCount = 0;
+  renderRoomChip();
+  return was;
+}
 
 /** Every entry this chat holds, as the block codec wants it: turns in order,
  * an id carried over for turns that came from a room. */
@@ -2962,8 +3152,8 @@ async function matrixTurn(arg, question) {
       const r = await foldMatrix.remove(state.matrixRoom, tail);
       return usageTurn(question, `${tail} is out of ${roomLabel(state.matrixRoom)}, and the key rotated to epoch ${r.epoch} — nothing sealed from now on reaches them; what they already read, they keep (no key un-reads a block). Re-granted: ${r.regranted.join(", ") || "nobody"}`, { what: "matrix" });
     }
-    if (verb === "logout") { await foldMatrix.logout(); if (roomServing) { roomServing.controller.abort(); roomServing = null; } return usageTurn(question, "signed out; the token was invalidated on the homeserver and forgotten here. Chat keys stay in this browser — /matrix forget drops them too.", { what: "matrix" }); }
-    if (verb === "forget") { localStorageStorage().clear(); state.matrixRoom = null; return usageTurn(question, "forgotten: the session, this browser's identity pair, every chat key. Reload to start clean. (Rooms and blocks stay on the homeserver, unreadable without the keys.)", { what: "matrix" }); }
+    if (verb === "logout") { await foldMatrix.logout(); stopRoomGrantWatch(state.matrixRoom); if (roomServing) { roomServing.controller.abort(); roomServing = null; } return usageTurn(question, "signed out; the token was invalidated on the homeserver and forgotten here. Chat keys stay in this browser — /matrix forget drops them too.", { what: "matrix" }); }
+    if (verb === "forget") { localStorageStorage().clear(); stopRoomGrantWatch(state.matrixRoom); state.matrixRoom = null; return usageTurn(question, "forgotten: the session, this browser's identity pair, every chat key. Reload to start clean. (Rooms and blocks stay on the homeserver, unreadable without the keys.)", { what: "matrix" }); }
     if (verb === "rooms") {
       const st = foldMatrix.status(); if (!st.signedIn) return usageTurn(question, "not signed in — /matrix login <homeserver>", { what: "matrix" });
       const joined = await foldMatrix.http().joinedRooms();
@@ -2976,6 +3166,7 @@ async function matrixTurn(arg, question) {
       const r = await foldMatrix.load(tail);
       if (!r.entries.length && r.partial) return usageTurn(question, `${tail}: ${r.gaps.join("; ")}`, { what: "matrix" });
       state.matrixRoom = tail; localStorage.setItem("fold-matrix-room", tail);
+      startRoomGrantWatch(tail);
       const n = replayEntries(r.entries, tail);
       return usageTurn(question, `opened ${roomLabel(tail)}: ${r.chains} chain(s), ${r.blocks} block(s), ${r.entries.length} entr${r.entries.length === 1 ? "y" : "ies"} read back and decrypted here — ${n} drawn above${r.gaps.length ? `\ngaps: ${r.gaps.join("; ")}` : ""}`, { what: "matrix" });
     }
@@ -2989,9 +3180,15 @@ async function preserveTurn(arg, question) {
     if (!foldMatrix.status().signedIn) return usageTurn(question, "not signed in — /matrix login <homeserver> first", { what: "preserve" });
     const firstAsk = state.history.find((h) => h.role === "user")?.content ?? "";
     const name = arg || firstAsk.replace(/\s+/g, " ").slice(0, 60) || "a fold chat";
+    // Same account, one chat (2026-09-11): /preserve never silently forks a
+    // second room when the account already has a fold room this device holds
+    // a key for — the phone logging in with the same account finds the
+    // computer's room instead of starting over.
     const made = !state.matrixRoom;
-    const room = await foldMatrix.ensureRoom({ roomId: state.matrixRoom, name });
+    let room = state.matrixRoom;
+    if (!room) { const existing = await accountRoomHoldingKey(); room = existing ?? (await foldMatrix.ensureRoom({ name })); }
     state.matrixRoom = room; localStorage.setItem("fold-matrix-room", room);
+    startRoomGrantWatch(room);
     const r = await foldMatrix.preserve(room, chatEntries());
     const sources = liveSources().length;
     const lines = [
@@ -3007,6 +3204,7 @@ async function preserveTurn(arg, question) {
 /** What the grant pass found, phrased once for every share-shaped door. */
 function grantLines(r) {
   const lines = [];
+  if (r.siblings?.length) lines.push(`granted to this account's own device(s): ${r.siblings.map((g) => `${g.user} (key ${g.fingerprint})`).join(", ")}`);
   if (r.granted?.length) lines.push(`granted: ${r.granted.map((g) => `${g.user} (key ${g.fingerprint})`).join(", ")}`);
   if (r.unverified?.length) lines.push(`waiting on you: ${r.unverified.map((u) => `${u.user} published key ${u.fingerprint} with no link proof — have them read it aloud, then /share grant ${u.user}`).join("; ")}`);
   if (r.refused?.length) lines.push(`refused: ${r.refused.map((x) => `${x.user} — ${x.why}`).join("; ")}`);
@@ -3030,6 +3228,18 @@ async function shareTurn(arg, question) {
       const r = await foldMatrix.share(room, { mode: "passphrase", passphrase: tail, pageHref });
       return usageTurn(question, [`room: ${roomLabel(room)}`, ...grantLines(r), `link — the key is sealed under your words; the link alone opens nothing, the words alone open nothing:`, `  ${r.link}`, "say the words to the person over a different channel than the link; whoever has both reads the whole chat"].join("\n"), { what: "share" });
     }
+    if (verb === "mine") {
+      // A link for the account's OWN other device (2026-09-11). With same-
+      // account auto-grant this is rarely needed — a sibling device signed in
+      // as the same account is granted automatically while this page is open
+      // — but it is the one-time channel that works with nothing running on
+      // the other side, and the bound-link proof keeps the homeserver blind.
+      const st = foldMatrix.status();
+      if (!st.signedIn) return usageTurn(question, "not signed in — /matrix login <homeserver> first", { what: "share" });
+      const r = await foldMatrix.share(room, { invite: st.user, mode: "bound", pageHref });
+      startInviteWatch(room);
+      return usageTurn(question, [`a link for ${st.user}'s own other device — sign in there and open it, and this browser grants that device the chat key:`, `  ${r.link}`, "the link carries no key; it works only for that account, signed in as itself, once. If this page is closed when it is opened, the grant lands the next time this chat is open."].join("\n"), { what: "share" });
+    }
     if (/^@[^:]+:.+$/.test(verb)) {
       const r = await foldMatrix.share(room, { invite: verb, mode: "bound", pageHref });
       startInviteWatch(room);
@@ -3039,7 +3249,7 @@ async function shareTurn(arg, question) {
   } catch (e) { return usageTurn(question, `/share: ${matrixGap(e)}`, { what: "share" }); }
 }
 /** While this page is open and holds outstanding bound invites for the
- * room, grant every proof that verifies, and say so. */
+ *  room, grant every proof that verifies, and say so. */
 function startInviteWatch(room) {
   if (inviteWatch?.room === room) return;
   inviteWatch?.controller.abort();
@@ -3047,6 +3257,104 @@ function startInviteWatch(room) {
   inviteWatch = { room, controller };
   foldMatrix.watchInvites(room, { signal: controller.signal, onGrant: (g) => { for (const x of g.granted) addMessage("assistant", `granted the chat key to ${x.user} (key ${x.fingerprint}) — their bound link's proof verified`); renderPool(); } })
     .catch(() => {}).finally(() => { if (inviteWatch?.controller === controller) inviteWatch = null; });
+}
+
+/** While this page holds a room's key, grant the account's own sibling
+ *  devices automatically (2026-09-11, user direction: same account = same
+ *  chat across devices). One allState every few seconds — the same cost
+ *  watchInvites already pays; a sibling that publishes its key is wrapped
+ *  within one beat, so "sign in on the phone" meets "open on the computer"
+ *  without a link in between. */
+let roomGrantWatch = null;
+function startRoomGrantWatch(room) {
+  if (!room || !foldMatrix.status().signedIn || foldMatrix.locked) return;
+  if (!foldMatrix.keyOf(room)) return; // nothing to wrap without the key — a keyless device grants nobody
+  if (roomGrantWatch?.room === room) return;
+  roomGrantWatch?.controller.abort();
+  const controller = new AbortController();
+  roomGrantWatch = { room, controller };
+  const loop = async () => {
+    while (!controller.signal.aborted) {
+      try {
+        const g = await foldMatrix.grantPending(room);
+        if (g.siblings?.length) { addMessage("assistant", `this account's other device (key ${g.siblings.map((x) => x.fingerprint).join(", ")}) was granted this room's chat key — same account, same chat`); renderPool(); }
+        if (g.granted?.length) for (const x of g.granted) { addMessage("assistant", `granted the chat key to ${x.user} (key ${x.fingerprint}) — their bound link's proof verified`); renderPool(); }
+      } catch { /* the next beat tries again */ }
+      await new Promise((r) => { const t = setTimeout(r, 5000); controller.signal.addEventListener("abort", () => { clearTimeout(t); r(); }, { once: true }); });
+    }
+  };
+  loop().finally(() => { if (roomGrantWatch?.controller === controller) roomGrantWatch = null; });
+}
+function stopRoomGrantWatch(room) { if (roomGrantWatch?.room === room) { roomGrantWatch.controller.abort(); roomGrantWatch = null; } }
+
+/** The account's fold rooms on its homeserver, and what THIS device can do
+ *  with each: a room the account already preserved to. Matrix membership is
+ *  per ACCOUNT, so a second browser signed in as the same person is already
+ *  "in" the room the first one made — it just holds no key yet. On sign-in
+ *  and at boot this is what stops "log in on my phone and my computer with
+ *  the same account" from forking a second, empty room. A room this device
+ *  holds a key for is opened and its turns replayed; a room it holds no key
+ *  for gets this browser's key published (so the sibling device grants it)
+ *  and is named with the one remaining step.
+ */
+async function reconcileAccountRooms({ announce = true } = {}) {
+  const st = foldMatrix.status();
+  if (!st.signedIn || st.locked || state.matrixRoom) return;
+  let rooms = [];
+  try { rooms = await foldMatrix.findFoldRooms(); } catch { return; }
+  if (!rooms.length) return;
+  const held = rooms.find((r) => foldMatrix.keyOf(r.id));
+  if (held) {
+    state.matrixRoom = held.id; localStorage.setItem("fold-matrix-room", held.id);
+    startRoomGrantWatch(held.id);
+    if (announce) {
+      try {
+        const loaded = await foldMatrix.load(held.id);
+        const n = replayEntries(loaded.entries, held.id);
+        addMessage("assistant", `opened this account's chat ${held.name ? `"${held.name}" ` : ""}— ${loaded.chains} chain(s), ${loaded.blocks} block(s), ${loaded.entries.length} entr${loaded.entries.length === 1 ? "y" : "ies"} read back and decrypted here, ${n} drawn above${loaded.partial ? `\ngaps: ${loaded.gaps.join("; ")}` : ""}`);
+      } catch (e) { addMessage("assistant", `opened ${held.name ? `"${held.name}" ` : ""}${held.id}: ${matrixGap(e)}`); }
+    }
+    renderRoomChip();
+    return;
+  }
+  for (const r of rooms) {
+    try { await foldMatrix.announceSibling(r.id); } catch { /* the announcement is best-effort */ }
+    // Wait, briefly, for the account's other device to grant this browser —
+    // the same bounded poll a bound link uses. If a device of this account
+    // is open (or a worker is running), the grant lands within a beat and
+    // the whole chat opens here without a reload.
+    const started = Date.now();
+    let granted = false;
+    while (Date.now() - started < 30_000 && !granted) {
+      try { if (await foldMatrix.keyFor(r.id)) granted = true; } catch { /* next beat */ }
+      if (!granted) await new Promise((res) => setTimeout(res, 3000));
+    }
+    if (granted) {
+      if (!state.matrixRoom) {
+        state.matrixRoom = r.id; localStorage.setItem("fold-matrix-room", r.id);
+        startRoomGrantWatch(r.id);
+        if (announce) {
+          try {
+            const loaded = await foldMatrix.load(r.id);
+            const n = replayEntries(loaded.entries, r.id);
+            addMessage("assistant", `granted by this account's other device — opened ${r.name ? `"${r.name}" ` : ""}${r.id}: ${loaded.chains} chain(s), ${loaded.blocks} block(s), ${loaded.entries.length} entr${loaded.entries.length === 1 ? "y" : "ies"} read back and decrypted here, ${n} drawn above${loaded.partial ? `\ngaps: ${loaded.gaps.join("; ")}` : ""}`);
+          } catch (e) { addMessage("assistant", `opened ${r.name ? `"${r.name}" ` : ""}${r.id}: ${matrixGap(e)}`); }
+        }
+        renderRoomChip();
+      }
+      break;
+    }
+    if (announce) addMessage("assistant", `this account has a chat on this homeserver — ${r.name ? `"${r.name}" ` : ""}${r.id} — and this browser has not received its key yet. This browser's key is published there (${await foldMatrix.myFingerprint()}); the device that holds the key grants this browser automatically, same account, same chat.`);
+  }
+  renderRoomChip();
+}
+/** The account's fold room this device already holds a key for, if any — so
+ *  /preserve reuses the existing chat instead of forking a second one. */
+async function accountRoomHoldingKey() {
+  try {
+    const rooms = await foldMatrix.findFoldRooms();
+    return rooms.find((r) => foldMatrix.keyOf(r.id))?.id ?? null;
+  } catch { return null; }
 }
 /** Join from a link: the flow /join, the boot path and the sheet share. */
 async function joinInto(link, { passphrase = null } = {}) {
@@ -3058,6 +3366,7 @@ async function joinInto(link, { passphrase = null } = {}) {
   if (!r.joined) return `${r.room}: ${r.gap}`;
   state.matrixPendingLink = null;
   state.matrixRoom = r.room; localStorage.setItem("fold-matrix-room", r.room);
+  startRoomGrantWatch(r.room);
   $("status").textContent = `ready · ${state.model}`;
   if (r.awaiting) return `joined ${r.name ? `"${r.name}" ` : ""}${r.room}, and published this browser's key (${r.fingerprint}) with the link's proof — ${r.gaps.join("; ")}`;
   const n = replayEntries(r.entries, r.room);
@@ -3073,12 +3382,21 @@ async function joinTurn(arg, question) {
     return usageTurn(question, await joinInto(link, { passphrase: words }), { what: "join" });
   } catch (e) { return usageTurn(question, `/join: ${matrixGap(e)}`, { what: "join" }); }
 }
+/** While this page is answering the room (serve()), a call that fails must
+ *  never roll OVER to the room — it would bounce its own job back into its
+ *  own serving loop forever. completeOnce's roomFallbackFor reads this. */
+let servingTurn = 0;
 /** This machine's mouth, for the room: the same completeOnce a turn uses,
- * with what it measured — tokens from the counter, the device's own label. */
+ *  with what it measured — tokens from the counter, the device's own label. */
 async function serveComplete({ model, messages, options }) {
+  servingTurn++;
   const before = { in: tokensSeen.in, out: tokensSeen.out };
-  const r = await completeOnce(messages, { model, json: options?.json ?? undefined, maxTokens: options?.maxTokens, temperature: options?.temperature });
-  return { text: r.text, model, usage: { promptTokens: tokensSeen.in - before.in, outTokens: tokensSeen.out - before.out }, device: thisMachine() };
+  try {
+    const r = await completeOnce(messages, { model, json: options?.json ?? undefined, maxTokens: options?.maxTokens, temperature: options?.temperature });
+    return { text: r.text, model, usage: { promptTokens: tokensSeen.in - before.in, outTokens: tokensSeen.out - before.out }, device: thisMachine() };
+  } finally {
+    servingTurn--;
+  }
 }
 /** What this browser's machine is, from what the browser will actually say:
  * the runtime that answers, its cores and memory where the browser reports
@@ -3096,6 +3414,28 @@ function thisMachine() {
   });
 }
 function localModels() { return state.offeredModels.filter((n) => !isRoomModel(n)); }
+/** The reliable local mouths: Ollama rungs. WebLLM is excluded on purpose —
+ *  a device whose in-tab GPU is broken must not advertise a mouth that will
+ *  fail for everyone who rolls over to it. */
+function ollamaModels() { return localModels().filter((n) => !isWebLLMModel(n)); }
+/**
+ * Automatic serving, 2026-09-11 (user direction: a device that cannot run a
+ * model should roll its work over to another device of the same account "if
+ * it's logged in"). When this machine is signed in, has the account's room
+ * open, and has a reliable local mouth (Ollama), it answers the room without
+ * anyone typing /serve — so the phone, whose in-tab GPU cannot load the
+ * model, has the desktop to fall back to. /serve stop turns it off for good
+ * (localStorage `fold-auto-serve`); /serve turns it back on. Disclosed in
+ * the message and the pool sheet, never silent.
+ */
+function maybeAutoServe() {
+  if (roomServing || !state.matrixRoom || foldMatrix.locked || !foldMatrix.status().signedIn) return;
+  if (localStorage.getItem("fold-auto-serve") === "0") return;
+  if (!ollamaModels().length) return;
+  startServing(state.matrixRoom).then((s) => {
+    addMessage("assistant", `this machine is now answering for the room (${s.models.join(", ")}) — another device of yours, or any member of the room, rolls its work over here when its own machine can't run the model. /serve stop withdraws.`);
+  }).catch(() => {});
+}
 async function startServing(room) {
   if (roomServing) return roomServing;
   const models = localModels();
@@ -3114,10 +3454,11 @@ async function startServing(room) {
 }
 async function serveTurn(arg, question) {
   try {
-    if (/^stop\b/.test(arg)) { if (!roomServing) return usageTurn(question, "not serving", { what: "serve" }); roomServing.controller.abort(); const n = roomServing.served; roomServing = null; return usageTurn(question, `stopped serving — ${n} answered; the offer is withdrawn from the room`, { what: "serve" }); }
+    if (/^stop\b/.test(arg)) { if (!roomServing) return usageTurn(question, "not serving", { what: "serve" }); roomServing.controller.abort(); const n = roomServing.served; roomServing = null; localStorage.setItem("fold-auto-serve", "0"); return usageTurn(question, `stopped serving — ${n} answered; the offer is withdrawn from the room. Automatic serving is off from now on; /serve turns it back on.`, { what: "serve" }); }
     if (!foldMatrix.status().signedIn) return usageTurn(question, "not signed in — /matrix login <homeserver> first", { what: "serve" });
     if (!state.matrixRoom) return usageTurn(question, "no room is open — /preserve makes one, /join opens a shared one", { what: "serve" });
     const s = await startServing(state.matrixRoom);
+    localStorage.setItem("fold-auto-serve", "1");
     return usageTurn(question, `serving ${roomLabel(state.matrixRoom)} from this machine: ${s.models.join(", ")}\nany member can pick one of these as their model (the picker lists it as room:${foldMatrix.status().user} <model>); their prompts arrive sealed, are answered here, and go back sealed\n/serve stop withdraws the offer`, { what: "serve" });
   } catch (e) { return usageTurn(question, `/serve: ${matrixGap(e)}`, { what: "serve" }); }
 }
@@ -6498,6 +6839,26 @@ async function send(question) {
   // The measuring door (P19): typed, mechanical, no model — see measureTurn.
   if (/^\/measure\b/.test(question)) return measureTurn(question);
 
+  // The /source door (user direction, 2026-09-11): save text as a source.
+  // The first line is the command and an optional name; everything after
+  // it is the content, verbatim — the /run door's own shape. Checked among
+  // the typed doors so a line whose intent is "this is material" is never
+  // re-read as a question. A pasted block over the auto-source floor needs
+  // no door at all; this one names a source explicitly.
+  const sourceCmd = parseSourceCommand(question);
+  if (sourceCmd) {
+    if (sourceCmd.usage)
+      return usageTurn(question, "/source <name>\n<text> — saves the text after the first line as a named, citable source (chunked, read on arrival, persisted). Leave the name off and it is auto-named pasted.txt. A large block pasted straight into the composer becomes a source by itself; this door names one explicitly.", { what: "source" });
+    return sourceTurn(sourceCmd.name, sourceCmd.text, question);
+  }
+
+  // /help — the tutorial for every door (user direction, 2026-09-11). Bare
+  // /help is the grouped index; /help <door> is that command's full card —
+  // syntax, a worked example, the walkthrough. Mechanical: the tutorial is
+  // data (help.js), computed and printed, never a model call.
+  const helpDoor = question.match(/^\/help\b\s*(\S*)/)?.[1];
+  if (helpDoor !== undefined) return usageTurn(question, renderHelp(helpDoor), { what: "help" });
+
   const task = question.match(/^\/task\s+(\S[\s\S]*)/)?.[1];
   if (task) return holonicTurn(task, question, "model");
   if (/^\/task\s*$/.test(question)) return usageTurn(question, "/task <what to produce> — plans the task into parts and runs each one against the material.");
@@ -6784,6 +7145,17 @@ async function send(question) {
     });
   }
 
+  // A LARGE PASTED BLOCK IS MATERIAL, NOT A QUESTION (user direction,
+  // 2026-09-11): copy a big chunk into the composer and it becomes a source
+  // of its own accord once it clears the declared floor (source-door.js).
+  // Checked after every typed door and every automatic detector — a /task
+  // with a long body is still a door, a long work-request is still work, a
+  // pasted code block is still a fold — and before the seed scrub, so a
+  // pasted blob never spends web consent hunting for build seeds. The floor
+  // is declared, never tuned, and /source names any source explicitly when
+  // the floor should not apply.
+  if (isAutoSourceCandidate(question)) return sourceTurn(null, question, question);
+
   // THE SEED SCRUB (CRISPR rung, user-directed): before the model builds
   // an artifact from a blank page, look for existing open work. Mechanical
   // end to end — closed-class demand detection, grammar-extracted
@@ -6840,7 +7212,7 @@ async function send(question) {
 
 /** Every door the composer routes, read off the dispatch above — kept as one
  * list so the refusal for an unknown slash names all of them. */
-const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/facts", "/fold", "/gateways", "/holograph", "/ingest", "/join", "/learn", "/matrix", "/measure", "/model-loop", "/must", "/pool", "/preserve", "/priors", "/ranke", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/task", "/transcribe", "/visual", "/void"]);
+const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/facts", "/fold", "/gateways", "/help", "/holograph", "/ingest", "/join", "/learn", "/matrix", "/measure", "/model-loop", "/must", "/pool", "/preserve", "/priors", "/ranke", "/reading", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/source", "/task", "/transcribe", "/visual", "/void"]);
 
 /**
  * /ingest — a repo becomes folds, mechanically. Every admissible file (the
@@ -16336,8 +16708,7 @@ document.addEventListener("drop", (e) => {
 function addPasted() {
   const text = $("material").value;
   if (!text.trim()) return;
-  const n = Object.keys(state.sources).filter((k) => k.startsWith("pasted")).length;
-  addSource(n ? `pasted-${n + 1}.txt` : "pasted.txt", text);
+  addSource(nextPastedName(Object.keys(state.sources)), text);
   $("material").value = "";
   $("status").textContent = "pasted text attached";
 }
@@ -17572,6 +17943,18 @@ fillModels().then(() => {
   // header rendered before it and would otherwise say "private" for a
   // workspace that has been shared since the last page load.
   renderRoomChip();
+  // 2026-09-11: same account, one chat. A signed-in device finds the
+  // account's existing fold room (and this browser's own device grants its
+  // siblings); a device with a room and a reliable local mouth answers for
+  // the room automatically, so a sibling whose machine cannot run a model
+  // rolls its work over here.
+  if (foldMatrix.status().signedIn) {
+    if (state.matrixRoom) {
+      startRoomGrantWatch(state.matrixRoom);
+      maybeAutoServe();
+    }
+    reconcileAccountRooms().catch(() => {});
+  }
 });
 // The sign-in sheet: the password is read once, cleared, sent in Matrix's own
 // login call to the homeserver named — and the outcome is drawn as a message,
@@ -17596,6 +17979,12 @@ async function signInFromSheet(hs, user, pass) {
     if (state.matrixPendingLink) { const line = await joinInto(state.matrixPendingLink); addMessage("assistant", line); }
     renderPool();
     syncProfileWithMatrix();
+    // 2026-09-11: same account, one chat. Opening the account's existing room
+    // (or naming the room this browser has no key for yet), and — when this
+    // machine has a reliable local mouth — answering for the room so another
+    // device of the account can roll its work over.
+    await reconcileAccountRooms();
+    maybeAutoServe();
   } catch (e) { addMessage("assistant", `sign-in failed: ${matrixGap(e)} — nothing but the login call went to ${hs}`); }
 }
 async function sheetAct(mode, hs, user, secret) {
@@ -17609,6 +17998,8 @@ async function sheetAct(mode, hs, user, secret) {
       addMessage("assistant", `unlocked${st.user ? ` — signed in as ${st.user}` : ""}`);
       if (state.matrixRoom && !st.rooms.some((r) => r.id === state.matrixRoom)) state.matrixRoom = null;
       if (state.matrixPendingLink) addMessage("assistant", await joinInto(state.matrixPendingLink));
+      if (state.matrixRoom) { startRoomGrantWatch(state.matrixRoom); maybeAutoServe(); }
+      await reconcileAccountRooms();
       renderPool(); return;
     }
     if (mode === "words") { if (!state.matrixPendingLink) return; addMessage("assistant", await joinInto(state.matrixPendingLink, { passphrase: secret })); return; }

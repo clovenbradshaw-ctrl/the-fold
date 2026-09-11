@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { prebuiltAppConfig } from "./node_modules/@mlc-ai/web-llm/lib/index.js";
 import {
   WEBLLM_MODEL_ID,
+  WEBLLM_IDS,
   isWebLLMModel,
   isLocalPage,
   prebuiltEntryFor,
@@ -24,6 +25,8 @@ import {
   paceRecordFromUsage,
   mergeOffered,
   webgpuBlocker,
+  rungBlockers,
+  offerableRungs,
   classifyWebLLMFailure,
   engineStalledError,
   LOAD_ATTEMPTS,
@@ -227,6 +230,38 @@ test("the three lookalike WebGPU blocks each name their own fix", () => {
   assert.equal(webgpuBlocker({ gpu: {}, secureContext: true }), null);
   assert.match(webgpuBlocker({ gpu: undefined, secureContext: true }), /no WebGPU/);
   assert.match(webgpuBlocker({ gpu: undefined, secureContext: false }), /secure origin/);
+});
+
+// ── the adapter-aware offer: a phone's WebGPU is not every rung's WebGPU ────
+
+test("a roster rung whose declared feature the adapter lacks is refused; one that declares nothing is always offered", () => {
+  const smol = prebuiltEntryFor(prebuiltAppConfig, "SmolLM2-1.7B-Instruct-q4f16_1-MLC");
+  const redpajama = prebuiltEntryFor(prebuiltAppConfig, "RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC");
+  const olmo = prebuiltEntryFor(prebuiltAppConfig, "OLMo-2-0425-1B-Instruct-q4f16_1-MLC");
+  // a modern desktop adapter has shader-f16: both f16 rungs run
+  assert.deepEqual(rungBlockers(smol, { features: new Set(["shader-f16"]) }), []);
+  assert.deepEqual(rungBlockers(redpajama, { features: new Set(["shader-f16"]) }), []);
+  // a phone adapter without shader-f16: refused by name, the very trap that
+  // loaded-and-died before (measured 2026-09-11)
+  assert.match(rungBlockers(smol, { features: new Set() }).join(" "), /lacks shader-f16/);
+  assert.match(rungBlockers(redpajama, { features: new Set() }).join(" "), /lacks shader-f16/);
+  // an unknown adapter (the probe failed): a rung that DECLARES a need is refused,
+  // because we cannot verify it — a rung that declares nothing is always offered
+  assert.match(rungBlockers(smol, { features: null }).join(" "), /feature set is unknown/);
+  assert.deepEqual(rungBlockers(olmo, { features: new Set() }), []);
+  assert.deepEqual(rungBlockers(olmo, { features: null }), []);
+  // a storage-buffer floor the adapter cannot meet is refused too
+  const gemma = { ...olmo, model_id: "gemma-2b-it-q4f16_1-MLC-1k", buffer_size_required_bytes: 262144000 };
+  assert.match(rungBlockers(gemma, { features: new Set(["shader-f16"]), maxStorageBufferBindingSize: 134217728 }).join(" "), /storage-buffer limit/);
+  assert.deepEqual(rungBlockers(gemma, { features: new Set(["shader-f16"]), maxStorageBufferBindingSize: 268435456 }), []);
+});
+
+test("offerableRungs: on an adapter without shader-f16 only OLMo 2 1B is offered — the phone's working rung, never a model that will die at load", () => {
+  assert.deepEqual(offerableRungs(prebuiltAppConfig, { features: new Set() }), ["OLMo-2-0425-1B-Instruct-q4f16_1-MLC"]);
+  assert.deepEqual(offerableRungs(prebuiltAppConfig, null), ["OLMo-2-0425-1B-Instruct-q4f16_1-MLC"], "an unprobed adapter keeps only the requirement-free rung");
+  assert.deepEqual(offerableRungs(prebuiltAppConfig, { features: new Set(["shader-f16"]) }), WEBLLM_IDS, "a full adapter offers the whole roster");
+  // a catalog that lost a record offers no rung, never a guessed one
+  assert.deepEqual(offerableRungs({ model_list: [] }, { features: new Set(["shader-f16"]) }), []);
 });
 
 test("failure kinds: device-lost, quota, offline, network, gpu — and unknown keeps its words", () => {

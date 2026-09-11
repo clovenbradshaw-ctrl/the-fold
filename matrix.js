@@ -47,6 +47,11 @@ export const TYPES = Object.freeze({
   chain: `${NS}.chain`,
   mouth: `${NS}.mouth`,
   want: `${NS}.want`,
+  /** A same-account sibling device's public keys (2026-09-11): one event per
+   * account (state_key = the account), a list of device pubs — separate from
+   * member_key on purpose, because member_key is the account's ONE current
+   * key (a wiped browser REPLACES it), while siblings coexist. */
+  sibling: `${NS}.sibling`,
 });
 /** Timeline events: the room as a mouth. A job is a sealed prompt addressed
  * to one member who offered to answer; an answer is the sealed reply. */
@@ -236,6 +241,11 @@ export function createRoomBody(name, { now = new Date().toISOString() } = {}) {
 /** A member's key, with — when they came by a bound link — the proof that
  * binds this key to that link's secret, this room and this account. */
 export const memberKeyContent = (pubB64, proof = null) => ({ v: 1, alg: "ecdh-p256", pub: pubB64, ...(proof ? { proof } : {}) });
+/** A same-account sibling event: the account's device public keys, listed.
+ * The account is its own trust boundary (user decision 2026-09-11) — a
+ * sibling is granted the chat key automatically, still ECDH-wrapped to its
+ * own public key, so the homeserver holds only ciphertext. */
+export const siblingContent = (devices = []) => ({ v: 1, devices });
 /** A member's own slot carries the public key it was wrapped to, so a
  * granter can see when a member's identity has changed (a wiped browser);
  * `epoch` is the key this wrap opens and `older` the earlier epochs, each
@@ -316,6 +326,27 @@ export function pickMouth(offers, { model = null, inflight = {}, meanMs = {} } =
   const typical = timed.length ? timed.reduce((a, b) => a + b, 0) / timed.length : 1;
   const wait = (o) => (inflight[o.user] ?? 0) * (Number.isFinite(meanMs[o.user]) && meanMs[o.user] > 0 ? meanMs[o.user] : typical);
   return able.slice().sort((a, b) => wait(a) - wait(b) || (a.since ?? 0) - (b.since ?? 0))[0];
+}
+
+// ── failover: a device that cannot run a model rolls its work to the room ──
+/** The typed WebLLM failure kinds that mean "this machine cannot run the
+ *  model" — a GPU the adapter refuses or lost, an engine gone silent, no
+ *  storage, no network. NOT a generation that came back wrong: those stay
+ *  the caller's to handle. app.js classifies its Ollama side into the same
+ *  vocabulary (`machine` when the model was unreachable at all). */
+export const ROOM_FALLBACK_KINDS = Object.freeze(["gpu", "device-lost", "stalled", "quota", "offline", "network"]);
+/**
+ * Which offered mouth takes a FAILED local call, or null when none should.
+ * `kind` is the typed failure (null = any machine-shaped failure); a kind
+ * outside ROOM_FALLBACK_KINDS never rolls over — a wrong answer is not a
+ * missing machine. `exclude` drops one member (this device's own mouth:
+ * rolling the work onto the very machine that just failed is a loop). The
+ * pick is pickMouth's — shortest expected wait among the able.
+ */
+export function fallbackMouth(offers, { kind = null, exclude = null } = {}) {
+  if (kind && !ROOM_FALLBACK_KINDS.includes(kind)) return null;
+  const able = (offers ?? []).filter((o) => Array.isArray(o.models) && o.models.length && (!exclude || o.user !== exclude));
+  return able.length ? pickMouth(able, { model: null }) : null;
 }
 /** The sync filter for one room's jobs channel: this room only, our events,
  * no presence, no account data, no receipts. */

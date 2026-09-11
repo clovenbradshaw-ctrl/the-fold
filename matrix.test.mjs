@@ -8,7 +8,7 @@ import {
   generateIdentity, exportPublicKey, exportPrivateKey, importPrivateKey, wrapChatKey, unwrapChatKey,
   entryId, encodeBlock, decodeBlock, mergeChains, capManifest, chainIsLinked, manifestEntry, MANIFEST_MAX_BYTES,
   createRoomBody, memberKeyContent, chatKeyContent, loginBody, homeserverBase, paths, TYPES, EVENTS, FULL_POWER,
-  seal, open, pickMouth, syncFilter, mouthContent, jobContent, answerContent, deviceContent, deviceLine, wantContent, wantsFor,
+  seal, open, pickMouth, syncFilter, mouthContent, jobContent, answerContent, deviceContent, deviceLine, wantContent, wantsFor, fallbackMouth, ROOM_FALLBACK_KINDS,
   buildShareLink, parseShareLink, stripShareFragment,
   generateInviteSecret, inviteProof, verifyInviteProof, fingerprint, keyFromPassphrase, generateSalt, sealVault, openVault, INVITE_TTL_MS, MAGIC_KEY_WARNING,
   SecretSet, bytesIndexOf, byteEntropy, forRecord, SERVER_SEES,
@@ -223,6 +223,23 @@ test("sealed events and the pool: a seal opens only with the key; a job and an a
   assert.equal(pickMouth(offers, { model: "llama" }), null);
   const f = syncFilter("!r:h");
   assert.deepEqual(f.room.rooms, ["!r:h"]); assert.deepEqual(f.room.timeline.types, [EVENTS.job, EVENTS.answer]); assert.deepEqual(f.presence.types, []);
+});
+
+test("failover to a room mouth: only a device-shaped failure rolls over, never this device's own mouth, never a kind that is not a missing machine", () => {
+  const offers = [{ user: "@a:h", models: ["gemma2:2b"], since: 2 }, { user: "@me:h", models: ["gemma2:2b"], since: 1 }];
+  // the failing device's own mouth is excluded — rolling onto the machine that just failed is a loop
+  assert.equal(fallbackMouth(offers, { kind: "gpu", exclude: "@me:h" }).user, "@a:h");
+  assert.equal(fallbackMouth(offers, { kind: "device-lost", exclude: "@me:h" }).user, "@a:h");
+  assert.equal(fallbackMouth(offers, { kind: "stalled", exclude: "@me:h" }).user, "@a:h");
+  assert.equal(fallbackMouth(offers, { kind: "quota", exclude: "@me:h" }).user, "@a:h");
+  // a wrong ANSWER is not a missing machine: never rolls over
+  assert.equal(fallbackMouth(offers, { kind: "unknown", exclude: "@me:h" }), null);
+  assert.equal(fallbackMouth(offers, { kind: null, exclude: "@me:h" }).user, "@a:h", "null kind means any machine-shaped failure");
+  // no mouth left after excluding ourselves
+  assert.equal(fallbackMouth([{ user: "@me:h", models: ["gemma2:2b"] }], { kind: "gpu", exclude: "@me:h" }), null);
+  assert.equal(fallbackMouth([], { kind: "gpu", exclude: "@me:h" }), null);
+  // every kind the classifier can produce is a failover kind by declaration
+  assert.deepEqual(ROOM_FALLBACK_KINDS, ["gpu", "device-lost", "stalled", "quota", "offline", "network"]);
 });
 
 test("coordinating which model runs where: a mouth says what it serves, what it could serve, what its machine is, and what it refused; a want names a machine and a model, and is dropped once that machine serves it", () => {

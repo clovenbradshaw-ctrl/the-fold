@@ -22,7 +22,7 @@ import {
   NS, TYPES, EVENTS, EVENT_SEAL_MAX_BYTES, b64, unb64, sha256B64, generateChatKey, generateIdentity, exportPublicKey, exportPrivateKey, importPrivateKey,
   wrapChatKey, unwrapChatKey, entryId, encodeBlock, decodeBlock, mergeChains, capManifest, manifestEntry, chainIsLinked,
   generateInviteSecret, INVITE_TTL_MS, inviteProof, verifyInviteProof, fingerprint, keyFromPassphrase, generateSalt, sealVault, openVault,
-  paths, homeserverBase, loginBody, createRoomBody, memberKeyContent, chatKeyContent, chainContent,
+  paths, homeserverBase, loginBody, createRoomBody, memberKeyContent, siblingContent, chatKeyContent, chainContent,
   seal, open, newJobId, mouthContent, jobContent, answerContent, pickMouth, syncFilter, encryptBytes, decryptBytes,
   deviceContent, deviceLine, wantContent, wantsFor,
   buildShareLink, parseShareLink, SecretSet, forRecord,
@@ -304,8 +304,11 @@ export class FoldMatrix {
     const line = this.record("matrix-preserve", { room: roomId, idx, epoch, mxc, sha256, bytes: bytes.length, entries: fresh.length, skipped: entries.length - fresh.length });
     return { pushed: fresh.length, skipped: entries.length - fresh.length, idx, epoch, mxc, sha256, bytes: bytes.length, line };
   }
-  /** Every epoch's key this identity can open, from our own slot or a grant
-   * on any member's slot; the current epoch's key is returned. */
+/** Every epoch's key this identity can open, from our own slot or a grant
+   *  on any member's slot; the current epoch's key is returned. A member of
+   *  this ACCOUNT reads both its own slot and its grants — a sibling device
+   *  of the same account (2026-09-11) opens the wrap this account's other
+   *  device granted it. */
   async keyFor(roomId) {
     const held = this.keyOf(roomId);
     const h = this.http(); const me = this.data.session.user_id; const id = await this.identity();
@@ -313,12 +316,17 @@ export class FoldMatrix {
     let state; try { state = await h.allState(roomId); } catch (e) { if (held) return held; throw e; }
     let found = 0;
     for (const ev of state.filter((s) => s.type === TYPES.chatKey)) {
-      const wrapped = ev.state_key === me ? ev.content : ev.content?.grants?.[me];
-      if (!wrapped?.blob || !wrapped?.eph_pub) continue;
-      for (const w of [wrapped, ...(wrapped.older ?? [])]) {
-        const epoch = Number(w.epoch ?? 0);
-        if (this.data.rooms[roomId]?.keys[epoch]) { found++; continue; }
-        try { this.rememberKey(roomId, epoch, await unwrapChatKey(priv, w)); found++; } catch { /* wrapped for another identity of ours, or stale */ }
+      const candidates = [];
+      if (ev.state_key === me) candidates.push(ev.content);
+      const g = ev.content?.grants?.[me];
+      if (g) candidates.push(...(Array.isArray(g) ? g : [g]));
+      for (const wrapped of candidates) {
+        if (!wrapped?.blob || !wrapped?.eph_pub) continue;
+        for (const w of [wrapped, ...(wrapped.older ?? [])]) {
+          const epoch = Number(w.epoch ?? 0);
+          if (this.data.rooms[roomId]?.keys[epoch]) { found++; continue; }
+          try { this.rememberKey(roomId, epoch, await unwrapChatKey(priv, w)); found++; } catch { /* wrapped for another identity of ours, or stale */ }
+        }
       }
     }
     if (found) { const name = this.data.rooms[roomId]?.name ?? state.find((s) => s.type === "m.room.name")?.content?.name ?? null; this.rememberRoom(roomId, { name, pending: null }); }
@@ -330,6 +338,24 @@ export class FoldMatrix {
     await h.putState(roomId, TYPES.memberKey, me, memberKeyContent(id.pub));
     this.record("matrix-key-request", { room: roomId });
     return { published: true, fingerprint: await fingerprint(id.pub) };
+  }
+  /**
+   * Say "this account's other device is here" (2026-09-11). One `fold.sibling`
+   * event per account, listing the account's device public keys — MERGED, so
+   * announcing never replaces the account's member_key (that one is the
+   * account's current key, replaced on a wipe). A device of the account that
+   * holds the chat key grants every listed sibling automatically, and a
+   * sibling that announces on sign-in is granted within the room watch's
+   * next beat: same account, same chat, with the key still ECDH-wrapped to
+   * each device's own public key.
+   */
+  async announceSibling(roomId) {
+    const h = this.http(); const me = this.data.session.user_id; const id = await this.identity();
+    const existing = await h.getState(roomId, TYPES.sibling, me);
+    const devices = [...new Set([...(existing?.devices ?? []), id.pub])];
+    await h.putState(roomId, TYPES.sibling, me, siblingContent(devices));
+    this.record("matrix-sibling-announce", { room: roomId, devices: devices.length });
+    return { announced: true, devices, fingerprint: await fingerprint(id.pub) };
   }
   /** Every member's chain, fetched by manifest in bounded parallel, walked
    * past the manifest by prev-pointers, hash-checked, decoded with the key
@@ -371,6 +397,38 @@ export class FoldMatrix {
     this.record("matrix-load", { room: roomId, chains: heads.length, blocks, entries: entries.length, gaps: gaps.length });
     return { entries, chains: heads.length, blocks, partial: gaps.length > 0, gaps };
   }
+  /**
+   * The fold rooms this ACCOUNT is a member of on its homeserver, off the
+   * account's own membership (2026-09-11) — the same-account multi-device
+   * door. Matrix membership is per ACCOUNT, so a second browser signed in as
+   * the same person is already "in" the room the first one preserved to; it
+   * just holds no key for it yet (each browser mints its own identity, and
+   * the chat key travels only by a share link or a grant). This is what lets
+   * "log in on my phone and my computer with the same account" point at the
+   * SAME chat instead of silently forking a second room.
+   *
+   * A room is a fold room iff it carries the `fold.chat` meta event. The
+   * state reads are batched and best-effort: an unreadable room (one the
+   * account left, or a server blip) is skipped, never a failure of the whole
+   * discovery. Returns `[{id, name}]` in joined order.
+   */
+  async findFoldRooms() {
+    if (!this.data.session) return [];
+    const h = this.http();
+    let joined = [];
+    try { joined = await h.joinedRooms(); } catch (e) { if (e instanceof MatrixError && e.errcode === "ABORTED") throw e; return []; }
+    const out = [];
+    for (let i = 0; i < joined.length; i += FETCH_CONCURRENCY) {
+      const part = await Promise.allSettled(joined.slice(i, i + FETCH_CONCURRENCY).map(async (id) => {
+        const state = await h.allState(id);
+        if (!state.some((s) => s.type === TYPES.meta && s.content?.app === NS)) return null;
+        const name = state.find((s) => s.type === "m.room.name")?.content?.name ?? null;
+        return { id, name };
+      }));
+      for (const r of part) if (r.status === "fulfilled" && r.value) out.push(r.value);
+    }
+    return out;
+  }
 
   // ── sharing: bound, open, passphrase; grants by proof or by fingerprint ──
   /**
@@ -407,12 +465,16 @@ export class FoldMatrix {
     this.record("matrix-share", { room: roomId, kind, invited: invite, granted: pending.granted.length, expiresAt });
     return { link, kind, invited: invite, expiresAt, ...pending };
   }
-  /** Members holding a wrap to their CURRENT key, per "user pub". */
+  /** Members holding a wrap to their CURRENT key, per "user pub". A member
+   *  can hold several (the account's own sibling devices — 2026-09-11), so a
+   *  grant may be a single wrap or a list; both are counted. */
   coveredIn(state) {
     const covered = new Set();
     for (const s of state.filter((x) => x.type === TYPES.chatKey)) {
       if (s.content?.pub) covered.add(`${s.state_key} ${s.content.pub}`);
-      for (const [who, g] of Object.entries(s.content?.grants ?? {})) if (g?.pub) covered.add(`${who} ${g.pub}`);
+      for (const [who, g] of Object.entries(s.content?.grants ?? {})) {
+        for (const entry of Array.isArray(g) ? g : [g]) if (entry?.pub) covered.add(`${who} ${entry.pub}`);
+      }
     }
     return covered;
   }
@@ -421,13 +483,39 @@ export class FoldMatrix {
    * unspent, unexpired secret this browser issued; say who is unverified
    * (a key with no proof — /share grant after comparing fingerprints) and
    * who was refused (a proof that does not verify, or a spent/expired one).
+   *
+   * A `fold.sibling` event whose state_key is THIS ACCOUNT is the account's
+   * own sibling device (2026-09-11, user direction: "if we're the same
+   * account, even though we're different devices, share everything"). The
+   * account is its own trust boundary, so each listed sibling key is granted
+   * automatically, WITHOUT a link proof — and still encrypted at rest: the
+   * chat key is ECDH-wrapped to the sibling's public key, so the homeserver
+   * holds a public key and ciphertext it cannot open. The residual is stated,
+   * not hidden: a homeserver (or, on a server that does not bind custom state
+   * keys to their sender, a member) that can write a same-account sibling
+   * event could be granted — the cost of "same account = share everything",
+   * a different line than the bound-link proof holds, and chosen deliberately.
    */
   async grantPending(roomId) {
     const h = this.http(); const me = this.data.session.user_id; const id = await this.identity(); const r = this.data.rooms[roomId];
     const state = await h.allState(roomId);
     const covered = this.coveredIn(state);
     const own = state.find((s) => s.type === TYPES.chatKey && s.state_key === me)?.content ?? (await this.wrapAllFor(roomId, id.pub));
-    const grants = { ...(own.grants ?? {}) }; const granted = []; const unverified = []; const refused = [];
+    const grants = { ...(own.grants ?? {}) }; const granted = []; const unverified = []; const refused = []; const siblings = [];
+    const grantSibling = async (pub) => {
+      const prior = grants[me];
+      grants[me] = Array.isArray(prior) ? [...prior, await this.wrapAllFor(roomId, pub)]
+        : prior ? [prior, await this.wrapAllFor(roomId, pub)]
+        : [await this.wrapAllFor(roomId, pub)];
+      siblings.push({ user: me, fingerprint: await fingerprint(pub) });
+    };
+    // The account's own sibling devices: each pub listed, granted if not covered.
+    for (const ev of state.filter((s) => s.type === TYPES.sibling && s.state_key === me)) {
+      for (const pub of ev.content?.devices ?? []) {
+        if (covered.has(`${me} ${pub}`) || pub === id.pub) continue;
+        await grantSibling(pub);
+      }
+    }
     for (const mk of state.filter((s) => s.type === TYPES.memberKey && s.state_key !== me && s.content?.pub)) {
       const user = mk.state_key, pub = mk.content.pub;
       if (covered.has(`${user} ${pub}`)) continue;
@@ -441,8 +529,8 @@ export class FoldMatrix {
       grants[user] = { ...(await this.wrapAllFor(roomId, pub)) };
       inv.spent = true; granted.push({ user, fingerprint: fp });
     }
-    if (granted.length) { await h.putState(roomId, TYPES.chatKey, me, { ...own, grants }); this.save(); this.record("matrix-grant", { room: roomId, granted: granted.length, verified: true }); }
-    return { granted, unverified, refused };
+    if (granted.length || siblings.length) { await h.putState(roomId, TYPES.chatKey, me, { ...own, grants }); this.save(); this.record("matrix-grant", { room: roomId, granted: granted.length, verified: true, siblings: siblings.length }); }
+    return { granted, unverified, refused, siblings };
   }
   /** Wrap to one member's key by name — the person compared fingerprints. */
   async grantTo(roomId, user) {
@@ -583,9 +671,11 @@ export class FoldMatrix {
     }
     return { room: p.room, name: p.name, joined: true, kind: "bound", awaiting: true, fingerprint: await fingerprint(id.pub), entries: [], chains: 0, blocks: 0, partial: true, gaps: [`no grant yet: your key is published in the room with the link's proof; it is granted the moment a member's page or worker that issued the link is open — reopen the link, or /matrix open ${p.room}, later`] };
   }
-  /** A new key epoch: everything from now on is sealed under a key the
-   * excluded members never receive; every other member with a key gets it
-   * (and every earlier epoch) re-wrapped on our slot. */
+/** A new key epoch: everything from now on is sealed under a key the
+   *  excluded members never receive; every other member with a key gets it
+   *  (and every earlier epoch) re-wrapped on our slot — including this
+   *  account's own sibling devices (2026-09-11), so a rotate never strands
+   *  the phone while the computer keeps the key. */
   async rotate(roomId, { exclude = [] } = {}) {
     const key = this.keyOf(roomId); if (!key) throw new MatrixError("no key for this room");
     const h = this.http(); const me = this.data.session.user_id; const id = await this.identity();
@@ -594,10 +684,19 @@ export class FoldMatrix {
     this.rememberKey(roomId, epoch, generateChatKey());
     const own = await this.wrapAllFor(roomId, id.pub);
     const grants = {}; const regranted = [];
+    const grant = async (user, pub) => {
+      if (exclude.includes(user) || !covered.has(`${user} ${pub}`)) return;
+      const wrap = await this.wrapAllFor(roomId, pub);
+      if (user === me) grants[user] = Array.isArray(grants[user]) ? [...grants[user], wrap] : grants[user] ? [grants[user], wrap] : [wrap];
+      else grants[user] = wrap;
+      regranted.push(user);
+    };
     for (const mk of state.filter((s) => s.type === TYPES.memberKey && s.state_key !== me && s.content?.pub)) {
       const user = mk.state_key;
-      if (exclude.includes(user) || !covered.has(`${user} ${mk.content.pub}`)) continue;
-      grants[user] = await this.wrapAllFor(roomId, mk.content.pub); regranted.push(user);
+      await grant(user, mk.content.pub);
+    }
+    for (const ev of state.filter((s) => s.type === TYPES.sibling && s.state_key === me)) {
+      for (const pub of ev.content?.devices ?? []) if (pub !== id.pub) await grant(me, pub);
     }
     await h.putState(roomId, TYPES.chatKey, me, { ...own, grants });
     this.record("matrix-rotate", { room: roomId, epoch, regranted: regranted.length, excluded: exclude.length });
@@ -768,7 +867,10 @@ export class FoldMatrix {
       while (!signal?.aborted) {
         let res; try { res = await h.sync({ since, filter, timeout: 30_000, signal }); } catch (e) { if (signal?.aborted || e.errcode === "ABORTED") break; await new Promise((r) => setTimeout(r, 2000)); continue; }
         since = res.next_batch;
-        if (this.pendingInvites(roomId).length) { try { await this.grantPending(roomId); } catch { /* next pass */ } }
+        // Every round, at most once a backstop interval: grant this account's
+        // own sibling devices (2026-09-11) and verify any bound-link proof.
+        // One allState per pass — the same cost the want-backstop already pays.
+        if (Date.now() - lastWantRead > WANT_BACKSTOP_MS) { lastWantRead = Date.now(); try { await this.grantPending(roomId); } catch { /* next pass */ } }
         // What the room is asking this machine to take up. A model it says it
         // has spare is taken up and offered; anything else is refused WITH a
         // reason, in the offer itself, so the asker reads it in the pool.

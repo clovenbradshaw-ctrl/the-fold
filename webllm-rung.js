@@ -272,6 +272,49 @@ export function webgpuBlocker({ gpu, secureContext } = {}) {
 }
 
 /**
+ * Why ONE roster rung cannot run on THIS adapter, or [] when it can. Decided
+ * off the model record's own declarations — `required_features` (a phone
+ * adapter that lacks `shader-f16` is exactly the offered-then-fails-on-load
+ * trap this closes, 2026-09-11) and `buffer_size_required_bytes` against the
+ * adapter's `maxStorageBufferBindingSize` — and the WebGPU adapter's own
+ * report (injected; the page probes `navigator.gpu.requestAdapter()`).
+ * `features` null means the probe failed: a rung that DECLARES a requirement
+ * is then refused (we cannot verify it), while a rung that declares nothing
+ * needs no adapter report and is always offered.
+ */
+export function rungBlockers(entry, { features = null, maxStorageBufferBindingSize = null } = {}) {
+  const out = [];
+  const need = entry?.required_features ?? [];
+  if (need.length) {
+    if (features == null) {
+      out.push(`this adapter's feature set is unknown, and ${entry.model_id} requires ${need.join(" + ")}`);
+    } else {
+      const have = features instanceof Set ? features : new Set(features);
+      for (const f of need) if (!have.has(f)) out.push(`this adapter lacks ${f}, which ${entry.model_id} requires`);
+    }
+  }
+  if (entry?.buffer_size_required_bytes != null && maxStorageBufferBindingSize != null && maxStorageBufferBindingSize < entry.buffer_size_required_bytes) {
+    out.push(`this adapter's storage-buffer limit (${maxStorageBufferBindingSize} bytes) is below the ${entry.buffer_size_required_bytes} ${entry.model_id} needs`);
+  }
+  return out;
+}
+
+/**
+ * Which roster ids this adapter can actually run, off the catalog's own
+ * records (the library's `prebuiltAppConfig`, or this page's resolved copy —
+ * both carry `required_features`/`buffer_size_required_bytes` through). A
+ * catalog entry that has gone missing is a typed skip, never a guessed offer.
+ * `adapter` null (the probe failed) keeps only the requirement-free rungs.
+ */
+export function offerableRungs(catalog, adapter, ids = WEBLLM_IDS) {
+  const list = catalog?.model_list ?? [];
+  return ids.filter((id) => {
+    const entry = list.find((r) => r.model_id === id);
+    return entry ? rungBlockers(entry, adapter ?? {}).length === 0 : false;
+  });
+}
+
+/**
  * A load or generation failure, typed. The raw browser strings for
  * out-of-quota, dropped-network, and reclaimed-GPU failures look nothing
  * alike and have nothing-alike fixes; the caller shows `text` and branches

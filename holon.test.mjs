@@ -656,6 +656,70 @@ test("without the discourse anchor, the same topic-less follow-up retrieves noth
   assert.equal(result.refs.length, 0, "no discourse, no anchor — retrieval correctly finds nothing in 'prove it' alone");
 });
 
+// ── GFP Pass 35 — the keyless field's seat in the turn (offered beside lexical) ──
+
+const fieldOffer = (passage) => ({
+  kind: "figure",
+  top: { ref: passage.ref, text: passage.text, source: "notes.txt", activation: 0.9 },
+  passages: [{ ref: passage.ref, text: passage.text, source: "notes.txt", activation: 0.9 }],
+  band: { lo: 0.1, hi: 0.5, margin: 0.05, draws: 150 },
+});
+
+test("GFP Pass 35: a passage the field recalls and the turn's pool holds — but lexical missed — is PROMOTED beside lexical, marked and named on the record", async () => {
+  const dredge = chunks[1];
+  const call = async (messages) => {
+    const refs = offeredRefs(promptOf(messages));
+    // The fake model reads the whole prompt: the promoted dredging passage
+    // is now material, and this answer proves it reached the mouth.
+    return refs.includes(dredge.ref) ? `The dredging schedule runs through March. [${dredge.ref}]` : "Nothing about dredging.";
+  };
+  const result = await runHolonicTask({
+    task: "what was the harbor figure?",
+    chunks,
+    call,
+    planMode: "flat",
+    fieldRecall: () => fieldOffer(dredge),
+  });
+  assert.ok(result.refs.includes(dredge.ref), "the promoted passage was offered and the answer was bound to it");
+  const w = result.sections[0].fieldWitness;
+  assert.ok(w, "the witness is on the part's record");
+  assert.deepEqual(w.promoted, [dredge.ref], "the promotion is named, typed, and bounded to the field's own cap");
+  assert.equal(w.beyondPool.length, 0);
+  assert.equal(w.agreed.length, 0, "lexical had not offered it — this is disagreement, not agreement");
+});
+
+test("GFP Pass 35: a recall from BEYOND the turn's pool is recorded and never fed to the model — the field does not feed the mouth on its own (P3)", async () => {
+  const elsewhere = { ref: "other.txt#0-10", text: "An unrelated passage from another source entirely.", source: "other.txt" };
+  let sawRef = false;
+  const call = async (messages) => {
+    const refs = offeredRefs(promptOf(messages));
+    if (refs.includes(elsewhere.ref)) sawRef = true;
+    return refs.length ? `Confirmed. [${refs[0]}]` : "Nothing matched.";
+  };
+  const result = await runHolonicTask({
+    task: "what was the harbor figure?",
+    chunks,
+    call,
+    planMode: "flat",
+    fieldRecall: () => fieldOffer(elsewhere),
+  });
+  assert.equal(sawRef, false, "the beyond-pool passage never reached a prompt");
+  assert.ok(!result.refs.includes(elsewhere.ref), "nothing beyond the pool was ever cited");
+  const w = result.sections[0].fieldWitness;
+  assert.deepEqual(w.beyondPool, [elsewhere.ref], "the beyond-pool recall is typed on the record — the instrument knows it reached further than the turn");
+  assert.equal(w.promoted.length, 0);
+});
+
+test("GFP Pass 35: absent a field the turn is byte-identical — fieldRecall null changes nothing", async () => {
+  const call = async (messages) => {
+    const refs = offeredRefs(promptOf(messages));
+    return refs.length ? `The figure was 12%. [${refs[0]}]` : "Nothing.";
+  };
+  const result = await runHolonicTask({ task: "what was the harbor figure?", chunks, call, planMode: "flat" });
+  assert.ok(result.refs.length >= 1);
+  assert.equal(result.sections[0].fieldWitness, undefined, "no fieldRecall, no witness on the record");
+});
+
 // ── stable sub-assemblies (2026-08-19): the join is earned, never assumed ──
 // Measured live: "research Robert Macnamera" asked right after a greeting
 // retrieved greeting-etiquette passages, because the stale discourse line

@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Field } from "./relative.js";
-import { textOfEntry, admitPassage, admitEntry, admitRecordLines, rowsSince, fieldFromRows, fieldOf } from "./field-of-record.js";
+import { textOfEntry, admitPassage, admitEntry, admitRecordLines, rowsSince, fieldFromRows, fieldOf, recallForTurn, FIELD_OFFER_MAX } from "./field-of-record.js";
 import { readOnArrival } from "./read-on-arrival.js";
 import { chunkSource } from "./source.js";
 
@@ -25,6 +25,25 @@ test("an entry's text is what it carries, in a fixed field order; an entry with 
   assert.equal(admitRecordLines(f, "grid", LINES), 3);
   assert.equal(f.size, 3);
   assert.deepEqual(f.nodes.map((n) => n.payload.at), ["grid@0", "grid@1", null], "addressed by the record and its seq where the line carries one");
+});
+
+test("recallForTurn (GFP Pass 35): a cue that settles is shaped for a turn — passages with their ground addresses, the band, a bounded count; a cue that does not settle is a verdict, never a guess", () => {
+  const f = new Field();
+  for (const [i, p] of passages().entries()) f.admit(p.text, { source: "borodino.txt", at: p.ref });
+  // A whole passage as its own cue settles as a figure on itself.
+  const whole = recallForTurn(f, f.nodes[0].text, { draws: 60 });
+  assert.equal(whole.kind, "figure");
+  assert.equal(whole.top.ref, passages()[0].ref, "the top recall is addressed by its ground");
+  assert.equal(whole.passages.length, FIELD_OFFER_MAX, "the offer is bounded by the field's own cap");
+  assert.ok(whole.passages[0].ref && whole.passages[0].source === "borodino.txt");
+  assert.ok(whole.band && Number.isFinite(whole.band.hi) && whole.band.hi > 0);
+  // A cue from the field's vocabulary with nothing to say settles on nothing.
+  const none = recallForTurn(f, "the the the the the", { draws: 60 });
+  assert.equal(none.kind, "nothing");
+  assert.deepEqual(none.passages, []);
+  // No field / no words is a null, never an empty offer.
+  assert.equal(recallForTurn(null, "anything"), null);
+  assert.equal(recallForTurn(f, "   "), null);
 });
 
 test("the reader loop admits every passage it reads into the field, in order, with its ground address as payload — one door, injected", async () => {

@@ -58,6 +58,10 @@ import { placeCoverage } from "./calibration.js";
 import { citedSource, findMisquote, misquoteFacts, misquoteGuard } from "./misquote.js";
 import { admissible, finding } from "./turn-order.js";
 import { quotedAsk } from "./transcript.js";
+// GFP Pass 35: the keyless field's seat in the turn — how many recalled
+// passages it may offer beside lexical retrieval (field-of-record.js is pure;
+// the cap is the field's own declared budget, never restated here).
+import { FIELD_OFFER_MAX } from "./field-of-record.js";
 import { groundOf } from "./ground-ladder.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
 import { relationFindings } from "./hypergraph.js";
@@ -1167,6 +1171,16 @@ export async function runPart({
   // against a different reading without editing the turn. Absent, it is
   // `source.js::retrieve` and every existing caller is byte-identical.
   retrieveWith = null,
+  // GFP PASS 35 — THE FIGURE AS ONE WITNESS IN RETRIEVAL. A function
+  // `(question) => recallForTurn(...)` (field-of-record.js), recalled from
+  // the question and offered BESIDE what lexical retrieval found — the
+  // field never replaces the other retrieval and never feeds the model on
+  // its own (GFP P3). A recalled passage the turn's pool already held is
+  // agreement; one in the pool but missed by lexical is promoted (added,
+  // marked `retrievedVia: "relative"`); one the pool does not hold at all
+  // is recorded on `fieldWitness` and NOT offered. Null (every existing
+  // caller) is byte-identical to before.
+  fieldRecall = null,
   // shape-fallback.js's re-rank, consulted by `retrieve()` itself ONLY on an
   // exact top-score tie (see source.js's own doc comment) — a low, cheap,
   // always-safe-to-check bar deciding what is POSSIBLE, wired unconditionally;
@@ -1441,8 +1455,46 @@ export async function runPart({
     passages = [digestChunk, ...passages];
   }
 
+  // GFP PASS 35 — THE FIGURE OFFERED BESIDE LEXICAL. The field is recalled
+  // from the question after the lexical path has had its whole turn (hunts,
+  // transcript recall, the citation, the digest pin) so its seat is a
+  // witness over the SAME retrieval, never a competing start. What settles
+  // is compared against this turn's own pool: held already → agreement;
+  // in the pool but missed → promoted (offered, marked); outside the pool →
+  // recorded and NOT offered — the field recalls everything it has ever
+  // read, and the mouth only ever sees this turn's material.
+  let fieldWitness = null;
+  if (fieldRecall && question && live.length) {
+    const lexicalRefs = passages.map((p) => p.ref);
+    try {
+      const offer = fieldRecall(question);
+      if (offer && (offer.kind === "figure" || offer.kind === "ambiguous") && Array.isArray(offer.passages) && offer.passages.length) {
+        const inPool = (p) => live.some((c) => (c?.ref && c.ref === p.ref) || (c?.text && c.text === p.text));
+        const already = (p) => passages.some((q) => (q?.ref && q.ref === p.ref) || (q?.text && q.text === p.text));
+        const agreed = offer.passages.filter((p) => already(p));
+        const promoted = offer.passages.filter((p) => inPool(p) && !already(p));
+        const beyondPool = offer.passages.filter((p) => !inPool(p));
+        const offered = promoted.slice(0, FIELD_OFFER_MAX).map((p) => ({ ...p, retrievedVia: "relative" }));
+        if (offered.length) passages = [...passages, ...offered];
+        fieldWitness = {
+          kind: offer.kind,
+          band: offer.band ?? null,
+          lexical: lexicalRefs,
+          recalled: offer.passages.map((p) => p.ref),
+          agreed: agreed.map((p) => p.ref),
+          promoted: offered.map((p) => p.ref),
+          beyondPool: beyondPool.map((p) => p.ref),
+        };
+      } else if (offer) {
+        fieldWitness = { kind: offer.kind, band: offer.band ?? null, lexical: lexicalRefs, recalled: [], agreed: [], promoted: [], beyondPool: [] };
+      }
+    } catch (e) {
+      fieldWitness = { kind: "error", error: String(e?.message ?? e), lexical: lexicalRefs };
+    }
+  }
+
   const sourceBlock = buildSourceBlock(passages);
-  onProgress?.("research", part, { passages: passages.map((p) => p.ref), widened });
+  onProgress?.("research", part, { passages: passages.map((p) => p.ref), widened, ...(fieldWitness ? { fieldWitness } : {}) });
 
   // The plan steers this part's retrieval — that is what a plan is for — but
   // steering is disclosed, never silent: a part whose words share nothing
@@ -3505,6 +3557,11 @@ export async function runPart({
     // The door's typed refusals for this part (P57: not optional at any
     // boundary). Empty when nothing was refused or no ledger was injected.
     hyperlexiconTurnedAway,
+    // GFP Pass 35: the keyless field's seat, reported with the part — what
+    // it recalled, what agreed, what it promoted into this turn, and what
+    // it reached beyond the pool (recorded, never offered). Absent when no
+    // field was injected or it did not settle.
+    ...(fieldWitness ? { fieldWitness } : {}),
   };
 }
 
@@ -3571,6 +3628,9 @@ export async function runHolonicTask({
   // The arithmetic engine, injected (arithmetic.js's pattern), threaded to every part.
   math = null,
   retrieveWith = null,
+  // GFP Pass 35 (see runPart's own parameter): the keyless field's seat,
+  // threaded to every part exactly as retrieveWith is.
+  fieldRecall = null,
   // shape-fallback.js's re-rank (see runPart's own doc comment above),
   // threaded to every part and to this function's own pre-model retrieval
   // pool below. Absent, byte-identical to before.
@@ -3801,6 +3861,7 @@ export async function runHolonicTask({
       makeReferentIndexFor,
       askedDepth: depth,
       retrieveWith,
+      fieldRecall,
       shapeFallback,
       coverageHistory,
       nul,

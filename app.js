@@ -161,6 +161,9 @@ import { serializeRecord, replayRecord } from "./record-log.js";
 import { appendRecord, loadRecord, recordLength } from "./record-store.js";
 // GFP Pass 33: the keyless field, derived from the records and the sources — booted with the records, synced beside them, fed by the reader loop and by every record line written (field-store.js registers on record-store's own append).
 import { bootField, syncField, getField } from "./field-store.js";
+// GFP Pass 35: the keyless field's seat in the turn — recallForTurn shapes
+// what a recall offers as passages beside lexical retrieval.
+import { recallForTurn } from "./field-of-record.js";
 import { mergeAppendOnly } from "./record-log.js";
 import { updateSourceMeta } from "./sources-store.js";
 // Read when material arrives (Pass 18, P99): the reader loop and the typed
@@ -2432,7 +2435,7 @@ async function fillModels() {
       if (!sel.value || !state.offeredModels.includes(sel.value)) sel.value = state.offeredModels[0];
       if (!state.offeredModels.some((n) => !isWebLLMModel(n))) $("status").textContent = `no Ollama here — the in-tab models are offered (weights from ${webllmClient.weights})`;
     } else if (!state.offeredModels.length) {
-      $("status").textContent = `${$("status").textContent} · in-tab models unavailable: ${adapter ? "this WebGPU adapter meets none of the roster's requirements" : "WebGPU is present, but the adapter would not report its features"}`;
+      $("status").textContent = `${$("status").textContent} · in-tab models unavailable: ${adapter ? "this WebGPU adapter meets none of the roster's requirements" : "no usable WebGPU adapter on this device — the in-tab models cannot run here"}`;
     }
   } else if (!state.offeredModels.length) {
     $("status").textContent = `${$("status").textContent} · in-tab models unavailable: ${blocker}`;
@@ -2524,25 +2527,53 @@ async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, mo
   // turns and the summary refresh spend the fastest rung; deep work (task,
   // bound, reflect) spends the model the user chose. Whatever it is, the
   // request, the pace ledger, and the status line all name the SAME model.
-  const modelName = model ?? state.model;
+const modelName = model ?? state.model;
   if (isRoomModel(modelName)) return completeViaRoom(messages, { onDelta, onThinking, maxTokens, json, temperature }, roomModelParts(modelName), modelName, callSeq);
-  // A LOCAL rung first; on a typed "this machine cannot run the model"
-  // failure, the work rolls over to a mouth in the open room (2026-09-11) —
-  // the phone whose WebGPU will not load the in-tab model answers through
-  // the desktop, sealed under the chat key, with nothing the person picked.
-  // A wrong answer is NOT a failover: only a device-shaped failure is.
+  // A device whose only local rungs are the in-tab models (no Ollama) is
+  // exactly the phone that cannot run WebGPU at all ("unable to find a
+  // compatible gpu"). When a room mouth is offered, PREFER it: try the
+  // desktop first, sealed, and fall back to this device's own rung only if
+  // the room cannot answer (2026-09-11, user direction: "roll over to my
+  // desktop if it's logged in").
+  const prefer = await preferRoomMouth();
+  if (prefer && isWebLLMModel(modelName)) {
+    try { return await completeViaRoom(messages, { onDelta, onThinking, maxTokens, json, temperature }, roomModelParts(prefer), prefer, callSeq); }
+    catch { /* the room could not answer on this device — fall through to its own rung */ }
+  }
   try {
-    return await completeLocal(messages, { onDelta, onThinking, maxTokens, json, model: modelName, temperature }, callSeq);
+    return await completeLocal(messages, { onDelta, onThinking, maxTokens, json, model: modelName }, callSeq);
   } catch (err) {
-    const fallback = await roomFallbackFor(modelName, err);
-    if (fallback) {
-      // The rollover is an attempt, not a promise: if the room mouth fails
-      // too, the ORIGINAL device failure is the one the person acts on.
-      try { return await completeViaRoom(messages, { onDelta, onThinking, maxTokens, json, temperature }, fallback, modelName, callSeq); }
-      catch { throw err; }
+    // Roll over to a room mouth on a typed device failure — but not when the
+    // room was ALREADY tried as the preference above (it just failed).
+    if (!prefer) {
+      const fallback = await roomFallbackFor(modelName, err);
+      if (fallback) {
+        try { return await completeViaRoom(messages, { onDelta, onThinking, maxTokens, json, temperature }, fallback, modelName, callSeq); }
+        catch { throw err; }
+      }
     }
     throw err;
   }
+}
+
+/**
+ * The room mouth this device should PREFER for a turn, or null. Fires only
+ * when this device has no Ollama of its own (its only local rungs are the
+ * in-tab models) — a phone whose WebGPU cannot run them — and the open room
+ * offers a mouth on another member's machine. The account's own other device
+ * is excluded the same way the failure failover excludes it, so a device
+ * never tries to hand a turn to itself. `servingTurn` guards the reverse: a
+ * page currently answering the room must not prefer the room it is serving.
+ */
+async function preferRoomMouth() {
+  if (servingTurn) return null;
+  if (!state.matrixRoom || foldMatrix.locked || !foldMatrix.status().signedIn) return null;
+  if (ollamaModels().length) return null; // real local inference exists — no preference
+  let offers = foldMatrix.pool(state.matrixRoom).offers;
+  if (!offers.length) { try { offers = await foldMatrix.mouths(state.matrixRoom); } catch { return null; } }
+  const mouth = fallbackMouth(offers, { exclude: foldMatrix.status().user });
+  if (!mouth?.models?.length) return null;
+  return roomModelName(mouth.user, mouth.models[0]);
 }
 
 /**
@@ -3167,6 +3198,7 @@ async function matrixTurn(arg, question) {
       if (!r.entries.length && r.partial) return usageTurn(question, `${tail}: ${r.gaps.join("; ")}`, { what: "matrix" });
       state.matrixRoom = tail; localStorage.setItem("fold-matrix-room", tail);
       startRoomGrantWatch(tail);
+      bootstrapRoomModel();
       const n = replayEntries(r.entries, tail);
       return usageTurn(question, `opened ${roomLabel(tail)}: ${r.chains} chain(s), ${r.blocks} block(s), ${r.entries.length} entr${r.entries.length === 1 ? "y" : "ies"} read back and decrypted here — ${n} drawn above${r.gaps.length ? `\ngaps: ${r.gaps.join("; ")}` : ""}`, { what: "matrix" });
     }
@@ -3190,6 +3222,7 @@ async function preserveTurn(arg, question) {
     state.matrixRoom = room; localStorage.setItem("fold-matrix-room", room);
     startRoomGrantWatch(room);
     const r = await foldMatrix.preserve(room, chatEntries());
+    bootstrapRoomModel();
     const sources = liveSources().length;
     const lines = [
       made ? `made a private room, ${roomLabel(room)}, with a fresh chat key held in this browser` : `room: ${roomLabel(room)}`,
@@ -3315,6 +3348,7 @@ async function reconcileAccountRooms({ announce = true } = {}) {
       } catch (e) { addMessage("assistant", `opened ${held.name ? `"${held.name}" ` : ""}${held.id}: ${matrixGap(e)}`); }
     }
     renderRoomChip();
+    bootstrapRoomModel();
     return;
   }
   for (const r of rooms) {
@@ -3341,12 +3375,19 @@ async function reconcileAccountRooms({ announce = true } = {}) {
           } catch (e) { addMessage("assistant", `opened ${r.name ? `"${r.name}" ` : ""}${r.id}: ${matrixGap(e)}`); }
         }
         renderRoomChip();
+        bootstrapRoomModel();
       }
       break;
     }
     if (announce) addMessage("assistant", `this account has a chat on this homeserver — ${r.name ? `"${r.name}" ` : ""}${r.id} — and this browser has not received its key yet. This browser's key is published there (${await foldMatrix.myFingerprint()}); the device that holds the key grants this browser automatically, same account, same chat.`);
   }
   renderRoomChip();
+  // A device of the account is probably just not open right now. Keep
+  // asking every so often — the moment it is, the grant lands and the room
+  // opens here, without a reload. Light: one keyFor read per beat.
+  if (!state.matrixRoom && !foldMatrix.locked) {
+    setTimeout(() => reconcileAccountRooms({ announce: false }).catch(() => {}), 25_000);
+  }
 }
 /** The account's fold room this device already holds a key for, if any — so
  *  /preserve reuses the existing chat instead of forking a second one. */
@@ -3368,6 +3409,7 @@ async function joinInto(link, { passphrase = null } = {}) {
   state.matrixRoom = r.room; localStorage.setItem("fold-matrix-room", r.room);
   startRoomGrantWatch(r.room);
   $("status").textContent = `ready · ${state.model}`;
+  bootstrapRoomModel();
   if (r.awaiting) return `joined ${r.name ? `"${r.name}" ` : ""}${r.room}, and published this browser's key (${r.fingerprint}) with the link's proof — ${r.gaps.join("; ")}`;
   const n = replayEntries(r.entries, r.room);
   renderModelMenu();
@@ -3435,6 +3477,30 @@ function maybeAutoServe() {
   startServing(state.matrixRoom).then((s) => {
     addMessage("assistant", `this machine is now answering for the room (${s.models.join(", ")}) — another device of yours, or any member of the room, rolls its work over here when its own machine can't run the model. /serve stop withdraws.`);
   }).catch(() => {});
+}
+/**
+ * A device with NO local model — no Ollama, and a WebGPU adapter that cannot
+ * run the in-tab rungs (the phone's "unable to find a compatible gpu") — that
+ * is signed into a room with an offered mouth becomes chat-ready the moment
+ * the room opens: the offered mouth is the ready model, no picker step in
+ * between. A device with a local rung, or a device already ready, is left
+ * alone — the picker decides there.
+ */
+function bootstrapRoomModel() {
+  if (state.ready) return;
+  if (state.offeredModels.some((n) => !isRoomModel(n))) return;
+  if (!state.matrixRoom || !foldMatrix.status().signedIn || foldMatrix.locked) return;
+  const mouth = foldMatrix.pool(state.matrixRoom).offers.find((o) => o.models?.length && o.user !== foldMatrix.status().user);
+  if (!mouth) return;
+  const name = roomModelName(mouth.user, mouth.models[0]);
+  state.model = name; state.ready = true; state.contextTokens = null;
+  if (!state.offeredModels.includes(name)) state.offeredModels = [...state.offeredModels, name];
+  syncModelPick();
+  openSettings(false);
+  $("send").disabled = false;
+  $("status").textContent = `ready · ${name} · every call of a turn goes there, sealed through the room`;
+  showView("chat");
+  $("input").focus();
 }
 async function startServing(room) {
   if (roomServing) return roomServing;
@@ -8464,6 +8530,20 @@ function activationRetrievalNow() {
   const fallbackWithShape = (chunks, question, limit, folded) => retrieve(chunks, question, limit, folded, { shapeFallback: shapeFallbackRetrieve });
   return makeActivationRetrieval({ index, book, dmdWindow, fallback: fallbackWithShape, notes: () => (state.hyperlexiconLog && hyperlexiconFor?.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : []), transcript: transcriptNow, resolutions: RESOLUTIONS_LEVEL });
 }
+// GFP PASS 35 — THE FIGURE'S SEAT IN THE TURN. The keyless field, recalled
+// from the question, offered beside lexical retrieval as a witness (GFP P3:
+// never a replacement, never alone). Null until the field has something to
+// be a witness over — a field of a handful of passages has no null band yet.
+// steps=0 is the MEASURED choice, not a default: eval/field-witness.mjs ran
+// the spec's own shuffled-record null and the synapse contribution was nil
+// (real steps=1 == shuffled steps=1 == steps=0, 120/120 bound) — so per the
+// spec ("spreading is turned off for this use") the turn seat is pure
+// content-addressable overlap, no spreading.
+function fieldRecallNow() {
+  const field = getField();
+  if (!field || field.size < 16) return null;
+  return (cue) => recallForTurn(field, cue, { draws: 150, steps: 0 });
+}
 /** The turns of one conversation, paired and numbered as that conversation counts them. */
 function turnRowsOf(history, records, { chat = null, chatTitle = null } = {}) {
   const h = history ?? [];
@@ -10125,6 +10205,10 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       resolutions: pipelineValue(getActiveModelLoop(), "resolutions", RESOLUTIONS_LEVEL),
       material: pipelineValue(getActiveModelLoop(), "material", "auto"),
       retrieveWith: activationRetrievalNow(),
+      // GFP Pass 35: the keyless field's seat, offered beside retrieval —
+      // gated with the grounded pipeline that would be asked to bind its
+      // offering, exactly like makeRelationReader above it.
+      fieldRecall: state.grounded ? fieldRecallNow() : null,
       // shape-fallback.js: consulted only on an exact top-score tie inside
       // retrieve() itself (holon.js's own pre-model pool, and runPart's
       // `pick` when no activation retrieval is available) — see shape-fallback.js.
@@ -10195,6 +10279,22 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
             part: part.label,
             refs: info.passages.map((p) => p.ref),
           });
+          // GFP Pass 35: the keyless field's seat is disclosed on the
+          // record, never silent (P3). When it settled and its offering
+          // differed from lexical — a passage it promoted INTO this turn's
+          // pool, or one it recalled from beyond it — the disagreement is a
+          // typed `witnessed` act naming both sets. Agreement (every recall
+          // already held) lands nothing; that is not an event.
+          if (info.fieldWitness && (info.fieldWitness.promoted?.length || info.fieldWitness.beyondPool?.length)) {
+            logAct("witnessed", {
+              part: part.label,
+              lexical: info.fieldWitness.lexical ?? info.passages.map((p) => p.ref),
+              relative: info.fieldWitness.recalled ?? [],
+              promoted: info.fieldWitness.promoted ?? [],
+              beyondPool: info.fieldWitness.beyondPool ?? [],
+              band: info.fieldWitness.band ?? null,
+            });
+          }
         } else if (phase === "execute") {
           setPhase(`writing ${part.label}`, info.promptChars ?? 0);
           $("status").textContent = `writing: ${part.label}…`;
@@ -17804,7 +17904,7 @@ function renderModelMenu() {
   const list = $("model-list");
   const sel = $("model");
   list.textContent = "";
-  if (!sel.options.length) {
+  if (!sel.options.length && !state.matrixRoom) {
     const p = document.createElement("p");
     p.className = "empty";
     p.style.padding = "14px 16px";
@@ -17955,6 +18055,7 @@ fillModels().then(() => {
     }
     reconcileAccountRooms().catch(() => {});
   }
+  bootstrapRoomModel();
 });
 // The sign-in sheet: the password is read once, cleared, sent in Matrix's own
 // login call to the homeserver named — and the outcome is drawn as a message,
@@ -17985,6 +18086,7 @@ async function signInFromSheet(hs, user, pass) {
     // device of the account can roll its work over.
     await reconcileAccountRooms();
     maybeAutoServe();
+    bootstrapRoomModel();
   } catch (e) { addMessage("assistant", `sign-in failed: ${matrixGap(e)} — nothing but the login call went to ${hs}`); }
 }
 async function sheetAct(mode, hs, user, secret) {

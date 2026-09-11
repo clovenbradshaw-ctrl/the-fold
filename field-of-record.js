@@ -23,6 +23,13 @@
 // spec's author's, not this file's.
 import { Field, tokensOf, isWord } from "./relative.js";
 
+/** GFP Pass 35: how many recalled passages a turn will offer beside lexical retrieval.
+ * Declared, not measured (2026-09-11, set by hand for the turn seat): a structural
+ * budget — a cap on what the field may add to a turn's passages, never a cut against
+ * the material. GFP Pass 36 measures the field at scale; the offer cap is a giver-
+ * named convention until a measurement replaces it. */
+export const FIELD_OFFER_MAX = 2;
+
 /** The fields a ledger line may carry text in, in the order they are joined. */
 export const TEXT_FIELDS = Object.freeze(["text", "description", "result", "question", "answer", "note"]);
 
@@ -91,4 +98,29 @@ export function fieldOf({ passages = [], records = {} } = {}, opts) {
   for (const p of passages) admitPassage(f, p);
   for (const [name, lines] of Object.entries(records)) admitRecordLines(f, name, lines);
   return f;
+}
+
+/**
+ * GFP Pass 35 — the figure as one witness in retrieval. Recall the field from
+ * a turn's cue and shape what settled for the turn: the recalled nodes as
+ * passages with their ground addresses, the verdict against the field's own
+ * null band, and the band itself. `steps`/`spread` default to the field's own;
+ * a caller running the spec's shuffled-record null passes the SAME numbers to
+ * both arms so the two bands are comparable. Returns `null` when there is no
+ * field or the cue carries no words, and a verdict-only object (`nothing` /
+ * `ambiguous`) when the cue does not settle above chance.
+ */
+export function recallForTurn(field, cue, { limit = FIELD_OFFER_MAX, draws = 150, steps, spread } = {}) {
+  if (!field || !field.size) return null;
+  const words = tokensOf(String(cue ?? "")).filter(isWord).length;
+  if (!words) return null;
+  const r = field.recallAgainstNull(cue, { draws, steps, spread });
+  const shape = (row) => ({ text: row?.node?.text ?? null, ref: row?.node?.payload?.at ?? null, source: row?.node?.payload?.source ?? null, activation: row?.activation ?? 0 });
+  if (r.kind !== "figure" && r.kind !== "ambiguous") return { kind: r.kind, band: r.band ?? null, top: null, passages: [] };
+  return {
+    kind: r.kind,
+    top: r.top ? shape(r.top) : null,
+    passages: (r.ranked ?? []).slice(0, Math.max(1, limit | 0)).map(shape),
+    band: r.band ?? null,
+  };
 }

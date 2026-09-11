@@ -2514,10 +2514,23 @@ async function connect() {
   }
   if (isTfModel(state.model)) {
     // The on-device CPU rung: no Ollama probe, no GPU — a WASM pipeline on
-    // this device's own processor. The window is the roster's declared one.
+    // this device's own processor. The download starts NOW, visibly (a
+    // banner), so the first turn never hides it; the disclosure is said in
+    // the status line and the banner both.
     state.contextTokens = tfContextWindowFor(state.model);
     const m = tfModelOf(state.model);
-    $("status").textContent = `ready · ${tfLabelFor(state.model)} · runs on this device's CPU — no GPU needed${m?.origin ? ` · ${m.origin}` : ""}`;
+    $("status").textContent = `ready · ${tfLabelFor(state.model)} · ${TF_DISCLOSURE(state.model)}`;
+    tfDownloadBanner(tfLabelFor(state.model));
+    tfChatClient.preload({
+      model: state.model,
+      onProgress: (file, pct) => tfDownloadPct(pct ?? 0),
+    }).then(() => {
+      tfDownloadDone();
+      $("status").textContent = `ready · ${tfLabelFor(state.model)} · loaded on this device${m?.origin ? ` · ${m.origin}` : ""}`;
+    }).catch((e) => {
+      tfDownloadDone();
+      $("status").textContent = `${tfLabelFor(state.model)} could not load: ${e?.message ?? e}`;
+    });
     $("send").disabled = false;
     openSettings(false);
     showView("chat");
@@ -2662,21 +2675,23 @@ async function completeLocal(messages, { onDelta, onThinking, maxTokens, json, m
   if (isTfModel(modelName)) {
     // The on-device CPU rung (transformers.js on WASM — no GPU, so the phone
     // whose WebGPU cannot run web-llm's rungs still answers from this device).
-    // The first use downloads the weights and says so, transcribe.js's own
-    // posture. JSON is best-effort here (no constrained decoding): the worker
-    // asks for a JSON object and the caller's parser is the wall.
+    // A not-yet-loaded model is downloaded with the banner up (connect's
+    // preload usually started it); JSON is best-effort (no constrained
+    // decoding) and the caller's parser is the wall.
     if (!tfDisclosed) {
       tfDisclosed = true;
       $("status").textContent = `${tfLabelFor(modelName)} ${TF_DISCLOSURE(modelName)}`;
     }
+    tfDownloadBanner(tfLabelFor(modelName));
     let cancelled = false;
     const r = await tfChatClient.complete(messages, {
       maxTokens: maxTokens ?? MAX_TOKENS,
       json,
       temperature,
       model: modelName,
-      onProgress: (line, pct) => { $("status").textContent = `${tfLabelFor(modelName)} · ${line}${pct != null ? ` ${Math.round(pct)}%` : ""}`; },
+      onProgress: (file, pct) => tfDownloadPct(pct ?? 0),
     });
+    tfDownloadDone();
     if (onDelta?.(r.text) === true) cancelled = true;
     noteMouth("in this tab (CPU)", tfLabelFor(modelName), null, callSeq);
     return { text: r.text, thinking: "", doneReason: cancelled ? "cancelled" : "stop" };
@@ -3493,6 +3508,48 @@ async function joinTurn(arg, question) {
 let servingTurn = 0;
 /** The on-device CPU rung's first-use weight download has been disclosed. */
 let tfDisclosed = false;
+/** The live download banner for an on-device model — a fixed bar across the
+ *  top of the page, unmistakable (2026-09-11): the weight fetch is a ~0.4–1 GB
+ *  first-use egress, and it should LOOK like one, not hide in the status
+ *  line. Removed when the model is ready. */
+let tfDlEl = null;
+function tfDownloadBanner(modelLabel) {
+  if (tfDlEl) return tfDlEl;
+  const el = document.createElement("div");
+  el.id = "tf-download";
+  el.setAttribute("role", "status");
+  Object.assign(el.style, {
+    position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
+    background: "#0d1117", color: "#e6edf3", font: "13px/1.4 system-ui",
+    padding: "10px 16px", display: "flex", alignItems: "center", gap: "12px",
+    borderBottom: "1px solid #30363d", boxShadow: "0 4px 16px rgba(0,0,0,.45)",
+  });
+  const labelEl = document.createElement("span");
+  labelEl.style.flex = "0 1 auto";
+  labelEl.textContent = `Downloading ${modelLabel} — first use fetches the weights from huggingface.co, cached after.`;
+  const track = document.createElement("div");
+  track.style.cssText = "flex:1 1 auto;height:8px;background:#21262d;border-radius:4px;overflow:hidden";
+  const bar = document.createElement("div");
+  bar.style.cssText = "height:100%;width:0%;background:#4493f8;transition:width .25s";
+  track.append(bar);
+  const pct = document.createElement("span");
+  pct.style.cssText = "flex:0 0 auto;font-variant-numeric:tabular-nums;width:4ch;text-align:right";
+  pct.textContent = "0%";
+  el.append(labelEl, track, pct);
+  document.body.append(el);
+  tfDlEl = { el, bar, pct };
+  return tfDlEl;
+}
+function tfDownloadPct(p) {
+  if (tfDlEl && Number.isFinite(p)) {
+    const v = Math.max(0, Math.min(100, p));
+    tfDlEl.bar.style.width = `${v}%`;
+    tfDlEl.pct.textContent = `${Math.round(v)}%`;
+  }
+}
+function tfDownloadDone() {
+  if (tfDlEl) { tfDlEl.el.remove(); tfDlEl = null; }
+}
 /** This machine's mouth, for the room: the same completeOnce a turn uses,
  *  with what it measured — tokens from the counter, the device's own label. */
 async function serveComplete({ model, messages, options }) {
@@ -17967,9 +18024,14 @@ function openSettings(open) {
  * about what is on offer and no way for the menu to name a model routing
  * would then fail on. */
 function renderModelMenu() {
-  const list = $("model-list");
+  const rowsHost = $("model-rows");
   const sel = $("model");
-  list.textContent = "";
+  rowsHost.textContent = "";
+  // opencode's selector, borrowed: filter-as-you-type over a grouped list,
+  // the current model ticked. The search input itself is persistent in the
+  // dialog, so typing never loses focus to this re-render.
+  const q = ($("model-search").value ?? "").trim().toLowerCase();
+  const match = (txt) => !q || txt.toLowerCase().includes(q);
   if (!sel.options.length && !state.matrixRoom) {
     const p = document.createElement("p");
     p.className = "empty";
@@ -17978,64 +18040,89 @@ function renderModelMenu() {
       $("status").textContent === "ollama has no models pulled"
         ? "Ollama is running but has no models pulled. `ollama pull qwen2.5:14b-instruct-q4_K_M` gives this one something to answer with."
         : "Ollama isn’t answering on :11434. Start it, then reopen this.";
-    list.append(p);
+    rowsHost.append(p);
     return;
   }
-  for (const opt of sel.options) {
-    const row = document.createElement("button");
-    row.type = "button";
-    row.className = `model-row${opt.value === state.model ? " on" : ""}`;
+  const host = rowsHost;
+  let shown = 0;
+  const row = (value, text, onClick) => {
+    if (!match(text)) return;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = `model-row${value === state.model ? " on" : ""}`;
     const n = document.createElement("span");
     n.className = "nm";
-    n.textContent = opt.textContent;
-    row.append(n);
-    if (opt.value === state.model) {
+    n.textContent = text;
+    b.append(n);
+    if (value === state.model) {
       const tick = document.createElement("span");
       tick.className = "tick";
       tick.textContent = "✓";
-      row.append(tick);
+      b.append(tick);
     }
-    row.onclick = () => {
-      sel.value = opt.value;
-      settingsDialog.close();
-      // One press does the whole act: choose, connect, and re-read the
-      // window. `connect` already closes this dialog and lands on the chat.
-      connect();
-    };
-    list.append(row);
-  }
+    b.onclick = onClick;
+    host.append(b);
+    shown++;
+  };
+  const group = (title) => {
+    const h = document.createElement("div");
+    h.className = "model-group";
+    h.textContent = title;
+    host.append(h);
+  };
+  const pickLocal = (opt) => { sel.value = opt.value; settingsDialog.close(); connect(); };
+  const opts = [...sel.options];
+  const ollama = opts.filter((o) => !isWebLLMModel(o.value) && !isTfModel(o.value) && !isRoomModel(o.value));
+  const webgpu = opts.filter((o) => isWebLLMModel(o.value));
+  const cpu = opts.filter((o) => isTfModel(o.value));
+  if (ollama.length) { group("this machine — ollama"); for (const o of ollama) row(o.value, o.textContent, () => pickLocal(o)); }
+  if (webgpu.length) { group("this device — webgpu"); for (const o of webgpu) row(o.value, o.textContent, () => pickLocal(o)); }
+  if (cpu.length) { group("this device — cpu"); for (const o of cpu) row(o.value, o.textContent, () => pickLocal(o)); }
   // The room's mouths (P119): every model a member offers through the open
   // room, as rungs. Choosing one routes each turn to that member sealed;
   // there is nothing to connect to here — the room is already open.
   if (state.matrixRoom) {
-    for (const w of foldMatrix.pool(state.matrixRoom).workers.filter((x) => !x.withdrawn)) for (const m of w.models) {
-      const name = roomModelName(w.user, m);
-      const row = document.createElement("button");
-      row.type = "button";
-      row.className = `model-row${name === state.model ? " on" : ""}`;
-      const n = document.createElement("span"); n.className = "nm"; n.textContent = `${m} · on ${w.user}${w.home ? `'s ${w.home}` : ""}, through the room`;
-      row.append(n);
-      if (name === state.model) { const tick = document.createElement("span"); tick.className = "tick"; tick.textContent = "✓"; row.append(tick); }
-      row.onclick = () => {
-        state.model = name; state.ready = true; state.contextTokens = null;
+    const mouths = foldMatrix.pool(state.matrixRoom).workers.filter((x) => !x.withdrawn);
+    const entries = [];
+    for (const w of mouths) for (const m of w.models) entries.push({
+      value: roomModelName(w.user, m),
+      text: `${m} · on ${w.user}${w.home ? `'s ${w.home}` : ""}, through the room`,
+    });
+    if (entries.length) {
+      group("through the room");
+      for (const e of entries) row(e.value, e.text, () => {
+        state.model = e.value; state.ready = true; state.contextTokens = null;
         // The room's mouths belong in what this page considers offered, so
         // every routing decision can see them and the picker's own checks
         // do not treat the choice as unknown.
-        if (!state.offeredModels.includes(name)) state.offeredModels = [...state.offeredModels, name];
+        if (!state.offeredModels.includes(e.value)) state.offeredModels = [...state.offeredModels, e.value];
         settingsDialog.close(); syncModelPick(); $("send").disabled = false;
-        $("status").textContent = `ready · ${name} · every call of a turn goes there, sealed through the room`;
+        $("status").textContent = `ready · ${e.value} · every call of a turn goes there, sealed through the room`;
         showView("chat"); $("input").focus();
-      };
-      list.append(row);
+      });
     }
   }
+  if (!shown) {
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.style.padding = "14px 16px";
+    p.textContent = q ? `no model matches “${$("model-search").value}”` : "no model to choose yet";
+    host.append(p);
+  }
 }
+$("model-search").oninput = () => renderModelMenu();
 
 /** The composer's model button: the name, or the reason there isn't one. */
+function chipLabel(name) {
+  if (isRoomModel(name)) { const p = roomModelParts(name); return `${p.model} · ${p.user.replace(/^@/, "").split(":")[0]}`; }
+  const tf = tfModelOf(name); if (tf) return tf.short;
+  const w = webllmModelOf(name); if (w) return w.label;
+  return name;
+}
 function syncModelPick() {
   const name = $("model-name");
   if (!name) return;
-  name.textContent = state.ready ? state.model : "no model";
+  name.textContent = state.ready ? chipLabel(state.model) : "no model";
   $("model-pick").title = state.ready
     ? `Answering with ${state.model} — press to change`
     : $("status").textContent || "No model connected — press to choose";

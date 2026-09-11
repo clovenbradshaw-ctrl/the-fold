@@ -323,14 +323,18 @@ import { mentionBook, makeActivationRetrieval } from "./activation-retrieval.js"
 // second reconciliation.
 import * as nativeTaskLog from "/engine-v7/kernel/task-log.js";
 import { adaptTaskLog } from "./consequence.js";
-// The organ's real name is still makeHyperlexicon — organs/hyperlexicon.js's
-// own header (2026-09-02) settled this as the byte-compatible text face of
-// kernel/notes.js, "the API IS BYTE-COMPATIBLE for every existing caller...
-// makeHyperlexicon(taskLog)". A prior pass here assumed a further rename to
-// organs/notes-text.js / makeNotesText that was never carried out anywhere
-// in eoreader7 (checked: no notes-text.js exists, and ~50 other consumers —
-// tests, capacities.js, corroboration.js, derivation.js — all still import
-// makeHyperlexicon) and had broken module loading. Reverted to the real name.
+// CORRECTED 2026-09-10: the rename this comment once said "was never
+// carried out" DID land in eoreader7 on 2026-09-08 — organs/hyperlexicon.js
+// is gone on main, organs/notes-text.js / makeNotesText is the real file and
+// the real export now (native/organs/index.js's own header names the
+// rename). The-fold's own hyperlexicon.js shim had been left pointing at
+// the deleted path (a 404 that broke boot outright on every load, fixed
+// separately) and, once repointed, still failed module linking here —
+// "does not provide an export named 'makeHyperlexicon'" — because a bare
+// `export *` re-exports the new name only. The shim now aliases
+// `makeNotesText as makeHyperlexicon` so this import (and its ~30 local
+// uses of hyperlexiconFor below) stays byte-identical rather than needing
+// its own edit; no other file needs to change.
 import { makeHyperlexicon } from "./hyperlexicon.js";
 import { depthLine, DEPTH_NAMES } from "./depth.js";
 // The watcher over the gap between S1 (runFastPass) and S2 (holonicTurn) —

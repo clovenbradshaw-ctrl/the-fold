@@ -106,6 +106,12 @@ import { autoRunnable, initTerminal, KEEP_PER_EXEC, parseRunCommand, ROSTER, run
 // models chosen for what their publishers disclose about the training data.
 import { WEBLLM_MODELS, isWebLLMModel, webllmModelOf, webllmLabelFor, mergeOffered, webgpuBlocker, offerableRungs, classifyWebLLMFailure } from "./webllm-rung.js";
 import { webllmClient } from "./webllm-client.js";
+// The on-device CPU rung (2026-09-11): transformers.js on WASM, needing no
+// GPU at all — the phone whose WebGPU cannot run web-llm's rungs still gets
+// a real local model. The decisions are tf-rung.js's; tf-chat-client.js is
+// the worker; tf-chat-worker.js is where the model lives.
+import { TF_MODELS, isTfModel, tfModelOf, tfLabelFor, tfContextWindowFor, TF_DISCLOSURE } from "./tf-rung.js";
+import { tfChatClient } from "./tf-chat-client.js";
 // The three homes (P118): where the page is and what it can reach are probed
 // at boot and said once; /routes prints the table. routes.js decides and
 // phrases; the probes below are the only calls, every one localhost or
@@ -2440,6 +2446,28 @@ async function fillModels() {
   } else if (!state.offeredModels.length) {
     $("status").textContent = `${$("status").textContent} · in-tab models unavailable: ${blocker}`;
   }
+  // The on-device CPU rung, appended LAST — after Ollama and WebGPU, because
+  // a native or GPU model is the faster rung where one exists. It needs NO
+  // GPU at all (transformers.js on WASM), so it is offered on every device:
+  // the phone whose WebGPU cannot run web-llm's rungs still gets a real
+  // local model here (2026-09-11). The weight download is disclosed on first
+  // use, the same posture transcribe.js holds.
+  for (const m of TF_MODELS) {
+    if (!state.offeredModels.includes(m.id)) state.offeredModels.push(m.id);
+    state.availableModels.add(m.id);
+    const opt = document.createElement("option");
+    opt.value = m.id;
+    opt.textContent = `${m.label} · ${m.publisher}, ${m.license}`;
+    opt.title = m.origin;
+    sel.append(opt);
+  }
+  if (!sel.value || !state.offeredModels.includes(sel.value)) sel.value = state.offeredModels[0];
+  if (!state.offeredModels.some((n) => !isWebLLMModel(n) && !isTfModel(n))) {
+    const kinds = [];
+    if (state.offeredModels.some(isWebLLMModel)) kinds.push(`WebGPU from ${webllmClient.weights}`);
+    if (state.offeredModels.some(isTfModel)) kinds.push("this device's CPU");
+    if (kinds.length) $("status").textContent = `no Ollama here — the in-tab models are offered (${kinds.join(" · ")})`;
+  }
 }
 
 /** The WebGPU adapter's own report — its feature set and storage-buffer
@@ -2478,6 +2506,18 @@ async function connect() {
     state.contextTokens = webllmClient.contextWindowFor(state.model);
     const m = webllmModelOf(state.model);
     $("status").textContent = `ready · ${webllmLabelFor(state.model)} · weights from ${webllmClient.weights} · ${m?.origin ?? ""}${state.routes ? ` · routes: ${state.routes.summary}` : ""}`;
+    $("send").disabled = false;
+    openSettings(false);
+    showView("chat");
+    $("input").focus();
+    return;
+  }
+  if (isTfModel(state.model)) {
+    // The on-device CPU rung: no Ollama probe, no GPU — a WASM pipeline on
+    // this device's own processor. The window is the roster's declared one.
+    state.contextTokens = tfContextWindowFor(state.model);
+    const m = tfModelOf(state.model);
+    $("status").textContent = `ready · ${tfLabelFor(state.model)} · runs on this device's CPU — no GPU needed${m?.origin ? ` · ${m.origin}` : ""}`;
     $("send").disabled = false;
     openSettings(false);
     showView("chat");
@@ -2536,7 +2576,7 @@ const modelName = model ?? state.model;
   // the room cannot answer (2026-09-11, user direction: "roll over to my
   // desktop if it's logged in").
   const prefer = await preferRoomMouth();
-  if (prefer && isWebLLMModel(modelName)) {
+  if (prefer && (isWebLLMModel(modelName) || isTfModel(modelName))) {
     try { return await completeViaRoom(messages, { onDelta, onThinking, maxTokens, json, temperature }, roomModelParts(prefer), prefer, callSeq); }
     catch { /* the room could not answer on this device — fall through to its own rung */ }
   }
@@ -2615,9 +2655,32 @@ async function completeViaRoom(messages, { onDelta, onThinking, maxTokens, json,
   return { text: a.text, thinking: "", doneReason: "stop", via: { room: state.matrixRoom, by: a.by, model: a.model, ms: a.ms, fallback: true } };
 }
 
-/** The local rungs — the in-tab engine and Ollama — one request, with the
- *  device-shaped failures left typed for the caller to roll over. */
+/** The local rungs — the in-tab engine, the on-device CPU rung, and Ollama —
+ *  one request, with the device-shaped failures left typed for the caller to
+ *  roll over. */
 async function completeLocal(messages, { onDelta, onThinking, maxTokens, json, model: modelName, temperature }, callSeq) {
+  if (isTfModel(modelName)) {
+    // The on-device CPU rung (transformers.js on WASM — no GPU, so the phone
+    // whose WebGPU cannot run web-llm's rungs still answers from this device).
+    // The first use downloads the weights and says so, transcribe.js's own
+    // posture. JSON is best-effort here (no constrained decoding): the worker
+    // asks for a JSON object and the caller's parser is the wall.
+    if (!tfDisclosed) {
+      tfDisclosed = true;
+      $("status").textContent = `${tfLabelFor(modelName)} ${TF_DISCLOSURE(modelName)}`;
+    }
+    let cancelled = false;
+    const r = await tfChatClient.complete(messages, {
+      maxTokens: maxTokens ?? MAX_TOKENS,
+      json,
+      temperature,
+      model: modelName,
+      onProgress: (line, pct) => { $("status").textContent = `${tfLabelFor(modelName)} · ${line}${pct != null ? ` ${Math.round(pct)}%` : ""}`; },
+    });
+    if (onDelta?.(r.text) === true) cancelled = true;
+    noteMouth("in this tab (CPU)", tfLabelFor(modelName), null, callSeq);
+    return { text: r.text, thinking: "", doneReason: cancelled ? "cancelled" : "stop" };
+  }
   if (isWebLLMModel(modelName)) {
     // Same contract as the Ollama branch below — {text, thinking, doneReason},
     // the pace ledger fed from the engine's own telemetry, the status line
@@ -3428,6 +3491,8 @@ async function joinTurn(arg, question) {
  *  never roll OVER to the room — it would bounce its own job back into its
  *  own serving loop forever. completeOnce's roomFallbackFor reads this. */
 let servingTurn = 0;
+/** The on-device CPU rung's first-use weight download has been disclosed. */
+let tfDisclosed = false;
 /** This machine's mouth, for the room: the same completeOnce a turn uses,
  *  with what it measured — tokens from the counter, the device's own label. */
 async function serveComplete({ model, messages, options }) {
@@ -3456,10 +3521,11 @@ function thisMachine() {
   });
 }
 function localModels() { return state.offeredModels.filter((n) => !isRoomModel(n)); }
-/** The reliable local mouths: Ollama rungs. WebLLM is excluded on purpose —
- *  a device whose in-tab GPU is broken must not advertise a mouth that will
- *  fail for everyone who rolls over to it. */
-function ollamaModels() { return localModels().filter((n) => !isWebLLMModel(n)); }
+/** The reliable local mouths: Ollama rungs. WebLLM is excluded because a
+ *  device whose in-tab GPU is broken must not advertise a mouth that will
+ *  fail for everyone who rolls over to it; the CPU rung is excluded because
+ *  it is a phone/fallback rung, slow by design. */
+function ollamaModels() { return localModels().filter((n) => !isWebLLMModel(n) && !isTfModel(n)); }
 /**
  * Automatic serving, 2026-09-11 (user direction: a device that cannot run a
  * model should roll its work over to another device of the same account "if

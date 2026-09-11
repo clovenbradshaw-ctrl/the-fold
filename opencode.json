@@ -1,20 +1,42 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "ollama/qwen3:30b-a3b",
-  "small_model": "ollama/qwen3:8b",
+  "model": "ollama/er7:gemma2:2b",
+  "small_model": "ollama/er7:gemma2:2b",
   "provider": {
-    "ollama": {
+    "eoreader7": {
+      "options": {
+        "baseURL": "http://localhost:11436/v1"
+      },
       "models": {
-        "qwen3:30b-a3b": {
-          "name": "Qwen3 30B-A3B",
+        "er7:gemma2:2b": {
+          "name": "EOReader7 Gemma 2 2B (Grounded)",
           "tool_call": true
         },
-        "qwen3-coder:latest": {
-          "name": "Qwen3 Coder",
+        "er7:llama3.1:8b": {
+          "name": "EOReader7 Llama 3.1 8B (Grounded)",
           "tool_call": true
         },
-        "qwen3:8b": {
-          "name": "Qwen3 8B (fast)",
+        "er7:qwen2.5:14b-instruct-q4_K_M": {
+          "name": "EOReader7 Qwen 2.5 14B (Grounded)",
+          "tool_call": true
+        }
+      }
+    },
+    "ollama": {
+      "options": {
+        "baseURL": "http://localhost:11436"
+      },
+      "models": {
+        "er7:gemma2:2b": {
+          "name": "EOReader7 Gemma 2 2B (Grounded)",
+          "tool_call": true
+        },
+        "er7:llama3.1:8b": {
+          "name": "EOReader7 Llama 3.1 8B (Grounded)",
+          "tool_call": true
+        },
+        "er7:qwen2.5:14b-instruct-q4_K_M": {
+          "name": "EOReader7 Qwen 2.5 14B (Grounded)",
           "tool_call": true
         }
       }

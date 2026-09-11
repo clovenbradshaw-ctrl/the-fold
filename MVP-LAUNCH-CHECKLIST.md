@@ -99,7 +99,73 @@
 | eoreader7 native | 655 pass / 1 TODO (pre-existing) |
 | in the browser, this session | arithmetic door; `/measure` usage; unknown slash; three in-tab models each answering; GitHub device code through the direct route; the chat and Explore pages at 375×812 |
 
-## 6. Not done, stated
+## 7. The acceptance bar (added 2026-09-11) — goal, not yet measured
+
+Recorded so the next pass tests against it rather than re-deriving it.
+This is a GOAL, stated before any run — nothing below has been measured
+against the live app yet.
+
+**The core loop.** Ingest text → ask a question → the answer is either (a)
+grounded with a byte-verifiable citation into the source, or (b) an honest,
+typed refusal (not stated / contested / void — the vocabulary this repo
+already ships, P104–P107). No third outcome; a fabrication is P0, not a
+quality bug.
+
+**Reliability bar.** Every claim traces to a citation whose bytes actually
+say what the answer claims. A contested or absent fact is reported as such,
+never silently resolved. Gate on precision over stated facts, not recall —
+a high refusal rate is acceptable, a wrong answer is not.
+
+**Latency budget**, gating, not aspirational:
+
+| phase | target |
+|---|---|
+| first-time ingest, per 10k words | ≤ 30s |
+| query, cache hit | ≤ 3s to first token, ≤ 8s full answer |
+| query, cold material | ≤ 15s |
+| refusal path | ≤ 2s — a refusal should be the FASTEST path, not the slowest |
+
+If the shipped model path can't hit the query targets, the lever is a
+smaller/faster mouth or the pinned S1(CPU)/S2(GPU) split
+([[project_fold_s1_s2_parallel_models]]), never relaxing the number.
+
+**Explicitly out of MVP scope, not gating:** mechanical multi-step
+reasoning, the Boolos-puzzle solver, shape-based puzzle recognition,
+alias/coref, corroboration search — all real, all built elsewhere in this
+project, layered on once the spine below is provably reliable and fast.
+
+**Acceptance test, to build:** a real, previously-unseen document, 20 real
+questions (answerable / contested / genuinely absent), checked for: 0
+fabrications, every citation verifies against source bytes, every turn
+inside the latency table above. A standing, re-runnable gate — this repo's
+own `eval/read-cost.mjs --trace --against` precedent, not a one-off.
+
+**Measured 2026-09-11 — bar NOT met.** Built and run for real:
+`eoreader7/native/eval/the-fold/mvp-acceptance.mjs` over a real, live-fetched
+Wikipedia fixture (Katherine Johnson, 3,559 words, previously unseen),
+20 hand-written questions (7 answerable / 7 contested / 6 absent), real
+`gemma2:2b` calls via Ollama, real wall-clock timing, real citation-byte
+verification. Result: ingest PASSES (1.6s for 3,559 words, ~4.5s per 10k —
+well inside the 30s target); citation verification PASSES (21/21
+relation-tier spans self-verified against source bytes — corrected the
+same day: the first run reported 0/21, which was a driver bug, not a
+finding — `answer-record.js`'s AnswerRecord deliberately strips span text
+by design (P100/P55), and the driver's own check had nothing to compare
+against; fixed by verifying the raw pre-firewall spans instead); fabrications
+FAIL (88 total across 20 turns, must be 0); all three latency gates FAIL
+(cold material max 50.6s vs ≤15s target; cache-hit full answer max 40.0s
+vs ≤8s; refusal path max 18.2s vs ≤2s — no cheap short-circuit refusal
+exists in this configuration). Full per-question detail, the corrected
+triage, and the raw JSON:
+`eoreader7/native/eval/the-fold/results/mvp-acceptance-RESULTS.md` and
+`results/mvp-acceptance.json`. Headline diagnosis, unchanged by the
+correction: the multi-call correction/witness loop (5–9 gemma2:2b calls
+on the harder questions) drives both the fabrication count and the
+latency failures together — citation addressing itself is not implicated.
+Reproduce: `node eoreader7/native/eval/the-fold/mvp-acceptance.mjs` (needs
+Ollama with `gemma2:2b` pulled).
+
+## 8. Not done, stated
 
 - A model trained only on licensed / public-domain text (Common Corpus, Common Pile) is not in the vendored catalog; offering one means compiling it with mlc_llm.
 - The static-site deployment itself (a hosted origin serving this repo + `models/`) was not stood up here; the localhost page exercised the identical code path with `isLocalPage` true.

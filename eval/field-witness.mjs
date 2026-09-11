@@ -1,6 +1,6 @@
-// eval/field-witness.mjs — GFP Pass 35's measure and null: THE SHADOW's
-// seat in retrieval (the keyless field, relative.js / field-of-record.js),
-// scored over a real stream. For each probe, the LEXICAL arm
+// eval/field-witness.mjs — GFP Pass 35's measure and null: the keyless memory's
+// seat in retrieval (the holograph / shadow / echo — relative.js /
+// field-of-record.js), scored over a real stream. For each probe, the LEXICAL arm
 // (source.js::retrieve) and the RELATIVE arm (field-of-record.js::
 // recallForTurn) each nominate a passage set; "bound" is the set containing
 // the probe's own ground-truth passage. Counted:

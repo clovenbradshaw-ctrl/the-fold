@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Field } from "./relative.js";
-import { textOfEntry, admitPassage, admitEntry, admitRecordLines, rowsSince, fieldFromRows, fieldOf, recallForTurn, FIELD_OFFER_MAX, impressionOf, THE_IMPRESSION } from "./field-of-record.js";
+import { textOfEntry, admitPassage, admitEntry, admitRecordLines, rowsSince, fieldFromRows, fieldOf, recallForTurn, FIELD_OFFER_MAX, shadowOf, echoOf, THE_HOLOGRAPH, THE_SHADOW, THE_ECHO } from "./field-of-record.js";
 import { readOnArrival } from "./read-on-arrival.js";
 import { chunkSource } from "./source.js";
 
@@ -46,47 +46,68 @@ test("recallForTurn (GFP Pass 35): a cue that settles is shaped for a turn — p
   assert.equal(recallForTurn(f, "   "), null);
 });
 
-test("THE IMPRESSION (2026-09-11): the minimum we remember — a node with a state and a pointer, NO words, that still recalls the same figure on every probe", () => {
+test("THE SHADOW (2026-09-11): the second tier — a node with a state and a pointer, NO words, that still recalls the same figure on every probe", () => {
   const ps = passages();
   const full = fieldOf({ passages: ps.map((p) => ({ ...p, source: "borodino.txt" })) });
-  const imp = new Field();
-  for (const p of ps) imp.admit(p.text, { source: "borodino.txt", at: p.ref }, { impression: true });
-  assert.equal(imp.nodes.filter((n) => n.text != null).length, 0, "no text retained — the minimum");
-  assert.ok(imp.nodes.every((n) => n.impression), "each is marked an impression");
-  assert.ok(imp.nodes.every((n) => n.sdr && n.sdr.length), "each keeps its state (recall needs it)");
+  const sh = new Field();
+  for (const p of ps) sh.admit(p.text, { source: "borodino.txt", at: p.ref }, { tier: THE_SHADOW });
+  assert.equal(sh.nodes.filter((n) => n.text != null).length, 0, "no text retained — a lien on content, never the content");
+  assert.ok(sh.nodes.every((n) => n.tier === THE_SHADOW), "each is a shadow");
+  assert.ok(sh.nodes.every((n) => n.sdr && n.sdr.length), "each keeps its state (recall needs it)");
   for (const n of full.nodes) {
-    const a = full.recall(n.text)[0].node, b = imp.recall(n.text)[0].node;
+    const a = full.recall(n.text)[0].node, b = sh.recall(n.text)[0].node;
     assert.equal(b.payload.at, a.payload.at, `recall parity for "${n.text.slice(0, 30)}…"`);
   }
   // the vocabulary still exists (admit saw the words), so the null band still measures
-  const band = imp.nullBand(8, { draws: 60 });
-  assert.ok(band.hi > 0, "an impression field can still measure its own chance");
+  const band = sh.nullBand(8, { draws: 60 });
+  assert.ok(band.hi > 0, "a shadow field can still measure its own chance");
 });
 
-test("THE IMPRESSION round-trips: a mixed store (full + impression rows) rebuilds with recall intact and the impression still textless", () => {
+test("THE ECHO (2026-09-11): the third tier, the coarse minimum — a low-resolution state and a pointer, no words, recalling at its own resolution", () => {
+  const ps = passages();
+  const ec = new Field();
+  for (const p of ps) ec.admit(p.text, { source: "borodino.txt", at: p.ref }, { tier: THE_ECHO });
+  assert.equal(ec.nodes.filter((n) => n.text != null).length, 0, "no words — never read back into full EOT");
+  assert.ok(ec.nodes.every((n) => n.tier === THE_ECHO && n.sdr && n.sdr.length), "each keeps a coarse state");
+  const coarse = echoOf(ps[0].text);
+  assert.equal(coarse.tier, THE_ECHO);
+  assert.ok(coarse.bits < 4096, "the echo is at a coarser resolution than the holograph's");
+  // a whole passage as its own cue still echoes back to its own figure
+  const r = ec.recall(ps[0].text);
+  assert.equal(r[0].node.payload.at, ps[0].ref, "the echo settles on the thing it echoes");
+});
+
+test("THE SHADOW round-trips: a mixed store (holograph + shadow + echo rows) rebuilds with recall intact and the shadow/echo still wordless", () => {
   const ps = passages();
   const m = new Field();
-  m.admit(ps[0].text, { source: "borodino.txt", at: ps[0].ref });
-  m.admit(ps[1].text, { source: "borodino.txt", at: ps[1].ref }, { impression: true });
+  m.admit(ps[0].text, { source: "borodino.txt", at: ps[0].ref }, { tier: THE_HOLOGRAPH });
+  m.admit(ps[1].text, { source: "borodino.txt", at: ps[1].ref }, { tier: THE_SHADOW });
+  m.admit(ps[2].text, { source: "borodino.txt", at: ps[2].ref }, { tier: THE_ECHO });
   const rows = rowsSince(m);
-  assert.equal(rows[1].text, null, "the impression row carries no text");
+  assert.equal(rows[1].text, null, "the shadow row carries no text");
   assert.ok(rows[1].sdr && rows[1].sdr.length, "it carries its state instead");
-  assert.equal(rows[0].sdr, undefined, "a full row still rebuilds its state from its words");
+  assert.equal(rows[1].tier, THE_SHADOW);
+  assert.equal(rows[2].tier, THE_ECHO);
+  assert.equal(rows[0].sdr, undefined, "a holograph row still rebuilds its state from its words");
   const rebuilt = fieldFromRows(rows);
-  assert.equal(rebuilt.nodes[1].text, null, "rebuilt impression is still textless");
-  assert.equal(rebuilt.recall(ps[1].text)[0].node.payload.at, ps[1].ref, "rebuild recalls the same figure");
-  assert.equal(rebuilt.recall(ps[0].text)[0].node.payload.at, ps[0].ref, "the full node too");
+  assert.equal(rebuilt.nodes[1].text, null, "rebuilt shadow is still wordless");
+  assert.equal(rebuilt.nodes[2].tier, THE_ECHO);
+  assert.equal(rebuilt.recall(ps[1].text)[0].node.payload.at, ps[1].ref, "rebuild recalls the same shadow figure");
+  assert.equal(rebuilt.recall(ps[0].text)[0].node.payload.at, ps[0].ref, "the holograph too");
 });
 
-test("impressionOf returns the minimum itself — a state and a state-signature, no words; admitEntry with impression:true is the same minimum", () => {
-  const io = impressionOf("the battery on the mound fired without pause");
-  assert.ok(io.sdr && io.sdr.length && io.bits === 4096);
-  assert.ok(typeof io.signature === "string" && io.signature.length >= 6);
+test("shadowOf / echoOf return the tier itself — a state and a state-signature, no words; admitEntry with a tier is the same form", () => {
+  const sh = shadowOf("the battery on the mound fired without pause");
+  assert.ok(sh.sdr && sh.sdr.length && sh.tier === THE_SHADOW);
+  assert.ok(typeof sh.signature === "string" && sh.signature.length >= 6);
+  const ec = echoOf("the battery on the mound fired without pause");
+  assert.equal(ec.tier, THE_ECHO);
+  assert.ok(ec.sdr.length > 0 && ec.sdr.length <= sh.sdr.length, "the echo's state is no larger than the shadow's");
   const f = new Field();
-  const n = admitEntry(f, { description: "the battery on the mound fired", seq: 0 }, { record: "g", impression: true });
-  assert.equal(n.text, null, "an impression entry keeps no words");
+  const n = admitEntry(f, { description: "the battery on the mound fired", seq: 0 }, { record: "g", tier: THE_ECHO });
+  assert.equal(n.text, null, "an echo entry keeps no words");
   assert.equal(n.payload.record, "g");
-  assert.ok(n.sdr.length, "but it keeps the state");
+  assert.ok(n.sdr.length, "but it keeps the coarse state");
   assert.equal(f.recall("the battery on the mound fired")[0].node.signature, n.signature, "recall reaches it by content, not by key");
 });
 

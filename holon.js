@@ -58,9 +58,9 @@ import { placeCoverage } from "./calibration.js";
 import { citedSource, findMisquote, misquoteFacts, misquoteGuard } from "./misquote.js";
 import { admissible, finding } from "./turn-order.js";
 import { quotedAsk } from "./transcript.js";
-// GFP Pass 35: the shadow's seat in the turn — how many recalled passages
-// it may offer beside lexical retrieval (field-of-record.js is pure; the
-// cap is the shadow's own declared budget, never restated here).
+// GFP Pass 35: the keyless memory's seat in the turn — how many recalled
+// passages it may offer beside lexical retrieval (field-of-record.js is pure;
+// the cap is the holograph's own declared budget, never restated here).
 import { FIELD_OFFER_MAX } from "./field-of-record.js";
 import { groundOf } from "./ground-ladder.js";
 import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js";
@@ -1179,8 +1179,8 @@ export async function runPart({
   // passage the turn's pool already held is agreement; one in the pool but
   // missed by lexical is promoted (added, marked `retrievedVia: "relative"`);
   // one the pool does not hold at all is recorded on `fieldWitness` and NOT
-  // offered. THE_IMPRESSION nodes (recall-only, no words) are never offered
-  // by design — recallForTurn filters them out. Null (every existing
+  // offered. THE_SHADOW and THE_ECHO nodes (recall-only, no words) are never
+  // offered by design — recallForTurn filters them out. Null (every existing
   // caller) is byte-identical to before.
   fieldRecall = null,
   // shape-fallback.js's re-rank, consulted by `retrieve()` itself ONLY on an
@@ -1463,9 +1463,10 @@ export async function runPart({
   // witness over the SAME retrieval, never a competing start. What settles
   // is compared against this turn's own pool: held already → agreement;
   // in the pool but missed → promoted (offered, marked); outside the pool →
-  // recorded and NOT offered — the shadow recalls everything it has ever
-  // read, and the mouth only ever sees this turn's material. Impressions
-  // (THE_IMPRESSION — recall-only, no words) cannot be offered at all.
+  // recorded and NOT offered — the memory recalls everything it has ever
+  // read, and the mouth only ever sees this turn's material. Shadows and
+  // echoes (THE_SHADOW / THE_ECHO — recall-only, no words) cannot be
+  // offered at all.
   let fieldWitness = null;
   if (fieldRecall && question && live.length) {
     const lexicalRefs = passages.map((p) => p.ref);
@@ -3560,7 +3561,7 @@ export async function runPart({
     // The door's typed refusals for this part (P57: not optional at any
     // boundary). Empty when nothing was refused or no ledger was injected.
     hyperlexiconTurnedAway,
-    // GFP Pass 35: the shadow's seat, reported with the part — what
+    // GFP Pass 35: the keyless memory's seat, reported with the part — what
     // it recalled, what agreed, what it promoted into this turn, and what
     // it reached beyond the pool (recorded, never offered). Absent when no
     // field was injected or it did not settle.
@@ -3631,7 +3632,7 @@ export async function runHolonicTask({
   // The arithmetic engine, injected (arithmetic.js's pattern), threaded to every part.
   math = null,
   retrieveWith = null,
-  // GFP Pass 35 (see runPart's own parameter): the shadow's seat,
+  // GFP Pass 35 (see runPart's own parameter): the keyless memory's seat,
   // threaded to every part exactly as retrieveWith is.
   fieldRecall = null,
   // shape-fallback.js's re-rank (see runPart's own doc comment above),

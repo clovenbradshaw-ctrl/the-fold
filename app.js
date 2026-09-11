@@ -168,10 +168,9 @@ import { serializeRecord, replayRecord } from "./record-log.js";
 import { appendRecord, loadRecord, recordLength } from "./record-store.js";
 // GFP Pass 33: the keyless field, derived from the records and the sources — booted with the records, synced beside them, fed by the reader loop and by every record line written (field-store.js registers on record-store's own append).
 import { bootField, syncField, getField } from "./field-store.js";
-// GFP Pass 35: THE SHADOW's seat in the turn (the keyless field — relative.js's
-// Field, named in field-of-record.js; THE_IMPRESSION is its thin form — state
-// and pointer, no words, the minimum we remember) — recallForTurn shapes what
-// a recall offers as passages beside lexical retrieval.
+// GFP Pass 35: the keyless memory's seat in the turn (the holograph / shadow /
+// echo — THE_HOLOGRAPH, THE_SHADOW, THE_ECHO, named in field-of-record.js) —
+// recallForTurn shapes what a recall offers as passages beside lexical retrieval.
 import { recallForTurn } from "./field-of-record.js";
 import { mergeAppendOnly } from "./record-log.js";
 import { updateSourceMeta } from "./sources-store.js";
@@ -8656,12 +8655,13 @@ function activationRetrievalNow() {
   const fallbackWithShape = (chunks, question, limit, folded) => retrieve(chunks, question, limit, folded, { shapeFallback: shapeFallbackRetrieve });
   return makeActivationRetrieval({ index, book, dmdWindow, fallback: fallbackWithShape, notes: () => (state.hyperlexiconLog && hyperlexiconFor?.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : []), transcript: transcriptNow, resolutions: RESOLUTIONS_LEVEL });
 }
-// GFP PASS 35 — THE SHADOW'S SEAT IN THE TURN (the keyless field, THE_SHADOW;
-// THE_IMPRESSION is the minimum we remember — state and pointer, no words,
-// recall-only, never offered to a turn).
+// GFP PASS 35 — THE KEYLESS MEMORY'S SEAT IN THE TURN (the holograph / shadow
+// / echo — THE_HOLOGRAPH, THE_SHADOW, THE_ECHO; the holograph is the record
+// merged, the only tier with words; the shadow and echo are recall-only and
+// never offered to a turn).
 // Recalled from the question, offered beside lexical retrieval as a witness
-// (GFP P3: never a replacement, never alone — a shade cannot be its own light
-// source). Null until the shadow has something to be a witness over — a field
+// (GFP P3: never a replacement, never alone — a shadow cannot be its own light
+// source). Null until the memory has something to be a witness over — a field
 // of a handful of passages has no null band yet. steps=0 is the MEASURED
 // choice, not a default: eval/field-witness.mjs ran the spec's own shuffled-
 // record null and the synapse contribution was nil (real steps=1 == shuffled

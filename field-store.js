@@ -1,7 +1,7 @@
-// field-store.js — GFP Pass 33: THE SHADOW's OPFS half, beside the records
-// (field-of-record.js gives the shadow its name — the keyless field,
-// relative.js's Field, the addressless memory; THE_IMPRESSION is its thin
-// form — state and pointer, no words, the minimum we remember).
+// field-store.js — GFP Pass 33: the keyless memory's OPFS half, beside the
+// records (field-of-record.js names the three tiers — THE HOLOGRAPH, the
+// record merged with full tokens + address; THE SHADOW and THE ECHO, the
+// wordless tiers, state + address, recall-only).
 //
 // One JSONL file under `field/`, APPEND-ONLY like record-store.js: a sync
 // writes only the rows for nodes admitted since the last sync, and nothing

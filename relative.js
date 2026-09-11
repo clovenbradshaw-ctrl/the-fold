@@ -1,19 +1,26 @@
 // relative.js — an experiment: addresses that are relative, resolution by state.
 //
-// This is THE SHADOW (field-of-record.js, `THE_SHADOW`) — the keyless,
-// addressless memory, the other side of the holograph (THE-HOLOGRAPH.md).
-// The holograph hands addressed patterns; the shadow is what settles from
-// any part of the whole by cue, no keys, no `get` — graceful and never
-// exact, it degrades and says by how much. Ground casts; the shadow follows;
-// the pattern measures the light (relative-pattern.js).
+// The keyless memory in three tiers (field-of-record.js): THE HOLOGRAPH, THE
+// SHADOW, THE ECHO (2026-09-11, user-given).
 //
-// And THE IMPRESSION (field-of-record.js, `THE_IMPRESSION`) is the shadow's
-// thin form — the minimum we remember of something: its state and a pointer,
-// NO words (2026-09-11, user direction). An impression node recalls ("have I
-// met this"), names where it came from, and can never be re-expanded or
-// re-anchored — there are no words to search for. Structurally unreadable,
-// the sealed form to share. Resolution (SDR_BITS) is its size knob, measured
-// by GFP Pass 36, never picked by hand.
+//   THE HOLOGRAPH — the first tier, and the record, merged: a node keeps the
+//     full tokens AND the address — both sides. "If it has the full tokens,
+//     it's the real thing." Re-expandable to the ground; the only tier the
+//     mouth reads. (Before the record there is only the file — the raw bytes,
+//     unread.)
+//   THE SHADOW — the second tier: a node keeps only its state (which words and
+//     pairs lit which bits) and the address, NO words. Recall-only: "have I
+//     met this," and where. A lien on content, never the content; re-expands
+//     only through the record.
+//   THE ECHO — the third tier, the coarse minimum: a low-resolution state and
+//     the address. "Something like this was said here," cheap over a million
+//     pages or a whole room. Never read back into full EOT — it only says
+//     whether to bother looking.
+//
+// Graceful and never exact: the shadow and echo degrade, and say by how much.
+// Ground casts; the holograph holds; the shadow and echo follow; the pattern
+// measures the light (relative-pattern.js). Resolution is the size knob,
+// measured by GFP Pass 36, never picked by hand.
 //
 // Everything the record holds today is reached by an ABSOLUTE address: a seq
 // in a ledger, `name#start-end` into a source's bytes, an mxc in a media
@@ -55,6 +62,11 @@
 // sensitivity (2,048 / 4,096 / 8,192) and confirms or replaces it in the
 // record.
 export const SDR_BITS = 4096;
+/** THE ECHO's resolution — the coarse minimum (2026-09-11). Declared, not
+ * measured: set by hand for the third tier, a structural size, never a cut.
+ * GFP Pass 36 measures the whole ladder's sensitivity (2,048 / 4,096 / 8,192
+ * and below) and confirms or replaces both this and SDR_BITS in the record. */
+export const ECHO_BITS = 512;
 /** Joins an ordered pair of words into one token; a word never contains it. */
 export const PAIR = "\u0001";
 export const isWord = (t) => !t.includes(PAIR);
@@ -89,19 +101,22 @@ export function sharedBits(a, b) {
 export function overlap(a, b) { return a.length && b.length ? sharedBits(a, b) / Math.sqrt(a.length * b.length) : 0; }
 
 /** A node is a state, a payload, and its synapses. It has no key.
- * `impression` (true) is THE IMPRESSION — the minimum we remember of a
- * thing: its state and a pointer, NO words (`text` is null, nothing can be
- * re-expanded or re-anchored from it; recall-only, structurally unreadable).
- * The state must then be persisted on the store (there is no text to
- * rebuild it from); the signature is over the state, not the words. */
+ * `tier` is one of the memory's three resolutions:
+ *   "holograph" — the record merged: full tokens AND the address, both sides.
+ *     Re-expandable to the ground; the only tier the mouth reads.
+ *   "shadow" — state + address, NO words. Recall-only; re-expands only
+ *     through the record; a lien on content, never the content.
+ *   "echo" — the coarse minimum: a low-resolution state + address, no words.
+ * For shadow and echo there is no text to rebuild the state from, so the
+ * state is persisted on the store; the signature is over the state. */
 class Node {
-  constructor(text, payload, impression = false, sdr = null) {
-    this.sdr = sdr ?? sdrOf(text);
-    this.text = impression ? null : text;
+  constructor(text, payload, tier = "holograph", sdr = null) {
+    this.tier = tier;
+    this.sdr = sdr ?? sdrOf(text, { bits: tier === "echo" ? ECHO_BITS : SDR_BITS });
+    this.text = tier === "holograph" ? text : null;
     this.payload = payload;
     this.next = new Map(); this.prev = new Map();
-    this.impression = impression;
-    this.signature = impression ? stateSignature(this.sdr) : hash32(text).toString(16);
+    this.signature = tier === "holograph" ? hash32(text).toString(16) : stateSignature(this.sdr);
   }
 }
 /** A state's own signature: FNV-1a over the lit bit indices, so a store with
@@ -123,9 +138,11 @@ function stateSignature(sdr) {
 export class Field {
   constructor({ spread = 0.25, steps = 1 } = {}) { this.nodes = []; this.spread = spread; this.steps = steps; this.last = null; this.vocab = new Map(); }
   get size() { return this.nodes.length; }
-  /** Admit a text (or, as an impression, keep only its state and pointer). */
-  admit(text, payload = null, { after = this.last, impression = false } = {}) {
-    const node = new Node(text, payload, impression);
+  /** Admit a text as one of the memory's tiers: "holograph" (full tokens +
+   * address), "shadow" (state + address, no words), "echo" (coarse state +
+   * address, no words). */
+  admit(text, payload = null, { after = this.last, tier = "holograph" } = {}) {
+    const node = new Node(text, payload, tier);
     if (after) { after.next.set(node, (after.next.get(node) ?? 0) + 1); node.prev.set(after, (node.prev.get(after) ?? 0) + 1); }
     this.nodes.push(node); this.last = node;
     for (const w of tokensOf(text)) if (isWord(w)) this.vocab.set(w, (this.vocab.get(w) ?? 0) + 1);
@@ -207,17 +224,17 @@ export class Field {
     return { kind: "figure", top, band: b, ranked: r };
   }
   /** Nodes with their neighbours named by SIGNATURE — a store with no positions.
-   * An impression node (no text) persists its STATE (`sdr`), since nothing
-   * else can rebuild it; a text node rebuilds its state from its words. */
+   * A shadow or echo node (no text) persists its STATE (`sdr`), since nothing
+   * else can rebuild it; a holograph node rebuilds its state from its words. */
   serialize() {
-    return this.nodes.map((n) => ({ text: n.text, ...(n.impression ? { sdr: Array.from(n.sdr) } : {}), payload: n.payload, signature: n.signature, next: [...n.next].map(([m, w]) => [m.signature, w]), prev: [...n.prev].map(([m, w]) => [m.signature, w]) }));
+    return this.nodes.map((n) => ({ tier: n.tier, text: n.text, ...(n.tier !== "holograph" ? { sdr: Array.from(n.sdr) } : {}), payload: n.payload, signature: n.signature, next: [...n.next].map(([m, w]) => [m.signature, w]), prev: [...n.prev].map(([m, w]) => [m.signature, w]) }));
   }
   static deserialize(rows, opts) {
     const f = new Field(opts);
     const bySig = new Map();
     for (const r of rows) {
-      const impression = r.text == null;
-      const n = impression ? new Node("", r.payload, true, Array.isArray(r.sdr) ? Uint32Array.from(r.sdr) : null) : new Node(r.text, r.payload);
+      const tier = r.tier ?? (r.text == null ? "shadow" : "holograph");
+      const n = tier === "holograph" ? new Node(r.text, r.payload, "holograph") : new Node("", r.payload, tier, Array.isArray(r.sdr) ? Uint32Array.from(r.sdr) : null);
       bySig.set(r.signature, n); f.nodes.push(n);
       if (r.text) for (const w of tokensOf(r.text)) if (isWord(w)) f.vocab.set(w, (f.vocab.get(w) ?? 0) + 1);
     }

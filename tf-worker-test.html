@@ -1,0 +1,35 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>tf-client test</title>
+<!-- The real app's import map: transformers.web.js imports onnxruntime-web
+     and onnxruntime-common as bare specifiers, resolved only under this map
+     (the page's own — a module worker never sees it, which is why the rung
+     runs on the main thread, exactly like transcribe.js). -->
+<script type="importmap">
+  { "imports": {
+      "onnxruntime-web/webgpu": "/node_modules/onnxruntime-web/dist/ort.webgpu.bundle.min.mjs",
+      "onnxruntime-common": "/node_modules/onnxruntime-common/dist/esm/index.js"
+  } }
+</script>
+<pre id="out">starting…</pre>
+<script type="module">
+// A minimal driver for the on-device CPU rung's CLIENT (the real path the
+// app uses — main thread, import map, preload). Used by tf-worker-test.mjs
+// over CDP. Proves the model actually downloads from its publisher.
+import { tfChatClient } from "./tf-chat-client.js";
+import { TF_MODEL_ID, TF_DISCLOSURE } from "./tf-rung.js";
+const out = document.getElementById("out");
+const log = (s) => { out.textContent += "\n" + s; console.log("[tf-test]", s); };
+log(TF_DISCLOSURE(TF_MODEL_ID));
+log("preloading…");
+tfChatClient.preload({
+  model: TF_MODEL_ID,
+  onProgress: (file, pct) => log(`progress: ${file} ${typeof pct === "number" ? pct.toFixed(1) : pct}%`),
+}).then(() => {
+  log("LOADED - downloaded from the model's publisher (Hugging Face), ready to answer");
+  document.title = "TF-LOADED";
+}).catch((e) => {
+  log("ERROR: " + (e?.message ?? String(e)));
+  document.title = "TF-ERROR";
+});
+</script>

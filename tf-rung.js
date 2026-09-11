@@ -26,8 +26,8 @@
 // disclosure is stated out loud per model (size at q4) and the download is
 // surfaced as a banner on the page.
 //
-// PURE: no fetch, no DOM, no worker. The client (tf-chat-client.js) and the
-// worker (tf-chat-worker.js) only move bytes this file names.
+// PURE: no fetch, no DOM, no worker. The client (tf-chat-client.js) only
+// moves bytes this file names.
 
 /** The roster, smallest first. `sizeMB` is the q4 download, so the disclosure
  *  can say the number instead of waving at it. */

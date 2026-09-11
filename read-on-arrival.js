@@ -136,7 +136,8 @@ export async function readOnArrival({
   for (let i = start; i < passages.length; i += 1) {
     if (ledgerRef) log = ledgerRef.get();
     const r = admitPassages(hyperlexicon, log, [passages[i]], { read: readerFor(i).read, witnessFor, classifyConnector, frame });
-    // GFP Pass 33: the same passage enters the keyless field (field-of-record.js) as it is read, with its ground address as payload.
+    // GFP Pass 33: the same passage enters THE SHADOW (the keyless field, field-of-record.js) as it is read, with its ground address as payload.
+    // `impression: true` here would admit THE_IMPRESSION instead — the minimum we remember (state + pointer, no words, recall-only).
     if (field) field.admit(String(passages[i]?.text ?? ""), { source: name, at: passages[i]?.ref ?? null });
     log = r.log;
     if (ledgerRef && log) ledgerRef.set(log);

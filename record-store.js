@@ -16,9 +16,11 @@ const RECORDS_DIR = "records";
 // creation, not each race their own.
 let _rootPromise = null;
 
-// Listeners on the record's own append (GFP Pass 33: the field is admitted
-// from every line written here — field-store.js). A listener is told what
-// was written, after it was written; it cannot change it.
+// Listeners on the record's own append (GFP Pass 33: the shadow — the keyless
+// field — is admitted from every line written here — field-store.js). A
+// listener is told what was written, after it was written; it cannot change it.
+// THE_IMPRESSION is the shadow's thin form (state + pointer, no words) for
+// lines worth only remembering that we met.
 const appendListeners = new Set();
 export function onAppend(fn) { appendListeners.add(fn); return () => appendListeners.delete(fn); }
 const notifyAppend = (name, lines) => { for (const fn of appendListeners) { try { fn(name, lines); } catch (err) { console.warn("record-store: append listener failed:", err?.message ?? err); } } };

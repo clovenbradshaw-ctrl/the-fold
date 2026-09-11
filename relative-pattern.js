@@ -2,8 +2,10 @@
 //
 // The Ground: bytes, and absolute addresses into them (`name#start-end`),
 // which re-open exactly or fail exactly (record-log.js resolveAddress, II.3).
-// The Figure: what a cue pulls out of the state field (relative.js), which
-// is never exact and never nothing — it degrades, and it says by how much.
+// The Figure: what a cue pulls out of the state field (relative.js — the
+// shadow, `THE_SHADOW`), which is never exact and never nothing — it degrades,
+// and it says by how much. Ground casts; the shadow follows; this file is the
+// pattern that measures the light.
 // The Pattern: the correspondence between them, which neither has alone.
 //
 //   drift(at, note, sources)   does the ground address still name the bytes

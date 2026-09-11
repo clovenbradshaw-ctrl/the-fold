@@ -1,5 +1,14 @@
 # Ground, Figure, Pattern — the addressed, the addressless, and the meta
 
+*The addressless half of the Figure is THE SHADOW (field-of-record.js
+`THE_SHADOW`) — the keyless field (relative.js) by its remembered name:
+the holograph is the addressable side of recall, the shadow is the other
+side. Ground casts; the shadow follows; the pattern measures the light.
+THE_IMPRESSION is the shadow's thin form (2026-09-11, user direction "the
+minimum we remember"): a node with a state and a pointer, NO words —
+recall-only, never re-expandable, structurally unreadable. Resolution
+(SDR_BITS) is the impression's size knob, measured by Pass 36, never picked.*
+
 A spec to develop, fully, what the relative-address experiment found on
 2026-09-07, and — added the same day — to turn the meta part from an
 auditor into an author. Status at writing: the experiment is measured and
@@ -54,10 +63,13 @@ and the new one.
 
 **Figure.** A *state* is the set of bits a text lights (`relative.js
 sdrOf`: words and their ordered pairs, hashed onto 4,096 bits; density is
-whatever the text makes it; comparison is cosine over lit bits). The *field*
-holds nodes that are a state, a payload and their synapses, and offers
+whatever the text makes it; comparison is cosine over lit bits). The *field* —
+**the shadow**, by the name this spec's companion files carry — holds nodes that are a state, a payload and their synapses, and offers
 exactly four ways in — `recall(cue)`, `after(node)`, `before(node)`,
-`bind(a, b)` — and no `get`. A *recall* activates every node by overlap with
+`bind(a, b)` — and no `get`. A node may be a full node (text retained,
+re-expandable to the ground) or an *impression* — **THE_IMPRESSION**, the
+minimum we remember: state and pointer, no words, recall-only, never
+re-anchored (there are no words to search for). A *recall* activates every node by overlap with
 the cue's state, lets activation spread one step along synapses, and reports
 where it settled. A *verdict* is one of `figure`, `ambiguous`, `nothing`, and
 is decided only against the *null band*: the highest activation, and the
@@ -65,7 +77,7 @@ widest lead over a runner-up, that random cues of that length pull out of
 this field. No activation threshold is chosen anywhere.
 
 The model is the other Figure-grain part: weights and activations, reached by
-a prompt that is a cue and never a lookup. The field is the addressless
+a prompt that is a cue and never a lookup. The field — the shadow — is the addressless
 *memory*; the model is the addressless *mouth*. The meta part never asks the
 model anything (the model is just the mouth): every verdict below is
 mechanical.

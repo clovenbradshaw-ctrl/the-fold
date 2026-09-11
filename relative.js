@@ -1,5 +1,20 @@
 // relative.js — an experiment: addresses that are relative, resolution by state.
 //
+// This is THE SHADOW (field-of-record.js, `THE_SHADOW`) — the keyless,
+// addressless memory, the other side of the holograph (THE-HOLOGRAPH.md).
+// The holograph hands addressed patterns; the shadow is what settles from
+// any part of the whole by cue, no keys, no `get` — graceful and never
+// exact, it degrades and says by how much. Ground casts; the shadow follows;
+// the pattern measures the light (relative-pattern.js).
+//
+// And THE IMPRESSION (field-of-record.js, `THE_IMPRESSION`) is the shadow's
+// thin form — the minimum we remember of something: its state and a pointer,
+// NO words (2026-09-11, user direction). An impression node recalls ("have I
+// met this"), names where it came from, and can never be re-expanded or
+// re-anchored — there are no words to search for. Structurally unreadable,
+// the sealed form to share. Resolution (SDR_BITS) is its size knob, measured
+// by GFP Pass 36, never picked by hand.
+//
 // Everything the record holds today is reached by an ABSOLUTE address: a seq
 // in a ledger, `name#start-end` into a source's bytes, an mxc in a media
 // store. That is a graph database's way — a key, a lookup, exact or nothing.
@@ -73,9 +88,28 @@ export function sharedBits(a, b) {
 /** Cosine over lit bits: 1 for the same state, 0 for nothing shared. */
 export function overlap(a, b) { return a.length && b.length ? sharedBits(a, b) / Math.sqrt(a.length * b.length) : 0; }
 
-/** A node is a state, a payload, and its synapses. It has no key. */
+/** A node is a state, a payload, and its synapses. It has no key.
+ * `impression` (true) is THE IMPRESSION — the minimum we remember of a
+ * thing: its state and a pointer, NO words (`text` is null, nothing can be
+ * re-expanded or re-anchored from it; recall-only, structurally unreadable).
+ * The state must then be persisted on the store (there is no text to
+ * rebuild it from); the signature is over the state, not the words. */
 class Node {
-  constructor(text, payload) { this.sdr = sdrOf(text); this.text = text; this.payload = payload; this.next = new Map(); this.prev = new Map(); this.signature = hash32(text).toString(16); }
+  constructor(text, payload, impression = false, sdr = null) {
+    this.sdr = sdr ?? sdrOf(text);
+    this.text = impression ? null : text;
+    this.payload = payload;
+    this.next = new Map(); this.prev = new Map();
+    this.impression = impression;
+    this.signature = impression ? stateSignature(this.sdr) : hash32(text).toString(16);
+  }
+}
+/** A state's own signature: FNV-1a over the lit bit indices, so a store with
+ * no words can still name a node by what it is. */
+function stateSignature(sdr) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < sdr.length; i++) { h ^= sdr[i]; h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16);
 }
 
 /**
@@ -89,9 +123,9 @@ class Node {
 export class Field {
   constructor({ spread = 0.25, steps = 1 } = {}) { this.nodes = []; this.spread = spread; this.steps = steps; this.last = null; this.vocab = new Map(); }
   get size() { return this.nodes.length; }
-  /** Admit a text; it is joined to whatever was admitted just before it. */
-  admit(text, payload = null, { after = this.last } = {}) {
-    const node = new Node(text, payload);
+  /** Admit a text (or, as an impression, keep only its state and pointer). */
+  admit(text, payload = null, { after = this.last, impression = false } = {}) {
+    const node = new Node(text, payload, impression);
     if (after) { after.next.set(node, (after.next.get(node) ?? 0) + 1); node.prev.set(after, (node.prev.get(after) ?? 0) + 1); }
     this.nodes.push(node); this.last = node;
     for (const w of tokensOf(text)) if (isWord(w)) this.vocab.set(w, (this.vocab.get(w) ?? 0) + 1);
@@ -172,14 +206,21 @@ export class Field {
     if (second && top.activation - second.activation <= b.margin) return { kind: "ambiguous", top, second, band: b, ranked: r };
     return { kind: "figure", top, band: b, ranked: r };
   }
-  /** Nodes with their neighbours named by SIGNATURE — a store with no positions. */
+  /** Nodes with their neighbours named by SIGNATURE — a store with no positions.
+   * An impression node (no text) persists its STATE (`sdr`), since nothing
+   * else can rebuild it; a text node rebuilds its state from its words. */
   serialize() {
-    return this.nodes.map((n) => ({ text: n.text, payload: n.payload, signature: n.signature, next: [...n.next].map(([m, w]) => [m.signature, w]), prev: [...n.prev].map(([m, w]) => [m.signature, w]) }));
+    return this.nodes.map((n) => ({ text: n.text, ...(n.impression ? { sdr: Array.from(n.sdr) } : {}), payload: n.payload, signature: n.signature, next: [...n.next].map(([m, w]) => [m.signature, w]), prev: [...n.prev].map(([m, w]) => [m.signature, w]) }));
   }
   static deserialize(rows, opts) {
     const f = new Field(opts);
     const bySig = new Map();
-    for (const r of rows) { const n = new Node(r.text, r.payload); bySig.set(r.signature, n); f.nodes.push(n); for (const w of tokensOf(r.text)) if (isWord(w)) f.vocab.set(w, (f.vocab.get(w) ?? 0) + 1); }
+    for (const r of rows) {
+      const impression = r.text == null;
+      const n = impression ? new Node("", r.payload, true, Array.isArray(r.sdr) ? Uint32Array.from(r.sdr) : null) : new Node(r.text, r.payload);
+      bySig.set(r.signature, n); f.nodes.push(n);
+      if (r.text) for (const w of tokensOf(r.text)) if (isWord(w)) f.vocab.set(w, (f.vocab.get(w) ?? 0) + 1);
+    }
     for (const r of rows) { const n = bySig.get(r.signature); for (const [sig, w] of r.next ?? []) { const m = bySig.get(sig); if (m) n.next.set(m, w); } for (const [sig, w] of r.prev ?? []) { const m = bySig.get(sig); if (m) n.prev.set(m, w); } }
     f.last = f.nodes.at(-1) ?? null;
     return f;

@@ -109,7 +109,8 @@ import { webllmClient } from "./webllm-client.js";
 // The on-device CPU rung (2026-09-11): transformers.js on WASM, needing no
 // GPU at all — the phone whose WebGPU cannot run web-llm's rungs still gets
 // a real local model. The decisions are tf-rung.js's; tf-chat-client.js is
-// the worker; tf-chat-worker.js is where the model lives.
+// the runtime (main thread, like transcribe.js — transformers.web.js's bare
+// onnxruntime imports need the page's import map, which workers do not get).
 import { TF_MODELS, isTfModel, tfModelOf, tfLabelFor, tfContextWindowFor, TF_DISCLOSURE } from "./tf-rung.js";
 import { tfChatClient } from "./tf-chat-client.js";
 // The three homes (P118): where the page is and what it can reach are probed
@@ -167,8 +168,10 @@ import { serializeRecord, replayRecord } from "./record-log.js";
 import { appendRecord, loadRecord, recordLength } from "./record-store.js";
 // GFP Pass 33: the keyless field, derived from the records and the sources — booted with the records, synced beside them, fed by the reader loop and by every record line written (field-store.js registers on record-store's own append).
 import { bootField, syncField, getField } from "./field-store.js";
-// GFP Pass 35: the keyless field's seat in the turn — recallForTurn shapes
-// what a recall offers as passages beside lexical retrieval.
+// GFP Pass 35: THE SHADOW's seat in the turn (the keyless field — relative.js's
+// Field, named in field-of-record.js; THE_IMPRESSION is its thin form — state
+// and pointer, no words, the minimum we remember) — recallForTurn shapes what
+// a recall offers as passages beside lexical retrieval.
 import { recallForTurn } from "./field-of-record.js";
 import { mergeAppendOnly } from "./record-log.js";
 import { updateSourceMeta } from "./sources-store.js";
@@ -8653,15 +8656,18 @@ function activationRetrievalNow() {
   const fallbackWithShape = (chunks, question, limit, folded) => retrieve(chunks, question, limit, folded, { shapeFallback: shapeFallbackRetrieve });
   return makeActivationRetrieval({ index, book, dmdWindow, fallback: fallbackWithShape, notes: () => (state.hyperlexiconLog && hyperlexiconFor?.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : []), transcript: transcriptNow, resolutions: RESOLUTIONS_LEVEL });
 }
-// GFP PASS 35 — THE FIGURE'S SEAT IN THE TURN. The keyless field, recalled
-// from the question, offered beside lexical retrieval as a witness (GFP P3:
-// never a replacement, never alone). Null until the field has something to
-// be a witness over — a field of a handful of passages has no null band yet.
-// steps=0 is the MEASURED choice, not a default: eval/field-witness.mjs ran
-// the spec's own shuffled-record null and the synapse contribution was nil
-// (real steps=1 == shuffled steps=1 == steps=0, 120/120 bound) — so per the
-// spec ("spreading is turned off for this use") the turn seat is pure
-// content-addressable overlap, no spreading.
+// GFP PASS 35 — THE SHADOW'S SEAT IN THE TURN (the keyless field, THE_SHADOW;
+// THE_IMPRESSION is the minimum we remember — state and pointer, no words,
+// recall-only, never offered to a turn).
+// Recalled from the question, offered beside lexical retrieval as a witness
+// (GFP P3: never a replacement, never alone — a shade cannot be its own light
+// source). Null until the shadow has something to be a witness over — a field
+// of a handful of passages has no null band yet. steps=0 is the MEASURED
+// choice, not a default: eval/field-witness.mjs ran the spec's own shuffled-
+// record null and the synapse contribution was nil (real steps=1 == shuffled
+// steps=1 == steps=0, 120/120 bound) — so per the spec ("spreading is turned
+// off for this use") the turn seat is pure content-addressable overlap, no
+// spreading.
 function fieldRecallNow() {
   const field = getField();
   if (!field || field.size < 16) return null;
@@ -10328,7 +10334,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       resolutions: pipelineValue(getActiveModelLoop(), "resolutions", RESOLUTIONS_LEVEL),
       material: pipelineValue(getActiveModelLoop(), "material", "auto"),
       retrieveWith: activationRetrievalNow(),
-      // GFP Pass 35: the keyless field's seat, offered beside retrieval —
+      // GFP Pass 35: THE SHADOW's seat, offered beside retrieval —
       // gated with the grounded pipeline that would be asked to bind its
       // offering, exactly like makeRelationReader above it.
       fieldRecall: state.grounded ? fieldRecallNow() : null,

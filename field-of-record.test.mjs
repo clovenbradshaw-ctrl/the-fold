@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Field } from "./relative.js";
-import { textOfEntry, admitPassage, admitEntry, admitRecordLines, rowsSince, fieldFromRows, fieldOf, recallForTurn, FIELD_OFFER_MAX } from "./field-of-record.js";
+import { textOfEntry, admitPassage, admitEntry, admitRecordLines, rowsSince, fieldFromRows, fieldOf, recallForTurn, FIELD_OFFER_MAX, impressionOf, THE_IMPRESSION } from "./field-of-record.js";
 import { readOnArrival } from "./read-on-arrival.js";
 import { chunkSource } from "./source.js";
 
@@ -44,6 +44,50 @@ test("recallForTurn (GFP Pass 35): a cue that settles is shaped for a turn — p
   // No field / no words is a null, never an empty offer.
   assert.equal(recallForTurn(null, "anything"), null);
   assert.equal(recallForTurn(f, "   "), null);
+});
+
+test("THE IMPRESSION (2026-09-11): the minimum we remember — a node with a state and a pointer, NO words, that still recalls the same figure on every probe", () => {
+  const ps = passages();
+  const full = fieldOf({ passages: ps.map((p) => ({ ...p, source: "borodino.txt" })) });
+  const imp = new Field();
+  for (const p of ps) imp.admit(p.text, { source: "borodino.txt", at: p.ref }, { impression: true });
+  assert.equal(imp.nodes.filter((n) => n.text != null).length, 0, "no text retained — the minimum");
+  assert.ok(imp.nodes.every((n) => n.impression), "each is marked an impression");
+  assert.ok(imp.nodes.every((n) => n.sdr && n.sdr.length), "each keeps its state (recall needs it)");
+  for (const n of full.nodes) {
+    const a = full.recall(n.text)[0].node, b = imp.recall(n.text)[0].node;
+    assert.equal(b.payload.at, a.payload.at, `recall parity for "${n.text.slice(0, 30)}…"`);
+  }
+  // the vocabulary still exists (admit saw the words), so the null band still measures
+  const band = imp.nullBand(8, { draws: 60 });
+  assert.ok(band.hi > 0, "an impression field can still measure its own chance");
+});
+
+test("THE IMPRESSION round-trips: a mixed store (full + impression rows) rebuilds with recall intact and the impression still textless", () => {
+  const ps = passages();
+  const m = new Field();
+  m.admit(ps[0].text, { source: "borodino.txt", at: ps[0].ref });
+  m.admit(ps[1].text, { source: "borodino.txt", at: ps[1].ref }, { impression: true });
+  const rows = rowsSince(m);
+  assert.equal(rows[1].text, null, "the impression row carries no text");
+  assert.ok(rows[1].sdr && rows[1].sdr.length, "it carries its state instead");
+  assert.equal(rows[0].sdr, undefined, "a full row still rebuilds its state from its words");
+  const rebuilt = fieldFromRows(rows);
+  assert.equal(rebuilt.nodes[1].text, null, "rebuilt impression is still textless");
+  assert.equal(rebuilt.recall(ps[1].text)[0].node.payload.at, ps[1].ref, "rebuild recalls the same figure");
+  assert.equal(rebuilt.recall(ps[0].text)[0].node.payload.at, ps[0].ref, "the full node too");
+});
+
+test("impressionOf returns the minimum itself — a state and a state-signature, no words; admitEntry with impression:true is the same minimum", () => {
+  const io = impressionOf("the battery on the mound fired without pause");
+  assert.ok(io.sdr && io.sdr.length && io.bits === 4096);
+  assert.ok(typeof io.signature === "string" && io.signature.length >= 6);
+  const f = new Field();
+  const n = admitEntry(f, { description: "the battery on the mound fired", seq: 0 }, { record: "g", impression: true });
+  assert.equal(n.text, null, "an impression entry keeps no words");
+  assert.equal(n.payload.record, "g");
+  assert.ok(n.sdr.length, "but it keeps the state");
+  assert.equal(f.recall("the battery on the mound fired")[0].node.signature, n.signature, "recall reaches it by content, not by key");
 });
 
 test("the reader loop admits every passage it reads into the field, in order, with its ground address as payload — one door, injected", async () => {

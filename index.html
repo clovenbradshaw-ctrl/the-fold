@@ -3251,7 +3251,10 @@
         .tabs button.term-toggle { min-height: 44px; margin-left: 2px; }
         .threads { padding: 6px 12px 0; }
         .threads .thread-tab { min-height: 42px; }
-        header { padding: 8px 12px; }
+        header { padding: 6px 10px; gap: 8px; flex-wrap: nowrap; }
+        header h1.logo { font-size: 15px; gap: 6px; }
+        header h1.logo .wordmark { white-space: nowrap; }
+        #workspace-chip { font-size: 12px; padding: 5px 9px; max-width: 38vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         #matrix-toggle, #github-toggle, #theme-toggle { min-width: 44px; min-height: 40px; }
         #access-cluster { min-height: 40px; }
         /* Comp-style compact toolbar (rebuilt 2026-09-10, replacing the
@@ -3317,10 +3320,19 @@
         .switch .track::after { width: 16px; height: 16px; }
         .composer .switch input:checked + .track::after { transform: translateX(14px); }
         .composer textarea { min-height: 56px; }
-        /* Sheets rise from the bottom and never outgrow the screen. */
-        dialog {
+        /* Sheets rise from the bottom and never outgrow the screen. Some
+           dialogs carry their OWN id-scoped width (min(380px,92vw) etc.),
+           which would beat the plain `dialog` rule below — so each of them
+           is overridden here with the id-qualified selector, and every sheet
+           is a full-width bottom sheet on a phone (2026-09-11, measured:
+           the attach menu was popping up as a 359px centred box). */
+        dialog,
+        dialog#attach-menu, dialog#memory-menu, dialog#picker, dialog#workspace,
+        dialog#room, dialog#source-viewer, dialog#model-menu {
           width: 100vw;
           max-width: 100vw;
+        }
+        dialog {
           margin: auto 0 0;
           border-radius: 16px 16px 0 0;
           border-left: 0;

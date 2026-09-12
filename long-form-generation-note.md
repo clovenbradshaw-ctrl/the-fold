@@ -76,6 +76,18 @@ skeleton, the mouth is reduced to voicing it. What is wired:
   an `expected` act (A2). The diff is taken against something written down,
   never against something remembered.
 
+**Measured, 2026-09-11** (`eval/authorship-null.mjs`, 250 passages of the real
+book, 30 probes, 17 heard): the expectation is SIGNAL, not noise, and the ratio
+measures the mouth. On a faithful mouth (the reading's own claims about the
+asked-about), the true expectation matched 137 claims, authored 0 novel, at
+**authorship 1.0**; a random expectation of the same size matched 6 and left
+131 novel, at **authorship 0.019** — II.23 resolves: fewer novel, more matched,
+so Pass 41's witness-steering is licensed to lean on the expectation. And the
+ratio measures the MOUTH, not the expectation's size: the same true expectation
+authors 1.0 of a faithful mouth but **0.034 of an inventing one** (claims about
+the asked-about with false labels). When a long piece's section drifts from the
+record, the authorship ratio is the number that says so — per section.
+
 **For long form this is the per-section contract.** A piece is planned into
 sections; every section is a part. Give every section its own expectation —
 composed from its own passages, its own voids — before it drafts, and diff
@@ -127,8 +139,10 @@ paid for.
 
 *Status, honest: the memory tiers, the broken base, and the significance
 residue are built and tested. The expectation-with-voids and its announcement
-on the record before the draft (Pass 40, A2) are built and tested. The next
-increments in the spec's order are Pass 41 (witnesses spend on novel/
-contradicted only) and Pass 42 (the error updates the record, and the
-authorship ratio measured beyond the null) — the two places a long-form coder
-will actually spend this note.*
+on the record before the draft (Pass 40, A2) are built and tested, and the
+authorship ratio is now MEASURED beyond the null (`eval/authorship-null.mjs`
+— II.23 resolves, and the ratio discriminates the faithful mouth from the
+inventing one). The next increments in the spec's order are Pass 41 (the
+witnesses spend on novel/contradicted only — the one place a long-form coder
+will actually spend this note's §5) and Pass 42's last half (the error
+updates the record — a confirmed novel claim binds as a ledger entry).*

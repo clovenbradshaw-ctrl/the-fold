@@ -1,0 +1,181 @@
+{
+  "generated": "2026-09-12T20:16:10.350Z",
+  "claims": 20,
+  "probes": 8,
+  "passages": 120,
+  "arms": [
+    {
+      "name": "SmolLM2-360M CPU",
+      "tally": {
+        "matched": 11,
+        "drift": 5,
+        "unvoiced": 4,
+        "contradicted": 0
+      },
+      "ms": 24890,
+      "median": 1086,
+      "rows": [
+        {
+          "claim": "Anna\nPávlovna had had a cough for some days",
+          "voiced": "Anna had had a cough for some days.",
+          "verdict": "matched",
+          "detail": null,
+          "attempts": 1,
+          "ms": 863
+        },
+        {
+          "claim": "went up to Anna Pávlovna",
+          "voiced": "Anna Pávlovna went up to the sources.",
+          "verdict": "drift",
+          "detail": "voiced a different claim: went up to the sources",
+          "attempts": 2,
+          "ms": 1911
+        },
+        {
+          "claim": "Pávlovna Schérer on the contrary",
+          "voiced": "Pávlovna Schérer",
+          "verdict": "unvoiced",
+          "detail": "no claim extracted from the voiced sentence",
+          "attempts": 2,
+          "ms": 1472
+        },
+        {
+          "claim": "Anna Pávlovna burst out:",
+          "voiced": "Anna Pávlovna burst out.",
+          "verdict": "matched",
+          "detail": null,
+          "attempts": 1,
+          "ms": 771
+        },
+        {
+          "claim": "Anna Pávlovna mentioned each one’s name and then left them",
+          "voiced": "Anna Pávlovna mentioned each one’s name and then left them.",
+          "verdict": "matched",
+          "detail": null,
+          "attempts": 1,
+          "ms": 1191
+        },
+        {
+          "claim": "Prince\nVasíli to Anna Pávlovna",
+          "voiced": "The sources state that Prince Vasíli to Anna Pávlovna.",
+          "verdict": "drift",
+          "detail": "voiced a different claim: sources state that Prince Vasíli to Anna Pávlovna",
+          "attempts": 2,
+          "ms": 2140
+        },
+        {
+          "claim": "Anna Pávlovna with a smile",
+          "voiced": "Anna Pávlovna with a smile",
+          "verdict": "matched",
+          "detail": null,
+          "attempts": 1,
+          "ms": 735
+        },
+        {
+          "claim": "Anna Pávlovna arranged a group round him",
+          "voiced": "Anna Pávlovna arranged a group round him.",
+          "verdict": "matched",
+          "detail": null,
+          "attempts": 1,
+          "ms": 870
+        },
+        {
+          "claim": "Anna Pávlovna to one of the guests",
+          "voiced": "Anna Pávlovna to one of the guests.",
+          "verdict": "matched",
+          "detail": null,
+          "attempts": 1,
+          "ms": 912
+        },
+        {
+          "claim": "she glanced at Anna Pávlovna",
+          "voiced": "Anna Pávlovna glanced at her.",
+          "verdict": "drift",
+          "detail": "voiced a different claim: Pávlovna glanced at her",
+          "attempts": 2,
+          "ms": 1744
+        },
+        {
+          "claim": "turning to Anna Pávlovna",
+          "voiced": "Anna Pávlovna",
+          "verdict": "unvoiced",
+          "detail": "no claim extracted from the voiced sentence",
+          "attempts": 2,
+          "ms": 1240
+        },
+        {
+          "claim": "Anna Pávlovna smiled and promised to take Pierre in hand",
+          "voiced": "Anna Pávlovna smiled and promised to take Pierre in hand.",
+          "verdict": "matched",
+          "detail": null,
+          "attempts": 1,
+          "ms": 1020
+        },
+        {
+          "claim": "had come with Mortemart",
+          "voiced": "Mortemart.",
+          "verdict": "unvoiced",
+          "detail": "no claim extracted from the voiced sentence",
+          "attempts": 2,
+          "ms": 1240
+        },
+        {
+          "claim": "words she greeted Prince Vasíli Kurágin",
+          "voiced": "She greeted Prince Vasíli Kurágin.",
+          "verdict": "matched",
+          "detail": null,
+          "attempts": 1,
+          "ms": 834
+        },
+        {
+          "claim": "Prince Vasíli always spoke languidly",
+          "voiced": "The sources state that Prince Vasíli always spoke languidly.",
+          "verdict": "drift",
+          "detail": "voiced a different claim: sources state that Prince Vasíli always spoke languidly",
+          "attempts": 2,
+          "ms": 1939
+        },
+        {
+          "claim": "Prince Vasíli wished to obtain this post for his son",
+          "voiced": "Prince Vasíli wished to obtain this post for his son.",
+          "verdict": "matched",
+          "detail": null,
+          "attempts": 1,
+          "ms": 920
+        },
+        {
+          "claim": "Hippolyte is at least a quiet fool",
+          "voiced": "Hippolyte is at least a quiet fool.",
+          "verdict": "matched",
+          "detail": null,
+          "attempts": 1,
+          "ms": 830
+        },
+        {
+          "claim": "Prince Vasíli did not reply",
+          "voiced": "Prince Vasíli did not reply.",
+          "verdict": "matched",
+          "detail": null,
+          "attempts": 1,
+          "ms": 696
+        },
+        {
+          "claim": "turning to Prince Hippolyte",
+          "voiced": "Prince Hippolyte",
+          "verdict": "unvoiced",
+          "detail": "no claim extracted from the voiced sentence",
+          "attempts": 2,
+          "ms": 1086
+        },
+        {
+          "claim": "Prince Andrew screwed up his eyes and turned away",
+          "voiced": "Prince Andrew's eyes turned away, and he screwed up his face.",
+          "verdict": "drift",
+          "detail": "voiced a different claim: Andrew's eyes turned away",
+          "attempts": 2,
+          "ms": 1992
+        }
+      ]
+    }
+  ]
+}

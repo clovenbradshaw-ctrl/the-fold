@@ -322,3 +322,19 @@ fast: 3 files · law: ok (dup:P115 P116 P117 P19 dup:S17 S96 pre-existing) · af
 | Ostrom | II.13 / P188 "used, never copied" | serve.mjs:608-633 /api/visual | clean | engine + interpreter located live off eoreader7, missing dependency is a loud typed refusal scoped to the machine, loopback-only |
 | Marshall | P71 Generality / P188 | POLICIES.md:12923 | clean | P188 declares Generality, citations resolve, new entry not an amendment |
 clean: none routed beyond the three above
+
+## 2026-09-12 — two-mouth parallel voice: dispatcher organ + calibration eval + born-gate/DMD structure (main, staged)
+
+The claim-atomic mouth's calibration run (`eval/voice-mouth-parallel.mjs`): gemma2:2b 0.85 matched vs SmolLM2-360M CPU 0.55 (same verifier), the dispatcher with escalation 0.95; wired as `voice-parallel.js` (tested 5/5, differential = recovered/matched/no-difference); `eval/voice-structure.mjs` measures DMD's window/modes over the claim stream and lapses fragment-echo subjects from the live verdict stream.
+
+| lens | citation | file:line | verdict | summary |
+|---|---|---|---|---|
+| Feynman | II.23; the note's declared-not-measured 0.5 span-overlap | eval/results/voice-one-at-a-time-RESULTS.md:132 | noted | the <4-word fragment-echo lapser is declared, not tuned — scoped to the stream and disclosed; "no mouth could ever voice" is a claim about this 22-claim set, qualified in the doc |
+| Dijkstra | G2 ladder; cast.js referent resolution | eval/voice-mouth-parallel.mjs:55 | noted | the `/^[A-Z]\p{L}\p{N}' .-]{1,28}$/u` surface regex is the authorship-null probe sampler, not identity — identity stays the index's; differential reads the attempt trail, never a string |
+| Holmes | P11 referent identity; cast.js | voice-parallel.test.mjs subjectOf | noted | the subject grouping in the born-gate table is a disclosed leading-capitalized-run heuristic for review, never a merge — the born gate's real identity is the index's resolve |
+| Pearl | II.23; independent readings | eval/voice-mouth-parallel.mjs:190 | fixed | "independent resources" overclaimed — the two mouths are separate QUEUES but the SAME silicon; the contention is measured (load 314) and now stated in the comment and the results doc |
+| Ostrom | P40 reviewEntities; withhold-vs-convict | eval/voice-structure.mjs lapser | noted | the lapse finding is scoped to the born gate / extractor (P74/P82 subject hygiene), never to a mouth — no-difference stays typed and kept |
+| Marshall | P31, P40, P55, P74, P82, P83, II.23 | voice-parallel.js:4 | fixed | "G2/P55: no model decides routing" mis-cited P55 (the apparatus-vocabulary firewall, not the routing rule) — corrected to G2 at all three sites; P31/P40/P74/P82/P83/II.23 verified against the context file |
+| Simon/Chekhov | P19/P27 driver posture; the note's wiring gap | voice-parallel.js vs voice-parallel.test.mjs | clean | voice-parallel.js is tested (imported by its test); the two eval drivers are runnable drivers, validated by running; the dispatcher's wiring into the turn is disclosed as the note's named next step, not silently absent |
+
+carried: constitution.test.mjs II.13 FAIL is PRE-EXISTING AT HEAD — app.js's `const ns = "http://www.w3.org/2000/svg"` binding form (vision/OCR commit) and help.js's `www.youtube.com` are non-local hosts in files this diff does not touch; confirmed by running the gate with only this diff's six files staged. A typed allowance for the binding form was tried, reverted (half-fixing another session's violation in a shared law file). The vision/help authors own it. This commit does not claim a green gate.

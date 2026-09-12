@@ -1127,6 +1127,25 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // /heimdall — the bridge's full status, forwarded from the surface Heimdall
+  // steers. A person asks ANY surface this path and gets the whole box's
+  // vitals, every surface's state, and the DEF/EVA/REC log tail. A typed gap
+  // when the bridge is not up, never a silent hang.
+  if (req.method === "GET" && p === "/heimdall") {
+    const steerPort = Number(process.env.ER7_HEIMDALL_PORT ?? 11437);
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 3000);
+      const up = await fetch(`http://127.0.0.1:${steerPort}/heimdall`, { signal: ctrl.signal });
+      clearTimeout(t);
+      const body = await up.text();
+      res.writeHead(up.status, { "content-type": "application/json" });
+      return res.end(body);
+    } catch {
+      return send(res, 503, { error: { message: "heimdall bridge not reachable", type: "bridge_down" } });
+    }
+  }
+
   try {
     // ---- tree: one directory level, folders first then name (a declared
     // ordering rule, not an outcome-chosen one — FOLD-CONSTITUTION III.1).

@@ -6393,17 +6393,35 @@ async function judgeSenseAgreement(visionRead, factLines, backgroundUniformity) 
 const MAX_IMAGE_ESCALATIONS = 2;
 async function settleImageRead(blob, boxes, connectors, width, height, backgroundUniformity) {
   const factLines = imageFactLines(boxes, connectors, width, height);
-  let visionRead = await describeImageVision(blob, backgroundUniformity);
+  // Escalation walks the VISION_LADDER: a disagreement moves to the NEXT
+  // rung — a second, independently-trained instrument — never a corrected
+  // re-ask of the SAME eye. The prior implementation re-asked rung 0
+  // (moondream) with the correction on every escalation turn, so
+  // qwen2.5vl (rung 1, "a real, separately-trained model family from
+  // moondream" — the ladder's own words) was never consulted: "multiple
+  // eyes" documented but no code path reached them, the exact defect class
+  // this repo's postmortems keep catching (a designed rung with no caller).
+  // The correction still rides along — it is a real, named disagreement the
+  // next eye should know about — but the eye itself changes. The model name
+  // is resolved by completeOnce like any other, so a VLM arriving on a
+  // NON-Ollama rung (a WebLLM or transformers.js vision model, a room
+  // mouth offering one) joins this ladder for free the day it exists.
+  // When the ladder is exhausted (the last rung also disagrees), the SAME
+  // last rung is re-asked with the correction as a final attempt, bounded
+  // by MAX_IMAGE_ESCALATIONS.
+  let rung = 0;
+  let visionRead = await describeImageVision(blob, backgroundUniformity, null, VISION_LADDER[rung].model);
   let turns = 1;
   let judged = await judgeSenseAgreement(visionRead, factLines, backgroundUniformity);
   while (!judged.agrees && turns < MAX_IMAGE_ESCALATIONS) {
     const correction = judged.reason.replace(/^DISAGREES:?\s*/i, "").trim();
-    console.warn(`[visual] escalating vision read (turn ${turns + 1}) — disagreement: ${correction}`);
-    visionRead = await describeImageVision(blob, backgroundUniformity, correction);
+    rung = Math.min(rung + 1, VISION_LADDER.length - 1);
+    console.warn(`[visual] escalating to ${VISION_LADDER[rung].label} (turn ${turns + 1}) — disagreement: ${correction}`);
+    visionRead = await describeImageVision(blob, backgroundUniformity, correction, VISION_LADDER[rung].model);
     turns += 1;
     judged = await judgeSenseAgreement(visionRead, factLines, backgroundUniformity);
   }
-  return { visionRead, turns, settled: judged.agrees, unresolvedReason: judged.agrees ? null : judged.reason };
+  return { visionRead, rung: VISION_LADDER[rung].label, turns, settled: judged.agrees, unresolvedReason: judged.agrees ? null : judged.reason };
 }
 
 /**

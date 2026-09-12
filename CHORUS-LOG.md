@@ -314,3 +314,11 @@ clean: nothing struck. deferred-with-reason: the one observation above. false-po
 - The "thinking" disclosure shows plain-language narration by default, with the raw AnswerRecord JSON and verbatim prompt payloads demoted to a nested "view raw" panel.
 - artifact.js: model-generated HTML/JS widgets adapt to dark mode via a mechanical color-inversion filter, computed by the parent and handed in — never asking the model to write theme-aware CSS.
 - 1974 tests, 1962 passing; the 12 failures are pre-existing or trace to a concurrent session's in-progress hyperlexicon.js -> notes-text.js rename, deliberately left untouched by this entry's own commit.
+
+## 2026-09-12 — OCR/vision IN: the /api/visual seam + the vision ladder actually walked (main, working: serve.mjs app.js POLICIES.md)
+fast: 3 files · law: ok (dup:P115 P116 P117 P19 dup:S17 S96 pre-existing) · affected: 10/11 pass — the 1 FAIL is PRE-EXISTING on the committed baseline (II.13 flags app.js's `document.createElementNS("http://www.w3.org/2000/svg", …)` SVG namespace URI — a DOM namespace identifier, never a network host; the scan lacks the xmlns-by-attribute-context allowance web.test.mjs's seam scan already grants; introduced by the concurrent Mobile-UX commits, verified via `git stash`, not this diff's)
+| lens | citation | file:line | verdict | one line |
+| Pearl | II.10 corroboration / P188 "multiple eyes" | app.js:6406 settleImageRead | clean-with-note | second rung now consulted; settling verdict stays vision-vs-mechanical, the escalation correction is a disclosed shared cause between rungs |
+| Ostrom | II.13 / P188 "used, never copied" | serve.mjs:608-633 /api/visual | clean | engine + interpreter located live off eoreader7, missing dependency is a loud typed refusal scoped to the machine, loopback-only |
+| Marshall | P71 Generality / P188 | POLICIES.md:12923 | clean | P188 declares Generality, citations resolve, new entry not an amendment |
+clean: none routed beyond the three above

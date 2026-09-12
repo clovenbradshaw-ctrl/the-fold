@@ -588,6 +588,81 @@ createServer((req, res) => {
     return;
   }
 
+  // POST /api/visual — the OCR half of the /visual door, brought in from
+  // eoreader7's native OCR engine (the server side the fold's own client
+  // pipeline in app.js was written against but never had: app.js posts the
+  // raw image bytes here and expects {boxes, connectors, edgeCount, width,
+  // height, backgroundUniformity}). Raw binary body; headers x-file-name
+  // (and optional x-arrow-color, "B,G,R", for connector detection — refused
+  // unless the caller actually knows the arrow color, the engine's own
+  // disclosed rule). Loopback only, like every other API route here.
+  //
+  // The engine is USED, never copied — the same /engine discipline one
+  // register over: eoreader7/native/eval/lavar/visual-detect.py (OpenCV
+  // contour + color-fill detection reconciled by IoU, per-region Tesseract
+  // OCR) is read live off its own repo, and its dedicated venv
+  // (.venv-visual, the one place opencv-python-headless + numpy live) is
+  // located beside it. The whole point of keeping the engine in eoreader7
+  // is that a fix to the detector is picked up with no second copy to drift.
+  // VISUAL_DETECT_PYTHON (the engine's own contract) names the interpreter
+  // explicitly when it is not the standard venv path.
+  if (req.method === "POST" && rel === "/api/visual") {
+    const refuse = (status, reason) => json(res, status, { error: reason });
+    if (!isLoopback(req)) return refuse(403, "loopback only");
+    (async () => {
+      const fileName = String(req.headers["x-file-name"] ?? "image");
+      const arrowColor = String(req.headers["x-arrow-color"] ?? "").trim();
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const imageBuf = Buffer.concat(chunks);
+      if (!imageBuf.length) return refuse(400, "empty image body");
+      // Locate the engine + its interpreter. Fail LOUDLY on a missing
+      // interpreter rather than silently falling back to a system Python
+      // that lacks OpenCV (the engine's own stated discipline — a missing
+      // dependency should produce an empty, misleadingly-clean ledger's
+      // opposite).
+      const engine = join(EOREADER7_ROOT, "native", "eval", "lavar", "visual-detect.py");
+      const defaultPy = join(EOREADER7_ROOT, "native", "eval", "lavar", ".venv-visual", "bin", "python");
+      const interpreter = process.env.VISUAL_DETECT_PYTHON || (existsSync(defaultPy) ? defaultPy : null);
+      if (!existsSync(engine)) return refuse(500, `OCR engine not found at ${engine} — run ./fold (eoreader7 sibling clone) to bring it in`);
+      if (!interpreter) return refuse(500, "VISUAL_DETECT_PYTHON is not set and no .venv-visual interpreter exists beside the OCR engine — opencv-python-headless + numpy must be installed in that isolated venv (PEP 668)");
+      const tmpPath = `/tmp/the-fold-visual-${randomUUID()}${extname(fileName) || ".png"}`;
+      try {
+        writeFileSync(tmpPath, imageBuf);
+        const args = [engine, tmpPath];
+        if (arrowColor && /^\d+,\d+,\d+$/.test(arrowColor)) args.push("--arrow-color", arrowColor);
+        const out = await new Promise((resolve, reject) => {
+          const proc = spawn(interpreter, args, { stdio: ["ignore", "pipe", "pipe"] });
+          let stdout = "", stderr = "";
+          proc.stdout.on("data", (b) => { stdout += b.toString(); });
+          proc.stderr.on("data", (b) => { stderr += b.toString(); });
+          proc.on("error", reject);
+          proc.on("close", (code) => code === 0 ? resolve(stdout) : reject(new Error(`visual-detect.py exit ${code}: ${stderr.slice(0, 400)}`)));
+        });
+        let detected;
+        try { detected = JSON.parse(out); } catch { return refuse(500, "OCR engine returned unparseable output"); }
+        if (detected.error) return refuse(500, detected.error);
+        // app.js expects edgeCount (the number of connectors) on the same
+        // response; the engine reports connectors separately.
+        recordBuild({ at: new Date().toISOString(), event: "visual", fileName, boxes: detected.boxes?.length ?? 0, connectors: detected.connectors?.length ?? 0, width: detected.width, height: detected.height });
+        json(res, 200, {
+          boxes: detected.boxes ?? [],
+          connectors: detected.connectors ?? [],
+          edgeCount: detected.connectors?.length ?? 0,
+          width: detected.width,
+          height: detected.height,
+          backgroundUniformity: detected.backgroundUniformity ?? null,
+        });
+      } catch (e) {
+        console.error("[visual] error:", e.message);
+        refuse(500, e.message);
+      } finally {
+        try { unlinkSync(tmpPath); } catch {}
+      }
+    })();
+    return;
+  }
+
   let file = join(ROOT, rel === "/" ? "index.html" : rel);
 
   // Never serve outside the directory (or the engine/nul/priors-data mounts),

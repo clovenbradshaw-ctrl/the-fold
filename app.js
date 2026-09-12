@@ -1738,6 +1738,55 @@ const FOLD_MAX_TOKENS = 300;
 
 const $ = (id) => document.getElementById(id);
 
+// Phosphor icons (the vendored @phosphor-icons/core set), inlined as SVGs —
+// the same no-CDN rule that covers icon fonts: paths live here, never a
+// fetch. `phIcon(path)` returns an <svg>, `iconText(icon, word)` a span
+// holding the icon beside a word, `iconButton(path, text)` a <button> that
+// shows the icon (and the word where one is given). The symbol/emoji
+// controls (🗑 ⬇ ✎ ⛶ ▶ ✕ 📁) are replaced with these so a phone renders
+// one consistent icon instead of whatever the OS draws for the glyph
+// (2026-09-11, user direction: "use phosphor icons, not emojis").
+const PH = Object.freeze({
+  x: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z",
+  trash: "M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z",
+  pencil: "M227.31,73.37,182.63,28.68a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.31,96a16,16,0,0,0,0-22.63ZM92.69,208H48V163.31l88-88L180.69,120ZM192,108.68,147.31,64l24-24L216,84.68Z",
+  download: "M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z",
+  arrowsOut: "M216,48V96a8,8,0,0,1-16,0V67.31l-42.34,42.35a8,8,0,0,1-11.32-11.32L188.69,56H160a8,8,0,0,1,0-16h48A8,8,0,0,1,216,48ZM98.34,146.34,56,188.69V160a8,8,0,0,0-16,0v48a8,8,0,0,0,8,8H96a8,8,0,0,0,0-16H67.31l42.35-42.34a8,8,0,0,0-11.32-11.32ZM208,152a8,8,0,0,0-8,8v28.69l-42.34-42.35a8,8,0,0,0-11.32,11.32L188.69,200H160a8,8,0,0,0,0,16h48a8,8,0,0,0,8-8V160A8,8,0,0,0,208,152ZM67.31,56H96a8,8,0,0,0,0-16H48a8,8,0,0,0-8,8V96a8,8,0,0,0,16,0V67.31l42.34,42.35a8,8,0,0,0,11.32-11.32Z",
+  play: "M232.4,114.49,88.32,26.35a16,16,0,0,0-16.2-.3A15.86,15.86,0,0,0,64,39.87V216.13A15.94,15.94,0,0,0,80,232a16.07,16.07,0,0,0,8.36-2.35L232.4,141.51a15.81,15.81,0,0,0,0-27ZM80,215.94V40l143.83,88Z",
+  check: "M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z",
+  folder: "M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40ZM216,200H40V88H216Z",
+  image: "M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V158.75l-26.07-26.06a16,16,0,0,0-22.63,0l-20,20-44-44a16,16,0,0,0-22.62,0L40,149.37V56ZM40,172l52-52,80,80H40Zm176,28H194.63l-36-36,20-20L216,181.38V200ZM144,100a12,12,0,1,1,12,12A12,12,0,0,1,144,100Z",
+  video: "M251.77,73a8,8,0,0,0-8.21.39L208,97.05V72a16,16,0,0,0-16-16H32A16,16,0,0,0,16,72V184a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V159l35.56,23.71A8,8,0,0,0,248,184a8,8,0,0,0,8-8V80A8,8,0,0,0,251.77,73ZM192,184H32V72H192V184Zm48-22.95-32-21.33V116.28L240,95Z",
+  music: "M212.92,17.69a8,8,0,0,0-6.86-1.45l-128,32A8,8,0,0,0,72,56V166.08A36,36,0,1,0,88,196V110.25l112-28v51.83A36,36,0,1,0,216,164V24A8,8,0,0,0,212.92,17.69ZM52,216a20,20,0,1,1,20-20A20,20,0,0,1,52,216ZM88,93.75V62.25l112-28v31.5ZM180,184a20,20,0,1,1,20-20A20,20,0,0,1,180,184Z",
+  document: "M216,88,168,40a8,8,0,0,0-5.66-2.34H56a16,16,0,0,0-16,16V208a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,216,88ZM200,208H56V56H160V88h40Z",
+});
+function phIcon(path, size = 16) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 256 256");
+  svg.setAttribute("width", size);
+  svg.setAttribute("height", size);
+  svg.setAttribute("fill", "currentColor");
+  svg.setAttribute("aria-hidden", "true");
+  const p = document.createElementNS(ns, "path");
+  p.setAttribute("d", path);
+  svg.append(p);
+  return svg;
+}
+/** A span holding an icon beside a word (or alone). */
+function iconText(path, word = "", size = 14) {
+  const span = document.createElement("span");
+  span.className = "ph-wrap";
+  span.append(phIcon(path, size));
+  if (word) { const t = document.createElement("span"); t.textContent = word; span.append(t); }
+  return span;
+}
+/** The SVG markup string, for innerHTML contexts (the sources panel builds
+ *  rows as strings, not nodes). */
+function phMarkup(path, size = 16) {
+  return `<svg viewBox="0 0 256 256" width="${size}" height="${size}" fill="currentColor" aria-hidden="true"><path d="${path}"/></svg>`;
+}
+
 const state = {
   model: null,
   /** The picker rungs Ollama actually has, fastest first — what routing may name. */
@@ -2347,7 +2396,7 @@ function renderThreads() {
     const close = document.createElement("button");
     close.type = "button";
     close.className = "thread-close";
-    close.textContent = "✕";
+    close.append(phIcon(PH.x, 12));
     close.title = "Close this conversation";
     close.disabled = state.convos.length < 2 || state.busy;
     close.onclick = () => closeConvo(i);
@@ -12639,14 +12688,14 @@ function buildCard(entry, highlight) {
     const edit = document.createElement("button");
     edit.type = "button";
     edit.className = "build-run";
-    edit.textContent = "✎ edit";
+    edit.append(iconText(PH.pencil, "edit"));
     edit.onclick = () => openBuild(entry);
     from.append(edit);
     if (buildRunnable(entry)) {
       const run = document.createElement("button");
       run.type = "button";
       run.className = "build-run";
-      run.textContent = entry.running ? "running…" : "▶ run";
+      run.textContent = entry.running ? "running…" : ""; if (!entry.running) run.append(iconText(PH.play, "run"));
       run.onclick = () => runBuild(entry);
       from.append(run);
     }
@@ -12658,7 +12707,7 @@ function buildCard(entry, highlight) {
     const restore = document.createElement("button");
     restore.type = "button";
     restore.className = "build-run";
-    restore.textContent = "↩ restore";
+    restore.append(iconText(PH.arrowsOut, "restore"));
     restore.title = `Bring v${shown.version}'s code forward as a new version — the log keeps everything between.`;
     restore.onclick = () => {
       const before = entry.log.entries.length;
@@ -12675,7 +12724,7 @@ function buildCard(entry, highlight) {
   const dl = document.createElement("button");
   dl.type = "button";
   dl.className = "build-run icon";
-  dl.textContent = "⬇";
+  dl.append(phIcon(PH.download, 14));
   dl.title = `Download this fold as of log position ${entry.cursor ?? seqMax}.`;
   dl.onclick = () => {
     const dlFile = buildLog.exportAt(entry.log, entry.cursor, { toDocument });
@@ -12693,7 +12742,7 @@ function buildCard(entry, highlight) {
   const wide = document.createElement("button");
   wide.type = "button";
   wide.className = "build-run icon";
-  wide.textContent = "⛶";
+  wide.append(phIcon(PH.arrowsOut, 14));
   wide.title = "Open this fold full screen.";
   wide.onclick = () => openFoldViewer(entry);
   from.append(wide);
@@ -12711,7 +12760,7 @@ function buildCard(entry, highlight) {
   const del = document.createElement("button");
   del.type = "button";
   del.className = "build-run";
-  del.textContent = "✕ delete";
+  del.append(iconText(PH.x, "delete"));
   del.title = "Retract this fold from the list. Every entry stays on its log — nothing here is erased.";
   del.onclick = () => {
     entry.log = buildLog.retractAllGrounds(entry.log);
@@ -13250,15 +13299,15 @@ function profileRow(entry, isPending) {
   btns.className = "profile-btns";
   if (isPending) {
     const keepBtn = document.createElement("button");
-    keepBtn.type = "button"; keepBtn.className = "build-run icon"; keepBtn.textContent = "✓"; keepBtn.title = "remember this";
+    keepBtn.type = "button"; keepBtn.className = "build-run icon"; keepBtn.append(phIcon(PH.check, 14)); keepBtn.title = "remember this";
     keepBtn.onclick = () => { state.profileLog = profile.keep(state.profileLog, entry.id); persistProfile(); pushProfileIfSignedIn(); renderProfile(); };
     const dropBtn = document.createElement("button");
-    dropBtn.type = "button"; dropBtn.className = "build-run icon"; dropBtn.textContent = "✕"; dropBtn.title = "not worth remembering";
+    dropBtn.type = "button"; dropBtn.className = "build-run icon"; dropBtn.append(phIcon(PH.x, 14)); dropBtn.title = "not worth remembering";
     dropBtn.onclick = () => { state.profileLog = profile.dismiss(state.profileLog, entry.id); persistProfile(); pushProfileIfSignedIn(); renderProfile(); };
     btns.append(keepBtn, dropBtn);
   } else {
     const editBtn = document.createElement("button");
-    editBtn.type = "button"; editBtn.className = "build-run icon"; editBtn.textContent = "✎"; editBtn.title = "edit";
+    editBtn.type = "button"; editBtn.className = "build-run icon"; editBtn.append(phIcon(PH.pencil, 14)); editBtn.title = "edit";
     editBtn.onclick = () => {
       // Swaps the text span for a field in place — the same posture the
       // Folds panel's own "+ folder" control holds (a whole dialog would
@@ -13281,7 +13330,7 @@ function profileRow(entry, isPending) {
       input.select();
     };
     const delBtn = document.createElement("button");
-    delBtn.type = "button"; delBtn.className = "build-run icon"; delBtn.textContent = "🗑"; delBtn.title = "forget this";
+    delBtn.type = "button"; delBtn.className = "build-run icon"; delBtn.append(phIcon(PH.trash, 14)); delBtn.title = "forget this";
     delBtn.onclick = () => { state.profileLog = profile.remove(state.profileLog, entry.id); persistProfile(); pushProfileIfSignedIn(); renderProfile(); };
     btns.append(editBtn, delBtn);
   }
@@ -14782,7 +14831,7 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
       const run = document.createElement("button");
       run.type = "button";
       run.className = "build-run";
-      run.textContent = scripts ? "✓ ran" : "▶ run";
+      run.textContent = ""; run.append(phIcon(PH[scripts ? "check" : "play"], 13)); run.append(scripts ? " ran" : " run");
       run.disabled = !!entry.running;
       run.onclick = async () => {
         run.disabled = true;
@@ -14795,7 +14844,7 @@ function artifactNode(seg, caption, code, { scripts = false, entry = null } = {}
         // content — the frame has to reload for the new flags to take
         // effect, so the exact same document is handed to it again.
         frame.srcdoc = toDocument({ ...seg, code: code ?? seg.code }, { dark: isDarkNow() });
-        run.textContent = ranScripts ? "✓ ran" : "▶ run";
+        run.textContent = ""; run.append(phIcon(PH[ranScripts ? "check" : "play"], 13)); run.append(ranScripts ? " ran" : " run");
         run.disabled = false;
       };
       cap.append(run);
@@ -15722,7 +15771,8 @@ function renderSourcesPanel() {
     const m = state.media[name];
     const row = document.createElement("div");
     row.className = "sources-file";
-    const icon = ({ video: "▶", audio: "♫", image: "🖼", pdf: "PDF" })[m.kind] ?? "📁";
+    const iconPath = ({ video: PH.video, audio: PH.music, image: PH.image, pdf: null })[m.kind] ?? PH.folder;
+    const icon = m.kind === "pdf" ? "PDF" : phMarkup(iconPath, 20);
     row.innerHTML = `
       <div class="sources-file-icon">${icon}</div>
       <div class="sources-file-info">
@@ -15730,7 +15780,7 @@ function renderSourcesPanel() {
         <div class="sources-file-meta">${m.kind} · ${fmtBytes(m.blob.size)}</div>
       </div>
       <div class="sources-file-actions">
-        <button type="button" data-action="remove" title="remove">✕</button>
+        <button type="button" data-action="remove" title="remove">${phMarkup(PH.x, 13)}</button>
       </div>`;
     row.querySelector('[data-action="remove"]').onclick = (e) => {
       e.stopPropagation();
@@ -16104,7 +16154,7 @@ function renderPriorsFocusCard(byPath) {
   nameEl.textContent = f.provenance?.title || f.name || f.path;
   const close = document.createElement("button");
   close.type = "button";
-  close.textContent = "✕";
+  close.append(phIcon(PH.x, 12));
   close.title = "close";
   close.onclick = () => { priorsFocus = null; renderPriorsFromData(); };
   head.append(nameEl, close);
@@ -17367,7 +17417,7 @@ function wiringLoopRow(l, { pinned = false } = {}) {
   row.addEventListener("click", async () => { await wiringActivate(l.id); wiringCloseLoopPanel(); });
   if (!pinned) {
     const del = document.createElement("button");
-    del.type = "button"; del.className = "wiring-loop-del"; del.textContent = "✕"; del.title = `delete ${l.name}`;
+    del.type = "button"; del.className = "wiring-loop-del"; del.append(phIcon(PH.x, 12)); del.title = `delete ${l.name}`;
     del.addEventListener("click", async (ev) => {
       ev.stopPropagation();
       try { await fetch(`${EXPLORE_BASE}/api/model-loops?id=${encodeURIComponent(l.id)}`, { method: "DELETE" }); } catch { /* nothing more to do locally */ }
@@ -18074,7 +18124,7 @@ function renderModelMenu() {
     if (value === state.model) {
       const tick = document.createElement("span");
       tick.className = "tick";
-      tick.textContent = "✓";
+      tick.append(phIcon(PH.check, 12));
       b.append(tick);
     }
     b.onclick = onClick;

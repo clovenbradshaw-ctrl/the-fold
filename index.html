@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
     <title>The Fold</title>
     <!-- KaTeX, vendored (P1: no CDN) — renders arithmetic.js's computed
          answers as typeset math instead of a plain expression string.
@@ -2407,6 +2407,7 @@
          because "is it thinking" is a fact about the model. */
       .model-pick {
         display: inline-flex;
+        align-self: flex-start;
         align-items: center;
         gap: 6px;
         flex: 0 1 auto;
@@ -3269,7 +3270,7 @@
            composer stays exactly as compact as this one row. */
         .composer-bar { flex-wrap: wrap; row-gap: 10px; }
         .composer { padding: 12px 14px calc(10px + env(safe-area-inset-bottom)); }
-        .composer-bar .spacer { display: none; }
+        .composer-bar .spacer { display: block; order: 2; flex: 1 1 auto; min-width: 0; } /* between attach and Send */
         #memory-open {
           order: 1;
           flex: 0 0 auto;
@@ -3280,8 +3281,16 @@
           justify-content: center;
         }
         #memory-open span { display: none; }
-        .model-pick { order: 2; flex: 1 1 auto; min-width: 0; min-height: 44px; font-size: 14px; padding: 6px 12px; justify-content: flex-start; }
-        .model-pick #model-name { max-width: none; font-size: 14px; }
+        /* The model pill sits ABOVE the input, compact and left-aligned —
+           the typical chat shape — instead of a wide block fighting attach
+           and send for the one bar (2026-09-11). */
+        .model-pick { order: 0; flex: 0 1 auto; align-self: flex-start; min-height: 38px; font-size: 13px; padding: 6px 12px; justify-content: flex-start; }
+        .model-pick #model-name { max-width: none; font-size: 13px; }
+        .model-pick .ph { width: 15px; height: 15px; }
+        /* A tapped input is the focus — a clear ring, and the composer keeps
+           its place above the keyboard (the viewport's interactive-widget
+           handles the reflow). */
+        .composer textarea:focus { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 10px; }
         /* Send: a plane, not a word — the label survives for screen readers
            (aria-label plus the visually-hidden span) but nothing sighted
            reads "Send" anymore, matching the icon-only door beside it. */
@@ -3503,17 +3512,19 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
                the header, because it changes constantly and the header must
                not re-measure every time it does. -->
           <p id="status-line" class="status-line" aria-live="polite" hidden></p>
+          <!-- What is answering, above what is being asked — the typical chat
+               shape: a compact model pill over the input, not a wide block
+               fighting attach and send for the one bar. It was a chip in the
+               header opening a dialog — two moves and a different corner of
+               the screen to change the one setting a person actually changes
+               per question. -->
+          <button type="button" class="model-pick" id="model-pick" title="Model">
+            <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M200,88H176V64a16,16,0,0,0-16-16H136V24a8,8,0,0,0-16,0V48H96A16,16,0,0,0,80,64V88H56a8,8,0,0,0,0,16H80v48H56a8,8,0,0,0,0,16H80v24a16,16,0,0,0,16,16h24v24a8,8,0,0,0,16,0V208h24a16,16,0,0,0,16-16V168h24a8,8,0,0,0,0-16H176V104h24a8,8,0,0,0,0-16ZM160,192H96V64h64Z"/></svg>
+            <span id="model-name">no model</span>
+            <span class="caret" aria-hidden="true">⌄</span>
+          </button>
           <textarea id="input" placeholder="Ask something… · /help lists every command · paste a big block to save it as a source" title="Enter to send, Shift+Enter for a newline. /help teaches every command; a pasted block over 1,000 characters is saved as a source by itself." rows="1"></textarea>
           <div class="composer-bar">
-            <!-- What is answering, next to what is being asked. It was a chip
-                 in the header opening a dialog — two moves and a different
-                 corner of the screen to change the one setting a person
-                 actually changes per question. -->
-            <button type="button" class="model-pick" id="model-pick" title="Model">
-              <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M200,88H176V64a16,16,0,0,0-16-16H136V24a8,8,0,0,0-16,0V48H96A16,16,0,0,0,80,64V88H56a8,8,0,0,0,0,16H80v48H56a8,8,0,0,0,0,16H80v24a16,16,0,0,0,16,16h24v24a8,8,0,0,0,16,0V208h24a16,16,0,0,0,16-16V168h24a8,8,0,0,0,0-16H176V104h24a8,8,0,0,0,0-16ZM160,192H96V64h64Z"/></svg>
-              <span id="model-name">no model</span>
-              <span class="caret" aria-hidden="true">⌄</span>
-            </button>
             <div id="attach-strip" aria-label="Attachments"></div>
             <!-- Not composer furniture: a bare "primary" switch with no room
                  for its own explanation read as unlabeled clutter (user
@@ -3557,6 +3568,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
               <span>memory</span>
               <span class="memory-count" id="memory-count" hidden style="align-items:center;justify-content:center;min-width:1.1em;height:1.1em;padding:0 0.3em;margin-left:0.35em;border-radius:999px;background:var(--accent, #6f5bd6);color:#fff;font-size:0.72em;line-height:1;"></span>
             </button>
+            <span class="spacer"></span>
             <button type="submit" class="primary" id="send" aria-label="Send" disabled><span>Send</span></button>
           </div>
         </form>

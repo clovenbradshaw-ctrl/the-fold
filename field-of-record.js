@@ -41,7 +41,7 @@
 // eval counts how often the record repeats a text; the design decision of
 // whether a signature should carry the ground address as well is the
 // spec's author's, not this file's.
-import { Field, tokensOf, isWord, sdrOf, SDR_BITS, ECHO_BITS } from "./relative.js";
+import { Field, tokensOf, isWord, sdrOf, SDR_BITS, ECHO_BITS, bytesToBase64 } from "./relative.js";
 
 /** GFP Pass 35: how many recalled passages a turn will offer beside lexical retrieval.
  * Declared, not measured (2026-09-11, set by hand for the turn seat): a structural
@@ -137,9 +137,9 @@ export function admitRecordLines(field, record, lines, { seqFrom = null } = {}) 
   return n;
 }
 
-/** The rows for nodes admitted at or after `from` — predecessors by signature, no positions, no `next`. A shadow or echo row persists its state (nothing else can rebuild it). */
+/** The rows for nodes admitted at or after `from` — predecessors by signature, no positions, no `next`. A shadow or echo row persists its state (nothing else can rebuild it); a PACKED row persists its bitfield as base64 (the truly-small store). */
 export function rowsSince(field, from = 0) {
-  return field.nodes.slice(Math.max(0, from | 0)).map((n) => ({ tier: n.tier, text: n.text, ...(n.tier !== THE_HOLOGRAPH ? { sdr: Array.from(n.sdr) } : {}), payload: n.payload ?? null, signature: n.signature, prev: [...n.prev].map(([m, w]) => [m.signature, w]) }));
+  return field.nodes.slice(Math.max(0, from | 0)).map((n) => ({ tier: n.tier, text: n.text, ...(n.tier !== THE_HOLOGRAPH ? { sdr: n.sdr instanceof Uint8Array ? bytesToBase64(n.sdr) : Array.from(n.sdr), ...(n.sdr instanceof Uint8Array ? { packed: true } : {}) } : {}), payload: n.payload ?? null, signature: n.signature, prev: [...n.prev].map(([m, w]) => [m.signature, w]) }));
 }
 
 /**
@@ -152,7 +152,7 @@ export function rowsSince(field, from = 0) {
 export function fieldFromRows(rows = [], opts) {
   const next = new Map();
   for (const r of rows) for (const [sig, w] of r.prev ?? []) { if (!next.has(sig)) next.set(sig, []); next.get(sig).push([r.signature, w]); }
-  const full = rows.map((r) => ({ tier: r.tier, text: r.text, ...(r.sdr ? { sdr: r.sdr } : {}), payload: r.payload ?? null, signature: r.signature, prev: r.prev ?? [], next: next.get(r.signature) ?? [] }));
+  const full = rows.map((r) => ({ tier: r.tier, text: r.text, ...(r.sdr ? { sdr: r.sdr } : {}), ...(r.packed ? { packed: true } : {}), payload: r.payload ?? null, signature: r.signature, prev: r.prev ?? [], next: next.get(r.signature) ?? [] }));
   const f = Field.deserialize(full, opts);
   const ends = f.nodes.filter((n) => n.next.size === 0);
   f.last = ends.at(-1) ?? f.nodes.at(-1) ?? null;

@@ -102,6 +102,45 @@ export function sharedBits(a, b) {
 /** Cosine over lit bits: 1 for the same state, 0 for nothing shared. */
 export function overlap(a, b) { return a.length && b.length ? sharedBits(a, b) / Math.sqrt(a.length * b.length) : 0; }
 
+// GFP PASS 36 (second half) — the PACKED shadow: a state as a bitfield
+// (ceil(bits/8) bytes) instead of sparse indices. Overlap becomes a bitwise
+// AND + popcount — 2.4× smaller in memory, SIMD-ready — and the packed row is
+// the truly-small store (a 512-bit echo = 64 bytes = ~88 base64 chars).
+const POPCOUNT8 = (() => { const t = new Uint8Array(256); for (let i = 1; i < 256; i++) t[i] = t[i >> 1] + (i & 1); return t; })();
+/** Pack a sparse state into a bitfield: bit i is set iff i is in the state. */
+export function packSdr(sdr, { bits = SDR_BITS } = {}) {
+  const out = new Uint8Array(Math.ceil(bits / 8));
+  for (let i = 0; i < sdr.length; i++) { const b = sdr[i]; out[b >> 3] |= 1 << (b & 7); }
+  return out;
+}
+/** Number of set bits in a packed state. */
+export function popcountPacked(u8) { let n = 0; for (let i = 0; i < u8.length; i++) n += POPCOUNT8[u8[i]]; return n; }
+/** Cosine over two packed states of the SAME byte length. */
+export function packedOverlap(a, b) {
+  if (!a?.length || !b?.length) return 0;
+  let shared = 0;
+  for (let i = 0; i < a.length; i++) shared += POPCOUNT8[a[i] & b[i]];
+  const wa = popcountPacked(a), wb = popcountPacked(b);
+  return wa && wb ? shared / Math.sqrt(wa * wb) : 0;
+}
+const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+/** The packed row's store form — base64, browser-safe, no Buffer. */
+export function bytesToBase64(u8) {
+  let out = "";
+  for (let i = 0; i < u8.length; i += 3) {
+    const b0 = u8[i], b1 = u8[i + 1], b2 = u8[i + 2];
+    out += B64[b0 >> 2] + B64[((b0 & 3) << 4) | (b1 >> 4)];
+    out += b1 !== undefined ? B64[((b1 & 15) << 2) | ((b2 ?? 0) >> 6)] : "=";
+    out += b2 !== undefined ? B64[b2 & 63] : "=";
+  }
+  return out;
+}
+export function base64ToBytes(s) {
+  const out = []; let buf = 0, nb = 0;
+  for (const c of s) { if (c === "=") break; const v = B64.indexOf(c); if (v < 0) continue; buf = (buf << 6) | v; nb += 6; if (nb >= 8) { nb -= 8; out.push((buf >> nb) & 255); } }
+  return Uint8Array.from(out);
+}
+
 /** A node is a state, a payload, and its synapses. It has no key.
  * `tier` is one of the memory's three resolutions:
  *   "holograph" — the record merged: full tokens AND the address, both sides.
@@ -138,17 +177,22 @@ function stateSignature(sdr) {
  * looked up; everything is reached.
  */
 export class Field {
-  constructor({ spread = 0.25, steps = 1 } = {}) { this.nodes = []; this.spread = spread; this.steps = steps; this.last = null; this.vocab = new Map(); this.posting = new Map(); this._index = null; }
+  constructor({ spread = 0.25, steps = 1, packed = false } = {}) { this.nodes = []; this.spread = spread; this.steps = steps; this.last = null; this.vocab = new Map(); this.posting = new Map(); this._index = null; this.packed = Boolean(packed); }
   get size() { return this.nodes.length; }
+  /** The set bits of a state, whichever form — sparse indices or packed bytes. */
+  static setBitsOf(sdr) {
+    const out = [];
+    if (sdr instanceof Uint8Array) { for (let b = 0; b < sdr.length * 8; b++) if (sdr[b >> 3] & (1 << (b & 7))) out.push(b); }
+    else { for (let k = 0; k < sdr.length; k++) out.push(sdr[k]); }
+    return out;
+  }
   /** Rebuild the posting lists (bit → node indices) — the recall index of GFP
    * Pass 36. Bits are FEATURES, never addresses of nodes (F1 still holds); the
    * posting is derived from the states and is always rebuildable. */
   buildPostings() {
     this.posting = new Map(); this._index = null;
     for (let i = 0; i < this.nodes.length; i++) {
-      const sdr = this.nodes[i].sdr;
-      for (let k = 0; k < sdr.length; k++) {
-        const bit = sdr[k];
+      for (const bit of Field.setBitsOf(this.nodes[i].sdr)) {
         let list = this.posting.get(bit);
         if (!list) { list = []; this.posting.set(bit, list); }
         list.push(i);
@@ -158,14 +202,16 @@ export class Field {
   }
   /** Admit a text as one of the memory's tiers: "holograph" (full tokens +
    * address), "shadow" (state + address, no words), "echo" (coarse state +
-   * address, no words). */
+   * address, no words). A PACKED field stores each state as a bitfield —
+   * 2.4× smaller, bitwise overlap (GFP Pass 36 second half). */
   admit(text, payload = null, { after = this.last, tier = "holograph" } = {}) {
-    const node = new Node(text, payload, tier);
+    const bits = tier === "echo" ? ECHO_BITS : SDR_BITS;
+    const raw = sdrOf(text, { bits });
+    const node = new Node(text, payload, tier, this.packed ? packSdr(raw, { bits }) : raw);
     if (after) { after.next.set(node, (after.next.get(node) ?? 0) + 1); node.prev.set(after, (node.prev.get(after) ?? 0) + 1); }
     this.nodes.push(node); this.last = node; this._index = null;
-    const i = this.nodes.length - 1, sdr = node.sdr;
-    for (let k = 0; k < sdr.length; k++) {
-      const bit = sdr[k];
+    const i = this.nodes.length - 1;
+    for (const bit of Field.setBitsOf(node.sdr)) {
       let list = this.posting.get(bit);
       if (!list) { list = []; this.posting.set(bit, list); }
       list.push(i);
@@ -184,7 +230,7 @@ export class Field {
    * as a recall — that is the null band's to say (see `recallAgainstNull`).
    */
   recall(cue, { steps = this.steps, spread = this.spread } = {}) {
-    const q = typeof cue === "string" ? sdrOf(cue) : cue;
+    const q = typeof cue === "string" ? (this.packed ? packSdr(sdrOf(cue)) : sdrOf(cue)) : cue;
     let a = new Float64Array(this.nodes.length);
     const n = this.nodes.length;
     if (this._index === null || this._index.size !== n) this._index = new Map(this.nodes.map((nd, i) => [nd, i]));
@@ -195,14 +241,16 @@ export class Field {
     // whose state is below the cue's) falls back to the full scan — identical
     // result either way, because a node sharing no bit has overlap exactly 0.
     const seen = new Set();
-    for (let k = 0; k < q.length; k++) {
-      const list = this.posting.get(q[k]);
+    const cueBits = Field.setBitsOf(q);
+    for (let k = 0; k < cueBits.length; k++) {
+      const list = this.posting.get(cueBits[k]);
       if (list) for (let j = 0; j < list.length; j++) if (!seen.has(list[j])) seen.add(list[j]);
     }
+    const score = this.packed ? packedOverlap : overlap;
     if (seen.size) {
-      for (const i of seen) a[i] = overlap(q, this.nodes[i].sdr);
+      for (const i of seen) a[i] = score(q, this.nodes[i].sdr);
     } else {
-      for (let i = 0; i < n; i++) a[i] = overlap(q, this.nodes[i].sdr);
+      for (let i = 0; i < n; i++) a[i] = score(q, this.nodes[i].sdr);
     }
     for (let s = 0; s < steps; s++) {
       const b = Float64Array.from(a);
@@ -273,16 +321,19 @@ export class Field {
   }
   /** Nodes with their neighbours named by SIGNATURE — a store with no positions.
    * A shadow or echo node (no text) persists its STATE (`sdr`), since nothing
-   * else can rebuild it; a holograph node rebuilds its state from its words. */
+   * else can rebuild it; a holograph node rebuilds its state from its words.
+   * A PACKED node persists its bitfield as base64 — the truly-small row. */
   serialize() {
-    return this.nodes.map((n) => ({ tier: n.tier, text: n.text, ...(n.tier !== "holograph" ? { sdr: Array.from(n.sdr) } : {}), payload: n.payload, signature: n.signature, next: [...n.next].map(([m, w]) => [m.signature, w]), prev: [...n.prev].map(([m, w]) => [m.signature, w]) }));
+    return this.nodes.map((n) => ({ tier: n.tier, text: n.text, ...(n.tier !== "holograph" ? { sdr: n.sdr instanceof Uint8Array ? bytesToBase64(n.sdr) : Array.from(n.sdr), ...(n.sdr instanceof Uint8Array ? { packed: true } : {}) } : {}), payload: n.payload, signature: n.signature, next: [...n.next].map(([m, w]) => [m.signature, w]), prev: [...n.prev].map(([m, w]) => [m.signature, w]) }));
   }
   static deserialize(rows, opts) {
     const f = new Field(opts);
     const bySig = new Map();
     for (const r of rows) {
       const tier = r.tier ?? (r.text == null ? "shadow" : "holograph");
-      const n = tier === "holograph" ? new Node(r.text, r.payload, "holograph") : new Node("", r.payload, tier, Array.isArray(r.sdr) ? Uint32Array.from(r.sdr) : null);
+      let restored = null;
+      if (tier !== "holograph") { if (r.packed && typeof r.sdr === "string") restored = base64ToBytes(r.sdr); else if (Array.isArray(r.sdr)) restored = Uint32Array.from(r.sdr); }
+      const n = tier === "holograph" ? new Node(r.text, r.payload, "holograph", f.packed ? packSdr(sdrOf(r.text), { bits: SDR_BITS }) : null) : new Node("", r.payload, tier, restored);
       bySig.set(r.signature, n); f.nodes.push(n);
       if (r.text) for (const w of tokensOf(r.text)) if (isWord(w)) f.vocab.set(w, (f.vocab.get(w) ?? 0) + 1);
     }

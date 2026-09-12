@@ -1,7 +1,7 @@
 // relative.test.mjs — the keyless field and the pattern over ground and figure.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Field, sdrOf, overlap, tokensOf, isWord, hash32, SDR_BITS } from "./relative.js";
+import { Field, sdrOf, overlap, tokensOf, isWord, hash32, SDR_BITS, packSdr, packedOverlap, popcountPacked, bytesToBase64, base64ToBytes } from "./relative.js";
 import { drift, reanchor, correspond, fragmentOf } from "./relative-pattern.js";
 import { resolveAddress } from "./record-log.js";
 import { rowsSince, fieldFromRows } from "./field-of-record.js";
@@ -142,4 +142,35 @@ test("nullBand and recallAgainstNull thread steps/spread through — a band meas
   // (this file's own tests above) is byte-identical.
   const implicit = field.recallAgainstNull(cue, { draws: 80 });
   assert.equal(implicit.band.steps, field.steps);
+});
+
+test("GFP Pass 36 (second half): a PACKED field recalls bit-identically to the sparse one on every probe — the bitfield is the same state, and its store is the truly-small one", () => {
+  const sparse = new Field();
+  const packed = new Field({ packed: true });
+  for (const p of PASSAGES) {
+    sparse.admit(p, { source: "tolstoy", at: p.slice(0, 6) });
+    packed.admit(p, { source: "tolstoy", at: p.slice(0, 6) });
+  }
+  // the packed state is a real bitfield, 2.4x smaller in memory terms
+  assert.ok(packed.nodes[0].sdr instanceof Uint8Array, "the packed state is a bitfield");
+  assert.ok(popcountPacked(packed.nodes[0].sdr) === sparse.nodes[0].sdr.length, "the same number of lit bits");
+  // bit-identical recall on every probe, at every tier
+  const probes = [...PASSAGES, fragmentOf(PASSAGES[1], 0, 0.3), "the battery fired without pause"];
+  for (const cue of probes) {
+    const a = sparse.recall(cue, { steps: 0 })[0], b = packed.recall(cue, { steps: 0 })[0];
+    assert.equal(b.node.payload.at, a.node.payload.at, `same figure for "${cue.slice(0, 30)}…"`);
+    assert.ok(Math.abs(b.activation - a.activation) < 1e-12, "same activation to the bit");
+  }
+  // the echo at its own coarse resolution is packed too
+  const echoPacked = new Field({ packed: true });
+  echoPacked.admit(PASSAGES[0], { source: "t", at: "t#0" }, { tier: "echo" });
+  assert.ok(echoPacked.nodes[0].sdr instanceof Uint8Array);
+  assert.ok(echoPacked.nodes[0].sdr.length === Math.ceil(512 / 8), "the echo's bitfield is 64 bytes — the truly-small shadow");
+  // base64 round-trip
+  assert.deepEqual(base64ToBytes(bytesToBase64(packed.nodes[0].sdr)), packed.nodes[0].sdr, "base64 round-trips the bitfield");
+  // the packed store round-trips through rows and is the smaller one
+  const packedRows = rowsSince(packed);
+  const rebuilt = fieldFromRows(packedRows, { packed: true });
+  assert.equal(rebuilt.nodes[0].sdr instanceof Uint8Array, true, "rebuilt packed rows are bitfields");
+  assert.equal(rebuilt.recall(PASSAGES[0], { steps: 0 })[0].node.payload.at, packed.recall(PASSAGES[0], { steps: 0 })[0].node.payload.at, "the rebuilt packed field recalls the same figure");
 });

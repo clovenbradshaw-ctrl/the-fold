@@ -11,11 +11,13 @@
 //   THE SHADOW — the second tier: a node keeps only its state (which words and
 //     pairs lit which bits) and the address, NO words. Recall-only: "have I
 //     met this," and where. A lien on content, never the content; re-expands
-//     only through the record.
+//     only through the record. The deidentified RESIDUE of significance — what
+//     the DEF/EVA/REC calculus left behind when it passed: an echo is not a
+//     sound, it is the trace of a sound.
 //   THE ECHO — the third tier, the coarse minimum: a low-resolution state and
 //     the address. "Something like this was said here," cheap over a million
-//     pages or a whole room. Never read back into full EOT — it only says
-//     whether to bother looking.
+//     pages or a whole room. The coarsest grain of the shadow's residue.
+//     Never read back into full EOT — it only says whether to bother looking.
 //
 // Graceful and never exact: the shadow and echo degrade, and say by how much.
 // Ground casts; the holograph holds; the shadow and echo follow; the pattern

@@ -55,10 +55,13 @@ export const FIELD_OFFER_MAX = 2;
 export const THE_HOLOGRAPH = "holograph";
 /** THE SHADOW — the second tier: state + address, NO words. Recall-only, re-expands
  * only through the record; a lien on content, never the content; structurally
- * unreadable — the sealed form to share. */
+ * unreadable — the sealed form to share. The deidentified RESIDUE of significance:
+ * what the DEF/EVA/REC calculus left behind when it passed — an echo is not a sound,
+ * it is the trace of a sound (2026-09-11). */
 export const THE_SHADOW = "shadow";
 /** THE ECHO — the third tier, the coarse minimum: a low-resolution state + address.
- * "Something like this was said here." Never read back into full EOT. */
+ * "Something like this was said here." The coarsest grain of the shadow's residue;
+ * never read back into full EOT. */
 export const THE_ECHO = "echo";
 
 /** The fields a ledger line may carry text in, in the order they are joined. */
@@ -77,20 +80,29 @@ export function textOfEntry(entry) {
 /** A passage from the reader loop: its bytes, its ground address, its source.
  * `tier: "shadow"` admits the passage's shadow — state and address, no words
  * (recall-only, never re-expandable); `tier: "echo"` the coarse echo. The
- * default is the holograph (full tokens + address, the record's face). */
-export function admitPassage(field, passage, { source = passage?.source ?? null, tier = THE_HOLOGRAPH } = {}) {
+ * default is the holograph (full tokens + address, the record's face).
+ * `significance` is the residue of the DEF/EVA/REC calculus — the reading's
+ * own finding (standing, band, surprise) — carried deidentified on the shadow
+ * and echo only: the holograph IS the significance, so it carries no residue.
+ * It reveals how the reading found this meaningful, never what it said. */
+export function admitPassage(field, passage, { source = passage?.source ?? null, tier = THE_HOLOGRAPH, significance = null } = {}) {
   const text = String(passage?.text ?? "");
   if (!text.trim()) return null;
-  return field.admit(text, { source, at: passage?.ref ?? null }, { tier });
+  const payload = { source, at: passage?.ref ?? null };
+  if (tier !== THE_HOLOGRAPH && significance) payload.significance = significance;
+  return field.admit(text, payload, { tier });
 }
 
 /** A ledger entry: its text, addressed by the record it sits in and its seq there.
  * `tier: "shadow"` / `"echo"` admit the entry's shadow / echo — the state and
- * pointer only; the default is the holograph. */
-export function admitEntry(field, entry, { record = null, seq = entry?.seq ?? null, tier = THE_HOLOGRAPH } = {}) {
+ * pointer only; the default is the holograph. `significance` rides the shadow
+ * and echo as the deidentified residue of the calculus (see admitPassage). */
+export function admitEntry(field, entry, { record = null, seq = entry?.seq ?? null, tier = THE_HOLOGRAPH, significance = null } = {}) {
   const text = textOfEntry(entry);
   if (!text) return null;
-  return field.admit(text, { record, at: seq != null ? `${record}@${seq}` : null, kind: entry?.kind ?? entry?.event ?? entry?.schema ?? null }, { tier });
+  const payload = { record, at: seq != null ? `${record}@${seq}` : null, kind: entry?.kind ?? entry?.event ?? entry?.schema ?? null };
+  if (tier !== THE_HOLOGRAPH && significance) payload.significance = significance;
+  return field.admit(text, payload, { tier });
 }
 
 /** THE SHADOW of a text — its state and the state's own signature, no words. */

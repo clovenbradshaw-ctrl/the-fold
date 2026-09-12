@@ -111,6 +111,41 @@ test("shadowOf / echoOf return the tier itself — a state and a state-signature
   assert.equal(f.recall("the battery on the mound fired")[0].node.signature, n.signature, "recall reaches it by content, not by key");
 });
 
+test("significance rides the shadow — the deidentified residue of the calculus (DEF/EVA/REC), never the content (2026-09-11)", () => {
+  const ps = passages();
+  const f = new Field();
+  const sig = { standing: "figure", band: { lo: 0.05, hi: 0.2, margin: 0.04, draws: 150 }, surprise: 0.71 };
+  const n = admitPassage(f, { ...ps[0], source: "borodino.txt" }, { tier: THE_SHADOW, significance: sig });
+  assert.equal(n.text, null);
+  assert.deepEqual(n.payload.significance, sig, "the residue is carried — it reveals how the reading found this meaningful, never what it said");
+  // the holograph is the significance itself — it carries no residue
+  const h = new Field();
+  const hn = admitPassage(h, { ...ps[0], source: "borodino.txt" }, { tier: THE_HOLOGRAPH, significance: sig });
+  assert.equal(hn.payload.significance, undefined, "the holograph is the reading — nothing left behind to carry");
+  // recall returns the residue with the fingerprint
+  const hit = f.recall(ps[0].text)[0].node;
+  assert.deepEqual(hit.payload.significance, sig);
+});
+
+test("THE BROKEN BASE (2026-09-11): the symbol cannot touch the referent except through the thought — a shadow or echo is never offered to a turn, only a holograph", () => {
+  const ps = passages();
+  // recall still happens over a shadow-only field — the shadow recognizes
+  const sh = new Field();
+  for (const p of ps) sh.admit(p.text, { source: "borodino.txt", at: p.ref }, { tier: THE_SHADOW });
+  const offer = recallForTurn(sh, ps[0].text, { draws: 60 });
+  assert.ok(["figure", "ambiguous", "nothing"].includes(offer.kind), "recall happens — the shadow recognizes");
+  assert.equal(offer.passages.length, 0, "but nothing is offered to the mouth — the base is broken");
+  assert.equal(offer.top, null, "and no passage-shaped top is ever handed over");
+  // the echo is the same wall at coarse grain
+  const ec = new Field();
+  for (const p of ps) ec.admit(p.text, { source: "borodino.txt", at: p.ref }, { tier: THE_ECHO });
+  assert.equal(recallForTurn(ec, ps[0].text, { draws: 60 }).passages.length, 0, "an echo offers nothing either");
+  // contrast: only the holograph has words to give
+  const hol = new Field();
+  for (const p of ps) hol.admit(p.text, { source: "borodino.txt", at: p.ref }, { tier: THE_HOLOGRAPH });
+  assert.ok(recallForTurn(hol, ps[0].text, { draws: 60 }).passages.length > 0, "only the holograph can reach the mouth");
+});
+
 test("the reader loop admits every passage it reads into the field, in order, with its ground address as payload — one door, injected", async () => {
   const ps = passages();
   const field = new Field();

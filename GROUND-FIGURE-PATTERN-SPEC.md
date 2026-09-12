@@ -1,15 +1,20 @@
 # Ground, Figure, Pattern — the addressed, the addressless, and the meta
 
-*The addressless half of the Figure is the keyless memory in three tiers
-(field-of-record.js — `THE_HOLOGRAPH`, `THE_SHADOW`, `THE_ECHO`, 2026-09-11,
-user-given): THE HOLOGRAPH is the first tier, the record merged — full tokens
-AND the address, both sides, the only tier the mouth reads (before the record
-there is only the file, the raw bytes). THE SHADOW is the second — state +
-address, no words, recall-only, a lien on content. THE ECHO is the third, the
-coarse minimum — a low-resolution state + address, "something like this was
-said here," never read back into full EOT. Ground casts; the holograph holds;
-the shadow and echo follow; the pattern measures the light. Resolution is the
-size knob, measured by Pass 36, never picked.*
+*THE MAP, 2026-09-11 (`the-triad-that-involves-the-holograph.md`): G/F/P are
+one reading act seen at three depths — existence, structure, significance
+(the perceiver's own three levels, `perceiver/index.js`; the three
+mathematics). **G** is the file — the raw data, existence, the referent.
+**F** is the holograph — structure, the log of the EOT reading folded at a
+cursor (the record merged: full tokens AND the address, both sides; the only
+tier the mouth reads). **P** is the shadow — significance, the deidentified
+RESIDUE of the DEF/EVA/REC calculus (an echo is not a sound, it is the trace
+of a sound), with grain — the echo is its coarsest grain. The "meta" acts of
+this spec — the null band, drift, reanchor, correspond — are P's OWN
+operations: the pattern acts are what the fingerprint does, never a fourth
+thing. The shadow/echo carry their significance (standing, band, surprise)
+deidentified on the payload. Ground casts; the holograph holds; the shadow
+and echo follow; the pattern measures the light. Resolution is the size knob,
+measured by Pass 36, never picked.*
 
 A spec to develop, fully, what the relative-address experiment found on
 2026-09-07, and — added the same day — to turn the meta part from an
@@ -100,6 +105,7 @@ address it minted if any. It is appended, never applied in place.
 - **G1.** No absolute address is ever rewritten. A repair is `propose` of a new address with `operator_basis: derived`, resting on the pattern entry that produced it; the old address stands in the record with its own `retract`-shaped note pointing forward. (`ENTRY_KINDS` and `OPERATOR_BASIS` are the ledger's own, `native/kernel/task-log.js`.)
 - **G2.** A source's bytes are never edited by this organ. `drift` and `reanchor` read; only the record is written.
 - **F1.** The field exposes no key. Any function that takes an index, a seq or an id into the field is a violation, and `relative.test.mjs` asserts `Field.get` is undefined.
+- **B1.** THE BROKEN BASE (2026-09-11; the semiotic triangle, Ogden & Richards 1923, re-derived by measurement). The symbol cannot touch the referent except through the thought — the deidentified pattern cannot reach the file except through the reading. A shadow or echo node is never offered to the mouth, never re-expanded to bytes on its own, and never read back into EOT; only a holograph carries words. Enforced: `recallForTurn` filters to holograph nodes (tested, `field-of-record.test.mjs`).
 - **F2.** Every verdict is relative to a null band measured on the field it was made in, for the cue length it was made with, and the band is written beside the verdict. A band is never reused across fields.
 - **F3.** The field's store carries no positions. Neighbours are named by signature. Shuffling the store must rebuild the same field (tested).
 - **F4.** Structural constants are stated, not tuned: 4,096 bits, one spreading step at gain 0.25. Pass 36 measures their sensitivity; until then they are the ones the experiment was measured with.

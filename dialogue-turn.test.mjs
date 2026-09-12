@@ -144,7 +144,11 @@ test("COMPRESSION: at level 2 the raw passages leave the prompt and the snips st
 test("AWARENESS THAT CHANGES THE NEXT TURN: a name the whole material lacks is declared a VOID on the ledger, and a later turn naming it is handed 'looked for and not found so far' before it drafts; the owning line is on the record, not on the answer", async () => {
   const TL = await import("../eoreader7/native/kernel/task-log.js");
   const cube = await import("../eoreader7/native/kernel/cube.js");
-  const { makeHyperlexicon } = await import("../eoreader7/native/organs/hyperlexicon.js");
+  // The organ's text face was renamed organs/hyperlexicon.js -> notes-text.js
+  // on eoreader7 main; resolve through the seam so this test runs beside
+  // either checkout (the same version-robustness hyperlexicon.js's shim has).
+  const seam = await import("../eoreader7/native/organs/index.js");
+  const makeHyperlexicon = seam.makeHyperlexicon ?? seam.makeNotesText;
   const hl = makeHyperlexicon({ createTaskLog: TL.createTaskLog, append: TL.append, projectTasks: TL.projectTasks, ENTRY_KINDS: TL.ENTRY_KINDS, OPERATOR_BASIS: TL.OPERATOR_BASIS, GRAINS: cube.GRAINS, cellOf: cube.cellOf });
   const seen = [];
   const first = await runHolonicTask({ task: "What does the book say about Marmeladov?", chunks, planMode: "flat", hyperlexicon: hl, hyperlexiconLog: hl.createHyperlexicon(), call: async (m) => { seen.push(m); return "The novel is about guilt."; }, ...organs });

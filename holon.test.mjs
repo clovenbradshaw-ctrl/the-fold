@@ -720,6 +720,40 @@ test("GFP Pass 35: absent a field the turn is byte-identical — fieldRecall nul
   assert.equal(result.sections[0].fieldWitness, undefined, "no fieldRecall, no witness on the record");
 });
 
+// ── GFP Pass 42 (last half) — the error updates the record ──
+
+test("GFP Pass 42: a NOVEL sentence the witness confirms is admitted to the belief ledger, extracted from the DECIDER's own bytes and witnessed by its span — never the mouth's words, never self:model (P128/P2)", async () => {
+  const relationsFor = makeRelationReader(await relationOrgans());
+  const kChunks = chunkSource("notes.txt", CORPUS);
+  const decider = "The Kessington report put the harbor figure at 12% for the spring quarter, revising the earlier estimate downward after the audit.";
+  const span = "notes.txt#0-10";
+  let capturedWitness = null;
+  const stubHyperlexicon = {
+    createHyperlexicon: () => ({ entries: [] }),
+    admit: (log, edges, { witness } = {}) => { capturedWitness = witness; return { log: { entries: [...(log?.entries ?? []), ...edges] }, heard: edges, turnedAway: [] }; },
+    foldHyperlexicon: () => [],
+    foldWithStanding: () => [],
+    redeclareFrame: (log) => log,
+  };
+  const call = async (messages) => {
+    const refs = offeredRefs(promptOf(messages), kChunks);
+    return refs.length ? `The harbor figure is 12% for the spring quarter. [${refs[0]}]` : "Nothing.";
+  };
+  const result = await runHolonicTask({
+    task: "what was the harbor figure?",
+    chunks: kChunks,
+    call,
+    planMode: "flat",
+    makeRelationReader: relationsFor,
+    hyperlexicon: stubHyperlexicon,
+    hyperlexiconLog: null,
+    witnessSentences: async () => ({ rows: [{ sentence: "The harbor figure is 12% for the spring quarter.", witness: "states", decider, span }], asks: 1 }),
+  });
+  const sec = result.sections[0];
+  assert.ok(sec.witnessLearned >= 1, "the witness-confirmed decider taught the record a claim it had not yet heard");
+  assert.equal(capturedWitness, span, "the learned claim is witnessed by the DECIDER's bytes — the material, never self:model");
+});
+
 // ── GFP Pass 40 (A2) — the expectation is announced on the record BEFORE the draft ──
 
 test("GFP Pass 40: an `expected` event fires before any execute — the composition (claims, voids, basis) is announced ahead of the mouth, even when empty", async () => {

@@ -97,16 +97,27 @@ the mouth voices it, and the **authorship ratio per section is the honest
 health metric** — as reading accumulates, the record should author more of each
 section, and the mouth's delta is measured, never assumed (Pass 42).
 
-## 5. Spend the witness budget on error only (Pass 41, not yet built)
+## 5. The witness budget spends on error only (Pass 41 — built)
 
-The spec's next pass: the witnesses (the per-sentence witness tier) should
-spend their asks on **novel and contradicted claims only**; a **matched** claim
-at a bound tier costs nothing to check, because the expectation already carried
-its addresses. When you touch the long-form budgets (`pieceWitnessAsks`,
-`snipRounds`, `revisionRounds`), the rule to keep in view is this: the check
-budget is for what the expectation did NOT already author. The diff (errorOf)
-is the error signal; the witnesses are its police; matched claims are already
-paid for.
+The witnesses spend their asks on **novel and contradicted claims only**; a
+**matched** claim at a bound tier costs nothing to check, because the
+expectation already carried its addresses. `witnessSentences` now takes a
+`matched` set (a sentence ALL of whose claims the expectation already authors
+is skipped, no ask spent); holon.js computes the diff against the expectation
+*first* and hands the matched sentences to the witness. When you touch the
+long-form budgets (`pieceWitnessAsks`, `snipRounds`, `revisionRounds`), the
+rule is this: the check budget is for what the expectation did NOT already
+author. The diff (errorOf) is the error signal; the witnesses are its police;
+matched claims are already paid for.
+
+And the error now updates the record (Pass 42, last half): a NOVEL sentence
+the witness confirms the passages state is admitted to the belief ledger,
+extracted from the **decider's own bytes** (the passage sentence the witness
+pointed at) and witnessed by the decider's span — never the mouth's words,
+never self:model (P128/P2). The elenchus binds the recollection; the record
+learns the fact it had not yet heard, with the source as its witness. A long
+piece whose section's novel-but-true claims enter the ledger is a piece that
+leaves knowledge behind, not just prose.
 
 ## 6. The walls that hold long form honest
 
@@ -140,9 +151,13 @@ paid for.
 *Status, honest: the memory tiers, the broken base, and the significance
 residue are built and tested. The expectation-with-voids and its announcement
 on the record before the draft (Pass 40, A2) are built and tested, and the
-authorship ratio is now MEASURED beyond the null (`eval/authorship-null.mjs`
-— II.23 resolves, and the ratio discriminates the faithful mouth from the
-inventing one). The next increments in the spec's order are Pass 41 (the
-witnesses spend on novel/contradicted only — the one place a long-form coder
-will actually spend this note's §5) and Pass 42's last half (the error
-updates the record — a confirmed novel claim binds as a ledger entry).*
+authorship ratio is MEASURED beyond the null (`eval/authorship-null.mjs` —
+II.23 resolves, and the ratio discriminates the faithful mouth from the
+inventing one). Pass 41 is built — the witness budget spends on error only,
+matched claims cost nothing. Pass 42's last half is built — a witness-confirmed
+novel claim enters the ledger, witnessed by the decider's bytes. The full
+generation loop now stands: expect on the record (DEF) → voice → diff (EVA) →
+the error updates the record (REC). Remaining in the broader spec, named not
+claimed: Pass 36's second half (the packed/bitfield shadow), Pass 37 (the
+witness-confirmed paraphrase orbit), Pass 38 (the meta part audited), Pass 39
+(the room).*

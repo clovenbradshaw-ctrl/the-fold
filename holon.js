@@ -51,6 +51,7 @@ import { mouthFacing } from "./firewall.js";
 import { ownedRows, ownedLine, referentsOf, bindAnaphora, addressedBy, absenceOf, surfacesOf, selfContradictions, contradictionLine, positionOn, expectationFrom, expectationFacts, errorOf, fold as dfold } from "./dialogue.js";
 import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
 import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine } from "./transcript.js";
+import { refKey } from "./dialogue.js";
 import { checkComparison } from "./arithmetic.js";
 import { answerBeforeTheModel } from "./answerable.js";
 import { recruit, strainOf, substituted } from "./strain.js";
@@ -3470,6 +3471,17 @@ export async function runPart({
   // containment, so it does not re-run on every correction retry. It marks;
   // it never drives a correction (a refusal is "these passages do not state
   // this", which is silence, not a lie about the given).
+  // GFP PASS 41: the diff against the expectation is computed FIRST, and the
+  // witness spends its budget on ERROR only — sentences whose claims the
+  // expectation already authors (matched, with their addresses carried) cost
+  // NOTHING to check; the asks go to novel and contradicted claims.
+  const dialogueClaims = check?.relations?.claims ?? [];
+  const expectationError = expectation.claims.length ? errorOf(expectation, dialogueClaims, referentIndex) : null;
+  const matchedSentences = new Set();
+  if (expectationError?.matched?.length) {
+    const matchedKeys = new Set(expectationError.matched);
+    for (const c of dialogueClaims) { let key = null; try { key = refKey(c, referentIndex).key; } catch { key = null; } if (key && matchedKeys.has(key)) matchedSentences.add(c.sentence); }
+  }
   let witnessReport = null;
   if (witnessSentences && passages.length) {
     try {
@@ -3479,15 +3491,39 @@ export async function runPart({
       const allSentences = splitSentences(stripFraming(text));
       const flaggedSet = new Set((snipCheck?.flags ?? []).map((f) => f.sentence));
       const ordered = flaggedSet.size ? [...allSentences.filter((x) => flaggedSet.has(x)), ...allSentences.filter((x) => !flaggedSet.has(x))] : allSentences;
-      witnessReport = await witnessSentences(ordered, check.relations?.claims ?? [], passages, { maxAsks: piece ? Math.max(witnessAsks, pieceWitnessAsks) : witnessAsks });
+      witnessReport = await witnessSentences(ordered, dialogueClaims, passages, { maxAsks: piece ? Math.max(witnessAsks, pieceWitnessAsks) : witnessAsks, matched: matchedSentences.size ? matchedSentences : null });
     } catch (e) {
       witnessReport = { rows: [], asks: 0, gap: e?.message ?? String(e) };
     }
   }
+  // GFP PASS 42 (last half) — the error updates the record: a NOVEL sentence
+  // the witness confirmed the passages state is admitted to the belief ledger,
+  // extracted from the DECIDER'S OWN BYTES (the passage sentence the witness
+  // pointed at) and witnessed by the decider's span — never from the mouth's
+  // words, never witnessed by the mouth (P128 / P2: self:model never
+  // corroborates itself). The elenchus binds the recollection; the record
+  // learns the fact it had not yet heard, with the source as its witness.
+  let witnessLearned = 0;
+  if (witnessReport?.rows?.length && hyperlexicon && relations) {
+    for (const row of witnessReport.rows) {
+      if (row.witness !== "states" || !row.decider || !row.span) continue;
+      try {
+        const bound = (relations.read(String(row.decider))?.claims ?? []).filter((c) => c.verdict === "bound");
+        if (!bound.length) continue;
+        const admitted = admitPassages(hyperlexicon, beliefNotes, [{ text: row.decider, ref: row.span }], {
+          read: (t) => relations.read(t),
+          witnessFor: () => row.span,
+          classifyConnector,
+          frame: hyperlexiconFrame,
+        });
+        beliefNotes = admitted.log;
+        witnessLearned += admitted.heard;
+        hyperlexiconTurnedAway.push(...admitted.turnedAway);
+      } catch { /* a decider the reader cannot parse learns nothing — never guessed */ }
+    }
+  }
   // ── after the walls: the diff against the expectation, and the answer's claims
   // against what this conversation bound earlier — both stand, on the record.
-  const dialogueClaims = check?.relations?.claims ?? [];
-  const expectationError = expectation.claims.length ? errorOf(expectation, dialogueClaims, referentIndex) : null;
   const selfRows = transcript.length ? selfContradictions(dialogueClaims, transcript, referentIndex) : [];
   if (position) text = `${position.text}\n\n${text}`.trim();
   // `absent` (absence.line, computed above) is deliberately never appended
@@ -3556,6 +3592,10 @@ export async function runPart({
     links: linkReport,
     linkCorrections,
     witness: witnessReport,
+    // GFP Pass 42: how many claims the witness's confirmed deciders just taught
+    // the record (the error updated the ledger — the elenchus bound a
+    // recollection the reader had not yet heard). Absent when none learned.
+    ...(witnessLearned ? { witnessLearned } : {}),
     open,
     // The updated shared log, threaded back to the caller — `gridLog`
     // unchanged (byte-identical `===`) when no organ was injected or

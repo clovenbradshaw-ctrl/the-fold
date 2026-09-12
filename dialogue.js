@@ -283,14 +283,17 @@ export function historyWindow(history = [], question = "", { dmdWindow, index = 
 }
 
 /**
- * expectationFrom(passages, question, read, index) — what the material states
- * about the question's REFERENTS before the mouth: the reader's own bound
+ * expectationFrom(passages, question, read, index, voids) — what the material
+ * states about the question's REFERENTS before the mouth: the reader's own bound
  * claims over the retrieved passages, kept when an end resolves to a referent
  * the question resolves to. Only when the question resolves to none does a
  * content-word overlap on the ends stand in, and the result says so.
+ * `voids` (the reader's declared absences, GFP Pass 40) contribute what is
+ * ABSENT and the scope it was absent in — the expectation is not only what the
+ * material says, but what it was searched for and does not yet say.
  */
-export function expectationFrom(passages = [], question = "", read, index = null) {
-  if (typeof read !== "function" || !passages.length) return { claims: [], basis: null, why: "no reader or no passages" };
+export function expectationFrom(passages = [], question = "", read, index = null, voids = []) {
+  if (typeof read !== "function" || !passages.length) return { claims: [], basis: null, voids: [], why: "no reader or no passages" };
   const qRefs = referentsOf(question, index);
   const qw = contentWords(question);
   const basis = qRefs.ids.size ? "referent" : "surface";
@@ -311,12 +314,18 @@ export function expectationFrom(passages = [], question = "", read, index = null
       claims.push({ key, end1: c.end1 ?? c.subject ?? null, label: c.label ?? c.verb ?? null, end2: c.end2 ?? c.object ?? null, polarity: c.polarity ?? "+", at: p.ref ?? null, refs: [...new Set([p.ref, ...(c.refs ?? [])].filter(Boolean))] });
     }
   }
+  // The voids, deidentified and scoped — what was searched for and not yet heard.
+  const voidRows = (voids ?? []).filter(Boolean).map((v) => ({ text: [v.end1 ?? v.subject, v.label ?? v.verb, v.end2 ?? v.object].filter(Boolean).join(" "), scope: v.scope ?? null }));
   // The diff (errorOf) filters the answer's claims by the SAME touch test, so both sides are claims about the asked-about.
-  return { claims, basis, ids: [...qRefs.ids], words: qw, touches, why: claims.length ? `${claims.length} claim(s) the material states about what was asked (by ${basis})` : `the retrieved passages state nothing about what was asked (by ${basis})` };
+  return { claims, basis, ids: [...qRefs.ids], words: qw, touches, voids: voidRows, why: claims.length ? `${claims.length} claim(s) the material states about what was asked (by ${basis})` : `the retrieved passages state nothing about what was asked (by ${basis})` };
 }
 /** The expectation as facts for the mouth — positive, addressed, never an instruction. */
 // No address reaches the mouth (the rule since 2026-08-18); the claims keep theirs on the record.
-export const expectationFacts = (exp) => exp?.claims?.length ? `What the sources state about this:\n${exp.claims.slice(0, 12).map((c) => `- ${[c.end1, c.label, c.end2].filter(Boolean).join(" ")}${c.polarity === "-" ? " (denied)" : ""}`).join("\n")}` : "";
+// The voids ride beside as the declared absence — "looked for and not found so far," with the scope.
+export const expectationFacts = (exp) => [
+  exp?.claims?.length ? `What the sources state about this:\n${exp.claims.slice(0, 12).map((c) => `- ${[c.end1, c.label, c.end2].filter(Boolean).join(" ")}${c.polarity === "-" ? " (denied)" : ""}`).join("\n")}` : "",
+  exp?.voids?.length ? `Looked for and not found so far:\n${exp.voids.slice(0, 6).map((v) => `- ${v.text}${v.scope ? ` (searched ${v.scope})` : ""}`).join("\n")}` : "",
+].filter(Boolean).join("\n\n");
 /**
  * errorOf(expectation, answerClaims, index) → matched / novel / missing /
  * contradicted, and the authorship ratio; both sides keyed the same way, and

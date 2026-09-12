@@ -158,6 +158,24 @@ test("the expectation before the draft: the reader's bound claims whose ends res
   assert.equal(expectationFrom([], "x", read, index).claims.length, 0);
 });
 
+test("GFP Pass 40: the voids contribute what is ABSENT to the expectation, with the scope it was absent in — the expectation is not only what the material says, but what was searched for and not yet heard", () => {
+  const read = (text) => ({ claims: text.includes("soup") ? [{ end1: "Razumihin", label: "brought", end2: "soup", verdict: "bound" }] : [] });
+  const exp = expectationFrom(PASSAGES, "What does the book say about Razumihin?", read, index, [{ end1: "Razumihin", label: "visited", end2: "Sonia", scope: "read 4 of 7 passages" }]);
+  assert.equal(exp.claims.length, 1);
+  assert.deepEqual(exp.voids, [{ text: "Razumihin visited Sonia", scope: "read 4 of 7 passages" }], "the absence is carried with the scope it was absent in");
+  const facts = expectationFacts(exp);
+  assert.match(facts, /Razumihin brought soup/, "what the material states reaches the mouth");
+  assert.match(facts, /Looked for and not found so far/, "the declared absence rides beside");
+  assert.match(facts, /searched read 4 of 7 passages/, "with its scope — a fact about the reader, never a verdict");
+  // no voids, nothing rendered
+  const plain = expectationFacts(expectationFrom(PASSAGES, "What does the book say about Razumihin?", read, index, []));
+  assert.ok(!/Looked for/.test(plain), "no voids, no absence line");
+  // the empty case still names the basis and why
+  const none = expectationFrom(PASSAGES, "x", () => ({ claims: [] }), index, [{ end1: "Y", label: "is", end2: "Z", scope: null }]);
+  assert.equal(none.claims.length, 0);
+  assert.equal(none.voids.length, 1);
+});
+
 test("THE TWO DOORS: 'quote it for me' returns the bytes at the last answer's addresses; 'did the book include those passages' checks the record — no model in either", () => {
   const q = quoteBytes("Which passage says that? Quote it for me.", { transcript: [LAST], chunksByRef: CHUNKS });
   assert.deepEqual(q.refs, LAST.refs);

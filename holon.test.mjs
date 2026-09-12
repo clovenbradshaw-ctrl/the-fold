@@ -720,6 +720,30 @@ test("GFP Pass 35: absent a field the turn is byte-identical — fieldRecall nul
   assert.equal(result.sections[0].fieldWitness, undefined, "no fieldRecall, no witness on the record");
 });
 
+// ── GFP Pass 40 (A2) — the expectation is announced on the record BEFORE the draft ──
+
+test("GFP Pass 40: an `expected` event fires before any execute — the composition (claims, voids, basis) is announced ahead of the mouth, even when empty", async () => {
+  const phases = [];
+  const call = async (messages) => {
+    const refs = offeredRefs(promptOf(messages), weatherChunks);
+    return refs.length ? `Confirmed: the National Weather Service lists 68 degrees. [${refs[0]}]` : "Nothing.";
+  };
+  await runHolonicTask({
+    task: "what is the forecast?",
+    chunks: weatherChunks,
+    call,
+    planMode: "flat",
+    onProgress: (phase, part, info) => phases.push({ phase, at: part?.label ?? null, info }),
+  });
+  const expectedIdx = phases.findIndex((p) => p.phase === "expected");
+  const executeIdx = phases.findIndex((p) => p.phase === "execute");
+  assert.ok(expectedIdx >= 0, "the expectation is announced");
+  assert.ok(expectedIdx < executeIdx, "and it is announced BEFORE the draft");
+  assert.ok(typeof phases[expectedIdx].info.claims === "number", "the claim count is typed");
+  assert.ok(typeof phases[expectedIdx].info.voids === "number", "the void count is typed (0 here — no declared absences)");
+  assert.ok(typeof phases[expectedIdx].info.basis === "string" || phases[expectedIdx].info.basis === null, "the basis is disclosed");
+});
+
 // ── stable sub-assemblies (2026-08-19): the join is earned, never assumed ──
 // Measured live: "research Robert Macnamera" asked right after a greeting
 // retrieved greeting-etiquette passages, because the stale discourse line

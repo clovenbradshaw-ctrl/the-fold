@@ -10401,14 +10401,14 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
             parts: info.parts.map((p) => p.label),
             degraded: Boolean(info.degraded),
           });
-        } else if (phase === "research") {
+} else if (phase === "research") {
           setPhase(`reading for ${part.label}`);
           show(`${part.label}: ${info.passages.length} passage(s) retrieved`);
           logAct("retrieved", {
             part: part.label,
             refs: info.passages.map((p) => p.ref),
           });
-          // GFP Pass 35: the keyless field's seat is disclosed on the
+          // GFP Pass 35: the keyless memory's seat is disclosed on the
           // record, never silent (P3). When it settled and its offering
           // differed from lexical — a passage it promoted INTO this turn's
           // pool, or one it recalled from beyond it — the disagreement is a
@@ -10424,6 +10424,17 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
               band: info.fieldWitness.band ?? null,
             });
           }
+        } else if (phase === "expected") {
+          // GFP PASS 40 (A2): the expectation before the draft, ON THE RECORD —
+          // what the instrument believes the material states, and what it has
+          // searched for and not yet found, composed before the mouth speaks.
+          logAct("expected", {
+            part: part.label,
+            basis: info.basis ?? null,
+            claims: info.claims ?? 0,
+            voids: info.voids ?? 0,
+            why: info.why ?? null,
+          });
         } else if (phase === "execute") {
           setPhase(`writing ${part.label}`, info.promptChars ?? 0);
           $("status").textContent = `writing: ${part.label}…`;

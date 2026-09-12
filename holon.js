@@ -2312,7 +2312,14 @@ export async function runPart({
   // their addresses, and diffed against the draft afterwards (matched, novel,
   // missing, contradicted; the authorship ratio).
   const position = premiseCheck?.premises?.some((pr) => pr.how === "restated by the reader") ? positionOn(premiseCheck) : null;
-  const expectation = relations ? expectationFrom(prosePassages.length ? prosePassages : passages, task || question, (t) => relations.read(t), referentIndex) : { claims: [], basis: null, why: "no relation reader for this part" };
+  const expectation = relations ? expectationFrom(prosePassages.length ? prosePassages : passages, task || question, (t) => relations.read(t), referentIndex, hyperlexiconVoids) : { claims: [], basis: null, why: "no relation reader for this part", voids: [] };
+  // GFP PASS 40 (A2): the expectation is ANNOUNCED BEFORE THE DRAFT — a typed
+  // `expected` event, carried to the app's reflex ledger as an act, so the
+  // instrument's expectation (what it believes the material states, and what it
+  // has searched for and not yet found) is on the record before the mouth
+  // speaks. The diff against it is taken from something written down, never
+  // from something remembered.
+  onProgress?.("expected", part, { basis: expectation.basis ?? null, claims: expectation.claims?.length ?? 0, voids: expectation.voids?.length ?? 0, why: expectation.why ?? null });
   const dialogueBlock = [position ? `The record's own position on what you restated: ${position.text}` : "", expectationFacts(expectation)].filter(Boolean).join("\n\n");
   // The enforcement the prompt is not asked to provide: the values the
   // question asserted and the material does not carry. Measured live (S77

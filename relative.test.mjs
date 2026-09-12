@@ -4,6 +4,30 @@ import assert from "node:assert/strict";
 import { Field, sdrOf, overlap, tokensOf, isWord, hash32, SDR_BITS } from "./relative.js";
 import { drift, reanchor, correspond, fragmentOf } from "./relative-pattern.js";
 import { resolveAddress } from "./record-log.js";
+import { rowsSince, fieldFromRows } from "./field-of-record.js";
+
+test("GFP Pass 36: posting-list recall is EXACTLY the full-overlap recall — a node sharing no bit with the cue has overlap 0, so the intersection set reproduces the whole scan to the bit (and the spread step is unchanged)", () => {
+  const f = new Field();
+  for (const p of PASSAGES) f.admit(p, { source: "tolstoy", at: p.slice(0, 8) });
+  assert.ok(f.posting.size > 0, "the posting lists are built on admit");
+  const cues = [PASSAGES[0], fragmentOf(PASSAGES[1], 0, 0.3), "the battery fired without pause", PASSAGES.join(" ")];
+  for (const cue of cues) {
+    const q = sdrOf(cue);
+    const viaPosting = f.recall(cue, { steps: 0 });
+    // brute force: every node's overlap against the cue, no posting
+    const brute = f.nodes.map((nd) => overlap(q, nd.sdr));
+    const order = [...brute.keys()].sort((i, j) => brute[j] - brute[i]);
+    assert.equal(viaPosting.length, f.size, "every node is ranked (zeros included), exactly as the scan did");
+    for (let i = 0; i < order.length; i++) {
+      assert.equal(viaPosting[i].node, f.nodes[order[i]], `same figure at rank ${i} for "${cue.slice(0, 30)}…"`);
+      assert.ok(Math.abs(viaPosting[i].activation - brute[order[i]]) < 1e-12, "same activation to the bit");
+    }
+  }
+  // the rebuild derives the postings too
+  const g = fieldFromRows(rowsSince(f));
+  assert.ok(g.posting.size > 0, "deserialize rebuilds the postings");
+  assert.deepEqual(g.recall(PASSAGES[2])[0].node.payload.at, f.recall(PASSAGES[2])[0].node.payload.at, "the rebuilt field recalls the same figure");
+});
 
 const PASSAGES = [
   "Prince Andrew rode along the line of the troops, looking at the faces of the men he was to lead.",

@@ -133,3 +133,41 @@ test("the open-event table names only events the record carries or the chat page
   for (const m of appSrc.matchAll(/mirrorTermRecord\("([a-z-]+)"/g)) real.add(m[1]);
   for (const ev of Object.keys(OPEN_EVENTS)) assert.ok(real.has(ev), `${ev} is a real event kind`);
 });
+
+// ── GFP Pass 34 — the pattern act at the reopen door (2026-09-11) ──
+import { Field } from "./relative.js";
+const { correspondFor, noteOf } = await import("./reopen.js");
+const PASSAGES_FOR_REOPEN = [
+  "Prince Andrew rode along the line of the troops, looking at the faces of the men he was to lead.",
+  "The battery on the mound fired without pause, and the smoke lay over the field like a fog.",
+  "Pierre, in his white hat, wandered between the guns, and the soldiers laughed at him kindly.",
+  "Kutuzov sat on the bench with his head bowed, and said nothing when the adjutants reported.",
+];
+
+test("GFP Pass 34: a door address that still stands AGREES; a renamed+prefaced source is REPAIRED with a new address; a deleted one is APART, exactly — the deletion null", () => {
+  const source = PASSAGES_FOR_REOPEN.join("\n\n");
+  const at = (p) => `tolstoy.txt#${source.indexOf(p)}-${source.indexOf(p) + p.length}`;
+  const field = new Field();
+  for (const p of PASSAGES_FOR_REOPEN) field.admit(p, { source: "tolstoy.txt", at: at(p) });
+  const pick = (p) => ({ kind: "door", at: at(p), row: { event: "entity-seek", output: p } });
+  // intact — agree
+  const agree = correspondFor(pick(PASSAGES_FOR_REOPEN[2]), field, { "tolstoy.txt": source });
+  assert.equal(agree.kind, "agree", "the address still names its note");
+  assert.equal(agree.was, at(PASSAGES_FOR_REOPEN[2]));
+  // renamed and prefaced — repaired, a NEW address minted, never shown as if it had always been the address
+  const renamed = { "tolstoy_v2.txt": "PREFACE ".repeat(60) + source };
+  const repaired = correspondFor(pick(PASSAGES_FOR_REOPEN[2]), field, renamed);
+  assert.equal(repaired.kind, "repaired", "the figure finds its bytes in the moved source");
+  assert.ok(repaired.at !== at(PASSAGES_FOR_REOPEN[2]), "a new address is minted");
+  assert.match(repaired.at, /tolstoy_v2\.txt#/, "it names the moved source");
+  // deleted — apart, exactly the deleted set (the deletion null): the source
+  // is gone, replaced by others that do not hold the note
+  const apart = correspondFor(pick(PASSAGES_FOR_REOPEN[2]), field, { "other.txt": "An unrelated document that never held this passage." });
+  assert.equal(apart.kind, "apart", "a true loss is apart, never papered over");
+  assert.equal(apart.ground?.kind, "gone", "the ground is named gone");
+  // the typed refusals: no note, no span, no field, no sources — never a guess
+  assert.equal(correspondFor({ kind: "door", at: "x#0-1", row: {} }, field, { "t.txt": "y" }).verdict, "no_note");
+  assert.equal(correspondFor({ kind: "door", at: "not-a-span", row: { output: "x" } }, field, { "t.txt": "y" }).verdict, "not_a_span");
+  assert.equal(correspondFor(pick(PASSAGES_FOR_REOPEN[0]), null, { "t.txt": "y" }).verdict, "no_field");
+  assert.equal(correspondFor(pick(PASSAGES_FOR_REOPEN[0]), field, {}).verdict, "no_sources");
+});

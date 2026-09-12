@@ -19,6 +19,7 @@
 //     (readsNothing), is not an open.
 //   RESTORE, NEVER RE-ADMIT — rows are not mutated; the pick is frozen.
 import { readsNothing, SELF_WITNESS } from "../eoreader7/native/organs/index.js";
+import { correspond } from "./relative-pattern.js";
 
 /**
  * Which record events OPEN something, and where the row's own address lives.
@@ -81,4 +82,38 @@ export function renderDoor(row) {
   for (const [k, v] of Object.entries(r)) if (!skip.has(k)) lines.push(`  ${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`);
   if (r.event === "term-run" && !("output" in r)) lines.push("  output: not kept on the record — restored from the row, not re-run");
   return lines.join("\n");
+}
+
+// GFP PASS 34 — the pattern act at the reopen door. When a door result's
+// ground address is re-opened, the shadow is asked whether the note it was
+// minted for still stands in any loaded source: `correspond` (relative-
+// pattern.js) runs the whole triad — drift checks the ground, reanchor recalls
+// the figure, and the pattern lands agree / repaired / ground-shifted / apart.
+// A repaired address is shown as re-anchored from memory, never as if it had
+// always been the address; a true loss is apart, never papered over (P2).
+const NOTE_FIELDS = Object.freeze(["output", "note", "answer", "text", "result", "description", "because"]);
+
+/** The note a door row's address was minted for, or null — the figure's words. */
+export function noteOf(row) {
+  if (!row || typeof row !== "object") return null;
+  for (const k of NOTE_FIELDS) if (typeof row[k] === "string" && row[k].trim()) return row[k].trim();
+  return null;
+}
+
+/** The pattern act over a reopen pick: does the address still name its note?
+ * Returns the `correspond` verdict (agree / repaired / ground-shifted / apart)
+ * with the note and addresses, or a typed refusal. The field and the sources
+ * are injected — this module stays pure and the page owns the memory. */
+export function correspondFor(pick, field, sources, { draws = 120 } = {}) {
+  if (!pick || pick.refused) return { verdict: "no_pick" };
+  const at = pick.at ?? pick.address;
+  if (!at || !/^.+?#\d+-\d+$/.exec(String(at))) return { verdict: "not_a_span", at: at ?? null };
+  const note = noteOf(pick.row);
+  if (!note) return { verdict: "no_note", at };
+  if (!field || !field.size) return { verdict: "no_field", at };
+  if (!sources || !Object.keys(sources).length) return { verdict: "no_sources", at };
+  try {
+    const c = correspond(at, note, field, sources, { draws });
+    return { ...c, was: c.was ?? at, at: c.at ?? at, note };
+  } catch (e) { return { verdict: "error", at, error: String(e?.message ?? e) }; }
 }

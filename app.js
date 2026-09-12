@@ -297,7 +297,7 @@ import { corroborateLedger, witnessNote } from "../eoreader7/native/organs/index
 import { corroborationLines } from "./corroboration-report.js";
 import { readerFrame as frameOfReader } from "./reader-frame.js";
 import { admitObligations, mark as markObligation, coverage as obligationCoverage, standings as obligationStandings } from "../eoreader7/native/organs/index.js";
-import { lastOpened, restoreFor, renderDoor } from "./reopen.js";
+import { lastOpened, restoreFor, renderDoor, correspondFor } from "./reopen.js";
 import { EXPLORE_BASE } from "./explore-bridge.js";
 // GIVEN's own resolver (priors-toggles.js, P19): "who decided this" is one
 // pure function, imported here rather than re-derived, so the panel can
@@ -4760,7 +4760,22 @@ async function reopenTurn(argstr, typed) {
     await openBuild(entry);
     return usageTurn(typed, `reopened fold ${plan.n} (recorded ${pick.at})`);
   }
-  return usageTurn(typed, renderDoor(plan.fields));
+  // GFP Pass 34 — the pattern act at the reopen door. Before rendering a door
+  // result, ask the shadow whether the address it was minted for still stands
+  // in any loaded source. On agree, render as before; on repaired, show the
+  // re-anchoring (never a repaired address as if it had always been the
+  // address); on apart, name the loss — the shadow is a witness, never a
+  // source the mouth reads (B1), and the doors it cannot settle stay typed.
+  if (plan.action === "render-door") {
+    const c = correspondFor(pick, getField(), Object.fromEntries(liveSources().map((s) => [s.name, s.text])));
+    if (c.kind === "repaired") {
+      return usageTurn(typed, `re-anchored from memory: was ${c.was}, now ${c.at}\n\n${renderDoor(plan.fields)}`);
+    }
+    if (c.kind === "apart") {
+      return usageTurn(typed, `the address no longer resolves (${c.was}) — restored from the record as recorded:\n\n${renderDoor(plan.fields)}`);
+    }
+    return usageTurn(typed, renderDoor(plan.fields));
+  }
 }
 
 function mustTurn(argstr, typed) {

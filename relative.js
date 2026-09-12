@@ -138,15 +138,38 @@ function stateSignature(sdr) {
  * looked up; everything is reached.
  */
 export class Field {
-  constructor({ spread = 0.25, steps = 1 } = {}) { this.nodes = []; this.spread = spread; this.steps = steps; this.last = null; this.vocab = new Map(); }
+  constructor({ spread = 0.25, steps = 1 } = {}) { this.nodes = []; this.spread = spread; this.steps = steps; this.last = null; this.vocab = new Map(); this.posting = new Map(); this._index = null; }
   get size() { return this.nodes.length; }
+  /** Rebuild the posting lists (bit → node indices) — the recall index of GFP
+   * Pass 36. Bits are FEATURES, never addresses of nodes (F1 still holds); the
+   * posting is derived from the states and is always rebuildable. */
+  buildPostings() {
+    this.posting = new Map(); this._index = null;
+    for (let i = 0; i < this.nodes.length; i++) {
+      const sdr = this.nodes[i].sdr;
+      for (let k = 0; k < sdr.length; k++) {
+        const bit = sdr[k];
+        let list = this.posting.get(bit);
+        if (!list) { list = []; this.posting.set(bit, list); }
+        list.push(i);
+      }
+    }
+    return this;
+  }
   /** Admit a text as one of the memory's tiers: "holograph" (full tokens +
    * address), "shadow" (state + address, no words), "echo" (coarse state +
    * address, no words). */
   admit(text, payload = null, { after = this.last, tier = "holograph" } = {}) {
     const node = new Node(text, payload, tier);
     if (after) { after.next.set(node, (after.next.get(node) ?? 0) + 1); node.prev.set(after, (node.prev.get(after) ?? 0) + 1); }
-    this.nodes.push(node); this.last = node;
+    this.nodes.push(node); this.last = node; this._index = null;
+    const i = this.nodes.length - 1, sdr = node.sdr;
+    for (let k = 0; k < sdr.length; k++) {
+      const bit = sdr[k];
+      let list = this.posting.get(bit);
+      if (!list) { list = []; this.posting.set(bit, list); }
+      list.push(i);
+    }
     for (const w of tokensOf(text)) if (isWord(w)) this.vocab.set(w, (this.vocab.get(w) ?? 0) + 1);
     return node;
   }
@@ -163,8 +186,24 @@ export class Field {
   recall(cue, { steps = this.steps, spread = this.spread } = {}) {
     const q = typeof cue === "string" ? sdrOf(cue) : cue;
     let a = new Float64Array(this.nodes.length);
-    const index = new Map(this.nodes.map((n, i) => [n, i]));
-    for (let i = 0; i < this.nodes.length; i++) a[i] = overlap(q, this.nodes[i].sdr);
+    const n = this.nodes.length;
+    if (this._index === null || this._index.size !== n) this._index = new Map(this.nodes.map((nd, i) => [nd, i]));
+    const index = this._index;
+    // Posting lists (GFP Pass 36): only nodes that SHARE a lit bit with the cue
+    // can have non-zero overlap, so activation touches the intersection set, not
+    // the whole field. An empty cue or an empty posting (tiny field, or an echo
+    // whose state is below the cue's) falls back to the full scan — identical
+    // result either way, because a node sharing no bit has overlap exactly 0.
+    const seen = new Set();
+    for (let k = 0; k < q.length; k++) {
+      const list = this.posting.get(q[k]);
+      if (list) for (let j = 0; j < list.length; j++) if (!seen.has(list[j])) seen.add(list[j]);
+    }
+    if (seen.size) {
+      for (const i of seen) a[i] = overlap(q, this.nodes[i].sdr);
+    } else {
+      for (let i = 0; i < n; i++) a[i] = overlap(q, this.nodes[i].sdr);
+    }
     for (let s = 0; s < steps; s++) {
       const b = Float64Array.from(a);
       for (let i = 0; i < this.nodes.length; i++) {
@@ -174,8 +213,15 @@ export class Field {
       }
       a = b;
     }
-    const order = [...a.keys()].sort((i, j) => a[j] - a[i]);
-    return order.map((i) => ({ node: this.nodes[i], activation: a[i] }));
+    const order = [];
+    const nz = [];
+    for (let i = 0; i < a.length; i++) { if (a[i] !== 0) nz.push(i); else order.push(i); }
+    // Sparse sort (GFP Pass 36): only the nodes the cue actually reached are
+    // ranked; the untouched zeros follow in index order — the exact order the
+    // stable full sort would produce, at the cost of the intersection set
+    // rather than the whole field.
+    nz.sort((i, j) => a[j] - a[i]);
+    return [...nz, ...order].map((i) => ({ node: this.nodes[i], activation: a[i] }));
   }
   /**
    * What a cue of `tokenCount` words pulls out of THIS field by chance: random
@@ -242,6 +288,7 @@ export class Field {
     }
     for (const r of rows) { const n = bySig.get(r.signature); for (const [sig, w] of r.next ?? []) { const m = bySig.get(sig); if (m) n.next.set(m, w); } for (const [sig, w] of r.prev ?? []) { const m = bySig.get(sig); if (m) n.prev.set(m, w); } }
     f.last = f.nodes.at(-1) ?? null;
+    f.buildPostings();
     return f;
   }
 }

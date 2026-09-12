@@ -133,7 +133,28 @@ leaves knowledge behind, not just prose.
   recollection into knowledge. A sentence the shadow recognized but the witness
   refused is not a fact; it is the mouth's own voice, disclosed.
 
-## 7. Files to read before you write a line
+## 8. One proposition at a time — the claim-atomic mouth (built 2026-09-11)
+
+`voice.js` / `voice.test.mjs` / `eval/voice-one-at-a-time.mjs`: the record
+authors the claims (`expectationFrom`); the mouth voices **ONE claim per
+call**; the record verifies each voiced sentence against its claim
+(`verifyVoiced`) **before the next is handed out**. A faithful voice is
+matched; a mouth that drifts (changes the act or the referents) or hedges is
+caught and re-asked under a bounded budget — never shipped as voiced.
+
+The grain is the honest one: **exact on the ACT (the label), tolerant on the
+END-SPANS** (the extracted spans vary with wording — "12 percent" for "12%",
+a dropped adjunct — P74's wall, tolerated by significant-token overlap). A
+mouth that changes the verb is drifting, not voicing, and is caught. The
+address never reaches the mouth (B1); the authorship ratio approaches 1 by
+construction, because the mouth asserts nothing — it only words.
+
+This is the shape the long-form coder should hold: a piece is not one
+paragraph the mouth writes, it is a sequence of claims the record authors and
+the mouth voices, each verified before the next. The skeleton-first turn,
+made literal, one proposition at a time.
+
+## 9. Files to read before you write a line
 
 - `THE-TRIAD-THAT-INVOLVES-THE-HOLOGRAPH.md` — the essay (listen to it).
 - `THE-HOLOGRAPH.md` (`eoreader7/native/docs/`) — the addressed-pattern theory.

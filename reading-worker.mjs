@@ -3,7 +3,7 @@
 // runs the presence index at the turn" (THE-HOLOGRAPH §7's disclosed, owed
 // step) — the eval driver reads with `createCausalTextPerceiver` +
 // `reviseTextFold` (`conversation.mjs`'s named READING_ASSEMBLY,
-// "causalTextPerceiver+reviseTextFold@refresh25"); the page read with a
+// "causalTextPerceiver+reviseTextFold@refresh1"); the page read with a
 // text presence index (cast.js, built for citation checks, no recurrence
 // floor — P38). This worker runs the SAME assembly the eval driver names,
 // so a source's identity is decided the way the assay's is, never a
@@ -51,7 +51,7 @@ import { createCausalTextPerceiver, textEncounters } from "../eoreader7/native/a
 import { reviseTextFold } from "../eoreader7/native/adapters/text/revision.js";
 import { stepChunks } from "./reading-log.js";
 
-export const READING_ASSEMBLY = "causalTextPerceiver+reviseTextFold@refresh25"; // named identically to conversation.mjs's own — one instrument, one name, wherever it runs
+export const READING_ASSEMBLY = "causalTextPerceiver+reviseTextFold@refresh1"; // named identically to read-real.mjs's own — one instrument, one name, wherever it runs
 
 let posPrior = null;
 let posPriorSource = null; // disclosed on every "done" message — which of the page's own tiered prior mounts actually answered (serve.mjs's own three-tier fallback; never re-decided here)
@@ -74,7 +74,7 @@ const RETRIEVE = (_fold, evidence) => Object.freeze({
 function makeReader(seed) {
   return createRecursiveReader({
     seed: seed ?? {},
-    perceivers: [createCausalTextPerceiver({ minRelationSurfaces: 2, refreshEvery: 25, posPrior, descriptorAnchoring: { minActivation: 0.05, minMargin: 0.2 } })],
+    perceivers: [createCausalTextPerceiver({ minRelationSurfaces: 2, refreshEvery: 1, posPrior, descriptorAnchoring: { minActivation: 0.05, minMargin: 0.2 } })],
     adapters: { revise: reviseTextFold, retrieve: RETRIEVE },
   });
 }

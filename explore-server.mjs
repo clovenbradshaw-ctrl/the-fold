@@ -1146,6 +1146,25 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // /solon — the Integrity archon's status, forwarded from Solon's keeper,
+  // the same shape as /heimdall: the heartbeat, the last sweep's four
+  // verdicts, and Ashby's watcher-of-the-watcher reading. A typed gap when
+  // the keeper is not up — a dead watcher is a finding, never a hang.
+  if (req.method === "GET" && p === "/solon") {
+    const solonPort = Number(process.env.ER7_SOLON_PORT ?? 11438);
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 3000);
+      const up = await fetch(`http://127.0.0.1:${solonPort}/solon`, { signal: ctrl.signal });
+      clearTimeout(t);
+      const body = await up.text();
+      res.writeHead(up.status, { "content-type": "application/json", "x-archon": "solon" });
+      return res.end(body);
+    } catch {
+      return send(res, 503, { error: { message: "solon keeper not reachable", type: "keeper_down" } });
+    }
+  }
+
   try {
     // ---- tree: one directory level, folders first then name (a declared
     // ordering rule, not an outcome-chosen one — FOLD-CONSTITUTION III.1).

@@ -338,3 +338,16 @@ The claim-atomic mouth's calibration run (`eval/voice-mouth-parallel.mjs`): gemm
 | Simon/Chekhov | P19/P27 driver posture; the note's wiring gap | voice-parallel.js vs voice-parallel.test.mjs | clean | voice-parallel.js is tested (imported by its test); the two eval drivers are runnable drivers, validated by running; the dispatcher's wiring into the turn is disclosed as the note's named next step, not silently absent |
 
 carried: constitution.test.mjs II.13 FAIL is PRE-EXISTING AT HEAD — app.js's `const ns = "http://www.w3.org/2000/svg"` binding form (vision/OCR commit) and help.js's `www.youtube.com` are non-local hosts in files this diff does not touch; confirmed by running the gate with only this diff's six files staged. A typed allowance for the binding form was tried, reverted (half-fixing another session's violation in a shared law file). The vision/help authors own it. This commit does not claim a green gate.
+
+## 2026-09-12 — Ranke's mandate (P84/P182) linked to the constitution; the carried II.13 FAIL resolved at the enforcement seam (working)
+
+Constitution: `../eo-constitution/CONSTITUTION.md` + this repo's POLICIES.md/CLAUDE.md. Reviewed diff: P84 and P182 gain **Law:** lines citing eo-constitution II.6 + II.2 (P84) and II.6 + II.2 + II.22 (P182); P182's "LaVar has no referent anywhere in this codebase" parenthetical corrected (it has since gained one — the reading-agent charter at `eoreader7/LAVAR.md`). The II.13 FAIL carried in this log as pre-existing-at-HEAD (the `const ns = "http://www.w3.org/2000/svg"` binding form and help.js's example hosts) is now resolved by correcting the ENFORCEMENT, not the owning sessions' files: the www.w3.org allowance also accepts the namespace-variable binding form its own `why` already describes ("an XML name, never dereferenced"), and help.js gets a files-scoped allowance requiring every non-local host literal to sit inside a quoted help field — it fails closed if a real egress host appears outside the registry's strings (the zero-egress predicate was unusable: help.js's prose "direct fetch (403…" false-positives it). Replaces the prior "carried"/deferral note; both gates PASS, 21/21 + 12/12.
+
+| persona | cell | citation | file:line | verdict | summary |
+|---|---|---|---|---|---|
+| Marshall | IV.4 / IV.1 / IV.2 | POLICIES.md P182 | fixed | the mandate now cites II.6 (index is a surrogate), II.2 (independent sources counted apart, never summed), II.22 (channels argued, never assumed) — each verified against the article text; status disclosed as proposed-not-self-enacted |
+| Pearl | II.22 | POLICIES.md P182 law line | fixed | the corroboration-preference mandate is now traceable to the convergent-inference article, whose independence rule matches it (shared upstream = one channel) |
+| Alexander | composition seam | POLICIES.md P182 | clean | no law entry claims composition it does not perform; P182's own "seeks multiple sources" half is honestly disclosed as unbuilt |
+| Diaconis | II.13 | constitution.test.mjs ALLOWANCES | fixed | two enforcement gaps closed at the allowance seam (namespace binding form; help-string-context hosts); both fail closed by construction |
+
+clean: Feynman/Frankfurt/Ostrom/Holmes/Simon — no constant, fabrication, blame-scope, identity, or unwired module introduced by this diff.

@@ -138,7 +138,8 @@ const ALLOWANCES = [
     why: "the SVG/XML namespace identifier — an XML name, never dereferenced by a browser",
     holds: (file, src, at) =>
       /xmlns(?::[a-z]+)?\s*=\s*["']?$/.test(src.slice(Math.max(0, at - 40), at)) ||
-      /createElementNS\(\s*["']$/.test(src.slice(Math.max(0, at - 40), at)),
+      /createElementNS\(\s*["']$/.test(src.slice(Math.max(0, at - 40), at)) ||
+      /\b(?:const|let|var)\s+\w+\s*=\s*["']$/.test(src.slice(Math.max(0, at - 60), at)),
   },
   {
     host: "matrix.org",
@@ -186,6 +187,22 @@ const ALLOWANCES = [
       "understands the response, and explore-server.mjs's /api/entity/seek is what actually " +
       "fetches them — paced, and recorded like any other crossing.",
     holds: (file, src) => egressCalls(src).length === 0,
+  },
+  {
+    host: null,
+    files: ["help.js"],
+    why:
+      "help.js is the static command-reference registry: every non-local host " +
+      "literal in it is a command-syntax EXAMPLE in a help string (" +
+      "`/transcribe https://www.youtube.com/…`, `/join https://…/#share-key`) " +
+      "— display-only documentation of what a person may type, never a load " +
+      "edge and never a request. The zero-egress predicate is NOT used here: " +
+      "the file's own prose ('a refused direct fetch (403…') false-positives it. " +
+      "Instead each host literal must sit inside a quoted help field " +
+      "(name/summary/syntax/example/tutorial/needs), so a host that appears " +
+      "outside the registry's own strings fails this scan.",
+    holds: (file, src, at) =>
+      /\b(?:name|summary|syntax|example|tutorial|needs):\s*["'`]/.test(src.slice(Math.max(0, at - 60), at)),
   },
 ];
 

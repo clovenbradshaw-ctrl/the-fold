@@ -10371,6 +10371,13 @@ the model reachable here to measure it.
 **Generality:** universal (the ledger block's disclosure; the witness-kind
 axis; the gate); specimen-scoped (the two pages, the one model, the numbers).
 
+**Law:** eo-constitution **II.6** (the book test — a claim that consumes a
+surrogate in place of the source is refuted in every tier; Ranke's chase
+replaces an index's say-so with the account's own cited document), **II.2**
+(a witness names its giver; only the witness tier's own "states" ever lands
+a landing). Agent policy under the constitution — proposed, not self-enacted
+(IV.2); it amends no constitution text (IV.1).
+
 **User direction, verbatim and in order:** "when reading things like
 wikipedia, and in general, we must chase primary sources" → personify it
 as an agent, "after Leopold von Ranke" → "if it is citing something via a
@@ -12807,7 +12814,9 @@ Also corrected: the compression figures cited above ran the compression driver w
 
 **Generality:** universal for the MANDATE itself (a document this instrument composes may not cite an index-only source directly, regardless of which index, and must chase an index-only lead before giving up on the claim) and for the shape of the enforcement (a source is either citable or it is not, decided BEFORE composition, never patched after); specimen-scoped for the one classifier that decides "index" today (`isWikipediaSource` — a single hardcoded host, Wikipedia only) and for the one door wired to obey it (`/facts`).
 
-**User direction, verbatim and in order.** First, unprompted, mid-session: *"let's never cite wikipedia (wire this in deep) we only use it as an index for primary sources, and we seek multiple sources when possible."* Then, naming who answers for it: *"Ranke is our agent in charge of this type of thing, have him be in charge of these rules similar to LaVar."* ("LaVar" has no referent anywhere in this codebase — grep confirmed it earlier this same session — and is the user's own private analogy for a named-authority role; nothing here hunts for or assigns it a meaning.) Then, directly: *"use a sub agent to develop out the roll of Ranke, the cross repo agent in charge of this type of grounding theory, he needs to be in charge of the policies associated with it."*
+**Law:** eo-constitution **II.6** (an index is a surrogate — a source that exists to point at other sources never grounds a composed sentence; the book is read, not routed around), **II.2** (corroboration across independent sources names each giver; independent sources are counted apart, never summed), **II.22** (independent channels are argued, never assumed — a mirror of an index served under another host is one channel, not a second). Agent policy under the constitution — proposed, not self-enacted (IV.2); it amends no constitution text (IV.1).
+
+**User direction, verbatim and in order.** First, unprompted, mid-session: *"let's never cite wikipedia (wire this in deep) we only use it as an index for primary sources, and we seek multiple sources when possible."* Then, naming who answers for it: *"Ranke is our agent in charge of this type of thing, have him be in charge of these rules similar to LaVar."* ("LaVar" had no referent anywhere in this codebase when this was written — grep confirmed it that same session; it has since gained one, the reading-agent charter at `eoreader7/LAVAR.md`, which is the referent this analogy pointed at. Nothing here assigns it any other meaning.) Then, directly: *"use a sub agent to develop out the roll of Ranke, the cross repo agent in charge of this type of grounding theory, he needs to be in charge of the policies associated with it."*
 
 **The mandate, said once so the next pass does not have to re-derive it.** P84 built Ranke as a MECHANISM — a chase from a page to the document its own account cites, landed only by a witness's "states," never by containment alone. This entry is the POLICY that mechanism now stands for, over every document this instrument composes, starting with `/facts` (today's only consumer): (1) an index — a source that exists to point at other sources rather than to state a fact itself — may never ground a composed sentence directly; (2) before a claim is left to stand on an index alone, Ranke's own chase (`rankeChase`, P84) is run against it, trying to promote the index-only note to a primary-sourced one first; (3) corroboration across independent sources is preferred over a single witness where more than one is available. Ranke is the standing name for this whole posture — not the `/ranke` door alone, and not the chase algorithm alone.
 

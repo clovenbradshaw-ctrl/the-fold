@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { premisesOf, checkPremises, premiseFacts, premiseGuard, premiseReferents, repeatsAbsentPremise, correctTurn, cutProcessTalk, turnSnipBlock } from "./correction.js";
+import { premisesOf, checkPremises, premiseFacts, premiseGuard, premiseReferents, repeatsAbsentPremise, correctTurn, cutProcessTalk, stripLeadingFraming, turnSnipBlock } from "./correction.js";
 import { splitSentences } from "./cite.js";
 
 const passages = [
@@ -179,4 +179,24 @@ test("P135: the check is about REFERENTS, not spans — a name the cited passage
   // A cast that cannot be read reaches nothing, and an unreached search is never a finding.
   assert.equal(premiseReferents(premise, lincoln, {}).reached, false);
   assert.deepEqual(premiseReferents(premise, lincoln, {}).unresolved, []);
+});
+
+test("stripLeadingFraming: a leading 'the text says that' scaffold is removed, the claim re-capitalised (the one P186 exception)", () => {
+  const r = stripLeadingFraming("The text says that Moscow burned because its inhabitants abandoned it.");
+  assert.equal(r.stripped, true);
+  assert.equal(r.text, "Moscow burned because its inhabitants abandoned it.");
+  const acc = stripLeadingFraming("according to the sources, the fire had no direct cause.");
+  assert.equal(acc.text, "The fire had no direct cause.");
+  const pas = stripLeadingFraming("Based on the text, Pierre stayed to fulfill his destiny.");
+  assert.equal(pas.text, "Pierre stayed to fulfill his destiny.");
+});
+
+test("stripLeadingFraming refuses when the remainder is not a real sentence, and leaves content untouched", () => {
+  assert.deepEqual(stripLeadingFraming("The text says."), { text: "The text says.", stripped: false });
+  assert.deepEqual(stripLeadingFraming("The text says that blah"), { text: "The text says that blah", stripped: false });
+  const plain = stripLeadingFraming("Moscow burned because its inhabitants abandoned it.");
+  assert.equal(plain.stripped, false, "no scaffold — untouched");
+  assert.equal(plain.text, "Moscow burned because its inhabitants abandoned it.");
+  const mid = stripLeadingFraming("It is tempting to blame Bonaparte, the text says.");
+  assert.equal(mid.stripped, false, "a framing phrase in the MIDDLE is never touched (P186)");
 });

@@ -39,16 +39,25 @@
 //     the wasm the installed engine version expects, and upgrading web-llm
 //     re-points both together.
 
-/** The roster. Each id is web-llm's own (what `offered` lists and
- * `state.model` carry — never ambiguous with an Ollama tag); `label` is what
- * the picker shows; `origin` is what the PUBLISHER discloses about the
- * training data, stated where the model is picked, with the licence. The
- * model cards are cited in POLICIES.md (P116), never here: this module is
- * loaded by the page, and the constitution's host scan (II.13) keeps every
- * non-local address out of anything the page can reach. */
+/** The roster. Each row is a MODEL FAMILY — the same weights under two
+ * web-llm quant builds, offered one per device (amended 2026-09-13, the
+ * mobile pass). `id` is the preferred build, web-llm's own id as `offered`
+ * and `state.model` carry it — never ambiguous with an Ollama tag; `alt` is
+ * the same family compiled WITHOUT the `shader-f16` requirement (f32 maths:
+ * ~700MB more VRAM, no special feature), so a phone whose WebGPU lacks
+ * shader-f16 still gets a real 1.7B or 3B option instead of only the 1B
+ * (measured off the vendored catalog's own records: SmolLM2/RedPajama f16
+ * declare `shader-f16`, every f32 build declares none). `label` is what the
+ * picker shows (for an `alt`, the picker says "f32 — runs on any WebGPU
+ * adapter"); `origin` is what the PUBLISHER discloses about the training
+ * data, stated where the model is picked, with the licence. The model cards
+ * are cited in POLICIES.md (P116), never here: this module is loaded by the
+ * page, and the constitution's host scan (II.13) keeps every non-local
+ * address out of anything the page can reach. */
 export const WEBLLM_MODELS = Object.freeze([
   Object.freeze({
     id: "OLMo-2-0425-1B-Instruct-q4f16_1-MLC",
+    alt: "OLMo-2-0425-1B-Instruct-q4f32_1-MLC",
     label: "OLMo 2 1B · in this tab",
     publisher: "Ai2",
     license: "Apache-2.0",
@@ -56,6 +65,7 @@ export const WEBLLM_MODELS = Object.freeze([
   }),
   Object.freeze({
     id: "SmolLM2-1.7B-Instruct-q4f16_1-MLC",
+    alt: "SmolLM2-1.7B-Instruct-q4f32_1-MLC",
     label: "SmolLM2 1.7B · in this tab",
     publisher: "Hugging Face",
     license: "Apache-2.0",
@@ -63,13 +73,24 @@ export const WEBLLM_MODELS = Object.freeze([
   }),
   Object.freeze({
     id: "RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
+    alt: "RedPajama-INCITE-Chat-3B-v1-q4f32_1-MLC",
     label: "RedPajama-INCITE 3B · in this tab",
     publisher: "Together",
     license: "Apache-2.0",
     origin: "trained on RedPajama-1T, the open reproduction of the LLaMA training data; instruction-tuned on OASST1 and Dolly 2.0",
   }),
 ]);
-export const WEBLLM_IDS = Object.freeze(WEBLLM_MODELS.map((m) => m.id));
+/** Every offered id — the three preferred builds and their f32 fallbacks —
+ * so `isWebLLMModel` and the picker can name an `alt` exactly as a primary. */
+export const WEBLLM_IDS = Object.freeze(WEBLLM_MODELS.flatMap((m) => [m.id, m.alt]));
+/** Is `name` the f32 fallback of a roster family (vs the preferred f16)? */
+export function isWebLLMAlt(name) {
+  return WEBLLM_MODELS.some((m) => m.alt === name);
+}
+/** The family's quant, in the picker's own words. */
+export function quantLabelFor(name) {
+  return isWebLLMAlt(name) ? "f32 — runs on any WebGPU adapter" : "f16 — the smaller, faster build";
+}
 
 /** The default rung: the smallest of the three, the same reason the picker
  * defaults to the smallest Ollama rung — the first connection should cost
@@ -82,11 +103,16 @@ export const WEBLLM_LABEL = WEBLLM_MODELS[0].label;
 export function isWebLLMModel(name) {
   return WEBLLM_IDS.includes(name);
 }
+/** The roster family for either of its quant builds, or null. */
 export function webllmModelOf(name) {
-  return WEBLLM_MODELS.find((m) => m.id === name) ?? null;
+  return WEBLLM_MODELS.find((m) => m.id === name || m.alt === name) ?? null;
 }
+/** The picker's label for a specific offered id: the family label, with the
+ * quant said where it is not the preferred build. */
 export function webllmLabelFor(name) {
-  return webllmModelOf(name)?.label ?? name;
+  const fam = webllmModelOf(name);
+  if (!fam) return name;
+  return name === fam.id ? fam.label : `${fam.label} (${quantLabelFor(name)})`;
 }
 
 /** Hostnames that mean "this machine" — the same authorities the
@@ -283,8 +309,17 @@ export function webgpuBlocker({ gpu, secureContext } = {}) {
  * the phone that answers "Unable to find a compatible GPU"): then EVERY rung
  * is refused, the requirement-free ones included, because an in-tab model
  * without a WebGPU device is not a model that can run at all.
+ *
+ * `device` is the page's own device report (injected; in the page
+ * `navigator.deviceMemory` and `navigator.hardwareConcurrency`). Its ONE
+ * gate is the model's own `vram_required_MB` against the device's TOTAL
+ * memory — a model that declares it needs more GPU memory than the whole
+ * device has cannot fit, which is the browser's number against the model's
+ * number, never a tuned factor; an unknown on either side refuses nothing.
+ * The VRAM figure is also returned (as `vram` on the entry's passing path)
+ * so the picker can disclose the model's own declared need.
  */
-export function rungBlockers(entry, adapter = {}) {
+export function rungBlockers(entry, adapter = {}, device = {}) {
   const { features = null, maxStorageBufferBindingSize = null } = adapter ?? {};
   const out = [];
   if (features == null) {
@@ -296,23 +331,38 @@ export function rungBlockers(entry, adapter = {}) {
   if (entry?.buffer_size_required_bytes != null && maxStorageBufferBindingSize != null && maxStorageBufferBindingSize < entry.buffer_size_required_bytes) {
     out.push(`this adapter's storage-buffer limit (${maxStorageBufferBindingSize} bytes) is below the ${entry.buffer_size_required_bytes} ${entry.model_id} needs`);
   }
+  const vramMB = entry?.vram_required_MB;
+  const memGB = device?.memGB;
+  if (Number.isFinite(vramMB) && Number.isFinite(memGB) && memGB > 0 && vramMB > memGB * 1024) {
+    out.push(`${entry.model_id} declares ${Math.round(vramMB)} MB of GPU memory, more than this device's ${memGB} GB of memory — it cannot fit; the smaller model is the one to pick`);
+  }
   return out;
 }
 
 /**
- * Which roster ids this adapter can actually run, off the catalog's own
- * records (the library's `prebuiltAppConfig`, or this page's resolved copy —
- * both carry `required_features`/`buffer_size_required_bytes` through). A
- * catalog entry that has gone missing is a typed skip, never a guessed offer.
- * `adapter` null (requestAdapter returned none) offers NOTHING — a device
- * with no usable WebGPU adapter has no in-tab model that could run.
+ * Which roster ids this device can actually run — one build per family, off
+ * the catalog's own records (the library's `prebuiltAppConfig`, or this
+ * page's resolved copy — both carry `required_features`/`buffer_size_required_bytes`/
+ * `vram_required_MB` through). For each family the PREFERRED build is tried
+ * first; when the adapter or the device refuses it (an adapter without
+ * `shader-f16`, a phone whose memory cannot hold the f16 build's declared
+ * VRAM), the family's `alt` — the same weights without the feature
+ * requirement — is offered instead, so a phone never loses a model family
+ * to a missing GPU feature, only to the family genuinely not fitting.
+ * A catalog entry that has gone missing is a typed skip, never a guessed
+ * offer. `adapter` null (requestAdapter returned none) offers NOTHING — a
+ * device with no usable WebGPU adapter has no in-tab model that could run.
  */
-export function offerableRungs(catalog, adapter, ids = WEBLLM_IDS) {
+export function offerableRungs(catalog, adapter, device, models = WEBLLM_MODELS) {
   const list = catalog?.model_list ?? [];
-  return ids.filter((id) => {
-    const entry = list.find((r) => r.model_id === id);
-    return entry ? rungBlockers(entry, adapter).length === 0 : false;
-  });
+  const out = [];
+  for (const fam of models) {
+    const entry = list.find((r) => r.model_id === fam.id);
+    if (entry && rungBlockers(entry, adapter, device).length === 0) { out.push(fam.id); continue; }
+    const alt = list.find((r) => r.model_id === fam.alt);
+    if (alt && rungBlockers(alt, adapter, device).length === 0) out.push(fam.alt);
+  }
+  return out;
 }
 
 /**

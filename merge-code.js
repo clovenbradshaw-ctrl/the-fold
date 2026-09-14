@@ -9,6 +9,14 @@
 // patch: it lands complete or it does not land, never half. Nothing here
 // guesses which of two same-named functions the reader meant.
 //
+// The ENTRY POINT is exempt, because the merge is built for code-piece.js's
+// own shape: every generated program carries a `main` (code-piece's SYN —
+// the pipeline composed as the entry), so treating `main` as a colliding
+// name would refuse every merge of two generated pieces. The source's own
+// `main` is never brought; the target's own `main` — the pipeline that
+// actually runs — is untouched, and if nothing else in the source is new the
+// merge says `nothing_to_bring` rather than a collision.
+//
 // Pure. Only python and js are supported — the two languages
 // code-piece.js already builds — because both have a mechanical top-level
 // def/function boundary a regex can find without a parser. An unsupported
@@ -16,6 +24,8 @@
 
 const LANGS = Object.freeze({
   python: {
+    // The entry point — exempt from collision (code-piece.js's SYN convention).
+    entry: "main",
     defRe: /^def\s+([A-Za-z_]\w*)\s*\(/gm,
     // From a def's own line to the next line that starts back at column 0
     // with a non-blank character — a blank line inside the body does not
@@ -29,6 +39,7 @@ const LANGS = Object.freeze({
     entryRe: /\ndef main\(\):/,
   },
   js: {
+    entry: "main",
     defRe: /^function\s+([A-Za-z_$][\w$]*)\s*\(/gm,
     // Brace-counted from the function's own opening `{` to its match —
     // js's top-level boundary is not indentation, so python's lookahead
@@ -88,13 +99,19 @@ export function mergeCode(lang, targetCode, sourceCode) {
   const targetFns = functionsIn(lang, targetCode);
   const sourceFns = functionsIn(lang, sourceCode);
   const targetNames = new Set(targetFns.map((f) => f.name));
-  const collisions = [...new Set(sourceFns.filter((f) => targetNames.has(f.name)).map((f) => f.name))];
-  if (collisions.length) {
-    return { ok: false, gap: { kind: "name_collision", names: collisions, reason: `both programs define ${collisions.join(", ")} — rename one before merging` } };
-  }
-  const bringing = sourceFns.filter((f) => !targetNames.has(f.name));
+  // The source's own entry point is never merged and never collides; the
+  // target's own entry point — the pipeline that runs — is untouched.
+  const sourceToMerge = sourceFns.filter((f) => f.name !== L.entry);
+  const bringing = sourceToMerge.filter((f) => !targetNames.has(f.name));
   if (!bringing.length) {
     return { ok: false, gap: { kind: "nothing_to_bring", reason: "every function in the source is already named in the target" } };
+  }
+  const colliding = [...new Set(sourceToMerge.filter((f) => targetNames.has(f.name)).map((f) => f.name))];
+  if (colliding.length) {
+    // Named, not silently dropped: every source name the target already
+    // defines, the entry point included, so the reader sees the whole clash.
+    const names = [...new Set(sourceFns.filter((f) => targetNames.has(f.name)).map((f) => f.name))];
+    return { ok: false, gap: { kind: "name_collision", names, reason: `both programs define ${names.join(", ")} — rename one before merging` } };
   }
   const entryAt = String(targetCode ?? "").search(L.entryRe);
   const block = bringing.map((f) => f.body.trimEnd() + "\n").join("\n");

@@ -36,14 +36,47 @@ const MAX_WALK = 100_000;
  * deltas — a backstop, not the path: an ask is never lost, only late. */
 const WANT_BACKSTOP_MS = 10_000;
 
+// ── the connection's own health (2026-09-13, the "between uses" pass) ──────
+// A long-poll sync drops on a phone for the same ordinary reasons a call
+// drops — a wifi handoff, a backgrounded tab, airplane mode — and the failure
+// used to fail the whole ask or spin the serve loop on a fixed 2s. The
+// discipline now: a transient sync error is a backoff and a retry (the
+// request itself is stateless — `since` is carried by the caller), and an
+// offline device waits for `online` rather than burning 30s-long-poll
+// timeouts against no network. The backoff is jittered so two devices that
+// lost the connection at the same moment do not rejoin in lockstep.
+const SYNC_BACKOFF_MS = [1000, 2000, 4000, 8000, 15000];
+const SYNC_BACKOFF_CAP = 15000;
+function syncBackoffMs(attempt) {
+  const base = SYNC_BACKOFF_MS[attempt] ?? SYNC_BACKOFF_CAP;
+  return base + Math.round(Math.random() * 1000);
+}
+/** The device's own connectivity (navigator is absent in Node tests). */
+function deviceOnline() {
+  return globalThis.navigator?.onLine !== false;
+}
+/** Wait until the device is back online (or it already is), abortable. */
+function waitForOnline({ signal = null } = {}) {
+  if (deviceOnline()) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => { window?.removeEventListener?.("online", done); signal?.removeEventListener?.("abort", onAbort); resolve(); };
+    const onAbort = () => done();
+    window?.addEventListener?.("online", done, { once: true });
+    signal?.addEventListener?.("abort", onAbort, { once: true });
+  });
+}
+const sleep = (ms, { signal = null } = {}) =>
+  new Promise((r) => { const t = setTimeout(r, ms); signal?.addEventListener?.("abort", () => { clearTimeout(t); r(); }, { once: true }); });
+
 export class MatrixError extends Error {
   constructor(message, { status = 0, errcode = null } = {}) { super(message); this.name = "MatrixError"; this.status = status; this.errcode = errcode; }
 }
 
 /** The client-server calls, one per route, over an injected fetch. */
 export class MatrixHttp {
-  constructor({ base, token = null, fetch: f = globalThis.fetch?.bind(globalThis), onRequest = null }) {
-    this.base = base; this.token = token; this.fetch = f; this.onRequest = onRequest;
+  constructor({ base, token = null, fetch: f = globalThis.fetch?.bind(globalThis), onRequest = null, onTokenDead = null }) {
+    this.base = base; this.token = token; this.fetch = f; this.onRequest = onRequest; this.onTokenDead = onTokenDead;
+    this.tokenDead = false;
   }
   /** The base URL for a name the person typed: its well-known delegation if
    * it has one, else the origin itself. */
@@ -68,6 +101,12 @@ export class MatrixHttp {
     this.onRequest?.({ method, path: path.replace(/\?.*$/, ""), status: res.status, bytes: body ? (typeof body === "string" ? encoder.encode(body).length : body.length) : 0, ms: Date.now() - started });
     if (!res.ok) {
       let j = null; try { j = await res.json(); } catch { /* not json */ }
+      // A homeserver that has revoked or expired this session's token answers
+      // M_UNKNOWN_TOKEN. It marks the token dead so the next http() says
+      // "sign in again" plainly instead of reusing a token every door knows
+      // is refused (2026-09-13): an expired session is not a transient
+      // network error, and pretending it is just fails a turn later.
+      if (res.status === 401 && j?.errcode === "M_UNKNOWN_TOKEN") { this.tokenDead = true; this.onTokenDead?.(); }
       throw new MatrixError(j?.error ?? `${res.status} from ${this.base}`, { status: res.status, errcode: j?.errcode ?? null });
     }
     return res;
@@ -147,6 +186,10 @@ export class FoldMatrix {
     this.presenceUnsupported = new Set();
     this.sentJobs = new Set();
     this.saving = Promise.resolve();
+    /** True when the homeserver has answered M_UNKNOWN_TOKEN for this
+     * session's token — an expired/revoked session, not a network blip.
+     * Cleared on the next login. */
+    this.tokenDead = false;
     const raw = storage.get();
     // A vault at rest: nothing is readable until `unlock` — not the session,
     // not the keys. Storage holds {v, vault:{salt, rounds, blob}} and nothing else.
@@ -200,10 +243,12 @@ export class FoldMatrix {
     if (this.locked) throw new MatrixError("locked — /matrix unlock first", { status: 0 });
     const s = this.data.session;
     if (!s?.access_token) throw new MatrixError("not signed in — /matrix login <homeserver>", { status: 0 });
-    return new MatrixHttp({ base: s.hs, token: s.access_token, fetch: this.fetchImpl, onRequest: (r) => { this.traffic.requests++; this.traffic.bytesOut += r.bytes; this.traffic.last = r; } });
+    if (this.tokenDead) throw new MatrixError("this homeserver session has expired — sign in again (/matrix login <homeserver>)", { status: 401, errcode: "M_UNKNOWN_TOKEN" });
+    return new MatrixHttp({ base: s.hs, token: s.access_token, fetch: this.fetchImpl, onRequest: (r) => { this.traffic.requests++; this.traffic.bytesOut += r.bytes; this.traffic.last = r; }, onTokenDead: () => { this.tokenDead = true; } });
   }
   status() {
     return { locked: this.locked, vaulted: !!this.vault, signedIn: !!this.data.session, user: this.data.session?.user_id ?? null, hs: this.data.session?.hs ?? null, identity: this.data.identity?.pub ?? null,
+      tokenDead: this.tokenDead,
       rooms: Object.entries(this.data.rooms).map(([id, r]) => ({ id, name: r.name ?? null, blocks: (r.idx ?? -1) + 1, entries: r.count ?? 0, hasKey: Object.keys(r.keys).length > 0, epoch: r.epoch, invites: Object.values(r.invites).filter((i) => !i.spent && (!i.exp || i.exp > Date.now())).length, pending: !!r.pending })), traffic: { ...this.traffic } };
   }
 
@@ -215,6 +260,7 @@ export class FoldMatrix {
     const base = await MatrixHttp.resolve(hsInput, this.fetchImpl);
     const h = new MatrixHttp({ base, fetch: this.fetchImpl, onRequest: (r) => { this.traffic.requests++; this.traffic.bytesOut += r.bytes; this.traffic.last = r; } });
     const r = await h.login(user, password);
+    this.tokenDead = false;
     this.secrets.add("access token", r.access_token);
     this.data.session = { hs: base, user_id: r.user_id, device_id: r.device_id ?? null, access_token: r.access_token };
     await this.identity();
@@ -225,7 +271,7 @@ export class FoldMatrix {
   async logout() {
     try { await this.http().logout(); } catch { /* the token may already be dead; forgetting it here is the point */ }
     const user = this.data.session?.user_id ?? null;
-    this.data.session = null; this.save();
+    this.data.session = null; this.tokenDead = false; this.save();
     this.record("matrix-logout", { user });
   }
   /** This browser's identity pair, minted once. */
@@ -428,6 +474,66 @@ export class FoldMatrix {
       for (const r of part) if (r.status === "fulfilled" && r.value) out.push(r.value);
     }
     return out;
+  }
+
+  /**
+   * The open page's live tie to its room (2026-09-13, the "between uses"
+   * pass): a long-poll sync that stays warm while the page is open, and the
+   * moment another member — very often this ACCOUNT's own other device —
+   * preserves a new block, hands the newly-arrived entries to `onEntries`.
+   * The connection therefore carries a chat forward across uses without a
+   * reload or a manual /preserve: the phone seals a turn, the computer's
+   * open page decrypts it and replays it, both still on the same chain.
+   *
+   * Only a NEW chain head (a state delta) triggers a reload; otherwise the
+   * sync is one cheap long-poll. Transient drops back off (never fail the
+   * watch); an offline device waits for online. Aborting ends the loop.
+   */
+  async watchHistory(roomId, { signal = null, onEntries = null, onGap = null } = {}) {
+    if (this.locked) throw new MatrixError("locked — /matrix unlock first", { status: 0 });
+    if (!this.data.session) throw new MatrixError("not signed in — /matrix login <homeserver>", { status: 0 });
+    if (!this.keyOf(roomId) && !(await this.keyFor(roomId))) throw new MatrixError("no key for this room");
+    const h = this.http();
+    const filter = syncFilter(roomId, { stateTypes: [TYPES.chain, TYPES.mouth, TYPES.want] });
+    const first = await h.sync({ filter, timeout: 0 });
+    let since = first.next_batch;
+    const seenHeads = new Map();
+    let backoff = 0;
+    try {
+      const st = await h.allState(roomId);
+      this.noteOffers(roomId, st);
+      for (const ev of st.filter((s) => s.type === TYPES.chain && s.content?.head?.mxc)) seenHeads.set(ev.state_key, ev.content.head.mxc);
+    } catch { /* the first delta covers it */ }
+    while (!signal?.aborted) {
+      if (!deviceOnline()) { await waitForOnline({ signal }); continue; }
+      let res;
+      try { res = await h.sync({ since, filter, timeout: 30_000, signal }); }
+      catch (e) {
+        if (signal?.aborted || e.errcode === "ABORTED") break;
+        if (e.status === 401 || e.errcode === "M_UNKNOWN_TOKEN") throw e;
+        await sleep(syncBackoffMs(backoff++), { signal });
+        continue;
+      }
+      backoff = 0;
+      since = res.next_batch;
+      const stateEvents = res.rooms?.join?.[roomId]?.state?.events ?? [];
+      let changed = false;
+      for (const ev of stateEvents) {
+        if (ev.type === TYPES.chain && ev.content?.head?.mxc) {
+          const prev = seenHeads.get(ev.state_key);
+          if (prev !== ev.content.head.mxc) { seenHeads.set(ev.state_key, ev.content.head.mxc); changed = true; }
+        }
+      }
+      if (changed) {
+        try {
+          const before = new Set(this.data.rooms[roomId]?.pushed ?? []);
+          const loaded = await this.load(roomId);
+          const fresh = loaded.entries.filter((e) => !before.has(e.id));
+          if (fresh.length) onEntries?.(fresh, loaded);
+        } catch (e) { onGap?.(e); }
+      }
+    }
+    return { since };
   }
 
   // ── sharing: bound, open, passphrase; grants by proof or by fingerprint ──
@@ -814,6 +920,7 @@ export class FoldMatrix {
     this.noteOffers(roomId, first.rooms?.join?.[roomId]?.state?.events ?? []);
     const sealed = await this.sealFor(key, { id, kind: "complete", model, messages, options, ts: Date.now() });
     const started = Date.now();
+    let backoff = 0;
     await h.send(roomId, EVENTS.job, jobContent({ to: worker.user, id, ...sealed }));
     this.record("matrix-ask", { room: roomId, to: worker.user, bytes: sealed.env?.length ?? sealed.bytes ?? 0, viaMedia: !!sealed.mxc });
     while (Date.now() - started < deadline) {
@@ -821,7 +928,21 @@ export class FoldMatrix {
       onWait?.({ worker: worker.user, ms: Date.now() - started });
       let res;
       try { res = await h.sync({ since, filter, timeout: Math.max(1000, Math.min(30_000, deadline - (Date.now() - started))), signal }); }
-      catch (e) { if (e.errcode === "ABORTED") { stats.failed++; throw new MatrixError("cancelled"); } throw e; }
+      catch (e) {
+        if (e.errcode === "ABORTED") { stats.failed++; throw new MatrixError("cancelled"); }
+        // A transient network drop is not the worker refusing to answer: the
+        // ask's own deadline is the bound, and inside it the long-poll retries
+        // with backoff (a phone on a wifi handoff). A dead session is thrown
+        // as typed — retrying an expired token would just burn the deadline.
+        if (e.status === 401 || e.errcode === "M_UNKNOWN_TOKEN") { stats.failed++; throw e; }
+        if (Date.now() - started < deadline) {
+          if (!deviceOnline()) { await waitForOnline({ signal }); }
+          else await sleep(syncBackoffMs(backoff++), { signal });
+          continue;
+        }
+        throw e;
+      }
+      backoff = 0;
       since = res.next_batch;
       for (const ev of res.rooms?.join?.[roomId]?.timeline?.events ?? []) {
         if (ev.type !== EVENTS.answer || ev.content?.job !== id) continue;
@@ -864,8 +985,13 @@ export class FoldMatrix {
     let lastWantRead = Date.now();
     try { this.noteOffers(roomId, await h.allState(roomId)); } catch { /* the loop's backstop will try again */ }
     try {
+      let backoff = 0;
       while (!signal?.aborted) {
-        let res; try { res = await h.sync({ since, filter, timeout: 30_000, signal }); } catch (e) { if (signal?.aborted || e.errcode === "ABORTED") break; await new Promise((r) => setTimeout(r, 2000)); continue; }
+        // An offline machine has nothing to answer and no network to sync on:
+        // wait for online rather than cycling 30s long-poll timeouts (2026-09-13).
+        if (!deviceOnline()) { await waitForOnline({ signal }); continue; }
+        let res; try { res = await h.sync({ since, filter, timeout: 30_000, signal }); } catch (e) { if (signal?.aborted || e.errcode === "ABORTED") break; if (e.status === 401 || e.errcode === "M_UNKNOWN_TOKEN") throw e; await sleep(syncBackoffMs(backoff++), { signal }); continue; }
+        backoff = 0;
         since = res.next_batch;
         // Every round, at most once a backstop interval: grant this account's
         // own sibling devices (2026-09-11) and verify any bound-link proof.

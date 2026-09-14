@@ -34,6 +34,10 @@ import { makeRelationReader } from "./hypergraph.js";
 import { makeGrid } from "./grid.js";
 import { makeCapacityRunner, landAct } from "../eoreader7/native/organs/index.js";
 import { findCapacity, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
+// The conversation's recent voice (2026-09-13): the real cue texts, so the
+// threading tests always check what the app actually ships, never a literal.
+import { voiceCueFor as arcVoiceCueFor } from "./arcs.js";
+import { pathosCueFor } from "./pathos-turn.js";
 
 // Real engine organs for the relation tier (hypergraph.test.mjs's own
 // pattern) — the completeness gate is worth nothing tested against a
@@ -1159,6 +1163,68 @@ test("searchedVoid is flat-only — a decomposed part's chat branch stays untouc
     searchedVoid: SEARCHED_VOID_PREFIX,
   });
   assert.equal(sawVoid, false, "searchedVoid must not reach a decomposed part's own prompt");
+});
+
+// ── the conversation's recent voice (2026-09-13, arcs.js/pathos-turn.js) ──
+// The pathos system is NOT optional: every exchange is undergone in
+// observeExchange, and when the arc went flat or its ground failed, the
+// next turn hears the FACT about its own recent answers — threaded exactly
+// like searchedVoid is (flat only, information never a directive).
+
+test("voiceCue reaches a flat material turn's system prompt", async () => {
+  const cue = arcVoiceCueFor({ flat: true, framesLocked: true });
+  let sawCue = false;
+  const call = async (messages) => {
+    if (messages[0].content.includes(cue)) sawCue = true;
+    return "Moscow was burned by those who abandoned it.";
+  };
+  await runHolonicTask({ task: "why was Moscow burned?", chunks, call, planMode: "flat", voiceCue: cue });
+  assert.ok(sawCue, "the voice cue must ride the flat material branch's system prompt");
+});
+
+test("voiceCue also reaches a flat chat turn that carries verbatim history", async () => {
+  const cue = pathosCueFor({ kind: "stale" });
+  let sawCue = false;
+  const call = async (messages) => {
+    if (messages[0].content.includes(cue)) sawCue = true;
+    return "Still the same.";
+  };
+  await runHolonicTask({
+    task: "and?",
+    chunks: [],
+    call,
+    planMode: "flat",
+    chatHistory: [{ role: "user", content: "the figure?" }, { role: "assistant", content: "12%." }],
+    voiceCue: cue,
+  });
+  assert.ok(sawCue, "the voice cue must reach the history-carrying branch too, not just the material one");
+});
+
+test("without a voiceCue, an ordinary flat turn is untouched — no phantom cue", async () => {
+  let sawCue = false;
+  const call = async (messages) => {
+    if (messages[0].content.includes("same words") || messages[0].content.includes("same rhythm")) sawCue = true;
+    return "Hey!";
+  };
+  await runHolonicTask({ task: "hey", chunks: [], call, planMode: "flat" });
+  assert.equal(sawCue, false, "a turn whose arc holds must never claim it went flat");
+});
+
+test("voiceCue is flat-only — a decomposed part's chat branch stays untouched", async () => {
+  let sawCue = false;
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    if (messages[0]?.content?.includes("same words") || messages[0]?.content?.includes("same rhythm")) sawCue = true;
+    return "An answer.";
+  };
+  await runHolonicTask({
+    task: "hi there, two things: a) how are you b) what's new",
+    chunks: [],
+    call,
+    planMode: "model",
+    voiceCue: arcVoiceCueFor({ flat: true, framesLocked: true }),
+  });
+  assert.equal(sawCue, false, "the voice cue must not reach a decomposed part's own prompt");
 });
 
 // ── attached, but not retrieved (the harbor-note incident) ──────────────
@@ -2311,8 +2377,8 @@ test("the ledger block carries corroborated notes, then question-relevant single
   assert.match(text, /stated once so far and bearing on this question/, "the single-witness tier is disclosed, not withheld");
   assert.match(text, /the harbor — opened→ in 1811 \(stated once so far, nowhere else yet; disputed by t.txt — not settled\)/, "a live dispute is said to the mouth, never a conviction (P101)");
   assert.doesNotMatch(text, /Mars — orbits/, "a single-witness note sharing nothing with the question never reaches the model");
-  assert.match(text, /Looked for and not found so far — say these are open, never that they are false/, "the void tier is relayed as a declared gap (P105)");
-  assert.match(text, /the harbor — closed→ \? \(looked for in 2 sources, 3 of 5 parts read so far; an open gap, not a finding that it is false\)/, "a void carries its scope — how many sources, how far read");
+  assert.match(text, /Nothing here states these, and that is the answer/, "the void tier is relayed as an affirmative negation the mouth can express (P105, prosified 2026-09-13)");
+  assert.match(text, /whether the harbor closed is not stated in what was read \(looked for in 2 sources, 3 of 5 parts read so far\)/, "a void carries its scope — how many sources, how far read");
   assert.doesNotMatch(text, /Mars — orbits→ \?/, "a void sharing nothing with the question is not shown either");
   const { apparatusMentions } = await import("./firewall.js");
   const block = text.match(/From earlier reading[^"]*/g) ?? [];

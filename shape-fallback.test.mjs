@@ -195,6 +195,11 @@ test("retrieve()'s tie handling: promotion only ever reorders within the tied gr
   const decline = () => null;
   assert.deepEqual(retrieve(chunks, question, 10, [], { shapeFallback: decline }), baseline);
 
+  // A fallback that THROWS is a decline, never a crash — the reader is not
+  // held hostage to a tie-break organ's own defects.
+  const throwing = () => { throw new Error("shape organ exploded"); };
+  assert.deepEqual(retrieve(chunks, question, 10, [], { shapeFallback: throwing }), baseline, "a throwing fallback leaves the untouched baseline");
+
   // Same tied group, but the limit is SMALLER than the tied group size —
   // promoting a chunk that the baseline would have excluded from the
   // returned set demonstrates the one case where the fallback changes

@@ -16,9 +16,12 @@ import {
   WEBLLM_MODEL_ID,
   WEBLLM_IDS,
   isWebLLMModel,
+  isWebLLMAlt,
   isLocalPage,
   prebuiltEntryFor,
   WEBLLM_MODELS,
+  webllmModelOf,
+  webllmLabelFor,
   localWasmName,
   appConfigFor,
   toWebLLMRequest,
@@ -46,14 +49,23 @@ const STATIC_PAGE = "https://someone.github.io/the-fold/index.html";
 
 // ── the library and the mirror may not drift ────────────────────────────────
 
-test("the installed web-llm ships every roster entry; an unknown id is a typed error", () => {
-  assert.equal(WEBLLM_MODELS.length, 3, "the roster is bounded at three");
+test("the installed web-llm ships every roster entry AND its f32 fallback; an unknown id is a typed error", () => {
+  assert.equal(WEBLLM_MODELS.length, 3, "the roster is bounded at three families");
   for (const m of WEBLLM_MODELS) {
     const entry = prebuiltEntryFor(prebuiltAppConfig, m.id);
     assert.equal(entry.model_id, m.id);
     assert.match(entry.model, /^https:\/\//);
     assert.match(entry.model_lib, /\.wasm$/);
     assert.ok(m.origin.length > 20 && m.license && m.publisher, `${m.id} states its origin, licence and publisher`);
+    // the alt is the SAME family compiled without the shader-f16 dependency —
+    // the phone without that GPU feature still gets the family (2026-09-13)
+    const alt = prebuiltEntryFor(prebuiltAppConfig, m.alt);
+    assert.ok(alt.model_id.endsWith("q4f32_1-MLC"), `${m.alt} is the f32 build of ${m.id}`);
+    assert.deepEqual(alt.required_features ?? [], [], `${m.alt} must declare NO GPU feature — that is the point of the fallback`);
+    assert.ok(webllmModelOf(m.alt) === m, "the family resolves for either quant");
+    assert.match(webllmLabelFor(m.alt), /f32/);
+    assert.ok(isWebLLMAlt(m.alt) && !isWebLLMAlt(m.id));
+    assert.equal(webllmLabelFor(m.id), m.label);
   }
   assert.equal(prebuiltEntryFor(prebuiltAppConfig).model_id, WEBLLM_MODEL_ID);
   assert.throws(() => prebuiltEntryFor(prebuiltAppConfig, "No-Such-Model"), /drifted/);
@@ -129,7 +141,7 @@ test("a localhost page is local; a static one is not; garbage is not", () => {
 
 test("a localhost page loads every roster model's bytes same-origin, publisher layout kept", () => {
   const { appConfig, weights, contextWindow, contextWindows } = appConfigFor(prebuiltAppConfig, LOCAL_PAGE);
-  assert.equal(appConfig.model_list.length, WEBLLM_MODELS.length);
+  assert.equal(appConfig.model_list.length, WEBLLM_IDS.length, "both quants of every family are in the config — an alt is offered only where the primary cannot run");
   for (const rec of appConfig.model_list) {
     assert.equal(rec.model, `http://localhost:8811/models/${rec.model_id}/resolve/main/`);
     assert.equal(rec.model_lib, `http://localhost:8811/models/libs/${localWasmName(prebuiltEntryFor(prebuiltAppConfig, rec.model_id))}`);
@@ -201,14 +213,14 @@ test("a usage with no rates leaves durations 0 — no measurement, never an esti
 test("with Ollama present the native rungs stay first and the in-tab roster is last, in roster order", () => {
   const offered = mergeOffered([...MODEL_PICKER], true);
   assert.deepEqual(offered.slice(0, MODEL_PICKER.length), MODEL_PICKER);
-  assert.deepEqual(offered.slice(MODEL_PICKER.length), WEBLLM_MODELS.map((m) => m.id));
+  assert.deepEqual(offered.slice(MODEL_PICKER.length), WEBLLM_IDS);
   assert.equal(routeModel(ROUTE_KINDS.SUMMARY, { offered, selected: WEBLLM_MODEL_ID }), MODEL_PICKER[0]);
   assert.equal(routeModel(ROUTE_KINDS.DEEP, { offered, selected: WEBLLM_MODEL_ID }), WEBLLM_MODEL_ID);
 });
 
 test("a browser-only machine offers the in-tab roster alone: the summary rung is the smallest, deep work is the one picked", () => {
   const offered = mergeOffered([], true);
-  assert.deepEqual(offered, WEBLLM_MODELS.map((m) => m.id));
+  assert.deepEqual(offered, WEBLLM_IDS);
   assert.equal(offered[0], WEBLLM_MODEL_ID, "the default is the smallest, first");
   const picked = offered.at(-1);
   assert.equal(routeModel(ROUTE_KINDS.SUMMARY, { offered, selected: picked }), WEBLLM_MODEL_ID);
@@ -220,7 +232,7 @@ test("no WebGPU and no Ollama is an empty offer, never a name that would fail; a
   assert.deepEqual(mergeOffered([], false), []);
   assert.deepEqual(mergeOffered(["gemma2:2b"], false), ["gemma2:2b"]);
   const twice = mergeOffered([WEBLLM_MODEL_ID], true);
-  assert.equal(twice.filter(isWebLLMModel).length, WEBLLM_MODELS.length);
+  assert.equal(twice.filter(isWebLLMModel).length, WEBLLM_IDS.length);
   assert.equal(new Set(twice).size, twice.length);
 });
 
@@ -247,6 +259,10 @@ test("a roster rung whose declared feature the adapter lacks is refused; one tha
   assert.match(rungBlockers(redpajama, { features: new Set() }).join(" "), /lacks shader-f16/);
   // the requirement-free rung still runs on a REAL adapter with no features
   assert.deepEqual(rungBlockers(olmo, { features: new Set() }), []);
+  // the same family WITHOUT the feature requirement runs on that adapter —
+  // the f32 fallback is the point (2026-09-13)
+  const smolF32 = prebuiltEntryFor(prebuiltAppConfig, "SmolLM2-1.7B-Instruct-q4f32_1-MLC");
+  assert.deepEqual(rungBlockers(smolF32, { features: new Set() }), []);
   // NO adapter at all (requestAdapter returned none — the phone's "unable to
   // find a compatible gpu"): every rung is refused, the requirement-free one
   // included — an in-tab model with no WebGPU device cannot run, full stop
@@ -258,10 +274,34 @@ test("a roster rung whose declared feature the adapter lacks is refused; one tha
   assert.deepEqual(rungBlockers(gemma, { features: new Set(["shader-f16"]), maxStorageBufferBindingSize: 268435456 }), []);
 });
 
-test("offerableRungs: on an adapter without shader-f16 only OLMo 2 1B is offered; with NO adapter at all nothing is offered — the phone gets no rung that will die at load", () => {
-  assert.deepEqual(offerableRungs(prebuiltAppConfig, { features: new Set() }), ["OLMo-2-0425-1B-Instruct-q4f16_1-MLC"]);
+test("the device's own memory bounds a rung whose declared VRAM cannot fit — the model's number against the device's, never a tuned factor", () => {
+  const redpajama = prebuiltEntryFor(prebuiltAppConfig, "RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC");
+  const smol = prebuiltEntryFor(prebuiltAppConfig, "SmolLM2-1.7B-Instruct-q4f16_1-MLC");
+  // 2972 MB declared against a 2 GB phone: more VRAM than the device has in
+  // total, so it cannot fit — refused by name. 4 GB: it could fit, allowed.
+  assert.match(rungBlockers(redpajama, { features: new Set(["shader-f16"]) }, { memGB: 2 }).join(" "), /declares 2972 MB/);
+  assert.deepEqual(rungBlockers(redpajama, { features: new Set(["shader-f16"]) }, { memGB: 4 }), []);
+  // the 1.7B fits a 2 GB phone (1774 < 2048); unknowns on either side refuse nothing
+  assert.deepEqual(rungBlockers(smol, { features: new Set(["shader-f16"]) }, { memGB: 2 }), []);
+  assert.deepEqual(rungBlockers(redpajama, { features: new Set(["shader-f16"]) }, { memGB: null }), []);
+  assert.deepEqual(rungBlockers({ ...redpajama, vram_required_MB: undefined }, { features: new Set(["shader-f16"]) }, { memGB: 1 }), []);
+});
+
+test("offerableRungs offers ONE build per family: the primary where it runs, the f32 fallback where the adapter lacks its feature, nothing where even the fallback cannot fit", () => {
+  const OLMO = "OLMo-2-0425-1B-Instruct-q4f16_1-MLC";
+  const SMOL_F32 = "SmolLM2-1.7B-Instruct-q4f32_1-MLC";
+  const REDPAJAMA_F32 = "RedPajama-INCITE-Chat-3B-v1-q4f32_1-MLC";
+  // an adapter without shader-f16: every family still offered, the f16-only
+  // ones as their f32 fallback — a phone never loses a family to a feature
+  assert.deepEqual(offerableRungs(prebuiltAppConfig, { features: new Set() }), [OLMO, SMOL_F32, REDPAJAMA_F32]);
   assert.deepEqual(offerableRungs(prebuiltAppConfig, null), [], "no adapter, no in-tab rung — not even the requirement-free one");
-  assert.deepEqual(offerableRungs(prebuiltAppConfig, { features: new Set(["shader-f16"]) }), WEBLLM_IDS, "a full adapter offers the whole roster");
+  // a full adapter offers the whole roster, one preferred build per family
+  assert.deepEqual(offerableRungs(prebuiltAppConfig, { features: new Set(["shader-f16"]) }), WEBLLM_MODELS.map((m) => m.id));
+  // a 2 GB phone without shader-f16: even SmolLM2's f32 fallback (2692 MB) and
+  // RedPajama's (3928 MB) cannot fit its whole memory — only the 1B remains
+  assert.deepEqual(offerableRungs(prebuiltAppConfig, { features: new Set() }, { memGB: 2 }), [OLMO]);
+  // a 3 GB phone without shader-f16: the 1.7B's f32 fits, the 3B's does not
+  assert.deepEqual(offerableRungs(prebuiltAppConfig, { features: new Set() }, { memGB: 3 }), [OLMO, SMOL_F32]);
   // a catalog that lost a record offers no rung, never a guessed one
   assert.deepEqual(offerableRungs({ model_list: [] }, { features: new Set(["shader-f16"]) }), []);
 });

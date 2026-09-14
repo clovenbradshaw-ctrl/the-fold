@@ -1,156 +1,157 @@
 {
-  "schema": "the-fold.eoreader-contract.v1",
-  "purpose": "Runtime compatibility contract that EOReader 7 must satisfy for The Fold. Migration is in progress, not binary: browserEngineModules records what remains on the frozen /engine (legacy-eoreader6.1) mount; browserNativeModules records what has already crossed to the native /engine-v7 (eoreader7 native/) kernel, per the migrationLaw below. The 2026-08-29 pass (CLAUDE.md: \"The connection pass\" and its ratchet-completion follow-up) moved app.js's text organs and its operator/task-log algebra off /engine; emergence/tiers.js (and the nul/index.js statistics subsystem it stands on) is the one disclosed holdout \u2014 no native equivalent exists yet, and porting it faithfully is its own future pass, not a rider on this one.",
-  "reference": {
-    "repository": "clovenbradshaw-ctrl/eoreader6.1",
-    "branch": "main",
-    "observedHead": "00bf5605912d601c82936654055dcc8df30633fa"
+ "schema": "the-fold.eoreader-contract.v1",
+ "purpose": "Runtime compatibility contract that EOReader 7 must satisfy for The Fold. Migration is in progress, not binary: browserEngineModules records what remains on the frozen /engine (legacy-eoreader6.1) mount; browserNativeModules records what has already crossed to the native /engine-v7 (eoreader7 native/) kernel, per the migrationLaw below. The 2026-08-29 pass (CLAUDE.md: \"The connection pass\" and its ratchet-completion follow-up) moved app.js's text organs and its operator/task-log algebra off /engine; emergence/tiers.js (and the nul/index.js statistics subsystem it stands on) is the one disclosed holdout \u2014 no native equivalent exists yet, and porting it faithfully is its own future pass, not a rider on this one.",
+ "reference": {
+  "repository": "clovenbradshaw-ctrl/eoreader6.1",
+  "branch": "main",
+  "observedHead": "00bf5605912d601c82936654055dcc8df30633fa"
+ },
+ "runtimeConsumers": {
+  "browserEngineModules": {
+   "app.js": [
+    "/engine/emergence/tiers.js"
+   ]
   },
-  "runtimeConsumers": {
-    "browserEngineModules": {
-      "app.js": [
-        "/engine/emergence/tiers.js"
-      ]
+  "nodeImports": {
+   "explore-worker.mjs": {
+    "module": "../eoreader7/legacy-eoreader6.1/packages/host/index.js",
+    "exports": [
+     "createSession",
+     "admitChunked",
+     "sessionTerrains",
+     "sessionKinds",
+     "kindsNullArm"
+    ]
+   },
+   "explore-server.mjs": {
+    "module": "../eoreader7/legacy-eoreader6.1/packages/host/index.js",
+    "exports": [
+     "foldExtract"
+    ]
+   },
+   "serve.mjs": {
+    "dynamicModule": "packages/engine/holon/task-log.js",
+    "role": "validates append-only build records against the engine task vocabulary"
+   }
+  },
+  "filesystemMounts": {
+   "serve.mjs": [
+    "packages/engine",
+    "nul",
+    "scripts/corpus",
+    "native"
+   ],
+   "explore-server.mjs": [
+    "packages/engine",
+    "nul",
+    "scripts/corpus",
+    "native"
+   ]
+  },
+  "browserNativeModules": {
+   "app.js": [
+    "/engine-v7/adapters/text/morphology.js",
+    "/engine-v7/adapters/text/priors.js",
+    "/engine-v7/adapters/text/pronouns.js",
+    "/engine-v7/adapters/text/relations.js",
+    "/engine-v7/adapters/text/segments.js",
+    "/engine-v7/adapters/text/spans.js",
+    "/engine-v7/adapters/text/surfaces.js",
+    "/engine-v7/adapters/text/wordclass.js",
+    "/engine-v7/interpretation/declarations.js",
+    "/engine-v7/kernel/activation.js",
+    "/engine-v7/kernel/cube.js",
+    "/engine-v7/kernel/task-log.js",
+    "/engine-v7/memory/activation.js"
+   ]
+  }
+ },
+ "testTimeConsumers": {
+  "purpose": "wiring-the-measured-memory-v2 (increments A/B/C/D). Modules from eoreader7's native/ tree, consumed ONLY by this repo's own test/eval files today \u2014 never yet by app.js/serve.mjs/explore-server.mjs at runtime, per that spec's own disclosed scoping decision (live browser wiring needs a new server mount, a page-graph.mjs update, and a constitution.test.mjs II.13 allowance, none attempted this pass). Every production module this repo added stays zero-import (cast.js pattern: organs injected, never imported) \u2014 promote an entry here to runtimeConsumers only once a PRODUCTION file, not a test, performs the import live.",
+  "eoreader7Native": {
+   "repository": "clovenbradshaw-ctrl/eoreader7",
+   "modules": {
+    "native/kernel/activation.js": {
+     "exports": [
+      "createActivation",
+      "dmdWindow",
+      "gammaFor"
+     ],
+     "consumedBy": [
+      "fold.test.mjs"
+     ],
+     "productionSeam": "fold.js::deriveRecordWindow (organ-injected \u2014 fold.js itself has zero imports)",
+     "consumersMovedIntoProducer": [
+      "eval/measured-memory-b.mjs \u2192 eoreader7/native/eval/the-fold/measured-memory-b.mjs (Phase 2 of the organ migration, 2026-09-02 \u2014 inside the producer now, no longer a cross-repo consumer)"
+     ]
     },
-    "nodeImports": {
-      "explore-worker.mjs": {
-        "module": "../eoreader7/legacy-eoreader6.1/packages/host/index.js",
-        "exports": [
-          "createSession",
-          "admitChunked",
-          "sessionTerrains",
-          "sessionKinds",
-          "kindsNullArm"
-        ]
-      },
-      "explore-server.mjs": {
-        "module": "../eoreader7/legacy-eoreader6.1/packages/host/index.js",
-        "exports": [
-          "foldExtract"
-        ]
-      },
-      "serve.mjs": {
-        "dynamicModule": "packages/engine/holon/task-log.js",
-        "role": "validates append-only build records against the engine task vocabulary"
-      }
+    "native/kernel/return-curve.js": {
+     "exports": [
+      "returnCurve"
+     ],
+     "consumedBy": [],
+     "productionSeam": "none yet \u2014 measurement-only this pass (eval/results/measured-memory-b-RESULTS.md)",
+     "consumersMovedIntoProducer": [
+      "eval/measured-memory-b.mjs \u2192 eoreader7/native/eval/the-fold/measured-memory-b.mjs (Phase 2 of the organ migration, 2026-09-02 \u2014 inside the producer now, no longer a cross-repo consumer)"
+     ]
     },
-    "filesystemMounts": {
-      "serve.mjs": [
-        "packages/engine",
-        "nul",
-        "scripts/corpus",
-        "native"
-      ],
-      "explore-server.mjs": [
-        "packages/engine",
-        "nul",
-        "scripts/corpus",
-        "native"
-      ]
+    "native/memory/activation.js": {
+     "exports": [
+      "tokens",
+      "codeOf",
+      "recall",
+      "encodeFrame"
+     ],
+     "consumedBy": [
+      "retrieval.test.mjs"
+     ],
+     "productionSeam": "retrieval.js (organ-injected \u2014 retrieval.js itself has zero imports)",
+     "consumersMovedIntoProducer": [
+      "eval/measured-memory-b.mjs \u2192 eoreader7/native/eval/the-fold/measured-memory-b.mjs (Phase 2 of the organ migration, 2026-09-02 \u2014 inside the producer now, no longer a cross-repo consumer)"
+     ]
     },
-    "browserNativeModules": {
-      "app.js": [
-        "/engine-v7/kernel/cube.js",
-        "/engine-v7/kernel/task-log.js",
-        "/engine-v7/kernel/activation.js",
-        "/engine-v7/adapters/text/segments.js",
-        "/engine-v7/adapters/text/spans.js",
-        "/engine-v7/adapters/text/surfaces.js",
-        "/engine-v7/adapters/text/pronouns.js",
-        "/engine-v7/adapters/text/relations.js",
-        "/engine-v7/adapters/text/priors.js",
-        "/engine-v7/adapters/text/wordclass.js",
-        "/engine-v7/adapters/text/morphology.js",
-        "/engine-v7/interpretation/declarations.js"
-      ]
+    "native/kernel/task-log.js": {
+     "exports": [
+      "createTaskLog",
+      "append",
+      "ENTRY_KINDS",
+      "OPERATOR_BASIS"
+     ],
+     "consumedBy": [
+      "consequence.test.mjs"
+     ],
+     "productionSeam": "consequence.js::adaptTaskLog (organ-injected)"
+    },
+    "native/kernel/cube.js": {
+     "exports": [
+      "GRAINS"
+     ],
+     "consumedBy": [
+      "consequence.test.mjs"
+     ],
+     "productionSeam": "consequence.js::adaptTaskLog (organ-injected)"
     }
-  },
-  "testTimeConsumers": {
-    "purpose": "wiring-the-measured-memory-v2 (increments A/B/C/D). Modules from eoreader7's native/ tree, consumed ONLY by this repo's own test/eval files today \u2014 never yet by app.js/serve.mjs/explore-server.mjs at runtime, per that spec's own disclosed scoping decision (live browser wiring needs a new server mount, a page-graph.mjs update, and a constitution.test.mjs II.13 allowance, none attempted this pass). Every production module this repo added stays zero-import (cast.js pattern: organs injected, never imported) \u2014 promote an entry here to runtimeConsumers only once a PRODUCTION file, not a test, performs the import live.",
-    "eoreader7Native": {
-      "repository": "clovenbradshaw-ctrl/eoreader7",
-      "modules": {
-        "native/kernel/activation.js": {
-          "exports": [
-            "createActivation",
-            "dmdWindow",
-            "gammaFor"
-          ],
-          "consumedBy": [
-            "fold.test.mjs"
-          ],
-          "productionSeam": "fold.js::deriveRecordWindow (organ-injected \u2014 fold.js itself has zero imports)",
-          "consumersMovedIntoProducer": [
-            "eval/measured-memory-b.mjs \u2192 eoreader7/native/eval/the-fold/measured-memory-b.mjs (Phase 2 of the organ migration, 2026-09-02 \u2014 inside the producer now, no longer a cross-repo consumer)"
-          ]
-        },
-        "native/kernel/return-curve.js": {
-          "exports": [
-            "returnCurve"
-          ],
-          "consumedBy": [],
-          "productionSeam": "none yet \u2014 measurement-only this pass (eval/results/measured-memory-b-RESULTS.md)",
-          "consumersMovedIntoProducer": [
-            "eval/measured-memory-b.mjs \u2192 eoreader7/native/eval/the-fold/measured-memory-b.mjs (Phase 2 of the organ migration, 2026-09-02 \u2014 inside the producer now, no longer a cross-repo consumer)"
-          ]
-        },
-        "native/memory/activation.js": {
-          "exports": [
-            "tokens",
-            "codeOf",
-            "recall",
-            "encodeFrame"
-          ],
-          "consumedBy": [
-            "retrieval.test.mjs"
-          ],
-          "productionSeam": "retrieval.js (organ-injected \u2014 retrieval.js itself has zero imports)",
-          "consumersMovedIntoProducer": [
-            "eval/measured-memory-b.mjs \u2192 eoreader7/native/eval/the-fold/measured-memory-b.mjs (Phase 2 of the organ migration, 2026-09-02 \u2014 inside the producer now, no longer a cross-repo consumer)"
-          ]
-        },
-        "native/kernel/task-log.js": {
-          "exports": [
-            "createTaskLog",
-            "append",
-            "ENTRY_KINDS",
-            "OPERATOR_BASIS"
-          ],
-          "consumedBy": [
-            "consequence.test.mjs"
-          ],
-          "productionSeam": "consequence.js::adaptTaskLog (organ-injected)"
-        },
-        "native/kernel/cube.js": {
-          "exports": [
-            "GRAINS"
-          ],
-          "consumedBy": [
-            "consequence.test.mjs"
-          ],
-          "productionSeam": "consequence.js::adaptTaskLog (organ-injected)"
-        }
-      }
-    }
-  },
-  "semanticCapabilities": [
-    "addressable source material with reopenable evidence ranges",
-    "incremental text segmentation derived from form",
-    "referent discovery and co-reference support",
-    "pronoun resolution",
-    "relation vocabulary discovery and relation extraction",
-    "engine-owned surprise measurement",
-    "append-only EO task/event vocabulary",
-    "canonical EO operator algebra",
-    "provenanced text priors and locally reproducible prior data",
-    "typed null/gap behavior",
-    "host projections for terrains, kinds, referents, relations and fold extraction"
-  ],
-  "migrationLaw": [
-    "EOReader 7 must first satisfy this contract without requiring The Fold runtime changes.",
-    "Historical module paths may be implemented by a v6 compatibility facade over v7 internals.",
-    "Compatibility paths are removable only after The Fold has migrated that dependency to a canonical v7 API and equivalent behavior remains tested.",
-    "The contract describes required behavior and callable surfaces, not required v7 internal architecture.",
-    "A crossing is only real once measured: before app.js's import path moves, run the legacy and native implementations against the same real material and diff their outputs (parity), not just their exports (shape) \u2014 an export list matching is necessary, never sufficient."
-  ]
+   }
+  }
+ },
+ "semanticCapabilities": [
+  "addressable source material with reopenable evidence ranges",
+  "incremental text segmentation derived from form",
+  "referent discovery and co-reference support",
+  "pronoun resolution",
+  "relation vocabulary discovery and relation extraction",
+  "engine-owned surprise measurement",
+  "append-only EO task/event vocabulary",
+  "canonical EO operator algebra",
+  "provenanced text priors and locally reproducible prior data",
+  "typed null/gap behavior",
+  "host projections for terrains, kinds, referents, relations and fold extraction"
+ ],
+ "migrationLaw": [
+  "EOReader 7 must first satisfy this contract without requiring The Fold runtime changes.",
+  "Historical module paths may be implemented by a v6 compatibility facade over v7 internals.",
+  "Compatibility paths are removable only after The Fold has migrated that dependency to a canonical v7 API and equivalent behavior remains tested.",
+  "The contract describes required behavior and callable surfaces, not required v7 internal architecture.",
+  "A crossing is only real once measured: before app.js's import path moves, run the legacy and native implementations against the same real material and diff their outputs (parity), not just their exports (shape) \u2014 an export list matching is necessary, never sufficient."
+ ]
 }

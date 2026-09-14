@@ -65,6 +65,15 @@ class WebLLMClient {
     this.modelId = null; // the id the live engine holds; a different id unloads it
     this._loading = null; // in-flight ensure(), shared by concurrent callers
     this._loadingId = null;
+    /** The device's own connectivity, tracked by event so a load never starts
+     * a ~1.7GB download that this turn knows cannot land (2026-09-13): a
+     * phone in airplane mode gets the typed offline refusal immediately,
+     * and a reconnected device retries on the next use by construction. */
+    this.online = globalThis.navigator?.onLine !== false;
+    if (typeof window !== "undefined" && window.addEventListener) {
+      window.addEventListener("online", () => { this.online = true; });
+      window.addEventListener("offline", () => { this.online = false; });
+    }
     const { appConfig, weights, contextWindow, contextWindows } = appConfigFor(prebuiltAppConfig, location.href);
     this.appConfig = appConfig;
     /** Stated by the page when this rung connects: where the bytes come from —
@@ -143,6 +152,13 @@ class WebLLMClient {
   async _load(onProgress, modelId) {
     await this.chooseWeights(modelId);
     onProgress?.(`weights: ${this.weights}`, 0);
+    // A first-use load is a ~1–1.7GB egress; a device this turn knows is
+    // offline cannot land it, and retrying that would be three failed
+    // attempts for nothing. The typed refusal IS the state; a reconnect
+    // retries on the next call through ensure().
+    if (!this.online) {
+      throw new Error(classifyWebLLMFailure(new Error("the device is offline"), { online: false }).text);
+    }
     // Weight bytes about to land in this origin's storage should survive
     // cache pressure. Best-effort and remote-only: a localhost page reloads
     // them from this disk in seconds, so eviction costs nothing there.
@@ -185,11 +201,12 @@ class WebLLMClient {
       } catch (err) {
         lastErr = err;
         this._terminateWorker();
-        const { kind, text } = classifyWebLLMFailure(err, { online: navigator.onLine !== false });
+        const { kind, text } = classifyWebLLMFailure(err, { online: this.online });
         // A device/GPU refusal (or a worker gone silent) will fail the same
-        // way in one second; only download-shaped failures earn the
-        // remaining attempts.
-        if (kind === "gpu" || kind === "device-lost" || kind === "stalled") throw new Error(text);
+        // way in one second; an offline device has no weights to land. Only
+        // download-shaped failures on a connected device earn the remaining
+        // attempts.
+        if (kind === "gpu" || kind === "device-lost" || kind === "stalled" || kind === "offline") throw new Error(text);
         if (attempt < LOAD_ATTEMPTS - 1) {
           const ms = LOAD_BACKOFF_MS[attempt] ?? 4000;
           onProgress?.(`${text} — retrying in ${Math.round(ms / 1000)}s (${attempt + 2}/${LOAD_ATTEMPTS})`, 0);
@@ -197,7 +214,7 @@ class WebLLMClient {
         }
       }
     }
-    throw new Error(classifyWebLLMFailure(lastErr, { online: navigator.onLine !== false }).text);
+    throw new Error(classifyWebLLMFailure(lastErr, { online: this.online }).text);
   }
 
   /**
@@ -241,7 +258,7 @@ class WebLLMClient {
           }
         }
       } catch (err) {
-        const { kind, text } = classifyWebLLMFailure(err, { online: navigator.onLine !== false });
+        const { kind, text } = classifyWebLLMFailure(err, { online: this.online });
         this._terminateWorker();
         if ((kind === "device-lost" || kind === "stalled") && round === 0) {
           onProgress?.("the GPU device was lost mid-answer — rebuilding and retrying once", 0);

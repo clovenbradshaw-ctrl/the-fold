@@ -668,3 +668,41 @@ test("the 'about you' ledger never crosses accounts: bob cannot read or overwrit
   const alicesCopy = await alice.pullProfile();
   assert.ok(alicesCopy.entries.every((e) => e.text !== "goes by Bob"));
 });
+
+test("a homeserver that answers M_UNKNOWN_TOKEN marks this session dead — the next door says 'sign in again', and a fresh login clears it", async () => {
+  const expired = () => new Response(JSON.stringify({ errcode: "M_UNKNOWN_TOKEN", error: "The access token has expired." }), { status: 401, headers: { "content-type": "application/json" } });
+  const dead = new FoldMatrix({ storage: mapStorage(), record: () => {}, fetch: async () => expired() });
+  dead.data.session = { hs: "http://hs.invalid", user_id: "@a:fake.test", device_id: null, access_token: "dead" };
+  await assert.rejects(async () => { await dead.http().whoami(); }, (e) => e instanceof MatrixError && e.status === 401 && e.errcode === "M_UNKNOWN_TOKEN");
+  assert.equal(dead.status().tokenDead, true, "the session is marked dead, not silently reused");
+  await assert.rejects(async () => { await dead.http().whoami(); }, (e) => /sign in again/.test(e.message), "every later door refuses with the plain sign-in-again message, never a fresh 401");
+  // a fresh login against the real homeserver clears the dead mark
+  const renewed = new FoldMatrix({ storage: mapStorage(), record: () => {} });
+  await renewed.login(hs.base, "alice", PW.alice);
+  assert.equal(renewed.status().tokenDead, false);
+  assert.ok(renewed.status().signedIn);
+});
+
+test("watchHistory keeps the open page's tie to its room live: this account's OTHER device preserving a new block delivers the new entries without a reload", async () => {
+  // The phone: a fresh browser signed in as the same account (2026-09-11),
+  // granted the key by the open computer through the sibling mechanism.
+  const alice2 = new FoldMatrix({ storage: mapStorage(), record: () => {} });
+  await alice2.login(hs.base, "alice", PW.alice);
+  await alice2.announceSibling(room);
+  const g = await alice.grantPending(room);
+  assert.ok(g.siblings.length >= 1, "the account's own other device is granted");
+  assert.ok(await alice2.keyFor(room), "the sibling holds the chat key after the grant");
+  const ac = new AbortController();
+  const seen = [];
+  const watch = alice.watchHistory(room, { signal: ac.signal, onEntries: (fresh) => seen.push(...fresh) }).catch(() => {});
+  await new Promise((r) => setTimeout(r, 150)); // the watch's own initial sync settles
+  const turn = { kind: "turn", role: "user", content: "a turn preserved by this account's other device. CANARY-watch1", seq: 999 };
+  const p = await alice2.preserve(room, [turn]);
+  assert.equal(p.pushed, 1);
+  const deadline = Date.now() + 8000;
+  while (Date.now() < deadline && !seen.length) await new Promise((r) => setTimeout(r, 100));
+  assert.equal(seen.length, 1, "the open page received the sibling's new entry live, without a reload or a manual /preserve");
+  assert.equal(seen[0].content, turn.content, "the delivered entry is the turn, decrypted");
+  ac.abort();
+  await watch;
+});

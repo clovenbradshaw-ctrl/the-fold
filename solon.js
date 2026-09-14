@@ -6,10 +6,38 @@
 // the constitution, and Solon's job is to check that every claim is read
 // by a test, that the record replays, that the results are enforced, and
 // that the failure set stays the same by name — and to re-zero (REC) a
-// standing only on evidence. The other watchers are named in the register:
-// heimdall (the bridge), ranke (the chase), lavar (the grader), wilson
-// (the swarm), huginn (the prioritizer — which model answers which job,
-// under heimdall). Solon is the one that keeps the instrument's own record
+// standing only on evidence. THE REGISTER — the one authoritative list of
+// the instrument's watchers; an archon's own header cites it, never
+// restates it:
+//
+//   heimdall   the bridge — every surface, the steering, the admission,
+//              the re-forging, the outward flows. Boss of the triad. (live)
+//   ranke      the chase — a claim chased to the document its account
+//              cites; in charge of the citation policy (P182). (live)
+//   lavar      the grader — grades the reader itself, keeps its own
+//              mistakes (the book test, II.6). (live)
+//   wilson     the swarm — an evolutionary swarm of reading variants at
+//              holonic levels, under the received hierarchy and the cube.
+//              (live)
+//   solon      the integrity — the record's honesty, the keeper. (live)
+//   huginn     thought — which model answers which job, room mouths
+//              first-class, hopped on typed failure. (live)
+//   muninn     memory — what is recalled into the turn, what earns
+//              standing; the conversation's own record encoded and
+//              recalled, cut at the declared budget. (live)
+//   kairos     the pattern — whether the turn's difference made a
+//              difference; the sign over every exchange, on the record and
+//              the summary gate's decision. (live)
+//   kelsen     the adjudicator — claims as norms in a hierarchy, conflicts
+//              resolved by precedence (lex specialis, lex posterior); every
+//              verdict is his. (live)
+//   parmenides the Way — SAME vs OTHER, identity by the equivalence organs,
+//              never by appearance (II.7, P11, P79). Under kelsen.
+//
+// Amendment: an archon is added or removed by proposal — ratified by the
+// person, checked by the chorus — never by a session alone.
+//
+// Solon is the one that keeps the instrument's own record
 // honest while it runs for months.
 //
 // DUAL MODE, heimdall's own shape:

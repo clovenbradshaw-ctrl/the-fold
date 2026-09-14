@@ -350,8 +350,8 @@ export function fallbackMouth(offers, { kind = null, exclude = null } = {}) {
 }
 /** The sync filter for one room's jobs channel: this room only, our events,
  * no presence, no account data, no receipts. */
-export const syncFilter = (roomId) => ({
-  room: { rooms: [roomId], timeline: { types: [EVENTS.job, EVENTS.answer], limit: 50 }, state: { types: [TYPES.mouth, TYPES.want] }, ephemeral: { types: [] }, account_data: { types: [] } },
+export const syncFilter = (roomId, { stateTypes = [TYPES.mouth, TYPES.want] } = {}) => ({
+  room: { rooms: [roomId], timeline: { types: [EVENTS.job, EVENTS.answer], limit: 50 }, state: { types: stateTypes }, ephemeral: { types: [] }, account_data: { types: [] } },
   presence: { types: [] }, account_data: { types: [] },
 });
 

@@ -37,7 +37,7 @@
 // Nothing is installed globally, ever.
 
 import { createServer } from "node:http";
-import { extname, join, normalize, resolve } from "node:path";
+import { basename, extname, join, normalize, resolve } from "node:path";
 import { appendFileSync, createReadStream, existsSync, mkdirSync, readFileSync, writeFileSync, statSync, unlinkSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -111,6 +111,13 @@ const PRIORS_DATA_ALIASES = { "pos-prior-eng.json": "pos-prior-en.json" };
 // this repo does not vendor).
 const PRIORS_DATA_OWN = resolve(ROOT, "priors-data");
 const PORT = Number(process.argv[2] ?? 8811);
+
+// The heimdall corner (2026-09-13): when this process came up, how many page
+// loads it has served, and the latest /api/vitals report from a page's own
+// watcher (heimdall-client.js) — held only in memory, never written.
+const startedAt = new Date().toISOString();
+let pageViews = 0;
+let latestVitals = null;
 
 // The one package environment. Both the build runner and the terminal get
 // `.venv/bin` on PATH, so whatever was installed is importable from either.
@@ -252,6 +259,50 @@ const readJsonBody = async (req, res, limit = 64 * 1024) => {
 createServer((req, res) => {
   const url = new URL(req.url, "http://localhost");
   const rel = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, "");
+
+  // GET /health — the liveness probe heimdall's registry uses for this
+  // surface (eoreader7/heimdall.mjs: HEALTH_PATH_OF). Cheap and truthful:
+  // if this process is answering, the page it serves is reachable.
+  if (req.method === "GET" && rel === "/health") {
+    json(res, 200, { status: "ok", surface: "fold-chat", port: PORT, since: startedAt });
+    return;
+  }
+
+  // POST /api/vitals — the page's own watcher (heimdall-client.js) posts its
+  // DEF→EVA→REC report for the in-tab engine and the Matrix room tie. The
+  // server holds only the LATEST snapshot in memory — nothing about the page
+  // is written to disk — and folds it into /heimdall, so the machine's
+  // Heimdall (and anyone asking the bridge) sees the browser connections
+  // that the server-side watcher cannot probe itself. Loopback only: the
+  // page served by this process is the only legitimate reporter.
+  if (req.method === "POST" && rel === "/api/vitals") {
+    if (!isLoopback(req)) return json(res, 403, { error: "loopback only" });
+    (async () => {
+      const params = await readJsonBody(req, res);
+      if (params === null) return json(res, 413, { error: "body too large" });
+      if (params === false) return json(res, 400, { error: "bad json" });
+      const { engine, matrix, watch, online } = params ?? {};
+      latestVitals = { at: new Date().toISOString(), engine: engine ?? null, matrix: matrix ?? null, watch: watch ?? null, online: online ?? null };
+      json(res, 200, { stored: true, at: latestVitals.at });
+    })();
+    return;
+  }
+
+  // GET /heimdall — the bridge's view of THIS surface: the page server's own
+  // standing plus the browser connections the page last reported. The full
+  // machine-wide status (every surface, box vitals, the DEF/EVA/REC log
+  // tail) is served by eoreader7's heimdall on its own port; this is the
+  // fold-chat surface's own corner of it, and the reason a watcher that
+  // cannot see inside a browser can still see the page's engine and room.
+  if (req.method === "GET" && rel === "/heimdall") {
+    json(res, 200, {
+      surface: { name: "fold-chat", port: PORT, up: true, since: startedAt },
+      pages: pageViews,
+      vitals: latestVitals ?? null,
+      at: new Date().toISOString(),
+    });
+    return;
+  }
 
   // GET /api/manifest — item 1 of the 2026-09-08 product review ("unknown
   // running revision — needs verification: identify the localhost app
@@ -746,6 +797,7 @@ createServer((req, res) => {
     // The whole point of this file.
     "cache-control": "no-store, must-revalidate",
   });
+  if (basename(file) === "index.html") pageViews++;
   createReadStream(file).pipe(res);
 })
   // The bound port is read back from the server, not the requested PORT, so

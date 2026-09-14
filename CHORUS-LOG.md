@@ -1,5 +1,19 @@
 # Chorus log — append-only, one entry per lint run
 
+## 2026-09-13 — Solon the Integrity archon + Ashby the primus: the homeostatic keeper over the record (main, staged)
+
+Constitution: `../FOLD-CONSTITUTION.md` + this repo's POLICIES.md/CLAUDE.md. Reviewed diff: `solon.js` (pure sensors: enforcement-map-read-by-tests, eval-results-enforced, failure-set-diffed-by-name, record-replay; keeper with heartbeat + load-gated sweep; dual-mode server `/solon` `/health`), `ashby.js` (the primus — verifyWatcher reads the log FILE, never the watcher's memory), `solon.test.mjs`/`ashby.test.mjs` (28 controls built to fail), `solon.html` (the surface), `solon-run.mjs`, `scripts/solon-keeper.sh`, `explore-server.mjs` (`/solon` forward, mirror of `/heimdall`). fast: 8 files · 49 affected tests pass · law: ok (WARN pre-existing dup P115 P116 P117 P19 / S17 S96 — renumber in their own commits)
+
+| lens | citation | file:line | verdict | summary |
+|---|---|---|---|---|
+| Feynman | II.23, the resolution test | solon.test.mjs:149 | fixed | the unearned `base.length < 4` floor in `referencedBy` was REMOVED on this lens — the strong-token regex is the whole precision, and the floor silently pardoned a short stem whose driver is named differently; the strong-token rule is now pinned for a short stem (`mhc` vs `mhc-battery.mjs`). The heartbeat's 3×-interval liveness window is a declared structural multiplier, pinned at its boundary |
+| Dijkstra | P94 | solon.js `classifyResultsDoc` | clean-as-disclosed | `REFERENCE_RE` is a name-pattern heuristic; its errors are conservative (a missed reference classifies as data, never as a transcription held to the reader bar) — disclosed in the module |
+| Pearl | heartbeat independence | ashby.js:14 | fixed | the shared-common-cause limit is now stated: Ashby catches a DEAD or CORRUPTING Solon from the file, never a consistently-lying one — independence is from Solon's process state, not its authorship; the backstop for the lying-but-consistent case is the `controlsPresent` check (the planted controls live in the suite, where the chorus/CI read them), not Ashby's reading of Solon's own log |
+| Ostrom | P94 scope | solon.html | clean | the 107-unenforced finding is scoped as the standing P94/P95 residue and its delta across sweeps — a state of the repo, never a blame |
+| Marshall | P94, P95, I.5, II.23, VI.3 | solon.js | fixed | the "I.5 record dir" was ambiguous — the context resolver pulled eo-constitution's I.5 ("no other domain exists") where the record is governed by FOLD-CONSTITUTION I.5 ("the record is not a standing; it is the floor under all four"); now cited precisely. II.3/II.5/II.9/III.1 in the diff are test-fixture article names, not citations. Pre-existing duplicate headers disclosed, not renumbered here |
+| Simon | keeper loop | solon.js `createKeeper` | fixed | the keeper had no unit tests; `beat`/`sweep` are now exposed and pinned (monotonic seq, verdicts land, standing carries, single-flight skip, seq continues across restarts) — and those tests CAUGHT a real bug: the success-path log line crashed on a verdict shape it did not own and mislogged a failed sweep |
+| Chekhov | reachability | solon-run.mjs | noted | one-shot driver by design, calling the SAME `runLiveSweep` the keeper uses — one implementation, not a second copy; no test imports it, consistent with the eval/ driver precedent |
+
 ## 2026-08-18 — dialogue-narration echo guard (holon.js, provenance.js, holon.test.mjs)
 
 Constitution: `../FOLD-CONSTITUTION.md` + this repo's POLICIES.md/CLAUDE.md. Reviewed diff: `isFraming` gains a third echo shape (subject-names-a-dialogue-participant + carries-a-dialogue-act-verb), catching drafts like "The user is waiting for more information about the weather." that neither the question-word-coverage test nor WH_CLAUSE could see.
@@ -351,3 +365,29 @@ Constitution: `../eo-constitution/CONSTITUTION.md` + this repo's POLICIES.md/CLA
 | Diaconis | II.13 | constitution.test.mjs ALLOWANCES | fixed | two enforcement gaps closed at the allowance seam (namespace binding form; help-string-context hosts); both fail closed by construction |
 
 clean: Feynman/Frankfurt/Ostrom/Holmes/Simon — no constant, fabrication, blame-scope, identity, or unwired module introduced by this diff.
+## 2026-09-13 — the 20-failing-suite recovery: rename-drift shim aliases, the shape-cue retrieve wiring, merge-code's main exemption (working, uncommitted: hyperlexicon.js, source.js, merge-code.js, predigest.test.mjs, admission-gate.test.mjs, dialogue-turn.test.mjs, shape-fallback.test.mjs)
+
+Constitution: `../FOLD-CONSTITUTION.md` + this repo's POLICIES.md/CLAUDE.md. Reviewed diff: 20 failing tests across 7 files traced to three root-cause families and closed — (A) rename drift: the assertion ledger's methods were renamed (createHyperlexicon->createNotes, foldHyperlexicon->foldNotes) and the shim aliased only the factory, leaving production (read-on-arrival.js, holon.js, app.js) and three test files calling dead names; the shim now aliases the methods too, guarded so a native old-version organ is never shadowed. (B) dead feature: the engine's retrieve() never gained the `shapeFallback` option, so the shape-cue tie-fallback was silently dropped (dead in production); the-fold's source.js seam now wraps retrieve() with it, byte-identical whenever omitted. (C) contract drift: merge-code.js treated `main` as a colliding name although code-piece.js emits `main` on every skeleton; the entry point is now exempt and `nothing_to_bring` takes precedence. Full suite 2255/2235/20 -> 2261/2261/0, failure NAMES diffed (zero of the 20 remain, zero new). eoreader7 untouched (uncommitted concurrent work on fold-memory-p157).
+
+| persona | cell | citation | file:line | verdict | summary |
+|---|---|---|---|---|---|
+| Feynman | EVA | source.js:52 | fixed | `tieLen >= 2 && typeof shapeFallback === "function"` is structural (a tie needs two members), not a tuned threshold; the fallback's own constants carry declared provenance (shape-fallback.js header) and were never re-tuned against this module's numbers |
+| Ostrom | CON | source.js:24-31 header vs source.js:55-58 code | fixed | the wrap's header promised "a fallback that declines, THROWS, or names a chunk outside the tied group leaves the untouched baseline" — the code did not catch a throwing fallback; now caught (decline, never a crash) and pinned as a regression in shape-fallback.test.mjs ("a throwing fallback leaves the untouched baseline") |
+| Holmes | SIG | hyperlexicon.js:20-28 shim | clean | the alias maps same-act renamed methods (createHyperlexicon->createNotes, foldHyperlexicon->foldNotes) and only fires when the native organ lacks the old name — one organ, two names, never two entities merged by surface overlap |
+| Alexander | CON | merge-code.js:11-18 | clean | the main-exemption is structural (two mains would be two pipelines, incoherent); nothing_to_bring is a typed refusal, never a silent no-compose; the merged program was executed (python3, exit 0), so the composition is witnessed, not only shaped |
+
+clean: Frankfurt/Diaconis/Simon/Chekhov/Pearl — no new giver, constant, unwired module, or independence claim in this diff (no laws edited).
+## 2026-09-13 — Plato, the archon of form: SAME vs OTHER (new: plato.js, plato-forms.js, plato.test.mjs; solon.js register)
+
+Constitution: `../FOLD-CONSTITUTION.md` + this repo's POLICIES.md/CLAUDE.md. Reviewed diff: a new watcher in the register — Plato decides whether two things are the same by whether both PARTICIPATE IN ONE FORM (the equivalence organs' own admission: folded surface / sameAct morphology / CLDR-generated value forms / referent-index being), and REFUSES appearance-based identity outright (II.7: string distance may nominate, never decide; P11; P79). plato-forms.js resolves date/number surfaces against Intl month maps for 16 locales (CLDR, received — no language detection), so '26 августа 1812' and 'August 26, 1812' are one form. 10 tests, all passing.
+
+| persona | cell | citation | file:line | verdict | summary |
+|---|---|---|---|---|---|
+| Holmes | SIG | plato.js makePlato | clean | the archon is identity-by-form, never by surface: the refusal test (quixote/kixote -> REFUSED) pins that appearance alone is not identity — Holmes's own question answered in the module's favour |
+| Dijkstra | NUL | plato-forms.js | clean | the locale machinery is RECEIVED (Intl/CLDR month maps, giver-named), not a hand-typed allowlist — no per-language hash/table authored here |
+| Pearl | EVA | plato.js same() | clean | sameness is decided by a single admitted form, never by averaging two grounds; sameKind (P79) keeps kinds apart rather than pooling them |
+| Feynman | DEF | plato.js resolveValue fall-through | fixed | the first cut treated a `{gap}` object as truthy, so a non-value surface got a phantom 'value' form with the gap as its canon — now falls through to the next layer (surface identity), pinned by the diacritic test |
+| Marshall | meta | plato.js cited law (II.7, P11, P79) | clean | every citation resolves to a real entry; the register entry (solon.js) matches what the module does |
+| Simon/Chekhov | residual | plato.js + plato-forms.js | clean | both new sources are imported by plato.test.mjs (10 cases) — no unwired module |
+
+clean: Diaconis/Ostrom/Alexander — no null or threshold in the new modules; scope of credit is the form itself; no composition gate added.

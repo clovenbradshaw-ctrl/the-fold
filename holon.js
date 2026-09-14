@@ -37,14 +37,14 @@
 import { buildSourceBlock, checkCitations, foldTypography, openQuestions, retrieve, tokenize } from "./source.js";
 import { distinctSources, proposeCandidates, sourceOfWitness, textFeatures } from "./corroboration.js";
 import { checkGrounding, extractCheckableAtoms, unsupportedClaims, CLAIM_STOPWORDS } from "./grounding.js";
-import { attribute, attributedRefs, splitSentences } from "./cite.js";
+import { attribute, attributedRefs, coverage as poolCoverage, splitSentences } from "./cite.js";
 import { editPiece } from "./piece-edit.js";
 import { isCodeSource, topicTerms } from "./longform.js";
 import { snipsFor, snipBlock, checkSection, reviseAsk, applyRewrite } from "./snip-check.js";
 import { traceReading } from "./reading-trace.js";
 import { REVISION_ASKS, REVISION_ROUNDS, revisePiece } from "./piece-revise.js";
 import { budgetsFor, depthLine } from "./depth.js";
-import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard, repeatsAbsentPremise, turnSnipBlock } from "./correction.js";
+import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard, repeatsAbsentPremise, stripLeadingFraming, turnSnipBlock } from "./correction.js";
 // The conversation's own loops (dialogue.js, 2026-09-07): anaphora across turns, the reader's restatement graded, the address check with one re-ask on facts, self-consistency against this conversation's own record, the expectation before the draft and its diff.
 import { resolutionBlocks } from "./resolutions.js";
 import { mouthFacing } from "./firewall.js";
@@ -1223,6 +1223,15 @@ export async function runPart({
   // only reaches the chat branch below (a part that HAS passages already
   // knows the surf turned something up; this is specifically the void).
   searchedVoid = null,
+  // The conversation's own recent voice, measured after the last exchange
+  // (arcs.js + pathos-turn.js): when the arc went flat or its ground
+  // failed, the next turn is told the FACT about its own recent answers
+  // (the same information-not-instruction posture searchedVoid/priorPass
+  // already hold — P55). Flat only, same reach as searchedVoid: a
+  // decomposed part's narrow prompt is scoped to its part, never to the
+  // conversation's voice. Computed by the caller, threaded straight
+  // through. Null (every existing caller) is byte-identical to before.
+  voiceCue = null,
   // Whether the PERSON has material attached at all (app.js's own
   // `Object.keys(state.sources).length > 0`), independent of whatever this
   // turn's own `chunks`/`passages` happened to filter down to — threaded
@@ -1700,7 +1709,7 @@ export async function runPart({
       const sc = v.scope ?? {};
       const over = Array.isArray(sc.sources) && sc.sources.length ? `looked for in ${sc.sources.length} source${sc.sources.length === 1 ? "" : "s"}` : "looked for in what was read";
       const far = Number.isFinite(sc.read) && Number.isFinite(sc.total) ? (sc.read >= sc.total ? ", all of it read" : `, ${sc.read} of ${sc.total} parts read so far`) : "";
-      return `${over}${far}; an open gap, not a finding that it is false`;
+      return `${over}${far}`;
     };
     if (!corroborated.length && !single.length && !derived.length && !voids.length) return readingNote;
     // A note under a live dispute says so (P88's act reaching the mouth,
@@ -1727,7 +1736,7 @@ export async function runPart({
       corroborated.length ? `From earlier reading, stated in more than one place:\n${render(corroborated)}` : null,
       single.length ? `From earlier reading, stated once so far and bearing on this question — one account's claim, not a settled one:\n${render(single)}` : null,
       derived.length ? `From earlier reading, derived — no source states these; each follows from claims already read, and falls with them:\n${derived.map((d) => `- ${line(d)} (${derivedPhrase(d)})`).join("\n")}` : null,
-      voids.length ? `Looked for and not found so far — say these are open, never that they are false:\n${voids.map((v) => `- ${v.subject} — ${v.verb}→ ? (${voidPhrase(v)})`).join("\n")}` : null,
+      voids.length ? `Nothing here states these, and that is the answer — say it plainly, it is not yours to fill in:\n${voids.map((v) => `- ${v.verb === "appears" || v.verb === "is" ? `${v.subject} is not stated` : `whether ${v.subject} ${v.verb} is not stated`} in what was read (${voidPhrase(v)})`).join("\n")}` : null,
     ].filter(Boolean).join("\n\n");
   })();
 
@@ -1795,7 +1804,7 @@ export async function runPart({
           const findings = extractCheckableAtoms(shipped, { question: groundingQuestion });
           return { ...checkedGrounding, findings, clean: findings.length === 0 };
         })();
-    const attributions = attribute(text, passages, live);
+    const attributions = poolCoverage(text, passages, live);
     const attributed = attributedRefs(attributions);
     // The answer read against the material's own edges. Contradicted and
     // unbound edges are claims of fact the material does not make — they
@@ -2222,6 +2231,12 @@ export async function runPart({
   const priorPassSuffix = flat && priorPass ? ` ${priorPassFor(priorPass)}` : "";
   const s2Frame = priorPass ? S2_FRAME_PREFIX : "";
   const searchedVoidSuffix = flat && searchedVoid ? ` ${searchedVoid}` : "";
+  // The conversation's own recent voice (arcs.js/pathos-turn.js): a fact
+  // about the recent answers — the model's own openings, its own flatness —
+  // handed to the model exactly like searchedVoid is: information the
+  // model reasons from, never an instruction about how to answer. Flat
+  // only, same reach as searchedVoidSuffix.
+  const voiceCueSuffix = flat && voiceCue ? ` ${voiceCue}` : "";
   // UNRETRIEVED_MATERIAL_PREFIX's own header explains the incident this
   // closes. Gated on `sourcesAttached` (app.js's own `Object.keys(state.
   // sources).length > 0`, threaded straight through exactly as
@@ -2531,19 +2546,19 @@ export async function runPart({
       ? [
           {
             role: "system",
-            content: [modelLoopTuned.s2Frame + modelLoopTuned.flatExecuteSystemPrompt + modelLoopTuned.shapeSuffix + modelLoopTuned.notesSuffix + modelLoopTuned.priorPassSuffix + todaySuffix, draftMaterial].join("\n\n") + modelLoopTuned.chatContext + resolutionSuffix,
+            content: [modelLoopTuned.s2Frame + modelLoopTuned.flatExecuteSystemPrompt + modelLoopTuned.shapeSuffix + modelLoopTuned.notesSuffix + modelLoopTuned.priorPassSuffix + todaySuffix + voiceCueSuffix, draftMaterial].join("\n\n") + modelLoopTuned.chatContext + resolutionSuffix,
           },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task || `${part.label}. ${part.description}` },
         ]
       : chatHistory.length
         ? [
-            { role: "system", content: `${modelLoopTuned.s2Frame}${modelLoopTuned.chatSystemPrompt}${modelLoopTuned.searchedVoidSuffix}${unretrievedSuffix}${modelLoopTuned.notesSuffix}${modelLoopTuned.priorPassSuffix}${todaySuffix}${modelLoopTuned.chatContext}${ledgerSuffix}${resolutionSuffix}` },
+            { role: "system", content: `${modelLoopTuned.s2Frame}${modelLoopTuned.chatSystemPrompt}${modelLoopTuned.searchedVoidSuffix}${unretrievedSuffix}${modelLoopTuned.notesSuffix}${modelLoopTuned.priorPassSuffix}${todaySuffix}${voiceCueSuffix}${modelLoopTuned.chatContext}${ledgerSuffix}${resolutionSuffix}` },
             ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
             { role: "user", content: task },
           ]
         : [
-            { role: "system", content: `${modelLoopTuned.s2Frame}${modelLoopTuned.chatSystemPrompt}${modelLoopTuned.searchedVoidSuffix}${unretrievedSuffix}${modelLoopTuned.notesSuffix}${modelLoopTuned.priorPassSuffix}${todaySuffix}${ledgerSuffix}` },
+            { role: "system", content: `${modelLoopTuned.s2Frame}${modelLoopTuned.chatSystemPrompt}${modelLoopTuned.searchedVoidSuffix}${unretrievedSuffix}${modelLoopTuned.notesSuffix}${modelLoopTuned.priorPassSuffix}${todaySuffix}${voiceCueSuffix}${ledgerSuffix}` },
             { role: "user", content: `${task}${modelLoopTuned.chatContext}` },
           ]
     : [
@@ -3218,6 +3233,17 @@ export async function runPart({
     // does anything carrying a name, a number, or the material's own words.
     const pr = cutProcessTalk(text, { materialText, splitSentences });
     if (pr.cut.length) metaCut = [...metaCut, ...pr.cut];
+    // THE ONE P186 EXCEPTION THAT MAY TOUCH `text`: a LEADING framing
+    // scaffold ("The text says that…", "According to the text…") is not a
+    // sentence the model wrote — it is a crutch in front of the sentence,
+    // and the reader asked (2026-09-13) for answers that start with the
+    // claim. `stripLeadingFraming` removes a PREFIX ONLY, refuses anything
+    // that is not a real sentence, and never touches content after the
+    // first phrase. Disclosed here because P186's standing rule is that a
+    // check's finding never overwrites the mouth; this is the single,
+    // named exception for the scaffolding-prefix shape.
+    const framed = stripLeadingFraming(text);
+    if (framed.stripped) text = framed.text;
   }
   // ATTRIBUTE SUBSTITUTION (P174): the answer that quietly answers an easier
   // question. Read without a model, from the question's own words against the
@@ -3705,6 +3731,11 @@ export async function runHolonicTask({
   // says why) — a task-wide fact, since a preflight search runs once,
   // before the plan, never per-part.
   searchedVoid = null,
+  // The conversation's own recent voice (arcs.js/pathos-turn.js), computed
+  // by the caller after the last exchange — threaded straight to the flat
+  // part's chat branch for the identical reason searchedVoid is. Null →
+  // byte-identical to before.
+  voiceCue = null,
   // runPart's own header (UNRETRIEVED_MATERIAL_PREFIX) says why this is not
   // the same fact as `chunks.length`: task-wide, threaded straight through
   // for the identical reason searchedVoid is.
@@ -3935,6 +3966,7 @@ export async function runHolonicTask({
       // when planMode is "flat".
       flat: planMode === "flat",
       searchedVoid,
+      voiceCue,
       sourcesAttached,
       now,
       answerShape,

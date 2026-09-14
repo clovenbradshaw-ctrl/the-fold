@@ -145,10 +145,10 @@ test("AWARENESS THAT CHANGES THE NEXT TURN: a name the whole material lacks is d
   const TL = await import("../eoreader7/native/kernel/task-log.js");
   const cube = await import("../eoreader7/native/kernel/cube.js");
   // The organ's text face was renamed organs/hyperlexicon.js -> notes-text.js
-  // on eoreader7 main; resolve through the seam so this test runs beside
-  // either checkout (the same version-robustness hyperlexicon.js's shim has).
-  const seam = await import("../eoreader7/native/organs/index.js");
-  const makeHyperlexicon = seam.makeHyperlexicon ?? seam.makeNotesText;
+  // on eoreader7 main; resolve through the shim, which aliases both the
+  // factory name AND the method names (createNotes/createHyperlexicon) so
+  // this test runs beside either checkout.
+  const { makeHyperlexicon } = await import("./hyperlexicon.js");
   const hl = makeHyperlexicon({ createTaskLog: TL.createTaskLog, append: TL.append, projectTasks: TL.projectTasks, ENTRY_KINDS: TL.ENTRY_KINDS, OPERATOR_BASIS: TL.OPERATOR_BASIS, GRAINS: cube.GRAINS, cellOf: cube.cellOf });
   const seen = [];
   const first = await runHolonicTask({ task: "What does the book say about Marmeladov?", chunks, planMode: "flat", hyperlexicon: hl, hyperlexiconLog: hl.createHyperlexicon(), call: async (m) => { seen.push(m); return "The novel is about guilt."; }, ...organs });
@@ -159,7 +159,7 @@ test("AWARENESS THAT CHANGES THE NEXT TURN: a name the whole material lacks is d
   const again = [];
   const second = await runHolonicTask({ task: "Tell me more about Marmeladov.", chunks, planMode: "flat", hyperlexicon: hl, hyperlexiconLog: first.hyperlexiconLog, hyperlexiconVoids: voids ?? [], call: async (m) => { again.push(m); return "The sources here do not mention Marmeladov."; }, ...organs });
   const sys = again.map((m) => m.find((x) => x.role === "system")?.content ?? "").join("\n");
-  assert.match(sys, /looked for and not found so far/i, "the next turn is handed the void before it drafts");
+  assert.match(sys, /Marmeladov is not stated in what was read/, "the next turn is handed the void before it drafts — prosified as an affirmative negation (2026-09-13)");
   assert.match(sys, /Marmeladov/);
   assert.doesNotMatch(String(second.output), /Earlier in this conversation an answer held/, "no owning line on the answer");
 });

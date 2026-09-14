@@ -369,6 +369,27 @@ export function cutProcessTalk(text, { materialText = "", splitSentences }) {
   return { text: kept.join(" ").replace(/\s{2,}/g, " ").trim(), cut };
 }
 
+/**
+ * stripLeadingFraming — remove the SCaffold a small model puts in front of
+ * its answer ("The text says that…", "According to the text…", "Based on
+ * the sources…") so the reply starts with the claim, not with a description
+ * of where the claim came from. This is the ONE P186 exception that may
+ * touch the shipped text, and it is deliberately narrower than a sentence
+ * edit: it strips a LEADING PREFIX ONLY, never anything in the middle, and
+ * refuses when the remainder is not a real sentence (shorter than a clause,
+ * or no sentence-ending mark). The claim's own first word is re-capitalised
+ * ("moscow burned…" → "Moscow burned…"). Returns { text, stripped }.
+ */
+const FRAMING_RE = /^(?:the (?:text|sources?|passage|material|article|document) (?:says?|states?|mentions?|tells us|doesn'?t say|does not say)(?: that)?|according to (?:the|these|those|our|their)?\s*(?:text|sources?|passage|material|article|document)|based on (?:the|these|those)?\s*(?:text|sources?|passage|material|article|document)|in (?:the|these|those)?\s*(?:text|sources?|passage|material|article|document)|from (?:the|these|those)?\s*(?:text|sources?|passage|material))\s*/i;
+export function stripLeadingFraming(text) {
+  const t = String(text ?? "").trim();
+  const m = t.match(FRAMING_RE);
+  if (!m) return { text: t, stripped: false };
+  const rest = t.slice(m[0].length).replace(/^[\s,;:—–-]+/, "").trim();
+  if (rest.length < 15 || !/[.!?]/.test(rest)) return { text: t, stripped: false };
+  return { text: rest[0].toUpperCase() + rest.slice(1), stripped: true };
+}
+
 /** The snips a turn stands on, as the block handed above its material (P122's, for any turn). */
 export function turnSnipBlock(passages, question, terms = []) {
   const snips = snipsFor(passages, { obligations: contentWords(question), terms });

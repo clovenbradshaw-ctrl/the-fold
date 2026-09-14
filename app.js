@@ -85,7 +85,7 @@ import katex from "/node_modules/katex/dist/katex.mjs";
 
 import { checkGrounding, unsupportedClaims, extractCheckableAtoms, extractAtoms } from "./grounding.js";
 
-import { attribute, attributedRefs, stripSelfCitations } from "./cite.js";
+import { attribute, attributedRefs, coverage, stripSelfCitations } from "./cite.js";
 
 // The wall at the model's own turn boundary (see turn-boundary.js's own
 // header for the live incident this closes): a streamed answer is cut the
@@ -122,11 +122,22 @@ import { whereAmI, describeRoutes } from "./routes.js";
 // machine through a Matrix homeserver the person names — every byte that
 // leaves this page for it sealed under a key the homeserver never holds.
 import { FoldMatrix, localStorageStorage, MatrixError } from "./matrix-client.js";
-import { parseShareLink, stripShareFragment, SERVER_SEES, MAGIC_KEY_WARNING, deviceContent, deviceLine, fallbackMouth, ROOM_FALLBACK_KINDS } from "./matrix.js";
+import { parseShareLink, stripShareFragment, SERVER_SEES, MAGIC_KEY_WARNING, deviceContent, deviceLine, fallbackMouth } from "./matrix.js";
+import { createWatch } from "./heimdall-client.js";
+import { JOB_KINDS, CANDIDATE_KINDS, candidateOf, roomCandidateOf, roomCandidatesFrom, emptyEvidence, huginnObserve, huginnPrioritize, huginnHopAfter, huginnDecision } from "./huginn.js";
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
 import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony, landContest, makeDerivation } from "../eoreader7/native/organs/index.js";
+// THE PATHOS SYSTEM, NOT OPTIONAL (2026-09-13): the felt shape of the
+// conversation's recent voice, run on EVERY finished exchange (observeExchange),
+// and the arc's compellingness over time — both measured at the arc grain,
+// both speaking the next turn's voice cue (holon.js's `voiceCue`, flat only).
+// The pathos organs come from the one seam (native/organs/index.js); the
+// composition that makes them mandatory is this repo's pathos-turn.js.
+import { pathosOf, reGroundCondition, reGround, landReGround } from "../eoreader7/native/organs/index.js";
+import { makeArcState, observeArc, arcReading, voiceCueFor as arcCueFor } from "./arcs.js";
+import { pathosTurn } from "./pathos-turn.js";
 // The measuring door (P19), routed from the chat since 2026-09-05: the organ
 // is eoreader7's measure.js (the-fold/measure.js is its shim); the null is
 // the engine's own /nul mount; the audio reduce is the crossed pure half.
@@ -223,7 +234,11 @@ import {
 // regimeAfter/presentWindow are the startle posture: surprise consumed as
 // a contraction of the raw present, registered on the ledger, drawn
 // nowhere (aperture.js's regime block says why).
-import { exchangeHeldGround, makeApertureMeter, presentWindow, regimeAfter } from "./aperture.js";
+import { makeApertureMeter, presentWindow, regimeAfter } from "./aperture.js";
+import { kairosSign, SIGN as KAIROS_SIGN } from "./kairos.js";
+import { createRetrievalIndex, encodeRecord as encodeRecallRecord, recallCandidates, recordCitation } from "./retrieval.js";
+import { muninnRecall } from "./muninn.js";
+import { tokens as memoryTokens, codeOf as memoryCodeOf, recall as memoryRecall, encodeFrame as memoryEncodeFrame } from "/engine-v7/memory/activation.js";
 
 // The reading engine's own segment organ, served from /engine (see serve.mjs).
 // Boundaries are found by form there and received here — this app does not
@@ -1692,6 +1707,86 @@ const OLLAMA = "http://localhost:11434";
 // the reading record); every act it records passes matrix.js's forRecord
 // first, so the record holds pointers and never a key, a token or a turn.
 const foldMatrix = new FoldMatrix({ storage: localStorageStorage(), record: (kind, fields) => { logAct(kind, fields); mirrorTermRecord(kind, fields); } });
+
+// The page's own watcher at Bifröst (2026-09-13, heimdall-client.js): the
+// DEF→EVA→REC loop heimdall.mjs runs over proxy surfaces, applied to THIS
+// page's two live connections — the in-tab model engine and the Matrix room
+// tie. The probes are the two connections' real state; a REC lands an act on
+// the record and posts the vitals to serve.mjs's /api/vitals, so the
+// machine's Heimdall — which cannot look inside a browser — still sees this
+// page's engine and room (folded into serve.mjs's own /heimdall).
+let heimdallWatch = null;
+let lastVitalsPost = 0;
+const HEIMDALL_VITALS_MS = 30_000;
+function matrixConnectionProbe() {
+  const st = foldMatrix.status();
+  if (!st.signedIn) return { ok: true, meta: { standing: "not signed in — nothing to watch" } };
+  if (st.tokenDead) return { ok: false, reason: "homeserver session expired — sign in again" };
+  // Signed in: the connection is the room's watches. A keyless room has the
+  // grant watch polling for a grant; a keyed room should be running the live
+  // history tie. A room open with neither is a broken tie, measured.
+  const room = state.matrixRoom;
+  if (room && st.rooms.some((r) => r.id === room && r.hasKey)) {
+    const ok = roomHistoryWatch?.room === room || roomGrantWatch?.room === room;
+    return ok ? { ok: true, meta: { standing: "room tie live", room } } : { ok: false, reason: "the room's tie is not running", meta: { room } };
+  }
+  return { ok: true, meta: { standing: "signed in", room: room ?? null } };
+}
+function engineConnectionProbe() {
+  const selected = isWebLLMModel(state.model);
+  if (!selected) return { ok: true, meta: { standing: "no in-tab model selected — nothing to watch" } };
+  return webllmClient.ready
+    ? { ok: true, meta: { model: state.model } }
+    : { ok: false, reason: "the in-tab engine is not loaded", meta: { model: state.model } };
+}
+async function heimdallRecover(name, reason) {
+  if (name === "matrix") {
+    // A dead session needs the person; anything else means the room's tie
+    // stopped — restart the watches and re-discover the account's rooms.
+    if (foldMatrix.status().tokenDead) {
+      addMessage("assistant", `matrix: ${reason} — the room is not connected until then`);
+      return;
+    }
+    if (state.matrixRoom) openRoomWatches(state.matrixRoom);
+    reconcileAccountRooms().catch(() => {});
+  } else if (name === "engine") {
+    // The engine self-heals by design (device-lost → rebuild on next use);
+    // the REC here releases the GPU buffers so the rebuild is clean. Bounded:
+    // a dead worker can hang engine.unload() — the same RPC hang the stream
+    // watchdog guards — so the unload is best-effort under a short leash and
+    // the next ensure() terminates any stale worker by construction.
+    await Promise.race([webllmClient.unload().catch(() => {}), new Promise((r) => setTimeout(r, 2000))]);
+  }
+}
+function postVitals() {
+  const now = Date.now();
+  if (now - lastVitalsPost < HEIMDALL_VITALS_MS) return;
+  lastVitalsPost = now;
+  const st = foldMatrix.status();
+  const report = heimdallWatch?.report() ?? null;
+  fetch(new URL("/api/vitals", location.href), {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      online: navigator.onLine !== false,
+      engine: report?.probes?.engine ?? { ok: true, standing: "not started" },
+      matrix: report?.probes?.matrix ?? { ok: true, standing: "not started" },
+      watch: report ? { running: report.running, probes: Object.keys(report.probes ?? {}) } : null,
+      room: state.matrixRoom ?? null,
+      user: st.user ?? null,
+    }),
+  }).catch(() => { /* a static home has no /api/vitals — the report is best-effort */ });
+}
+function startHeimdallWatch() {
+  if (heimdallWatch) return;
+  heimdallWatch = createWatch({
+    intervalMs: 15_000,
+    probes: [{ name: "matrix", probe: matrixConnectionProbe }, { name: "engine", probe: engineConnectionProbe }],
+    recover: heimdallRecover,
+    act: (kind, fields) => { logAct(`heimdall-${kind}`, fields); postVitals(); },
+  });
+  heimdallWatch.start();
+  postVitals();
+}
 // A room member's mouth is a rung like any other: `room:@who:server model`.
 const ROOM_MODEL_PREFIX = "room:";
 const isRoomModel = (name) => typeof name === "string" && name.startsWith(ROOM_MODEL_PREFIX);
@@ -1728,6 +1823,18 @@ function mouthsLine(seq) {
   return list.map((m) => `${m.calls > 1 ? `${m.calls}× ` : ""}${m.model} ${m.where}${m.ms ? ` (${(m.ms / 1000).toFixed(1)}s)` : ""}`).join(" · ");
 }
 const MAX_TOKENS = 4096;
+// MUNINN_RECALL_BUDGET — the memory watcher's recall cut, declared (P9) on
+// the day muninn was wired into the live turn (2026-09-13): RECENCY_WINDOW
+// (4, fold.js) minus the present exchange — the count of prior exchanges
+// the present window itself drops from the raw slice. One less than the
+// window because the asking exchange is not yet encoded. Declared, never
+// tuned; a cut with no declared budget is a judgment wearing a setting's
+// clothes (muninn.js::declareBudget).
+const MUNINN_RECALL_BUDGET = 3;
+/** The memory organs (eoreader7's native/memory/activation.js) muninn's
+ *  index encodes and recalls through — the same real organ retrieval.js
+ *  is tested against, injected once here. */
+const memoryOrgans = { tokens: memoryTokens, codeOf: memoryCodeOf, recall: memoryRecall, encodeFrame: memoryEncodeFrame };
 /**
  * The summary refresh returns one short JSON object. Left uncapped, a small
  * model will happily spend a thousand tokens explaining it — which on a local
@@ -2037,6 +2144,12 @@ const state = {
    * a ledger: nothing here is written to `reflexLog`, which is the self
    * plane's alone. */
   aperture: apertureMeter.create(),
+  /** MUNINN's live seat (muninn.js — the memory watcher): the conversation's
+   * own record, encoded at every exchange and recalled at every question,
+   * the same index retrieval.js is tested against. `recallRecords` keeps the
+   * gist by order — the caller's join key back to the record. */
+  retrievalIndex: createRetrievalIndex(),
+  recallRecords: [],
   /** Consecutive summary refreshes skipped because the exchange held the
    * ground (refreshSummary's gate). Bounded by MAX_FOLDS_IN_PROMPT so a
    * held fold line never falls out of the refresh prompt's window unseen. */
@@ -2087,6 +2200,15 @@ const PER_CONVO = [
   "aperture",
   "heldFolds",
   "regime",
+  // THE ARC AND ITS PATHOS (2026-09-13): the conversation's recent voice —
+  // arcs.js's rolling window, the pathos re-ground ledger (append-only,
+  // landReGround), the concession bookkeeping, and the cue the next turn
+  // hears. Per conversation, exactly like aperture/regime are.
+  "arcs",
+  "pathosLog",
+  "pathosLast",
+  "pathosHeld",
+  "voiceCue",
   // Whether this chat is cut off from the rest of its workspace. Default
   // false: a workspace's conversations know what the others found, which is
   // the whole reason a workspace is a thing. See PER_WORKSPACE below.
@@ -2287,6 +2409,8 @@ function newConvo() {
     reflexLog: emptyReflexLog(),
     meter: reflexMeter.create(),
     aperture: apertureMeter.create(),
+    retrievalIndex: createRetrievalIndex(),
+    recallRecords: [],
     heldFolds: 0,
     regime: 0,
     // Off by default: a new chat in a workspace starts knowing what the
@@ -2477,7 +2601,12 @@ async function fillModels() {
   const blocker = webgpuBlocker({ gpu: navigator.gpu, secureContext: window.isSecureContext });
   if (!blocker) {
     const adapter = await webgpuAdapterInfo();
-    const offerable = offerableRungs(webllmClient.appConfig, adapter);
+    // The device's own memory report bounds the roster the same way the
+    // adapter's feature set does (webllm-rung.js): a rung whose declared VRAM
+    // cannot fit this phone is never offered, and where the adapter lacks
+    // shader-f16 the family's f32 build is offered instead (2026-09-13).
+    const device = { memGB: navigator.deviceMemory ?? null };
+    const offerable = offerableRungs(webllmClient.appConfig, adapter, device);
     if (offerable.length) {
       state.offeredModels = mergeOffered(state.offeredModels, true, offerable);
       for (const id of offerable) {
@@ -2485,7 +2614,7 @@ async function fillModels() {
         state.availableModels.add(id);
         const opt = document.createElement("option");
         opt.value = id;
-        opt.textContent = `${m.label} · ${m.publisher}, ${m.license}`;
+        opt.textContent = `${webllmLabelFor(id)} · ${m.publisher}, ${m.license}`;
         opt.title = m.origin;
         sel.append(opt);
       }
@@ -2571,17 +2700,22 @@ async function connect() {
     state.contextTokens = tfContextWindowFor(state.model);
     const m = tfModelOf(state.model);
     $("status").textContent = `ready · ${tfLabelFor(state.model)} · ${TF_DISCLOSURE(state.model)}`;
-    tfDownloadBanner(tfLabelFor(state.model));
-    tfChatClient.preload({
-      model: state.model,
-      onProgress: (file, pct) => tfDownloadPct(pct ?? 0),
-    }).then(() => {
-      tfDownloadDone();
-      $("status").textContent = `ready · ${tfLabelFor(state.model)} · loaded on this device${m?.origin ? ` · ${m.origin}` : ""}`;
-    }).catch((e) => {
-      tfDownloadDone();
-      $("status").textContent = `${tfLabelFor(state.model)} could not load: ${e?.message ?? e}`;
-    });
+    // `?noconnect` is the page's own test seam (the mobile e2e drives the
+    // real page with no weight download): the composer is enabled and the
+    // rung is selected, but the ~0.4GB first-use download is not started.
+    if (!location.search.includes("noconnect")) {
+      tfDownloadBanner(tfLabelFor(state.model));
+      tfChatClient.preload({
+        model: state.model,
+        onProgress: (file, pct) => tfDownloadPct(pct ?? 0),
+      }).then(() => {
+        tfDownloadDone();
+        $("status").textContent = `ready · ${tfLabelFor(state.model)} · loaded on this device${m?.origin ? ` · ${m.origin}` : ""}`;
+      }).catch((e) => {
+        tfDownloadDone();
+        $("status").textContent = `${tfLabelFor(state.model)} could not load: ${e?.message ?? e}`;
+      });
+    }
     $("send").disabled = false;
     openSettings(false);
     showView("chat");
@@ -2625,7 +2759,7 @@ async function connect() {
  * just a bare string, so a caller can tell "the model finished" from "the cap
  * cut it off" without re-deriving that fact by guessing at the text.
  */
-async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, model, temperature } = {}) {
+async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, model, temperature, jobKind = JOB_KINDS.FLAT } = {}) {
   const callSeq = turnSeq;
   // One request, to the one place a model lives. `model` is routed: plain
   // turns and the summary refresh spend the fastest rung; deep work (task,
@@ -2633,74 +2767,103 @@ async function completeOnce(messages, { onDelta, onThinking, maxTokens, json, mo
   // request, the pace ledger, and the status line all name the SAME model.
 const modelName = model ?? state.model;
   if (isRoomModel(modelName)) return completeViaRoom(messages, { onDelta, onThinking, maxTokens, json, temperature }, roomModelParts(modelName), modelName, callSeq);
-  // A device whose only local rungs are the in-tab models (no Ollama) is
-  // exactly the phone that cannot run WebGPU at all ("unable to find a
-  // compatible gpu"). When a room mouth is offered, PREFER it: try the
-  // desktop first, sealed, and fall back to this device's own rung only if
-  // the room cannot answer (2026-09-11, user direction: "roll over to my
-  // desktop if it's logged in").
-  const prefer = await preferRoomMouth();
-  if (prefer && (isWebLLMModel(modelName) || isTfModel(modelName))) {
-    try { return await completeViaRoom(messages, { onDelta, onThinking, maxTokens, json, temperature }, roomModelParts(prefer), prefer, callSeq); }
-    catch { /* the room could not answer on this device — fall through to its own rung */ }
-  }
-  try {
-    return await completeLocal(messages, { onDelta, onThinking, maxTokens, json, model: modelName }, callSeq);
-  } catch (err) {
-    // Roll over to a room mouth on a typed device failure — but not when the
-    // room was ALREADY tried as the preference above (it just failed).
-    if (!prefer) {
-      const fallback = await roomFallbackFor(modelName, err);
-      if (fallback) {
-        try { return await completeViaRoom(messages, { onDelta, onThinking, maxTokens, json, temperature }, fallback, modelName, callSeq); }
-        catch { throw err; }
+  // The plan: Huginn (huginn.js — model prioritization, under heimdall)
+  // orders this call's candidates — the routed local model and every room
+  // mouth offering one — by measured expected wait, honouring a pinned pick
+  // and a device-shape preference, then hops on a typed machine failure.
+  // Every hop is recorded; a wrong answer never hops.
+  const plan = await huginnPlanFor(modelName, jobKind);
+  const tried = [];
+  let lastErr = null;
+  for (const cand of plan.order) {
+    if (tried.includes(cand.id)) continue;
+    tried.push(cand.id);
+    const started = Date.now();
+    const isRoom = cand.kind === CANDIDATE_KINDS.ROOM;
+    try {
+      const out = isRoom
+        ? await completeViaRoom(messages, { onDelta, onThinking, maxTokens, json, temperature }, { user: cand.user, model: cand.model }, modelName, callSeq)
+        : await completeLocal(messages, { onDelta, onThinking, maxTokens, json, model: modelName, temperature }, callSeq);
+      observeHuginn(cand, Date.now() - started, true, null, jobKind);
+      if (plan.order.length > 1) {
+        landHuginnDecision(huginnDecision({
+          act: tried.length > 1 ? "hop" : "prioritize",
+          jobKind, pick: cand, why: tried.length > 1 ? null : plan.why,
+          from: tried.length > 1 ? plan.order[plan.order.indexOf(cand) - 1] : null,
+          order: plan.order,
+        }));
       }
+      return out;
+    } catch (err) {
+      lastErr = err;
+      const kind = isRoom ? "machine" : localFailureKind(modelName, err);
+      observeHuginn(cand, Date.now() - started, false, kind, jobKind);
+      const hop = huginnHopAfter(kind, { order: plan.order, tried, selfServing: servingTurn ? foldMatrix.status().user : null });
+      landHuginnDecision(huginnDecision({ act: hop.refused ? "hop-refused" : "hop", jobKind, pick: hop.hop, from: cand, order: plan.order, refused: hop.refused }));
+      if (hop.refused) break;
     }
-    throw err;
   }
+  throw lastErr ?? new Error("no candidate could answer this call");
 }
 
-/**
- * The room mouth this device should PREFER for a turn, or null. Fires only
- * when this device has no Ollama of its own (its only local rungs are the
- * in-tab models) — a phone whose WebGPU cannot run them — and the open room
- * offers a mouth on another member's machine. The account's own other device
- * is excluded the same way the failure failover excludes it, so a device
- * never tries to hand a turn to itself. `servingTurn` guards the reverse: a
- * page currently answering the room must not prefer the room it is serving.
- */
-async function preferRoomMouth() {
-  if (servingTurn) return null;
-  if (!state.matrixRoom || foldMatrix.locked || !foldMatrix.status().signedIn) return null;
-  if (ollamaModels().length) return null; // real local inference exists — no preference
-  let offers = foldMatrix.pool(state.matrixRoom).offers;
-  if (!offers.length) { try { offers = await foldMatrix.mouths(state.matrixRoom); } catch { return null; } }
-  const mouth = fallbackMouth(offers, { exclude: foldMatrix.status().user });
-  if (!mouth?.models?.length) return null;
-  return roomModelName(mouth.user, mouth.models[0]);
+/** The measured evidence Huginn decides on, for the life of this page. The
+ *  room pool keeps its own per-mouth measurements on the homeserver; this
+ *  fold is the local side and the session's own memory of both. */
+let huginnEvidence = emptyEvidence();
+function observeHuginn(cand, ms, ok, failureKind, jobKind) {
+  huginnEvidence = huginnObserve(huginnEvidence, { candidateId: cand.id, jobKind, ms, ok, failureKind });
 }
-
-/**
- * The typed rollover: which mouth in the open room takes a local call that
- * just failed, or null when none should. `kind` "machine" is this page's
- * own typing for "Ollama was unreachable at all"; the WebLLM kinds come
- * from classifyWebLLMFailure. Excludes this device's own mouth — rolling
- * the work onto the very machine that failed is a loop — and refuses while
- * this page is itself SERVING the room (a worker must never bounce its own
- * job back into the room).
- */
-async function roomFallbackFor(modelName, err) {
-  if (servingTurn) return null;
-  if (!state.matrixRoom || !foldMatrix.status().signedIn) return null;
-  const kind = isWebLLMModel(modelName)
-    ? classifyWebLLMFailure(err, { online: navigator.onLine !== false }).kind
-    : err?.machineFailure ? "machine" : null;
-  if (!kind || (kind !== "machine" && !ROOM_FALLBACK_KINDS.includes(kind))) return null;
-  let offers = foldMatrix.pool(state.matrixRoom).offers;
-  if (!offers.length) { try { offers = await foldMatrix.mouths(state.matrixRoom); } catch { return null; } }
-  const mouth = fallbackMouth(offers, { kind: kind === "machine" ? null : kind, exclude: foldMatrix.status().user });
-  if (!mouth) return null;
-  return { user: mouth.user, model: null };
+/** Every Huginn decision lands on the record — a hop is never a silent
+ *  re-run. Best-effort, the same `mirrorTermRecord` every door uses. */
+function landHuginnDecision(entry) {
+  mirrorTermRecord(entry.act, { ...entry, via: "chat" });
+}
+/** The typed failure of a LOCAL call, in the vocabulary Huginn hops on. A
+ *  WebLLM failure is classified by the adapter; an Ollama call that was
+ *  unreachable at all is `machine`; a non-2xx RESPONSE is the model
+ *  answering badly and is NOT a hop reason — it is the caller's. */
+function localFailureKind(modelName, err) {
+  if (isWebLLMModel(modelName)) return classifyWebLLMFailure(err, { online: navigator.onLine !== false }).kind ?? null;
+  return err?.machineFailure ? "machine" : null;
+}
+/** The ordered candidate plan for one call: the routed local model plus
+ *  every room mouth offering a model, ranked by Huginn. A device with no
+ *  Ollama of its own (only in-tab rungs) prefers a room mouth first — the
+ *  2026-09-11 direction ("roll over to my desktop if it's logged in")
+ *  expressed as an order, not a measurement. Deep work and the pass
+ *  specialists are pinned: they hop only on failure, never on ranking. */
+async function huginnPlanFor(modelName, jobKind) {
+  const localKind = isTfModel(modelName) ? CANDIDATE_KINDS.TF : isWebLLMModel(modelName) ? CANDIDATE_KINDS.WEBLLM : CANDIDATE_KINDS.OLLAMA;
+  const candidates = [candidateOf(modelName, localKind)];
+  const inflight = {};
+  const meanMs = {};
+  const selfUser = foldMatrix.status().signedIn ? foldMatrix.status().user : null;
+  if (huginnEvidence[modelName]?.meanMs != null) meanMs[modelName] = huginnEvidence[modelName].meanMs;
+  let offers = [];
+  if (state.matrixRoom && selfUser && !foldMatrix.locked) {
+    const pool = foldMatrix.pool(state.matrixRoom);
+    offers = pool.offers;
+    if (!offers.length) { try { offers = await foldMatrix.mouths(state.matrixRoom); } catch { offers = []; } }
+    const workers = pool.workers;
+    for (const rc of roomCandidatesFrom(offers)) {
+      if (rc.user === selfUser) continue; // a machine never asks its own mouth
+      candidates.push(rc);
+      const w = workers[rc.user] ?? {};
+      inflight[rc.id] = Math.max(0, (w.sent ?? 0) - (w.answered ?? 0) - (w.failed ?? 0));
+      const wMean = Array.isArray(w.ms) && w.ms.length ? w.ms.reduce((a, b) => a + b, 0) / w.ms.length : null;
+      meanMs[rc.id] = wMean ?? huginnEvidence[rc.id]?.meanMs ?? null;
+    }
+  }
+  let prefer = null;
+  if (!ollamaModels().length && offers.length && !servingTurn) {
+    const mouth = fallbackMouth(offers, { exclude: selfUser });
+    if (mouth?.models?.length) prefer = roomCandidateOf(mouth.user, mouth.models[0]).id;
+  }
+  const pinned =
+    jobKind === JOB_KINDS.DEEP || jobKind === JOB_KINDS.S1 || jobKind === JOB_KINDS.S2 || jobKind === JOB_KINDS.WITNESS
+      ? modelName
+      : null;
+  return huginnPrioritize(jobKind, { candidates, pinned, prefer, inflight, meanMs, selfServing: servingTurn ? selfUser : null });
 }
 
 /** A request through the room: the prompt sealed to one member's mouth, the
@@ -3007,6 +3170,11 @@ function logAct(act, detail = {}) {
  * it in the other direction (reflex.js's four walls). Not yet drawn
  * anywhere — see CLAUDE.md, "System 1's own ground".
  */
+/** The recall gist of an exchange — its own words, truncated to the
+ *  aperture's own unit. A gist is the conversation's own words (S1's
+ *  material), never a paraphrase laundered into the prompt (retrieval.js's
+ *  own rule: a recalled record re-enters the RECORD projection). */
+const truncateRecallGist = (s) => String(s ?? "").slice(0, 240);
 function observeExchange(turn, question, answer) {
   const arrivals = [];
   for (const [role, text] of [["user", question], ["assistant", answer]]) {
@@ -3025,6 +3193,69 @@ function observeExchange(turn, question, answer) {
   // and releases at the discourse tier's own gamma — one clock, belief's
   // own. Consumed at the next turn's raw-history slice; drawn nowhere.
   state.regime = regimeAfter(state.regime, arrivals, state.aperture.tiers[0]);
+  // KAIROS's live seat (kairos.js — the pattern watcher, the third of the
+  // triad): the exchange's difference is judged — pattern / noise / gap,
+  // the null's own median cut — and the verdict lands on the record.
+  // Best-effort (mirrorTermRecord's own posture); the sign is the DECISION,
+  // never a metric rendered anywhere (P72).
+  const exchangeSign = kairosSign(arrivals);
+  mirrorTermRecord("kairos-sign", { turn, sign: exchangeSign.sign, reason: exchangeSign.reason, via: "chat" });
+  // MUNINN's live seat (muninn.js — the memory watcher): the exchange is
+  // encoded into the conversation's own retrieval index, so a LATER
+  // question can recall this exchange beyond the present window. The gist
+  // is the exchange's own words (truncated, the aperture's own unit); the
+  // order is the monotonic record count, unique by construction. Kept
+  // split (question, answer) so a recall replays both roles honestly.
+  const recallOrder = state.recallRecords.length;
+  state.recallRecords.push({ q: truncateRecallGist(question), a: truncateRecallGist(answer) });
+  encodeRecallRecord(state.retrievalIndex, recallOrder, { gist: `${state.recallRecords[recallOrder].q} ${state.recallRecords[recallOrder].a}` }, memoryOrgans);
+  // THE PATHOS SYSTEM, NOT OPTIONAL (2026-09-13): every finished exchange
+  // is undergone. The arc (arcs.js) absorbs the answer into its rolling
+  // window; the recent voice is read through the pathos organ (rhythm real,
+  // strain from the conversation's own record, curve a DECLARED GAP on this
+  // pipeline — the exchange is not run through a reader fold, so collapse
+  // cannot fire; stale and contested are the live registers); a ground that
+  // failed is conceded on the append-only pathos ledger (landReGround); and
+  // the next turn hears the cue (holon.js's `voiceCue`, flat only). Gated
+  // on nothing — not checking mode, not attachments: the felt shape of the
+  // conversation is a fact about the conversation, and the 100-turn battery
+  // exercises it exactly as a live chat does.
+  state.arcs ??= makeArcState();
+  state.pathosLog ??= [];
+  observeArc(state.arcs, { question, answer });
+  const arc = arcReading(state.arcs);
+  const arcCue = arcCueFor(arc);
+  const pathosOut = pathosTurn({
+    organs: { pathosOf, reGroundCondition, reGround, landReGround },
+    text: state.arcs.answers.map((a) => a.text).join("\n\n"),
+    experiencer: { who: "the-fold:reader", read: `conversation:${convoNow()}` },
+    state: { contested: foldLoops(loopLogNow()).filter((l) => l.state === "contested").map((l) => l.id) },
+    ledger: state.pathosLog,
+    lastKind: state.pathosLast,
+    heldSinceLast: state.pathosHeld,
+    turn,
+  });
+  state.pathosLog = pathosOut.ledger;
+  state.pathosLast = pathosOut.lastKind;
+  state.pathosHeld = pathosOut.heldSinceLast;
+  if (pathosOut.act) {
+    state.reflexLog = recordAct(state.reflexLog, {
+      turn,
+      act: "re-grounded",
+      kind: pathosOut.condition.kind,
+      at: pathosOut.act.record.at,
+      giver: pathosOut.act.witness,
+    });
+  }
+  state.reflexLog = recordAct(state.reflexLog, {
+    turn,
+    act: "pathos",
+    condition: pathosOut.condition.kind,
+    flat: arc.flat,
+    framesLocked: arc.framesLocked,
+    renewalCollapsing: arc.renewalCollapsing,
+  });
+  state.voiceCue = [pathosOut.cue, arcCue].filter(Boolean).join(" ") || null;
   autoPreserve();
   return arrivals;
 }
@@ -3218,7 +3449,7 @@ const matrixGap = (e) => (e instanceof MatrixError ? e.message : e?.message ?? S
  *  label so the caller can say which one it was. */
 function forgetRoom() {
   const was = state.matrixRoom ? roomLabel(state.matrixRoom) : "the last room";
-  stopRoomGrantWatch(state.matrixRoom);
+closeRoomWatches(state.matrixRoom);
   if (inviteWatch?.room === state.matrixRoom) { inviteWatch.controller.abort(); inviteWatch = null; }
   if (roomServing?.room === state.matrixRoom) { roomServing.controller.abort(); roomServing = null; }
   state.matrixRoom = null; localStorage.removeItem("fold-matrix-room");
@@ -3312,8 +3543,8 @@ async function matrixTurn(arg, question) {
       const r = await foldMatrix.remove(state.matrixRoom, tail);
       return usageTurn(question, `${tail} is out of ${roomLabel(state.matrixRoom)}, and the key rotated to epoch ${r.epoch} — nothing sealed from now on reaches them; what they already read, they keep (no key un-reads a block). Re-granted: ${r.regranted.join(", ") || "nobody"}`, { what: "matrix" });
     }
-    if (verb === "logout") { await foldMatrix.logout(); stopRoomGrantWatch(state.matrixRoom); if (roomServing) { roomServing.controller.abort(); roomServing = null; } return usageTurn(question, "signed out; the token was invalidated on the homeserver and forgotten here. Chat keys stay in this browser — /matrix forget drops them too.", { what: "matrix" }); }
-    if (verb === "forget") { localStorageStorage().clear(); stopRoomGrantWatch(state.matrixRoom); state.matrixRoom = null; return usageTurn(question, "forgotten: the session, this browser's identity pair, every chat key. Reload to start clean. (Rooms and blocks stay on the homeserver, unreadable without the keys.)", { what: "matrix" }); }
+    if (verb === "logout") { await foldMatrix.logout(); closeRoomWatches(state.matrixRoom); if (roomServing) { roomServing.controller.abort(); roomServing = null; } return usageTurn(question, "signed out; the token was invalidated on the homeserver and forgotten here. Chat keys stay in this browser — /matrix forget drops them too.", { what: "matrix" }); }
+    if (verb === "forget") { localStorageStorage().clear(); closeRoomWatches(state.matrixRoom); state.matrixRoom = null; return usageTurn(question, "forgotten: the session, this browser's identity pair, every chat key. Reload to start clean. (Rooms and blocks stay on the homeserver, unreadable without the keys.)", { what: "matrix" }); }
     if (verb === "rooms") {
       const st = foldMatrix.status(); if (!st.signedIn) return usageTurn(question, "not signed in — /matrix login <homeserver>", { what: "matrix" });
       const joined = await foldMatrix.http().joinedRooms();
@@ -3326,7 +3557,7 @@ async function matrixTurn(arg, question) {
       const r = await foldMatrix.load(tail);
       if (!r.entries.length && r.partial) return usageTurn(question, `${tail}: ${r.gaps.join("; ")}`, { what: "matrix" });
       state.matrixRoom = tail; localStorage.setItem("fold-matrix-room", tail);
-      startRoomGrantWatch(tail);
+      openRoomWatches(tail);
       bootstrapRoomModel();
       const n = replayEntries(r.entries, tail);
       return usageTurn(question, `opened ${roomLabel(tail)}: ${r.chains} chain(s), ${r.blocks} block(s), ${r.entries.length} entr${r.entries.length === 1 ? "y" : "ies"} read back and decrypted here — ${n} drawn above${r.gaps.length ? `\ngaps: ${r.gaps.join("; ")}` : ""}`, { what: "matrix" });
@@ -3349,7 +3580,7 @@ async function preserveTurn(arg, question) {
     let room = state.matrixRoom;
     if (!room) { const existing = await accountRoomHoldingKey(); room = existing ?? (await foldMatrix.ensureRoom({ name })); }
     state.matrixRoom = room; localStorage.setItem("fold-matrix-room", room);
-    startRoomGrantWatch(room);
+    openRoomWatches(room);
     const r = await foldMatrix.preserve(room, chatEntries());
     bootstrapRoomModel();
     const sources = liveSources().length;
@@ -3377,7 +3608,7 @@ async function shareTurn(arg, question) {
     if (foldMatrix.locked) { openMatrixSheet("unlock"); return usageTurn(question, "locked — the unlock sheet is open", { what: "share" }); }
     if (!foldMatrix.status().signedIn) return usageTurn(question, "not signed in — /matrix login <homeserver> first", { what: "share" });
     const [verb, ...rest] = arg.split(/\s+/); const tail = rest.join(" ").trim();
-    if (!state.matrixRoom) { const firstAsk = state.history.find((h) => h.role === "user")?.content ?? ""; state.matrixRoom = await foldMatrix.ensureRoom({ name: firstAsk.replace(/\s+/g, " ").slice(0, 60) || "a fold chat" }); localStorage.setItem("fold-matrix-room", state.matrixRoom); await foldMatrix.preserve(state.matrixRoom, chatEntries()); }
+    if (!state.matrixRoom) { const firstAsk = state.history.find((h) => h.role === "user")?.content ?? ""; state.matrixRoom = await foldMatrix.ensureRoom({ name: firstAsk.replace(/\s+/g, " ").slice(0, 60) || "a fold chat" }); localStorage.setItem("fold-matrix-room", state.matrixRoom); await foldMatrix.preserve(state.matrixRoom, chatEntries()); openRoomWatches(state.matrixRoom); }
     const room = state.matrixRoom; const pageHref = stripShareFragment(location.href);
     if (verb === "pending") { const r = await foldMatrix.grantPending(room); return usageTurn(question, [`bound invites outstanding: ${foldMatrix.pendingInvites(room).join(", ") || "none"}`, ...grantLines(r), grantLines(r).length ? "" : "nothing waiting"].join("\n"), { what: "share" }); }
     if (verb === "grant") { if (!/^@[^:]+:.+$/.test(tail)) return usageTurn(question, "/share grant @who:server — after comparing their fingerprint aloud (/matrix members)", { what: "share" }); const r = await foldMatrix.share(room, { grant: tail }); return usageTurn(question, [`${tail} now holds the chat key (every epoch), wrapped to key ${r.granted[0].fingerprint}`, "you trusted that key by comparing it out of band; a homeserver cannot have swapped what you read aloud"].join("\n"), { what: "share" }); }
@@ -3449,6 +3680,41 @@ function startRoomGrantWatch(room) {
 }
 function stopRoomGrantWatch(room) { if (roomGrantWatch?.room === room) { roomGrantWatch.controller.abort(); roomGrantWatch = null; } }
 
+/** While this page holds a room's key and is open, its live tie to the room
+ *  (2026-09-13, the "between uses" pass): a long-poll sync that delivers a
+ *  NEW block preserved by another member — very often this ACCOUNT's own
+ *  other device, whose key the grant watch above just wrapped — the moment
+ *  it lands, decrypted and replayed, without a reload or a manual /preserve.
+ *  Transient drops back off inside matrix-client.js; only a dead session
+ *  (M_UNKNOWN_TOKEN) ends the watch, and it says so on the status line. */
+let roomHistoryWatch = null;
+function startRoomHistoryWatch(room) {
+  if (!room || !foldMatrix.status().signedIn || foldMatrix.locked) return;
+  if (!foldMatrix.keyOf(room)) return; // nothing to watch without the key — the grant watch covers that
+  if (roomHistoryWatch?.room === room) return;
+  roomHistoryWatch?.controller.abort();
+  const controller = new AbortController();
+  roomHistoryWatch = { room, controller };
+  foldMatrix.watchHistory(room, {
+    signal: controller.signal,
+    onEntries: (fresh, loaded) => {
+      const n = replayEntries(fresh, room);
+      if (n) addMessage("assistant", `${n} turn(s) arrived from another device while this page was open — read back and decrypted here (${loaded.chains} chain(s), ${loaded.blocks} block(s)); /preserve carries this chat's own next turns`);
+      renderRoomChip();
+    },
+    onGap: (e) => {
+      if (e instanceof MatrixError && (e.status === 401 || e.errcode === "M_UNKNOWN_TOKEN")) {
+        $("status").textContent = "matrix: your homeserver session expired — /matrix login <homeserver> again";
+      }
+    },
+  }).catch(() => {}).finally(() => { if (roomHistoryWatch?.controller === controller) roomHistoryWatch = null; });
+}
+function stopRoomHistoryWatch(room) { if (roomHistoryWatch?.room === room) { roomHistoryWatch.controller.abort(); roomHistoryWatch = null; } }
+/** Every watch an open room owns, started together so no open path can forget
+ *  the live tie to the room (the grants AND the arriving history). */
+function openRoomWatches(room) { startRoomGrantWatch(room); startRoomHistoryWatch(room); }
+function closeRoomWatches(room) { stopRoomGrantWatch(room); stopRoomHistoryWatch(room); }
+
 /** The account's fold rooms on its homeserver, and what THIS device can do
  *  with each: a room the account already preserved to. Matrix membership is
  *  per ACCOUNT, so a second browser signed in as the same person is already
@@ -3468,7 +3734,7 @@ async function reconcileAccountRooms({ announce = true } = {}) {
   const held = rooms.find((r) => foldMatrix.keyOf(r.id));
   if (held) {
     state.matrixRoom = held.id; localStorage.setItem("fold-matrix-room", held.id);
-    startRoomGrantWatch(held.id);
+    openRoomWatches(held.id);
     if (announce) {
       try {
         const loaded = await foldMatrix.load(held.id);
@@ -3495,7 +3761,7 @@ async function reconcileAccountRooms({ announce = true } = {}) {
     if (granted) {
       if (!state.matrixRoom) {
         state.matrixRoom = r.id; localStorage.setItem("fold-matrix-room", r.id);
-        startRoomGrantWatch(r.id);
+        openRoomWatches(r.id);
         if (announce) {
           try {
             const loaded = await foldMatrix.load(r.id);
@@ -3536,7 +3802,7 @@ async function joinInto(link, { passphrase = null } = {}) {
   if (!r.joined) return `${r.room}: ${r.gap}`;
   state.matrixPendingLink = null;
   state.matrixRoom = r.room; localStorage.setItem("fold-matrix-room", r.room);
-  startRoomGrantWatch(r.room);
+  openRoomWatches(r.room);
   $("status").textContent = `ready · ${state.model}`;
   bootstrapRoomModel();
   if (r.awaiting) return `joined ${r.name ? `"${r.name}" ` : ""}${r.room}, and published this browser's key (${r.fingerprint}) with the link's proof — ${r.gaps.join("; ")}`;
@@ -3555,7 +3821,8 @@ async function joinTurn(arg, question) {
 }
 /** While this page is answering the room (serve()), a call that fails must
  *  never roll OVER to the room — it would bounce its own job back into its
- *  own serving loop forever. completeOnce's roomFallbackFor reads this. */
+ *  own serving loop forever. completeOnce's Huginn plan excludes the
+ *  serving user's own mouth (isSelfServed) the moment this is set. */
 let servingTurn = 0;
 /** The on-device CPU rung's first-use weight download has been disclosed. */
 let tfDisclosed = false;
@@ -8330,7 +8597,7 @@ async function reflectTurn(question, typed) {
 
   const resolveName = castFor(offered);
   const grounding = checkGrounding(answer, offered, { question, resolveName });
-  const attributions = attribute(answer, offered, all);
+  const attributions = coverage(answer, offered, all);
   const { used } = checkCitations(answer, offered);
 
   // Material addresses quoted inside the offered ledger lines are real,
@@ -8435,7 +8702,12 @@ async function reflectTurn(question, typed) {
 // knew happened.
 async function refreshSummary(fold, arrivals = null, sentCalls = null, { forceRefresh = false, because = null } = {}) {
   state.turnFolds.push(fold);
-  const heldGround = Boolean(arrivals) && exchangeHeldGround(arrivals);
+  // KAIROS's gate (kairos.js — the pattern watcher): the exchange is
+  // carried only when its sign is NOISE — the null's own median held, no
+  // difference that makes a difference (behaviorally identical to the
+  // aperture's exchangeHeldGround cut, pinned in kairos.test.mjs; the
+  // DECISION is now the watcher's, on the record via observeExchange).
+  const heldGround = Boolean(arrivals) && kairosSign(arrivals).sign === KAIROS_SIGN.NOISE;
   if (heldGround && forceRefresh) {
     // The override is itself an act, never silent — the same discipline
     // the ordinary `carried` skip below already holds for the opposite
@@ -10279,6 +10551,35 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     const ledgerRecipe = ledgerFrame ? await readerRecipe(ledgerFrame) : null;
 
     const ledgerBase = state.hyperlexiconLog;
+
+    // MUNINN's live seat (muninn.js — the memory watcher): before the turn
+    // is composed, the question recalls the conversation's own DORMANT
+    // records — beyond the present window, absent from the fold — and the
+    // recalled gists re-enter the history the mouth sees as the addressed
+    // prior turns they are (the P45 "recall is retrieval" clause, live).
+    // The cut is the declared budget; a gap is withheld, never a guess.
+    // Every recall decision lands on the record; a genuine re-use is the
+    // training signal the need-odds clock learns from (recordCitation, B2).
+    const recallMessages = [];
+    const recallOut = muninnRecall(recallCandidates, state.retrievalIndex, task, memoryOrgans, { turnIndex: state.recallRecords.length, budget: MUNINN_RECALL_BUDGET });
+    if (recallOut.gap) {
+      mirrorTermRecord("muninn-recall", { question: task.slice(0, 200), gap: recallOut.gap, via: "chat" });
+    } else if (recallOut.recalled.length) {
+      for (const c of recallOut.recalled) {
+        const rec = state.recallRecords[c.order];
+        if (rec?.q) recallMessages.push({ role: "user", content: rec.q });
+        if (rec?.a) recallMessages.push({ role: "assistant", content: rec.a });
+        recordCitation(state.retrievalIndex, c.order, state.recallRecords.length);
+      }
+      mirrorTermRecord("muninn-recall", {
+        question: task.slice(0, 200),
+        recalled: recallOut.recalled.map((c) => c.order),
+        dropped: recallOut.dropped.map((c) => c.order),
+        budget: recallOut.budget,
+        via: "chat",
+      });
+    }
+
     result = await runHolonicTask({
       // null when the person has not moved the slider off its default, so
       // strain decides the rung (P174); a deliberate setting is honoured.
@@ -10411,7 +10712,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // Sliced at the regime's present, not the constant: a startled
       // reader narrows onto now; the turns that fall out are already in
       // the fold.
-      chatHistory: state.history.slice(-present),
+      chatHistory: [...recallMessages, ...state.history.slice(-present)],
       discourse: discourseLine,
       resolutions: pipelineValue(getActiveModelLoop(), "resolutions", RESOLUTIONS_LEVEL),
       material: pipelineValue(getActiveModelLoop(), "material", "auto"),
@@ -10430,6 +10731,11 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       records: state.summary?.records ?? [],
       transcript: transcriptNow(),
       searchedVoid,
+      // THE CONVERSATION'S RECENT VOICE (arcs.js/pathos-turn.js, wired in
+      // observeExchange): a fact about the recent answers — their openings,
+      // their flatness — threaded flat-only to the mouth exactly like
+      // searchedVoid is. Null when the arc holds, byte-identical to before.
+      voiceCue: state.voiceCue ?? null,
       // Whether the person has attached ANY material — the raw source map,
       // never `live`/`liveChunks()` (this turn's attachments-toggle-and-
       // mute-filtered view): holon.js's own header (UNRETRIEVED_MATERIAL_
@@ -18274,6 +18580,11 @@ fillModels().then(() => {
   // The routes are probed once the model picker has settled, so Ollama's
   // answer is what fillModels actually found, not a race with it.
   probeRoutes().catch(() => {});
+  // The page's own heimdall (the DEF→EVA→REC watcher over the engine and
+  // the Matrix tie) starts with the page: a connection that dies is measured
+  // and re-zeroed, and its vitals ride to serve.mjs's /api/vitals so the
+  // machine's Heimdall sees the browser connections it cannot probe itself.
+  startHeimdallWatch();
   // The room (P119): a share link opened in the address bar, and the room
   // this browser last preserved to. The key is read off the fragment and the
   // fragment is dropped from the bar at once; nothing is joined until the
@@ -18303,7 +18614,7 @@ fillModels().then(() => {
   // rolls its work over here.
   if (foldMatrix.status().signedIn) {
     if (state.matrixRoom) {
-      startRoomGrantWatch(state.matrixRoom);
+openRoomWatches(state.matrixRoom);
       maybeAutoServe();
     }
     reconcileAccountRooms().catch(() => {});
@@ -18353,7 +18664,7 @@ async function sheetAct(mode, hs, user, secret) {
       addMessage("assistant", `unlocked${st.user ? ` — signed in as ${st.user}` : ""}`);
       if (state.matrixRoom && !st.rooms.some((r) => r.id === state.matrixRoom)) state.matrixRoom = null;
       if (state.matrixPendingLink) addMessage("assistant", await joinInto(state.matrixPendingLink));
-      if (state.matrixRoom) { startRoomGrantWatch(state.matrixRoom); maybeAutoServe(); }
+      if (state.matrixRoom) { openRoomWatches(state.matrixRoom); maybeAutoServe(); }
       await reconcileAccountRooms();
       renderPool(); return;
     }

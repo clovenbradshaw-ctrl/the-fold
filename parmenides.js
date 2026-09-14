@@ -39,7 +39,7 @@ export const VERDICTS = Object.freeze({
   REFUSED: "refused",
 });
 
-export function makeParmenides({ fold = null, sameAct = null, referentIndex = null, values = null } = {}) {
+export function makeParmenides({ fold = null, sameAct = null, referentIndex = null, values = null, meaning = null } = {}) {
   // The Way of Truth: each organ admits a surface into a form when it can;
   // the first that admits BOTH sides decides. None admitting means the
   // sameness was never established, and the archon says refused rather
@@ -96,6 +96,17 @@ export function makeParmenides({ fold = null, sameAct = null, referentIndex = nu
     if (!fa || !fb) return { verdict: VERDICTS.REFUSED, detail: fa ? "other side has no admitted form" : "this side has no admitted form", a, b };
     if (fa.kind !== fb.kind) return { verdict: VERDICTS.OTHER, via: FORMS.KIND, detail: `different form kinds: ${fa.kind} vs ${fb.kind}` };
     if (fa.canon === fb.canon) return { verdict: VERDICTS.SAME, via: fa.kind, canon: fa.canon };
+    // The composed word-meaning prior (word-meaning.js: morphology + synsets
+    // + values, language-declared and vendored): two surfaces that neither
+    // resolve to the same being/value/act but the MEANING organ equates are
+    // one form of meaning — the P74 synonymy walls, closed by a received
+    // prior rather than a model. Absent, the surfaces differ.
+    if (typeof meaning === "function") {
+      try {
+        const m = meaning(a, b);
+        if (m?.same) return { verdict: VERDICTS.SAME, via: FORMS.SURFACE, meaningVia: m.via, detail: `same meaning (${m.via})` };
+      } catch { /* fall through */ }
+    }
     return { verdict: VERDICTS.OTHER, via: fa.kind, detail: `different ${fa.kind} forms` };
   }
 

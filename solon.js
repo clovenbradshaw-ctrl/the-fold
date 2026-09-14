@@ -31,6 +31,7 @@
 //   kelsen     the adjudicator — claims as norms in a hierarchy, conflicts
 //              resolved by precedence (lex specialis, lex posterior); every
 //              verdict is his. (live)
+//   clippy      the clip — what is IN THE PRESENT (born + DMD + activation + discourse), under heimdall
 //   parmenides the Way — SAME vs OTHER, identity by the equivalence organs,
 //              never by appearance (II.7, P11, P79). Under kelsen.
 //

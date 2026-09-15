@@ -78,7 +78,7 @@ export const claimKey = (c) => `${String(c.end1 ?? c.subject ?? "").toLowerCase(
  * @param {object} turn — { question, answer, model, frame, recipe, sections, unsupported, unbacked, unread, sources, constitution, cursor }
  * @returns {object} the record
  */
-export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [], sameForm = null, satisfaction = null } = {}) {
+export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [], sameForm = null, satisfaction = null, logos = null } = {}) {
   const claims = [];
   const retrieved = [];
   for (const s of sections ?? []) {
@@ -135,6 +135,13 @@ export function answerRecord({ question, answer = "", model = null, frame = null
     // `null` when the caller never ran the check (every pre-existing turn
     // kind is byte-identical without it).
     ...(satisfaction ? { satisfaction } : {}),
+    // LOGOS (logos.js, reusing reasoning-lint.js's findClaimCycle, "Degrees
+    // Kelsen"): does the QUESTION's own claims already form a cycle,
+    // independent of anything the mouth says? Disclosure only, same
+    // posture as satisfaction above — never used to edit or withhold the
+    // answer (P186). `null` when the caller never ran the check or none
+    // was found; every pre-existing turn is byte-identical without it.
+    ...(logos ? { logos } : {}),
   };
 }
 
@@ -187,7 +194,8 @@ export function answerRecordLine(r) {
   const t = r?.tally ?? {};
   const bits = Object.entries(t).map(([v, n]) => `${n} ${v}`);
   const abs = r.absenceTally ? ` · absences ${r.absenceTally.citingVoid + r.absenceTally.citingNone} (${r.absenceTally.citingVoid} cite a declared gap, ${r.absenceTally.citingNone} cite none)` : "";
-  return `answer record · ${r.claims.length} claim(s)${bits.length ? ` (${bits.join(", ")})` : ""} · ${r.unsupported.length} unsupported · ${r.unbacked.length} unbacked${abs} · retrieved ${r.retrieved.length} · recipe ${String(r.recipe ?? "none").slice(0, 12)}${r.unread?.length ? ` · still reading ${r.unread.map((u) => `${u.name} ${u.read}/${u.total}`).join(", ")}` : ""}`;
+  const cyc = r.logos ? ` · LOGOS: cycle in the question's own claims` : "";
+  return `answer record · ${r.claims.length} claim(s)${bits.length ? ` (${bits.join(", ")})` : ""} · ${r.unsupported.length} unsupported · ${r.unbacked.length} unbacked${abs} · retrieved ${r.retrieved.length} · recipe ${String(r.recipe ?? "none").slice(0, 12)}${r.unread?.length ? ` · still reading ${r.unread.map((u) => `${u.name} ${u.read}/${u.total}`).join(", ")}` : ""}${cyc}`;
 }
 
 const plural = (n, word, word2 = `${word}s`) => `${n} ${n === 1 ? word : word2}`;
@@ -217,6 +225,11 @@ export function answerRecordProse(r) {
   if (r.satisfaction && r.satisfaction.satisfied === false && r.satisfaction.at === "addressed") {
     sentences.push(`This answer may not actually address what was asked — it shares almost none of the question's own wording (${r.satisfaction.reason ?? "checked and refused"}).`);
   }
+
+  // LOGOS leads too, for the identical reason the ADDRESSED caveat does: a
+  // question whose own claims contradict themselves is worth knowing before
+  // reading anything else, whether or not the mouth happened to notice.
+  if (r.logos?.detail) sentences.push(r.logos.detail);
 
   const claims = r.claims?.length ?? 0;
   const bound = r.tally?.bound ?? 0;

@@ -4120,6 +4120,11 @@
       .composer-bar:has(#attach-strip:empty) { display: none; }
       .composer-declare { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
       .composer-declare .model-pick { margin: 0; }
+      /* Checking and web pushed to the row's far right (user, 2026-09-15),
+         away from the model name — one flex-auto margin on the first of the
+         pair is enough to carry both to the end, since they already sit
+         adjacent in source order. */
+      .composer-declare #checking-switch { margin-left: auto; }
       .mode-pivot {
         display: inline-flex;
         gap: 2px;

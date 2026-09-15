@@ -1710,6 +1710,7 @@ import {
 } from "./source.js";
 import { makeAdmission } from "./admission.js";
 import { makeAletheia } from "./aletheia.js";
+import { questionCycle } from "./logos.js";
 // The discourse-admission gate (admission.js): should a whole ATTACHED
 // SOURCE even be treated as material for THIS question, before retrieve()
 // ever sees it? retrieve() itself keeps its declared no-relevance-floor
@@ -12089,6 +12090,13 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // no extra guard here.
     let satisfaction = null;
     try { satisfaction = aletheia.judge({ question: task, answer: result.output ?? "", material: [] }); } catch (e) { console.warn("aletheia:", e?.message ?? e); }
+    // LOGOS (logos.js, reasoning-lint.js's findClaimCycle — "Degrees
+    // Kelsen"): does the QUESTION itself already assert a cycle, before the
+    // mouth even answers? The one thing nothing else here checks — every
+    // other tier compares the ANSWER against retrieved ground, never a
+    // question against its own claims.
+    let logos = null;
+    try { logos = questionCycle(task, relationsFor); } catch (e) { console.warn("logos:", e?.message ?? e); }
     answerRec = answerRecord({
       question: task, answer: result.output ?? "", model: turnModel, frame: recFrame, recipe: recRecipe,
       sections: result.sections ?? [], unsupported: result.unsupported ?? [], unbacked: result.unbacked ?? [],
@@ -12100,6 +12108,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       sources: Object.keys(state.sources).map((name) => ({ name, bytes: state.sources[name]?.length ?? null })),
       constitution: { prompt: "constitution.js::CONSTITUTION_PROMPT", sha256: await CONSTITUTION_SHA },
       satisfaction,
+      logos,
     });
     appendRecord("answers", [JSON.stringify(answerRec)]).catch(() => {});
   } catch (e) { console.warn("answer record:", e?.message ?? e); }
@@ -12216,7 +12225,7 @@ function addMessage(role, text) {
     `<div class="role-tag"></div>` +
     (role === "assistant"
       ? `<div class="turn-meta">` +
-        `<details class="fold"><summary title="every message this turn sent to the model, verbatim, and the answer record it produced — the loops are the cards above; this is the wire">what the model saw</summary>` +
+        `<details class="fold"><summary title="every message this turn sent to the model, verbatim, and the answer record it produced — the loops are the cards above; this is the wire">about</summary>` +
         `<div class="fold-controls">` +
         `<button type="button" class="ground-toggle" hidden title="show where each sentence stands — the ground chips, hidden unless asked">ground</button>` +
         `<button type="button" class="view-toggle" title="the loops in sentences (text) or in the notation (eot) — one setting for every turn and the holograph">${viewMode === "eot" ? "text" : "eot"}</button>` +

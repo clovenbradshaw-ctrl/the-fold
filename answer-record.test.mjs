@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { answerRecord, claimKey, claimSets, diffRecords, answerRecordLine, answerRecordProse, answerRecordForReading, ANSWER_RECORD_SCHEMA, voidInScope, absencesOf } from "./answer-record.js";
+import { answerRecord, claimKey, claimSets, diffRecords, answerRecordLine, answerRecordProse, answerRecordForReading, bareLogic, ANSWER_RECORD_SCHEMA, voidInScope, absencesOf } from "./answer-record.js";
 
 const section = (claims, refs = ["a.txt#0-10"]) => ({ passages: refs.map((ref) => ({ ref, text: "x" })), relations: { claims } });
 
@@ -137,10 +137,14 @@ test("satisfaction (aletheia.js) is disclosed on the record when the caller supp
   assert.equal("satisfaction" in withoutIt, false, "byte-identical to before this existed when a caller never runs the check");
 });
 
-test("answerRecordProse leads with Aletheia's ADDRESSED caveat when the answer shares almost none of the question's own words", () => {
-  const r = answerRecord({ question: "write me an essay on the x-files", satisfaction: { satisfied: false, at: "addressed", reason: "names 0% of the question's words" } });
-  const prose = answerRecordProse(r);
-  assert.match(prose, /^This answer may not actually address what was asked/);
+test("answerRecordProse no longer caveats an ADDRESSED failure (removed 2026-09-15, user direction: 'this is dead wrong… let's not give caveats like this') — the check false-positives on a short, correct, non-echoing answer exactly as readily as it once caught a genuine wrong-topic essay", () => {
+  const essay = answerRecord({ question: "write me an essay on the x-files", satisfaction: { satisfied: false, at: "addressed", reason: "names 0% of the question's words" } });
+  assert.doesNotMatch(answerRecordProse(essay), /may not actually address/, "the genuine severe case this caveat was built for no longer surfaces it either — the check itself is untouched (still on the raw record), only this front-and-center warning is gone");
+  // The live false positive that closed it: "What's the capital of france?"
+  // answered "That would be Paris!" shares 0% of the question's own words —
+  // identical shape to the essay specimen, and it is the CORRECT answer.
+  const shortCorrect = answerRecord({ question: "what's the capital of france?", satisfaction: { satisfied: false, at: "addressed", reason: "names 0% of the question's words" } });
+  assert.doesNotMatch(answerRecordProse(shortCorrect), /may not actually address/);
 });
 
 test("answerRecordProse does NOT caveat a FILLED-only failure (a short, correct, closely-echoing answer must not be flagged)", () => {
@@ -185,4 +189,36 @@ test("answerRecordProse: absences and open voids are put in words, not counted a
   assert.match(prose, /It also said 1 statement with nothing to check against\./);
   assert.match(prose, /It acknowledged 2 spots where the material simply doesn't say more\./);
   assert.match(prose, /1 question about this remains open\./);
+});
+
+test("bareLogic is the SAME record as a mechanical, human-readable step trace — every line a literal field, never a gloss", () => {
+  const r = answerRecord({
+    question: "Who founded it?", answer: "Amelia Hartley founded it.", model: "m", recipe: "r1",
+    sections: [section([
+      { end1: "Amelia Hartley", label: "founded", end2: "the Northgate Observatory", verdict: "bound", refs: ["a.txt#0-10"], spans: [{ ref: "a.txt#0-10", start: 0, end: 10, text: "…" }] },
+      { end1: "Amelia Hartley", label: "founded", end2: "a bakery", verdict: "unbound" },
+    ])],
+    unsupported: ["She founded a bakery."], unbacked: ["Nothing here."],
+    absences: [1],
+  });
+  const L = bareLogic(r);
+  const s = L.join("\n");
+  // the mechanical fields, in trace form — the same numbers the JSON holds
+  assert.ok(s.includes("input     Who founded it?"), s);
+  assert.ok(s.includes("handed    1 passage(s) · sources a.txt"), s);
+  assert.ok(s.includes("[bound       ] Amelia Hartley →founded→ the Northgate Observatory   @ a.txt#0-10"), s);
+  assert.ok(s.includes("[unbound     ] Amelia Hartley →founded→ a bakery"), s);
+  assert.ok(s.includes("nothing   backs: 1 unsupported · 1 unbacked"), s);
+  assert.ok(s.includes("answer    26 char(s)"), s);
+  assert.ok(s.includes("identity  m · recipe r1"), s);
+  // mechanical = literal record fields, so the developer's own view leaks
+  // ON PURPOSE here (that is the point of the mode) — but the record's raw
+  // JSON braces and quotes do not.
+  assert.ok(!s.includes("{"), s);
+  assert.ok(!s.includes('"'), s);
+});
+
+test("bareLogic is null-safe and empty-safe", () => {
+  assert.deepEqual(bareLogic(null), []);
+  assert.deepEqual(bareLogic(answerRecord({})), []);
 });

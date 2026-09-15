@@ -208,7 +208,7 @@ import { editLine } from "./piece-edit.js";
 import { revisionLine } from "./piece-revise.js";
 import { exportPiece } from "./piece-export.js";
 import { groundOf, groundLine, tierWord } from "./ground-ladder.js";
-import { answerRecord, answerRecordLine, answerRecordProse, answerRecordForReading, voidInScope } from "./answer-record.js";
+import { answerRecord, answerRecordProse, voidInScope } from "./answer-record.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
 // ledger, and its measured surprise — held apart from the material at the
@@ -261,7 +261,7 @@ import { createLemmatizer as nativeLemmatizer, morphologyFromPrior } from "/engi
 // furniture, never an engine notion) — imported below alongside this
 // file's other source.js symbols and bound with declared numbers at the
 // hypergraph.js injection site.
-import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "/engine-v7/adapters/text/surfaces.js";
+import { extractSurfaces, extractLeadingSurfaces, discoverReferents, namesCorefer, diaNorm } from "/engine-v7/adapters/text/surfaces.js";
 import { resolvePronouns } from "/engine-v7/adapters/text/pronouns.js";
 import { makeCastResolver, makeCastHandles, makeReferentIndex } from "./cast.js";
 import { makeShapeFallback } from "./shape-fallback.js";
@@ -296,7 +296,7 @@ import {
   rankResults,
   shouldPreflight,
 } from "./proof.js";
-import { extractUrls, hostOf, pageFaceUrl } from "./web.js";
+import { extractUrls, hostOf, pageFaceUrl, normalizeUrl as normalizeWebUrl } from "./web.js";
 import { snipClaim } from "./primary.js";
 import { dayOf, renderHolders } from "./wikidata.js";
 
@@ -337,16 +337,13 @@ import { narrateVoid, noSlotLine } from "./void-narration.js";
 // void's narrated paragraphs and the run log as the turn's face. The ledger
 // is a kernel task log like the hyperlexicon and the grid, persisted the
 // same way; the cards are its projection at a (conversation, turn).
-import { makeLoops, foldLoops, cardsFor, lineFor, stateWord, trailLine, eotFor, eotStep, loopId, loopsFromBrief, fillLoopIdFor, loopsFromProgress, loopsFromResult, loopsFromObligations, closingsFromFillings, subjectOf, loopsFromQuestion, closingsFromDraft, readerNotesFor, turnAtSeq } from "./loops.js";
+import { makeLoops, foldLoops, cardsFor, lineFor, stateWord, trailLine, eotFor, eotStep, loopId, loopsFromBrief, fillLoopIdFor, loopsFromProgress, loopsFromResult, loopsFromObligations, closingsFromFillings, subjectOf, loopsFromQuestion, closingsFromDraft, readerNotesFor, turnAtSeq, OP_GLYPHS } from "./loops.js";
 import { declaredForm as declaredFormOf, declaredGenre } from "./shape.js";
 // The holograph (holograph.js): the conversation as the record holds it,
 // drawn — the whole, its referents, their loops and gaps; a referent
 // re-expands to everything that holds it. `namesIn` is ground-ladder.js's
 // own names organ, the same one dialogue.js resolves candidates with.
-import { holographOf, rowsFor, flattenRows, turnsOf, LEVELS as HOLOGRAPH_LEVELS } from "./holograph.js";
-import { run as runQuery, say as sayQuery } from "./eoql.js";
-import { graphOf, place as placeGraph, draw as drawGraph } from "./holograph-graph.js";
-import { DEFAULT_MODEL_LOOP, getActiveModelLoop, setActiveModelLoop, getLastCapturedTurn, loopGraphFor, previewFor, pipelineToggle, pipelineValue, PIPELINE_STAGE_META, DRAFT_MATERIAL_KEYS, orderedDraftMaterialKeys, validateOverride, validateModelLoopImport, SAMPLE_CAPTURE, captureLastTurn } from "./model-loops.js";
+import { holographOf, turnsOf } from "./holograph.js";
 import { namesIn } from "./ground-ladder.js";
 import { declaredSlotShape } from "./web-claim.js";
 import { cellOf, GRAINS, TERRAIN_BY_DOMAIN, isCurrentOperator } from "/engine-v7/kernel/cube.js";
@@ -748,6 +745,7 @@ const castFor = makeCastResolver({
   namesCorefer: namesCoreferGated,
   diaNorm,
   blankFurniture: castBlankFurniture,
+  leadingSurfaces: extractLeadingSurfaces,
 });
 
 // Same organ bundle as castFor above, one level less collapsed — the
@@ -761,6 +759,7 @@ const referentIndexFor = makeReferentIndex({
   namesCorefer: namesCoreferGated,
   diaNorm,
   blankFurniture: castBlankFurniture,
+  leadingSurfaces: extractLeadingSurfaces,
 });
 
 // shape-fallback.js's tie-triggered re-rank for source.js::retrieve() (built
@@ -1163,8 +1162,7 @@ const convoNow = () => state.convos[state.active]?.key ?? String(state.convos[st
  * summary line's own glyph notation ("idk what this means, you can
  * hide") — reversing the 2026-09-08 "do EOT in here too" default it was
  * built to satisfy. Nothing about the loops themselves is hidden: every
- * act still lands on the record either way, and renderHolograph (a wholly
- * separate implementation) is the surface that still draws them. */
+ * act still lands on the record either way. */
 function renderLoopCards(el, { turn, convo }) {
   const { cards } = cardsFor(foldLoops(loopLogNow()), { turn, convo });
   el.replaceChildren();
@@ -1292,34 +1290,10 @@ function redrawLoopsHolding(id) {
     if ((el.dataset.loops ?? "").split("\n").includes(id)) renderLoopCards(el, { turn: Number(el.dataset.turn), convo: el.dataset.convo });
   }
 }
-// ── the holograph pane ──────────────────────────────────────────────────────
-//
-// Drawn from the record, never from the model: this conversation's turns
-// (state.history), its loops (the ledger, this conversation's), the live
-// gaps (voidsNow). Redrawn when the pane is on and something landed; a
-// press on a referent expands it below the drawing. `/holograph [name]`
-// opens the pane and, with a name, expands that part.
-// ALWAYS WITH A CURSOR AND A LEVEL (user, 2026-09-08: "it needs holon
-// levels and a cursor, always"). The cursor is the loop ledger's own act
-// sequence — the same clock the cards fold on — and the holograph at a
-// cursor is the fold of the record AS OF that act (P159), the turns cut to
-// the one the act belongs to; the level is the rung of the ladder the
-// drawing stands at (holograph.js::LEVELS), each standing in for the one
-// below. The cursor follows the head until the person moves it; the
-// "now" state is dragging it back to the end.
-let holographPick = null;
-let holographLevel = "loops";
-let holographCursorPinned = false;
+// The loop ledger as the referent model reads it — at its head; no cursor is drawn.
 function holographAt() {
   const log = loopLogNow();
-  const cursor = $("holograph-cursor");
-  const max = log.nextSeq;
-  if (cursor) {
-    cursor.max = String(max);
-    if (!holographCursorPinned) cursor.value = String(max);
-  }
-  const at = cursor && holographCursorPinned ? Number(cursor.value) : max;
-  return { log, max, atSeq: at >= max ? null : at };
+  return { log, max: log.nextSeq, atSeq: null };
 }
 // THE HOLOGRAPH'S INDEX — the beings the reading established over the
 // conversation's own words AND the attached material, built with the
@@ -1395,12 +1369,9 @@ function holographModel() {
   const sources = liveSources().map((src) => { const r = READING.get(src.name); return { name: src.name, bytes: state.sources[src.name]?.length ?? 0, read: r?.cursor ?? 0, total: r?.total ?? 0 }; });
   return holographOf({ history: state.history, loops, voids, namesIn, index: holographIndex(turns), sources, convo, throughTurn, records: state.summary?.records ?? [], splitSentences: engineSentences });
 }
-// The rows a person has drilled open, by row key — kept across redraws so
-// the cursor and the turn's own landings never fold what was opened.
-const holographOpen = new Set();
 // VISUAL vs TEXT (user, 2026-09-08: "we do want a mode that is visual vs
 // text — we are losing so much to verbiage; why don't we put it essentially
-// in EOT?"). One setting for the cards and the holograph, kept across
+// in EOT?"). One setting for the loop cards, kept across
 // reloads: "eot" says every loop in the notation (glyph, cell, name, value),
 // "text" in sentences. Neither is stored on a loop — both are projections.
 // The notation is the default (user, 2026-09-08, on the cards: "do EOT in
@@ -1421,7 +1392,7 @@ let panelCollapsed = (() => { try { return localStorage.getItem("fold-panel-coll
 // declaration beside the function that uses it (which is where this first
 // lived) put boot in the same temporal dead trap panelWide's own comment
 // already names — caught live, 2026-09-08, the "More" tab's own first click.
-const MORE_GROUP = ["resources", "holograph", "wiring", "github", "profile"];
+const MORE_GROUP = ["resources", "github", "profile"];
 let lastMorePane = MORE_GROUP[0];
 function setViewMode(mode) {
   viewMode = mode === "eot" ? "eot" : "text";
@@ -1429,178 +1400,8 @@ function setViewMode(mode) {
   document.body.classList.toggle("view-eot", viewMode === "eot");
   for (const b of document.querySelectorAll(".view-toggle")) b.textContent = viewMode === "eot" ? "text" : "eot";
   for (const el of document.querySelectorAll(".loops")) if (el.dataset.turn) renderLoopCards(el, { turn: Number(el.dataset.turn), convo: el.dataset.convo });
-  renderHolograph();
 }
 document.body.classList.toggle("view-eot", viewMode === "eot");
-// THE HOLOGRAPH'S OWN MODE — a GRAPH or ROWS (user, 2026-09-08: "no, visual
-// SHOULD be like a visual graph"). Kept apart from the notation (`viewMode`,
-// eot or text), which decides how a node or a row is labelled in either.
-// The query is held for the session, never stored; positions are kept
-// across redraws so a referent stays where it was when the rung changes.
-let holographMode = (() => { try { return localStorage.getItem("fold-holograph-mode") === "rows" ? "rows" : "graph"; } catch { return "graph"; } })();
-let holographQuery = "";
-function renderHolograph({ pick = holographPick, level = holographLevel } = {}) {
-  const host = $("holograph-rows");
-  if (!host) return;
-  holographLevel = HOLOGRAPH_LEVELS.some((l) => l.key === level) ? level : "link";
-  const levels = $("holograph-levels");
-  if (levels && !levels.children.length) {
-    // A vertical ladder reads top-down: the highest rung first. Each rung by
-    // its REAL NAME — the terrain (user, 2026-09-08: "let's just use the real
-    // names of the terrains", after asking for a plain one and seeing both).
-    // The plain name and the rung's reading ride the hover, so the ladder
-    // stays a ladder and nothing is lost.
-    for (const l of [...HOLOGRAPH_LEVELS].reverse()) {
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "seg"; b.dataset.level = l.key; b.title = `${l.name} — ${l.reads}`;
-      b.textContent = l.key;
-      b.addEventListener("click", () => renderHolograph({ level: l.key }));
-      levels.append(b);
-    }
-  }
-  for (const b of levels?.querySelectorAll(".seg") ?? []) b.classList.toggle("active", b.dataset.level === holographLevel);
-  const modes = $("holograph-mode");
-  if (modes && !modes.children.length) {
-    for (const [m, label, title] of [["graph", "visual", "a graph: what stands at this rung as nodes, tied by what they hold — press a node to drill it"], ["rows", "text", "rows that drill"]]) {
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "seg"; b.dataset.hmode = m; b.textContent = label; b.title = title;
-      b.addEventListener("click", () => { holographMode = m; try { localStorage.setItem("fold-holograph-mode", m); } catch { /* kept for the session */ } renderHolograph(); });
-      modes.append(b);
-    }
-  }
-  for (const b of modes?.querySelectorAll(".seg") ?? []) b.classList.toggle("active", b.dataset.hmode === holographMode);
-  document.body.classList.toggle("view-eot", viewMode === "eot");
-  const cursor = $("holograph-cursor");
-  if (cursor && !cursor.dataset.wired) {
-    cursor.dataset.wired = "1";
-    cursor.addEventListener("input", () => { holographCursorPinned = Number(cursor.value) < Number(cursor.max); renderHolograph(); });
-  }
-  // THE QUERY BAR (user, 2026-09-08: "search for terms, filter, enter EOT
-  // commands to essentially SQL what we want to see"): a bare word scans, an
-  // operator's glyph or keyword begins an act (eoql.js). Live as it is typed;
-  // Escape clears it.
-  const q = $("holograph-query");
-  if (q && !q.dataset.wired) {
-    q.dataset.wired = "1";
-    let pending = null;
-    q.addEventListener("input", () => { holographQuery = q.value; clearTimeout(pending); pending = setTimeout(() => renderHolograph(), 120); });
-    q.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); holographQuery = q.value; renderHolograph(); } else if (ev.key === "Escape") { q.value = ""; holographQuery = ""; renderHolograph(); } });
-  }
-  const model = holographModel();
-  const { max, atSeq } = holographAt();
-  const label = $("holograph-cursor-label");
-  if (label) label.textContent = max ? `as of act ${atSeq ?? max} of ${max}${model.throughTurn != null ? ` · turn ${model.throughTurn}` : " · now"}` : "no acts yet";
-  // The places in the material that hold a referent — each a door to the bytes.
-  const fold = (x) => String(x ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-  // The places in the material that hold a referent. The scan stops at the
-  // first PLACES_SHOWN it finds rather than folding every chunk of a corpus:
-  // on War and Peace that walk was 11,000 chunks per referent per redraw.
-  const PLACES_SHOWN = 12;
-  const placesOf = (r) => {
-    const needle = fold(r.name);
-    if (needle.length < 3) return [];
-    const out = [];
-    for (const c of liveChunks()) {
-      if (fold(c.text).includes(needle)) out.push({ ref: c.ref, text: c.text });
-      if (out.length >= PLACES_SHOWN) break;
-    }
-    return out;
-  };
-  holographPick = pick;
-  if (pick && typeof pick === "string") { const r = model.referents.find((x) => fold(x.name) === fold(pick) || fold(x.name).includes(fold(pick))); if (r) holographOpen.add(r.key); }
-  const rows = rowsFor(model, holographLevel, { placesOf, mode: viewMode });
-  const note = $("holograph-query-note");
-  let shown = rows, flat = false;
-  const qText = holographQuery.trim();
-  if (qText) {
-    // A query runs over every row of the rung with its parts (depth 2), so a
-    // loop under a referent is found by its own words.
-    const res = runQuery(qText, flattenRows(rows, { depth: 2 }));
-    if (res.refused) { if (note) note.textContent = `⇏ ${res.refused.detail}`; shown = []; }
-    else { if (note) note.textContent = `${sayQuery({ acts: res.acts })} ⇒ ×${res.rows.length}`; shown = res.rows; flat = true; }
-  } else if (note) note.textContent = "";
-  host.replaceChildren(holographMode === "graph" ? graphView(host, shown, { flat }) : rowsList(shown, 0));
-}
-// How many nodes a rung may draw before it stops opening parts nobody asked
-// it to open. Declared (P9), not measured: past this the picture is a mist
-// and the list mode is the honest face.
-const GRAPH_AUTO_NODES = 60;
-/**
- * The rows drawn as a graph: the rung's own rows, their parts beside them
- * where a row stands open — and, while the rung is small enough to draw,
- * ONE level of parts for every row, because a rung of referents alone has
- * no ties to draw and reads as a scatter (measured live, 2026-09-08). What
- * is added is exactly what a press would open in the list; nothing is
- * inferred, and past the budget only what was actually opened is drawn.
- */
-function graphView(host, rows, { flat = false } = {}) {
-  const partsOf = (r) => { try { return r.drill() ?? []; } catch { return []; } };
-  const openFlat = (list, depth, parent, out, auto) => { for (const r of list ?? []) { out.push({ ...r, depth, parent }); const opened = holographOpen.has(r.key); if (typeof r.drill === "function" && (opened || (auto && depth === 0))) openFlat(partsOf(r), depth + 1, r.key, out, opened && auto); } return out; };
-  const auto = !flat && rows.reduce((n, r) => n + 1 + (typeof r.drill === "function" ? partsOf(r).length : 0), 0) <= GRAPH_AUTO_NODES;
-  const list = (flat ? rows : openFlat(rows, 0, null, [], auto)).filter((r) => r.kind !== "empty");
-  const wrap = document.createElement("div");
-  wrap.className = "hg-graph-wrap";
-  if (!list.length) { const e = document.createElement("div"); e.className = "hg-row hg-empty"; e.textContent = viewMode === "eot" ? "∅" : "nothing here"; wrap.append(e); return wrap; }
-  const g = graphOf(list, { open: holographOpen });
-  const width = Math.max(300, host.clientWidth || 600);
-  // A line per node, tall enough for a node's two lines of text and air; the
-  // frame grows downward with the rows and the pane scrolls. Nothing is
-  // rescaled to fit, so nothing is ever too small to read.
-  const placed = placeGraph(g, { width, layerHeight: 62, fontSize: 11 });
-  wrap.append(drawGraph(document, g, placed, { onPick: (row) => {
-    if (row.at && !String(row.at).startsWith("turn:") && typeof row.drill !== "function") { reopen(row.at); return; }
-    if (holographOpen.has(row.key)) holographOpen.delete(row.key); else holographOpen.add(row.key);
-    renderHolograph();
-  } }));
-  return wrap;
-}
-/** One list of rows; a row with parts is a press that opens them beneath it; a row with an address is a door to the bytes. */
-function rowsList(rows, depth) {
-  const ul = document.createElement("ul");
-  ul.className = `hg-rows depth-${depth}`;
-  for (const r of rows) {
-    const li = document.createElement("li");
-    li.className = `hg-row hg-${r.kind}${r.state ? ` hg-state-${r.state}` : ""}${r.drill ? " drillable" : ""}${holographOpen.has(r.key) ? " open" : ""}`;
-    li.dataset.key = r.key;
-    const head = document.createElement(r.drill ? "button" : "div");
-    if (r.drill) { head.type = "button"; head.setAttribute("aria-expanded", String(holographOpen.has(r.key))); }
-    head.className = "hg-head";
-    const title = document.createElement("span");
-    title.className = "hg-title";
-    title.textContent = r.title;
-    head.append(title);
-    if (r.meta) { const m = document.createElement("span"); m.className = "hg-meta"; m.textContent = r.meta; head.append(m); }
-    li.append(head);
-    if (r.line) { const ln = document.createElement("div"); ln.className = "hg-line"; ln.textContent = r.line; li.append(ln); }
-    if (r.at && !String(r.at).startsWith("turn:")) {
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "ref attached"; b.textContent = chipText(r.at); b.title = `${r.at} — press to read the bytes`;
-      b.onclick = () => reopen(r.at);
-      li.append(b);
-    }
-    if (r.drill) {
-      head.addEventListener("click", () => {
-        if (holographOpen.has(r.key)) holographOpen.delete(r.key); else holographOpen.add(r.key);
-        renderHolograph();
-      });
-      if (holographOpen.has(r.key)) li.append(rowsList(r.drill() ?? [], depth + 1));
-    }
-    ul.append(li);
-  }
-  if (!rows.length) { const li = document.createElement("li"); li.className = "hg-row hg-empty"; li.textContent = viewMode === "eot" ? "∅" : "nothing here"; ul.append(li); }
-  return ul;
-}
-function holographTurn(argstr, typed) {
-  const name = String(argstr ?? "").trim();
-  showView("holograph");
-  renderHolograph({ pick: name || null });
-  const m = holographModel();
-  const about = m.referents.slice(0, 8).map((r) => r.name);
-  const st = {};
-  for (const l of foldLoops(loopLogNow()).filter((l) => l.convo === convoNow())) st[l.state] = (st[l.state] ?? 0) + 1;
-  const bits = [st.open ? `${st.open} open` : null, st.contested ? `${st.contested} contested` : null, st.refused ? `${st.refused} could not close` : null, st.closed ? `${st.closed} closed` : null].filter(Boolean);
-  return usageTurn(typed, `the holograph is open in the panel${name ? `, opened on “${name}”` : ""} — ${m.referents.length ? `about ${about.join(", ")}${m.referents.length > 8 ? ", …" : ""}` : "nothing established yet"}${bits.length ? ` · loops: ${bits.join(" · ")}` : ""}${m.voids.length ? ` · ${m.voids.length} gap${m.voids.length === 1 ? "" : "s"} on the record` : ""}. \`/holograph <name>\` opens one referent's rows.`, { what: "holograph" });
-}
 
 function reopenLoopFromCard(id, card) {
   const turn = state.summary.turnCount + 1;
@@ -5710,30 +5511,6 @@ function declareTurn(argstr, typed) {
 // one back with a recorded trigger (REC), the same act `/concede!` performs
 // on a premise. A void is never deleted: a conceded void stays in the
 // timeline with its concession after it.
-/** /model-loop [name] — switch which saved model-loop the Wiring canvas
- * modifies and turns run under, straight from the composer (user
- * direction, 2026-09-08: "call different loops via the chat via '/'
- * commands"). Bare lists the saved loops with the active one marked; a
- * name or id switches — wiringActivate is the SAME function a click on
- * its chip in the Wiring tab already calls, so this is a second door
- * onto one implementation, never a parallel switch that could drift.
- * "default" resets to the shipped loop. */
-async function modelLoopTurn(argstr, typed) {
-  if (!wiringLoopsCache) await wiringFetchLoops();
-  const loops = wiringLoopsCache ?? [{ id: DEFAULT_MODEL_LOOP.id, name: DEFAULT_MODEL_LOOP.name }];
-  const name = argstr.trim();
-  if (!name) {
-    const listing = loops.map((l) => `${l.name}${l.id === wiringActiveId ? " (active)" : ""}`).join(", ");
-    return usageTurn(typed, `model-loops: ${listing} — /model-loop <name> to switch, /model-loop default to reset.`, { what: "model-loop-list" });
-  }
-  const match = name.toLowerCase() === "default"
-    ? { id: DEFAULT_MODEL_LOOP.id, name: DEFAULT_MODEL_LOOP.name }
-    : loops.find((l) => l.name.toLowerCase() === name.toLowerCase() || l.id === name.toLowerCase());
-  if (!match) return usageTurn(typed, `no model-loop named "${name}" — model-loops: ${loops.map((l) => l.name).join(", ")}`, { what: "model-loop-not-found" });
-  await wiringActivate(match.id);
-  return usageTurn(typed, `switched to "${match.name}" — every turn from here runs under it until changed again.`, { what: "model-loop-switch" });
-}
-
 function voidTurn(argstr, typed, { perform = false } = {}) {
   const log = state.hyperlexiconLog;
   if (!log || !hyperlexiconFor.foldVoids) return usageTurn(typed, "the hyperlexicon is empty — nothing has been read yet, so no gap has been declared over it.");
@@ -6008,7 +5785,7 @@ async function exportLastPiece(node = null) {
     return { label: s.part?.label ?? s.label ?? "", snipCheck: s.piece?.snipCheck ?? null, sentences: sents.map((text) => {
       const own = claims.filter((c) => c.sentence === text);
       const wrow = (s.witness?.rows ?? []).find((r) => r.sentence === text) ?? null;
-      const g = piece.ground ? groundOf(text, { ...piece.ground, claims: own, witness: wrow, model: piece.model }) : { tier: "self", cell: "self:model", addresses: [], phrase: piece.model ?? "the model" };
+      const g = piece.ground ? groundOf(text, { ...piece.ground, claims: own, witness: wrow, model: piece.model, leadingNames: true }) : { tier: "self", cell: "self:model", addresses: [], phrase: piece.model ?? "the model" };
       return { text, ground: { ...g, claims: own, decider: wrow?.decider ?? null } };
     }) };
   });
@@ -7489,11 +7266,25 @@ async function describeImageScene(name, visionRead, boxes, connectors, width, he
  * their own message around that, since a chat turn and an automatic
  * pre-turn read want different wording for the same failure.
  */
-async function attachImageStructure(name) {
-  const m = state.media[name];
-  if (!m) throw new Error(`no attached image named "${name}" — attached: ${Object.keys(state.media).filter((k) => state.media[k].kind === "image").join(", ") || "(none)"}`);
-  if (m.kind !== "image") throw new Error(`"${name}" is attached as ${m.kind}, not an image`);
-
+/**
+ * The shared image→source read: raw image bytes through serve.mjs's /api/
+ * visual (the mechanical OpenCV/OCR detector), then the vision ladder +
+ * escalation + fusion in the browser, landed as an ordinary text source via
+ * addSource so the existing retrieval/citation/grounding pipeline reads it
+ * for free — deliberately not a second chat mechanism. Shared by the
+ * explicit /visual door, its automatic "you attached an image" path, AND
+ * the /look door (a website rendered to a page image is read by the exact
+ * same machinery, so the two can never drift into two different readings
+ * of the same thing). No custom pixel-region address type yet
+ * (visual-rec.mjs's own `{image, region}` shape is real but unwired here)
+ * — each detected box is one addressable line in the attached text, named
+ * by its own label.
+ *
+ * Returns { sourceName, boxCount, edgeCount, text } on success (sourceName
+ * null when nothing could be read at all). Throws on a server failure or a
+ * wrong-kind blob — callers render their own message around that.
+ */
+async function readImageIntoSource(blob, sourceName, { kind = null, standing = null, provenance = null, pageFace = null, mirrorName = "visual", where = "chat", vision = true } = {}) {
   // Every available sense runs, not just the one that happens to find
   // structure — a plain photo has no labeled boxes at all, and used to
   // mean "nothing could be attached" outright (the OCR/box pipeline is
@@ -7505,21 +7296,50 @@ async function attachImageStructure(name) {
   // labeled rectangles as "a kitchen" before this was wired in.
   const resp = await fetch("/api/visual", {
     method: "POST",
-    headers: { "content-type": "application/octet-stream", "x-file-name": name },
-    body: m.blob,
+    headers: { "content-type": "application/octet-stream", "x-file-name": sourceName },
+    body: blob,
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: resp.statusText }));
     throw new Error(err.error || "visual detection failed");
   }
   const { boxes, connectors, edgeCount, width, height, backgroundUniformity } = await resp.json();
+
+  // MECHANICAL-ONLY mode (vision: false — the auto-look path, and any caller
+  // that has NOT opted in to the larger model use): the OpenCV/OCR facts
+  // alone, fused into one disclosed text source, with NOT one model call —
+  // the vision ladder (moondream → qwen2.5vl) and the fusion synthesis are
+  // strictly opt-in via the explicit /look door. User direction: "the user
+  // definitely needs to opt in for larger model use."
+  if (!vision) {
+    const readable = boxes.filter((b) => b.text && b.text.trim());
+    if (!readable.length && !connectors.length) return { sourceName: null, boxCount: 0, edgeCount: 0, text: "" };
+    const lines = [
+      "[mechanical read only — OpenCV regions + per-region OCR; no vision model was asked. Run /look <url> to see this page with a vision model's holistic read.]",
+      "",
+      "Detected regions (OpenCV + OCR, addresses kept for citation):",
+    ];
+    for (const b of readable) {
+      const pos = positionLabel(b.region, width, height);
+      lines.push(`Region ${b.id}${b.color ? ` (${b.color})` : ""}${pos ? ` [${pos}]` : ""} (pixel area ${JSON.stringify(b.region)}): "${b.text.replace(/\n/g, " ")}"`);
+    }
+    for (const c of connectors) {
+      lines.push(`Connector between region ${c.connects[0]} and region ${c.connects[1]}${c.direction !== "undetermined" ? ` (direction: ${c.direction})` : " (direction not determined)"}.`);
+    }
+    const text = lines.join("\n");
+    addSource(sourceName, text, { kind: kind ?? "image-structure", standing: standing ?? VISUAL_STANDING, provenance, pageFace });
+    mirrorTermRecord(mirrorName, { name: sourceName, boxes: boxes.length, connectors: connectors.length, vision: false, via: where });
+    logAct("recorded", { where: mirrorName, name: sourceName, boxes: boxes.length, vision: false });
+    return { sourceName, boxCount: boxes.length, edgeCount, text };
+  }
+
   // settleImageRead: propose a vision read, have another "eye" (a judge
   // call) check it against the mechanical facts, escalate with a targeted
   // correction only on a real named disagreement, stop on measured
   // agreement rather than a fixed number of tries — user direction:
   // "various levels of escalation of model calls to read things in
   // different ways, multiple eyes, triggered by disagreement."
-  const { visionRead, turns: visionTurns, settled: visionSettled, unresolvedReason } = await settleImageRead(m.blob, boxes, connectors, width, height, backgroundUniformity);
+  const { visionRead, turns: visionTurns, settled: visionSettled, unresolvedReason } = await settleImageRead(blob, boxes, connectors, width, height, backgroundUniformity);
   if (!boxes.length && !visionRead) return { sourceName: null, boxCount: 0, edgeCount: 0, text: "" };
 
   // The talking model never sees the raw detector output — user
@@ -7533,7 +7353,7 @@ async function attachImageStructure(name) {
   // unmerged sense data. That description leads the attached source; the
   // addressed per-region facts follow as supporting, citable detail —
   // still real, just no longer the FIRST thing a reader encounters.
-  const sceneDescription = await describeImageScene(name, visionRead, boxes, connectors, width, height, backgroundUniformity);
+  const sceneDescription = await describeImageScene(sourceName, visionRead, boxes, connectors, width, height, backgroundUniformity);
   const readable = boxes.filter((b) => b.text && b.text.trim());
   const lines = [sceneDescription];
   if (readable.length || connectors.length) {
@@ -7550,13 +7370,49 @@ async function attachImageStructure(name) {
   // silently presented as agreement — the same withhold-not-convict
   // posture this project holds for every other unresolved gap.
   if (!visionSettled) lines.push("", `(the vision read and the mechanical findings still disagree after ${visionTurns} tries: ${unresolvedReason})`);
-  const standing = readable.length ? `${VISION_STANDING} A mechanical detector also ran: ${VISUAL_STANDING}` : VISION_STANDING;
+  const effectiveStanding = standing ?? (readable.length ? `${VISION_STANDING} A mechanical detector also ran: ${VISUAL_STANDING}` : VISION_STANDING);
   const text = lines.join("\n");
-  const sourceName = `${name}.visual-structure.txt`;
-  addSource(sourceName, text, { kind: "image-structure", standing });
-  mirrorTermRecord("visual", { name, boxes: boxes.length, connectors: connectors.length, vision: Boolean(visionRead), visionTurns, visionSettled, via: "chat" });
-  logAct("recorded", { where: "visual", name, boxes: boxes.length, vision: Boolean(visionRead), visionTurns, visionSettled });
+  addSource(sourceName, text, { kind: kind ?? "image-structure", standing: effectiveStanding, provenance, pageFace });
+  mirrorTermRecord(mirrorName, { name: sourceName, boxes: boxes.length, connectors: connectors.length, vision: Boolean(visionRead), visionTurns, visionSettled, via: where });
+  logAct("recorded", { where: mirrorName, name: sourceName, boxes: boxes.length, vision: Boolean(visionRead), visionTurns, visionSettled });
   return { sourceName, boxCount: boxes.length, edgeCount, text };
+}
+
+/**
+ * attachImageStructure — the /visual path's media-specific wrapper: a user-
+ * attached image (state.media), read through the shared readImageIntoSource
+ * and landed as "<name>.visual-structure.txt".
+ */
+async function attachImageStructure(name) {
+  const m = state.media[name];
+  if (!m) throw new Error(`no attached image named "${name}" — attached: ${Object.keys(state.media).filter((k) => state.media[k].kind === "image").join(", ") || "(none)"}`);
+  if (m.kind !== "image") throw new Error(`"${name}" is attached as ${m.kind}, not an image`);
+  return readImageIntoSource(m.blob, `${name}.visual-structure.txt`, { kind: "image-structure" });
+}
+
+/**
+ * lookUrlIntoSource — the /look path: a WEBSITE, fetched through the same
+ * recorded egress as any other page read, rendered to a full-page image
+ * server-side (/api/web/look), and read by the SAME machinery as an attached
+ * image — mechanical structure first, vision + escalation + fusion in the
+ * browser, landed as "<host>.look.txt". One image-reading implementation,
+ * two doors (the /visual attached-image door and this web door) — the drift
+ * that two copies of the same read would invite is the exact class this
+ * repo's postmortems keep catching.
+ */
+async function lookUrlIntoSource(url, sha256, { sourceName = null, vision = false } = {}) {
+  const r = await webApi("/api/web/look", sha256 ? { url, sha256 } : { url });
+  if (r.gap) throw new Error(r.gap.detail ?? r.gap.silence);
+  const host = hostOf(r.entry.finalUrl || url);
+  const name = sourceName ?? `${host}.look.txt`;
+  if (state.sources[name]) return { sourceName: name, boxCount: 0, edgeCount: 0, text: state.sources[name], reused: true, look: r.look };
+  const blob = new Blob([Uint8Array.from(atob(r.imageBase64), (c) => c.charCodeAt(0))], { type: "image/png" });
+  const provenance = { line: r.entry.title ? `${r.entry.title} — ${host}` : host, fields: { url: r.entry.finalUrl ?? url } };
+  const pageFace = r.entry.rawPath ? { url, host, rawPath: r.entry.rawPath, textPath: r.entry.textPath ?? null, renderPath: r.renderPath ?? null } : null;
+  const out = await readImageIntoSource(blob, name, { kind: "page-structure", provenance, pageFace, mirrorName: "look", where: "chat", vision });
+  rememberPageFace(name, url, r.entry);
+  state.provenance[name] = provenance;
+  return { ...out, look: r.look };
 }
 
 // Every attached image not yet read into its own "<name>.visual-structure.txt"
@@ -7601,6 +7457,27 @@ function imageIntentFor(question) {
   return (hasAnaphor || hasImageWord) ? unread[0] : null;
 }
 
+// The "user asks about what's on a page" branch of the auto-look trigger.
+// Evaluated ONLY when the message also names a URL (the named-source block
+// below already requires extractUrls to have found one), so the false-positive
+// surface is a message that both names a URL AND asks about its appearance or
+// layout in these exact terms. Closed and deliberately narrow — the same
+// discipline IMAGE_REFERRING_WORDS already holds for attached images: a bare
+// "look", "see", or "show" anywhere is NOT a cue (those mean "fetch and read",
+// which the preflight already does); "what does the page SAY about X" is a
+// retrieval question, answered fine by the text face, and is NOT a cue either.
+const PAGE_LOOK_CUES = [
+  /\blooks? like\b/i, // "what does it look like" — appearance
+  /\b(?:appearance|visually|screenshot|rendered)\b/i, // explicit visual words
+  /\bwhat(?:'s| is| does) (?:this|that|the) (?:page|site|website|it)[^.\n]{0,30}\b(?:look like|show|on)\b/i, // "what does this page show / what's on it"
+  /\b(?:how (?:is|does)|how'?s) (?:this|that|the) (?:page|site|website) (?:laid out|structured|organized)\b/i, // layout
+  /\bdescribe (?:this|that|the) (?:page|site|website)\b/i, // "describe the page"
+  /\b(?:show me|see) (?:this|that|the) (?:page|site|website)\b/i, // "show me the page"
+];
+function pageLookIntent(question) {
+  return PAGE_LOOK_CUES.some((re) => re.test(String(question ?? "")));
+}
+
 /**
  * /visual <name> — the explicit door onto attachImageStructure, for
  * naming an image directly rather than relying on imageIntentFor's
@@ -7643,6 +7520,65 @@ async function visualTurn(arg, typed) {
     renderThreads();
   } catch (e) {
     body.textContent = `visual read failed: ${e.message}`;
+  }
+  $("status").textContent = readyLine();
+  releaseBusy();
+}
+
+/**
+ * /look <url> — the explicit door onto lookUrlIntoSource: LOOK at a website
+ * instead of text-dumping it. The URL is fetched through the SAME recorded
+ * egress as any other page read (/api/web/look → fetchAndKeep — saved,
+ * historied, folded, content-addressed), rendered to a full-page image by
+ * headless Chrome server-side, then read by the EXACT image machinery /visual
+ * uses (mechanical OpenCV/OCR + vision ladder + fusion) and landed as an
+ * ordinary "<host>.look.txt" source. "Look" is deliberately the word: this
+ * is what the reader does when the flat text face is not the page.
+ */
+async function lookTurn(arg, typed) {
+  addMessage("user", typed);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  logAct("asked", { text: typed });
+
+  const raw = arg.trim();
+  if (!raw) {
+    body.textContent = "/look <url> — renders a website to a full-page image (headless Chrome, the recorded egress) and reads it: OpenCV/OCR structure first, then a vision model's holistic read (moondream → qwen2.5vl) and a fusion synthesis, landed as one addressed source. TYPING THIS DOOR IS THE OPT-IN to the vision model use — the automatic look (clear extraction ambiguity, or a question about what's on a page) is mechanical-only by design, and a vision read always happens through this explicit door. Use it when a page's text dump is not the page: a table, a diagram, a chart, a JS shell, an image-heavy page.";
+    $("status").textContent = readyLine();
+    releaseBusy();
+    return;
+  }
+  const url = normalizeWebUrl(raw);
+  if (!url) {
+    body.textContent = `"${raw}" is not an http(s) URL — /look <url> looks at a website (loopback is refused; local files already have the tree).`;
+    $("status").textContent = readyLine();
+    releaseBusy();
+    return;
+  }
+
+  body.textContent = `looking at ${hostOf(url)} — fetching, rendering, then reading the page's structure…`;
+  $("status").textContent = "looking at the page…";
+  try {
+    const { sourceName, boxCount, edgeCount, text, reused } = await lookUrlIntoSource(url, undefined, { vision: true });
+    if (!sourceName) {
+      body.textContent = `nothing could be read from the render of ${hostOf(url)} — no labeled boxes detected and no vision model answered (is moondream pulled? "ollama pull moondream"). The page itself is saved; its text face is still there.`;
+      $("status").textContent = readyLine();
+      releaseBusy();
+      return;
+    }
+    const reusedLine = reused ? " (already looked at — reusing the source)" : "";
+    body.textContent = `looked at ${hostOf(url)}: ${boxCount} region(s) detected, ${edgeCount} connector(s) folded → attached as "${sourceName}" (${text.length.toLocaleString()} chars)${reusedLine}. Ask about it like any other source.`;
+    const historyNote = `looked at ${hostOf(url)} (${boxCount} regions) → attached as "${sourceName}"`;
+    state.history.push({ role: "user", content: typed }, { role: "assistant", content: historyNote });
+    const turn = state.summary.turnCount + 1;
+    observeExchange(turn, typed, historyNote);
+    const fold = mechanicalFoldLine(typed, historyNote);
+    state.turnFolds.push(fold);
+    state.summary = advanceSummaryFold(state.summary, fold);
+    renderFold(node, { fold });
+    renderThreads();
+  } catch (e) {
+    body.textContent = `look failed: ${e.message}`;
   }
   $("status").textContent = readyLine();
   releaseBusy();
@@ -8322,12 +8258,8 @@ async function send(question) {
   if (deriveCmd) return deriveTurn(deriveCmd[1] ?? "", question);
   const concedeCmd = question.match(/^\/concede(!?)(?:\s+|$)(.*)$/s);
   if (concedeCmd) return concedeTurn(concedeCmd[2] ?? "", question, { perform: concedeCmd[1] === "!" });
-  const holographCmd = question.match(/^\/holograph\b\s*(.*)$/s);
-  if (holographCmd) return holographTurn(holographCmd[1] ?? "", question);
   const voidCmd = question.match(/^\/void(!?)(?:\s+|$)(.*)$/s);
   if (voidCmd) return voidTurn(voidCmd[2] ?? "", question, { perform: voidCmd[1] === "!" });
-  const modelLoopCmd = question.match(/^\/model-loop\b\s*(.*)$/s);
-  if (modelLoopCmd) return modelLoopTurn(modelLoopCmd[1] ?? "", question);
   const essayCmd = question.match(/^\/essay\b\s*(.*)$/s);
   if (essayCmd) return essayTurn(essayCmd[1] ?? "", question);
   if (/^\/export\b/.test(question)) return exportTurn(question);
@@ -8374,6 +8306,15 @@ async function send(question) {
   if (visualArg) return visualTurn(visualArg, question);
   if (/^\/visual\s*$/.test(question))
     return usageTurn(question, "/visual <name> — reads an already-attached image's structure (OpenCV box/connector detection + per-region OCR) and attaches the result as a citable text source. Attach an image first, then run this with its name.");
+
+  // /look <url> — LOOK at a website instead of text-dumping it: fetch
+  // through the recorded egress, render the page to a full-page image
+  // (headless Chrome), read it with the same machinery /visual uses, and
+  // land the fused reading as an ordinary "<host>.look.txt" source. Fires
+  // automatically on an explicitly-named URL whose fetched face needs
+  // looking; this door forces it for anything else.
+  const lookCmd = question.match(/^\/look\b\s*([\s\S]*)$/);
+  if (lookCmd) return lookTurn(lookCmd[1] ?? "", question);
 
   // /learn's door: the terminal's own `learn` walk is graded on real
   // keystrokes there, which chat cannot offer — so here it points to
@@ -8594,7 +8535,7 @@ async function send(question) {
 
 /** Every door the composer routes, read off the dispatch above — kept as one
  * list so the refusal for an unknown slash names all of them. */
-const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/facts", "/fold", "/gateways", "/help", "/holograph", "/ingest", "/join", "/learn", "/look", "/matrix", "/measure", "/model-loop", "/must", "/opencode", "/pool", "/preserve", "/priors", "/ranke", "/reading", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/source", "/task", "/transcribe", "/visual", "/void"]);
+const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/facts", "/fold", "/gateways", "/help", "/ingest", "/join", "/learn", "/look", "/matrix", "/measure", "/must", "/opencode", "/pool", "/preserve", "/priors", "/ranke", "/reading", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/source", "/task", "/transcribe", "/visual", "/void"]);
 
 /**
  * /ingest — a repo becomes folds, mechanically. Every admissible file (the
@@ -10059,24 +10000,9 @@ function discourseLineNow() {
   return [s.topic, s.flow, (s.entities || []).join(", ")].filter(Boolean).join(" · ").slice(0, 300);
 }
 
-// The role label above an answer reads "model" under the shipped Default,
-// and the active loop's own name once a saved loop is running the turn —
-// the one place a reader already looks to see who/what answered, so a
-// non-default loop names itself there rather than only inside the Wiring
-// tab (user direction, 2026-09-08: "'model' needs be the name of the
-// 'loop'").
-function mouthLabel() {
-  const loop = getActiveModelLoop();
-  return loop && loop.id !== DEFAULT_MODEL_LOOP.id ? loop.name : "model";
-}
-
 async function runFastPass(question, model) {
   const node = addMessage("assistant", "");
-  // .role-tag (renamed from .who by a concurrent same-day session — see
-  // addMessage below) still needs mouthLabel(), not the literal "model":
-  // this branch's own fix for the same day (S1's fast pass under a named
-  // model-loop was showing "model" regardless of which loop was active).
-  node.querySelector(".role-tag").textContent = mouthLabel();
+  node.querySelector(".role-tag").textContent = "model";
   const body = node.querySelector(".body");
   body.textContent = "…";
   const present = presentWindow(state.regime, RECENCY_WINDOW);
@@ -10167,7 +10093,7 @@ async function twoPassTurn(question) {
     return holonicTurn(question, question, "flat", {
       skipUserMessage: true,
       forceModel: s2Model,
-      label: mouthLabel(),
+      label: "model",
     });
   }
 
@@ -10192,7 +10118,7 @@ async function twoPassTurn(question) {
       skipUserMessage: true,
       priorPass: s1Text,
       forceModel: s2Model,
-      label: mouthLabel(),
+      label: "model",
     });
   }
   // Gate stayed off: S1 stands as the whole turn. holonicTurn's own
@@ -10373,7 +10299,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   loopsEl.className = "loops";
   loopsEl.hidden = true;
   body.before(loopsEl);
-  const drawLoops = () => { renderLoopCards(loopsEl, { turn: turnNo, convo: convoNo }); if ($("pane-holograph")?.classList.contains("on")) renderHolograph(); if ($("pane-wiring")?.classList.contains("on")) renderWiring(); };
+  const drawLoops = () => { renderLoopCards(loopsEl, { turn: turnNo, convo: convoNo }); };
   const landTurnLoops = (acts) => { const r = landLoops(acts); drawLoops(); return r; };
 
   // Already logged once by twoPassTurn's own S1 leg when this is S2 — the
@@ -10808,6 +10734,35 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
           show(`named source ${hostOf(url)}: ${f.gap?.detail ?? "no readable text"}`);
           continue;
         }
+        // THE AUTO-LOOK TRIGGER — fires ONLY on clear extraction ambiguity
+        // (empty face / extracted text that reads wrong: `look.auto`) or when
+        // the reader explicitly asks about what is ON a named page
+        // (pageLookIntent). A page whose prose extracted fine is read fine as
+        // text, however many tables or images it carries — the survey-only
+        // `embedded_visual`/`embedded_media` signals never auto-render it
+        // (measured rule: an ordinary infobox page must not slow a turn).
+        // This block only runs on URLs the reader EXPLICITLY named, so the
+        // expensive render+read fires when it makes sense to be asked, never
+        // on every fetched page. The sha256 rides over so the look reuses the
+        // bytes we just fetched — never a second fetch. The text face is
+        // still saved on web history either way; the looked face is what
+        // becomes material.
+        const wantsLook = f.entry.look?.auto || pageLookIntent(task);
+        if (wantsLook) {
+          // The `web:` name keeps the looked page inside the same scope
+          // machinery every other named-web source rides (piece scoping
+          // below keys on the `web:` prefix) — looking replaces the text
+          // dump, it does not create a second, differently-keyed source.
+          const looked = await lookUrlIntoSource(url, f.entry.sha256, { sourceName: name });
+          if (looked.sourceName) {
+            state.provenance[looked.sourceName] = state.provenance[looked.sourceName] ?? { line: f.entry.title ? `${f.entry.title} — ${hostOf(url)}` : hostOf(url), fields: { url: f.entry.finalUrl ?? url } };
+            show(`named source ${hostOf(url)}: looked at it (${f.entry.look.reason}) → attached "${looked.sourceName}" (${looked.text.length.toLocaleString()} chars) — mechanical read only, no vision model asked; /look ${hostOf(url)} opts into the vision read, archiving requested${f.entry.via ? ` — via ${f.entry.via.gateway}` : ""}`);
+            continue;
+          }
+          // A look that read nothing (no renderer, no vision) falls back to
+          // the plain text face below, disclosed — never a silent gap.
+          show(`named source ${hostOf(url)}: needed looking but nothing was read (${f.entry.look.reason}) — attaching the text face`);
+        }
         let faceRes;
         try {
           faceRes = await fetch(pageFaceUrl(EXPLORE_BASE, f.entry.textPath));
@@ -11013,9 +10968,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
         pages: escalation.pagesConsulted,
       });
     }
-    // Mirrors the header's own web toggle (state.webProof); a loop that
-    // names webPreflight overrides it for this turn, absence inherits it.
-    const webPreflightOn = pipelineToggle(getActiveModelLoop(), "webPreflight", state.webProof);
+    const webPreflightOn = state.webProof;
     const longFormHunt = Boolean(opts.longForm) && state.grounded && webPreflightOn;
     if (longFormHunt || shouldPreflight({ live, grounded: state.grounded, webProof: webPreflightOn, planMode })) {
       setPhase("checking for material");
@@ -11523,7 +11476,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     result = await runHolonicTask({
       // null when the person has not moved the slider off its default, so
       // strain decides the rung (P174); a deliberate setting is honoured.
-      depth: pipelineValue(getActiveModelLoop(), "depth", state.depthSet ? state.depth : null),
+      depth: state.depthSet ? state.depth : null,
       // The arithmetic engine, so ordering and difference are computed rather
       // than asked of the mouth (P173).
       math: window.math,
@@ -11570,7 +11523,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // The relation tier is the expensive check and the one with a whole
       // verdict vocabulary behind it. Plain mode does not ask for it, so it
       // is never computed — off means not run, not run-and-hidden.
-      makeRelationReader: pipelineToggle(getActiveModelLoop(), "makeRelationReader", state.grounded) ? relationsFor : null,
+      makeRelationReader: state.grounded ? relationsFor : null,
       // FOUND LIVE (2026-09-09): checking on, nothing attached, "What's your
       // favorite season and why?" — the turn's own void-brief had already
       // decided, before any draft existed, that this question "does not open
@@ -11609,17 +11562,16 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // relation tier's own SVO-level checking — untouched by this gate —
       // keeps checking whatever claims it can actually extract from a real
       // explanation.
-      // Mirrors the same underlying flag pipelineToggle everywhere else
-      // mirrors (never a second independent boolean) — the flag here is
+      // The flag here is
       // origin/main's own smarter one (state.grounded AND the question
       // opened a checkable slot), not bare state.grounded.
-      witnessSentences: pipelineToggle(getActiveModelLoop(), "witnessSentences", state.grounded && voidDigest !== "no-slot") ? witnessSentencesFor : null,
+      witnessSentences: (state.grounded && voidDigest !== "no-slot") ? witnessSentencesFor : null,
       // The link tier (links.js): a cited URL is fetched through the SAME
       // standing web consent proof-seeking already asks for — an automatic
       // crossing the instrument decided to make, not a click the reader
       // made, so it lives behind the same switch. Off means every cited URL
       // ships `unexamined`, never silently treated as checked.
-      checkLink: pipelineToggle(getActiveModelLoop(), "checkLink", state.webProof) ? checkLinkCitation : null,
+      checkLink: state.webProof ? checkLinkCitation : null,
       // The completeness gate's own belief, landed on the SAME app-wide
       // log `/act`/the terminal already write to (P38: "the hypergraph
       // records beliefs... held BY AN EXPERIENCER, not just given by a
@@ -11654,8 +11606,8 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // the fold.
       chatHistory: [...recallMessages, ...state.history.slice(-present)],
       discourse: discourseLine,
-      resolutions: pipelineValue(getActiveModelLoop(), "resolutions", RESOLUTIONS_LEVEL),
-      material: pipelineValue(getActiveModelLoop(), "material", "auto"),
+      resolutions: RESOLUTIONS_LEVEL,
+      material: "auto",
       retrieveWith: activationRetrievalNow(),
       // GFP Pass 35: THE SHADOW's seat, offered beside retrieval —
       // gated with the grounded pipeline that would be asked to bind its
@@ -11700,8 +11652,8 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // an ordinary turn — and one more correction pass plus two more
       // passages per part exactly when S1's record says the fast layer
       // has been getting corrected.
-      maxCorrections: pipelineValue(getActiveModelLoop(), "maxCorrections", escalation.maxCorrections),
-      passagesPerPart: pipelineValue(getActiveModelLoop(), "passagesPerPart", opts.passagesPerPart ?? escalation.passagesPerPart),
+      maxCorrections: escalation.maxCorrections,
+      passagesPerPart: opts.passagesPerPart ?? escalation.passagesPerPart,
       // Long-form (P108): an essay door declares its section count and its
       // per-part draft budget; an ordinary turn passes nothing and gets the
       // standing defaults.
@@ -12234,7 +12186,7 @@ function addMessage(role, text) {
         `</div>`
       : "") +
     `<div class="body"></div>`;
-  el.querySelector(".role-tag").textContent = role === "user" ? "you" : mouthLabel();
+  el.querySelector(".role-tag").textContent = role === "user" ? "you" : "model";
   el.querySelector(".ground-toggle")?.addEventListener("click", (ev) => {
     const on = el.classList.toggle("show-ground");
     ev.currentTarget.textContent = on ? "hide ground" : "ground";
@@ -12679,9 +12631,47 @@ function refLabel(ref) {
   return text;
 }
 
-/** What a ref shows: structure over bytes, bytes when there is no structure. */
+/** What a ref shows: structure over bytes, bytes when there is no structure.
+ * A "web:search-results#a-b" address is the one family where the bare ref
+ * itself is actively MISLEADING rather than merely unstructured — every
+ * such citation reads as the same literal string "search-results" no matter
+ * which of several distinct pages it actually came from (user direction,
+ * 2026-09-15: "should say the url, never 'search-results'"). `searchSpanSource`
+ * (above) already resolves the exact byte range to its real originating page
+ * — used until now only by the reopen dialog's "papers" line — so the chip
+ * reads that page's own host, the same naming convention a fully-fetched
+ * page's own chip already uses (`web:<host>-i`). The full URL still rides
+ * the reopen dialog; a chip is too small to hold one without truncating it
+ * into something less readable than the host alone. */
+/** A short, recognizable name for whatever a ref points at — "wikipedia"
+ * from "web:en.wikipedia.org-0#156-250", "mappr" from "web:mappr.co-1#...",
+ * a bare filename's own stem otherwise ("pasted" from "pasted.txt#0-140").
+ * For the marks-strip tier chip (below), never a citation's own address —
+ * a reader recognizes a SITE, not a host string with a subdomain and a TLD
+ * still attached. Returns null when nothing short and real can be said
+ * (an address family this can't parse), never a guess. */
+function shortSourceName(ref) {
+  const spanSource = searchSpanSource(ref);
+  const host = spanSource?.host ?? String(ref ?? "").replace(/^web:/, "").replace(/-\d+#.*$/, "").replace(/#.*$/, "");
+  if (!host) return null;
+  if (/\./.test(host)) {
+    // A dotted host: drop a leading subdomain (en., www., …) and the TLD,
+    // keeping the registrable name itself — "en.wikipedia.org" -> "wikipedia",
+    // "mappr.co" -> "mappr". A two-label host has no subdomain to drop.
+    const parts = host.split(".").filter(Boolean);
+    return parts.length >= 3 ? parts[parts.length - 2] : parts[0];
+  }
+  // A bare filename (no dot at all after the ref's own address is stripped
+  // above) or one with an extension still attached ("pasted.txt").
+  return host.replace(/\.\w+$/, "") || null;
+}
+
 function chipText(ref) {
-  return refLabel(ref) ?? ref;
+  const structured = refLabel(ref);
+  if (structured) return structured;
+  const spanSource = searchSpanSource(ref);
+  if (spanSource?.host) return `web:${spanSource.host}`;
+  return ref;
 }
 
 /**
@@ -12811,6 +12801,96 @@ function refNodes(text, known) {
  * original chip was clickable, the same action reachable from a real
  * button rather than a click on running prose.
  */
+/** "What claims this" in the Ground sheet (user, 2026-09-15: "from this place
+ * i want to see what is claiming this, and i want to see the EOT as well"):
+ * each claim read off the sentence, the sentence in the material that states
+ * it, and the ledger's own entries for those bytes — matched by byte address,
+ * never by wording, since a claim can bind a note it does not word the same. */
+function markClaimsSection(claims) {
+  const seen = new Set();
+  const list = (claims ?? []).filter((c) => {
+    const k = `${c.end1}|${c.label}|${c.end2}|${c.polarity ?? "+"}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  if (!list.length) return null;
+  const wrap = document.createElement("div");
+  wrap.className = "mark-claims";
+  const head = document.createElement("p");
+  head.className = "mark-claims-head";
+  head.textContent = list.length === 1 ? "What claims this" : `What claims this — ${list.length} claims`;
+  wrap.append(head);
+  const log = state.hyperlexiconLog;
+  const addressOf = (sp) => (sp?.at ? sp.at : sp?.ref != null && sp?.start != null && sp?.end != null ? `${sp.ref}#${sp.start}-${sp.end}` : null);
+  const triple = (c) => `${c.end1 ?? "?"} —${c.polarity === "-" ? "not " : ""}${c.label ?? "?"}→ ${c.end2 ?? "?"}`;
+  const quote = (block, sp) => {
+    if (!sp?.text) return;
+    const q = document.createElement("p");
+    q.className = "mark-claim-quote";
+    q.textContent = `“${String(sp.text).trim()}”`;
+    block.append(q);
+    if (!sp.ref) return;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "ref attached";
+    b.textContent = chipText(sp.ref);
+    b.title = `${sp.ref} — read the bytes`;
+    b.onclick = () => { $("mark-detail").close(); reopen(sp.ref); };
+    block.append(b);
+  };
+  for (const c of list) {
+    const block = document.createElement("div");
+    block.className = "mark-claim";
+    const row = document.createElement("p");
+    row.className = `mark-claim-row mark-claim-${c.verdict ?? "unheard"}`;
+    const v = document.createElement("span");
+    v.className = "mark-claim-verdict";
+    v.textContent = CLAIM_VERDICT_WORD[c.verdict] ?? "unsettled";
+    const t = document.createElement("span");
+    t.className = "mark-claim-triple";
+    t.textContent = triple(c);
+    row.append(v, t);
+    block.append(row);
+    const spans = (c.spans ?? []).slice(0, 3);
+    for (const sp of spans) quote(block, sp);
+    const near = spans.length ? [] : (c.nearest ?? []).slice(0, 2);
+    if (near.length) {
+      const h = document.createElement("p");
+      h.className = "mark-claims-head";
+      h.textContent = "closest the material comes";
+      block.append(h);
+      for (const e of near) {
+        const r = document.createElement("p");
+        r.className = "mark-claim-row";
+        const tt = document.createElement("span");
+        tt.className = "mark-claim-triple";
+        tt.textContent = triple(e);
+        r.append(tt);
+        block.append(r);
+        quote(block, (e.spans ?? [])[0]);
+      }
+    }
+    const at = new Set([...spans, ...near.flatMap((e) => e.spans ?? [])].map(addressOf).filter(Boolean));
+    const ids = new Set();
+    for (const e of log?.entries ?? []) if ((e.spans ?? []).some((sp) => at.has(addressOf(sp)))) ids.add(e.task_id);
+    // One sentence's bytes can hold several notes; the claim's own label picks
+    // its note, and only when none matches is everything from those bytes shown.
+    const fromBytes = (log?.entries ?? []).filter((e) => ids.has(e.task_id));
+    const sameLabel = (x) => String(x ?? "").trim().toLowerCase();
+    const ownNote = fromBytes.filter((e) => sameLabel(e.label) === sameLabel(c.label));
+    const entries = ownNote.length ? ownNote : fromBytes;
+    const eot = document.createElement("p");
+    eot.className = "mark-claim-eot";
+    eot.textContent = entries.length
+      ? entries.map((e) => `${OP_GLYPHS[e.operator] ?? "·"} ${e.cell ?? `${e.operator ?? "?"}·${e.grain ?? "?"}`}${e.terrain ? ` · ${e.terrain}` : ""}  ${e.end1 ?? ""} —${e.label ?? ""}→ ${e.end2 ?? ""}  #${e.seq}${e.witnesses?.length ? `  ${e.witnesses.length} witness${e.witnesses.length === 1 ? "" : "es"}` : ""}`).join("\n")
+      : "no ledger entry for these bytes yet";
+    block.append(eot);
+    wrap.append(block);
+  }
+  return wrap;
+}
+
 function openMarkDetail(entry) {
   $("mark-detail-title").textContent = entry.tier ? `Ground — ${tierWord(entry.tier)}` : "Marks";
   $("mark-detail-sentence").textContent = `“${entry.sentence}”`;
@@ -12858,6 +12938,8 @@ function openMarkDetail(entry) {
         div.append(from);
       }
     }
+    const claimsSection = markClaimsSection(item.claims);
+    if (claimsSection) div.append(claimsSection);
     if (item.action) {
       const btn = document.createElement("button");
       btn.className = "mark-chip";
@@ -12897,6 +12979,21 @@ function markRef(marks, entry) {
  * bottom of a message, everything the sentence-level chips used to say,
  * still all present and still one click away, just not standing in the
  * reader's way to get to it. A no-op when the message earned no marks. */
+/** The strip chip's own tier word — "wikipedia" beats "en.wikipedia.org-0#…"
+ * for the same reason `chipText` prefers a host to a raw address, but the
+ * strip's OWN convention (user direction, 2026-09-15) is `tier:source`, not
+ * the tier's full descriptive phrase, whenever the mark's addresses all
+ * trace to exactly ONE recognizable source — several sources still get the
+ * phrase (`tierWord`), since naming one of many would misrepresent the
+ * others. */
+function tierChipLabel(entry) {
+  if (!entry.tier) return entry.items[0]?.label ?? "mark";
+  const addresses = [...new Set(entry.items.flatMap((it) => it.addresses ?? []))];
+  const names = [...new Set(addresses.map(shortSourceName).filter(Boolean))];
+  if (names.length === 1) return `${entry.tier}:${names[0]}`;
+  return tierWord(entry.tier);
+}
+
 function renderMarksStrip(container, marks) {
   if (!marks.length) return;
   const strip = document.createElement("div");
@@ -12905,7 +13002,7 @@ function renderMarksStrip(container, marks) {
     const warn = entry.items.some((it) => it.warn);
     const chip = document.createElement("button");
     chip.className = `mark-chip${warn ? " warn" : ""}`;
-    chip.textContent = `${i + 1} · ${entry.tier ? tierWord(entry.tier) : entry.items[0]?.label ?? "mark"}`;
+    chip.textContent = `${i + 1} · ${tierChipLabel(entry)}`;
     chip.onclick = () => openMarkDetail(entry);
     strip.append(chip);
   });
@@ -13017,7 +13114,8 @@ function taggedProse(text, offered, classified = [], marks = []) {
       // onto the sentence that carries its subject and verb) are the claims
       // the ladder reads — a claim knows its sentence only there.
       const own = (entry.edges ?? []).map((c) => ({ ...c, sentence: entry.text }));
-      const g = groundOf(entry.text, { ...state.lastGround, claims: [...own, ...(state.lastGround.claims ?? []).filter((c) => c.sentence === entry.text)], witness: wrow });
+      const sentenceClaims = [...own, ...(state.lastGround.claims ?? []).filter((c) => c.sentence === entry.text)];
+      const g = groundOf(entry.text, { ...state.lastGround, claims: sentenceClaims, witness: wrow, leadingNames: true });
       sent.dataset.groundTier = g.tier;
       tier = g.tier;
       // The action: open the real bytes when we already have a real
@@ -13068,6 +13166,7 @@ function taggedProse(text, offered, classified = [], marks = []) {
         addresses: g.addresses,
         action: knownRef ? () => reopen(knownRef) : () => groundHunt(entry.text),
         actionLabel: knownRef ? "See original source" : "Search the material",
+        claims: sentenceClaims,
       });
     }
 
@@ -15950,31 +16049,12 @@ function citeBadge(ref, known, numberOf) {
 }
 
 /**
- * Switches to the Holograph tab and opens (drills) the named referent
- * there — the SAME `renderHolograph({ pick })` a referent click inside
- * the holograph itself already uses. "Pivot": a fact's own subject is a
- * door into everything else this instrument has heard about it, not a
- * dead label (user direction, 2026-09-09: "the EOT should be clickable
- * and pivot things").
- */
-function pivotToHolograph(name) {
-  if (!name) return;
-  if (panelCollapsed) setPanelCollapsed(false);
-  showView("holograph");
-  renderHolograph({ pick: name });
-}
-
-/**
  * The "EOT" cell — end1/label/end2 read verbatim off the claim this row
  * actually composed (P58's own reading of the cube: the arrangement
  * carries the ends, "verb" is a declared overlay, never re-derived here),
  * in the same `subject —verb→ object` shape this app's own linkNode()/
  * linkText() already draw graph edges with (CLAUDE.md, "the UX pass",
- * "One drawing of a link, everywhere"). Subject AND object are each their
- * OWN button, independently pivoting the holograph to whichever end the
- * reader actually cares about (user direction, 2026-09-09, after the
- * first cut only pivoted on the subject: "now let us be able to click
- * through and pivot on things" — plural). A plain, unclickable "—" when
+ * "One drawing of a link, everywhere"). A plain "—" when
  * this row came from re-parsing an OLDER document's prose (no
  * end1/label/end2 was ever stored for it), never a guessed pivot.
  */
@@ -15987,11 +16067,10 @@ function eotCell(row) {
     return cell;
   }
   const endBtn = (name) => {
-    const b = document.createElement("button");
+    const b = document.createElement("span");
     b.className = "facts-table-eot-end";
     b.textContent = name;
-    b.title = `${row.cell ? `${row.cell} · ` : ""}pivot the holograph to "${name}"`;
-    b.onclick = () => pivotToHolograph(name);
+    if (row.cell) b.title = row.cell;
     return b;
   };
   const verb = document.createElement("span");
@@ -16003,8 +16082,7 @@ function eotCell(row) {
 }
 
 /** The table view of a /facts document — one row per composed sentence:
- * Fact prose, its EOT (the structured claim, clickable — pivots the
- * holograph), Source, and Citation, in that column order (user
+ * Fact prose, its EOT (the structured claim), Source, and Citation, in that column order (user
  * direction, 2026-09-09, iterated live: "source | fact prose | EOT |
  * citation", then "the EOT should be clickable and pivot things", then
  * "lets put source 3rd actually"). `rows` is EITHER `entry.factsRows`
@@ -16395,28 +16473,33 @@ function joinWithAnd(items) {
   return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
 }
 
+/** A short, trimmed excerpt — never a silent truncation: an elided tail is
+ * marked "…" so a reader can tell a clip from the whole thing. */
+function clipContent(t, n) {
+  const x = String(t ?? "").replace(/\s+/g, " ").trim();
+  return x.length > n ? `${x.slice(0, n - 1)}…` : x;
+}
+
 /**
- * A plain-language reading of one model call's wire payload — the SHAPE of
- * what was sent (how many messages, what kind, roughly how much), never the
- * literal prompt text (2026-09-08, reversing "vastly simplified" 2026-08-28;
- * see CLAUDE.md). Purely structural: role counts and character totals read
- * straight off `call.messages`, plus one exact, stable marker this app's own
- * prompt-builders always use verbatim when a discourse line is folded in
- * ("The conversation so far") — nothing else here is inferred from content,
- * because a reader is owed the shape of what was sent, not a guess at it.
+ * A plain-language reading of one model call's wire payload. Read the SHAPE
+ * (role counts) as before, but also the actual CONTENT of what was sent —
+ * reversed 2026-09-15 (was: "never the literal prompt text… a reader is
+ * owed the shape of what was sent, not a guess at it", 2026-09-08 — the
+ * direct correction: "the content is more important than the characters").
+ * A character COUNT answers nothing about what the call actually did; a
+ * clipped excerpt of the outgoing request is real content; the full,
+ * untruncated messages are drawn right beneath this line (callMessages).
  */
 function describeSentCall(call, modelName) {
   const messages = call?.messages ?? [];
   const n = messages.length;
-  let system = 0, user = 0, assistant = 0, chars = 0, discourseNoted = false;
+  let system = 0, user = 0, assistant = 0, discourseNoted = false;
   for (const m of messages) {
     const role = m?.role;
     if (role === "system") system++;
     else if (role === "user") user++;
     else if (role === "assistant") assistant++;
-    const content = String(m?.content ?? "");
-    chars += content.length;
-    if (content.includes("The conversation so far")) discourseNoted = true;
+    if (String(m?.content ?? "").includes("The conversation so far")) discourseNoted = true;
   }
   const lastIsUser = n > 0 && messages[n - 1]?.role === "user";
   const historyCount = Math.max(0, user - (lastIsUser ? 1 : 0)) + assistant;
@@ -16426,70 +16509,251 @@ function describeSentCall(call, modelName) {
   if (discourseNoted) bits.push("a one-line note on how things have gone so far");
   if (lastIsUser) bits.push("the request it was just asked to answer");
   const said = bits.length ? joinWithAnd(bits) : `${n} message${n === 1 ? "" : "s"}`;
-  return `Sent ${n} message${n === 1 ? "" : "s"} to ${modelName}: ${said} (${chars.toLocaleString()} character${chars === 1 ? "" : "s"} total).`;
+  // The excerpt is the LAST user-role message — the thing the model was
+  // actually asked to act on this call (a system instruction is the
+  // apparatus talking to itself; the user turn is the content).
+  const lastUser = [...messages].reverse().find((m) => m?.role === "user");
+  const excerpt = lastUser ? clipContent(lastUser.content, 160) : "";
+  return `Sent ${n} message${n === 1 ? "" : "s"} to ${modelName}: ${said}.${excerpt ? ` — “${excerpt}”` : ""}`;
 }
 
-/**
- * "A map of how and what was prompted, with levels of disclosure" (user,
- * 2026-09-09) — this turn's own calls, grouped by the phase active when
- * each was sent. This app's own prompting is deliberately non-standard
- * (it does not just grow one context every turn — a plan, per-part
- * research/draft/correction, a summary refresh, each a call this repo's
- * own architecture may skip or repeat), so a flat numbered list read top
- * to bottom answered "what was sent" but not "why this many calls, in
- * this shape" — the actual, turn-specific pipeline.
- *
- * Nothing new is measured to build this: `phase` (set at the `call:`
- * closure in `holonicTurn`) is `phaseLabel`, the exact string this turn's
- * OWN status line already showed while that call was in flight. Level 1
- * is this tree; level 2 (unchanged, below) is still the verbatim wire
- * JSON per call — this function only decides how the LIST above it is
- * grouped, never what the raw disclosure holds.
- *
- * Falls back to the old flat one-line-per-call list when no call in
- * `sent` carries a `.phase` (every turn kind besides `holonicTurn`'s own
- * — build/piece-edit/widget/measure doors among them — none of which are
- * touched by this pass), so nothing already working changes shape.
- */
-function callTreeFor(sent, modelName) {
+/** Every message one call sent, in full, under a plain label (user, 2026-09-15:
+ * "no need for a more, but lets show it all here"). A message word-for-word
+ * identical to one an earlier call already showed is pointed at, not repeated —
+ * the instructions are the same few thousand characters on every call. */
+function callMessages(call, { seen = null, callNo = null } = {}) {
   const wrap = document.createElement("div");
-  if (!sent.some((c) => c.phase)) {
-    for (const call of sent) {
-      const p = document.createElement("p");
-      p.className = "fold-note";
-      p.textContent = describeSentCall(call, modelName);
-      wrap.append(p);
+  wrap.className = "fold-call";
+  const messages = call?.messages ?? [];
+  const lastUser = messages.map((m) => m?.role).lastIndexOf("user");
+  messages.forEach((m, i) => {
+    const role = document.createElement("p");
+    role.className = "fold-msg-role";
+    role.textContent = m?.role === "system" ? "Instructions"
+      : m?.role === "assistant" ? "Earlier — the model"
+      : i === lastUser ? "Question" : "Earlier — you";
+    const content = String(m?.content ?? "");
+    const key = `${m?.role}\u0000${content}`;
+    if (seen?.has(key)) {
+      const same = document.createElement("p");
+      same.className = "fold-msg-same";
+      same.textContent = `same as call ${seen.get(key)} (${content.length.toLocaleString()} characters)`;
+      wrap.append(role, same);
+      return;
     }
-    return wrap;
-  }
-  // Map preserves insertion order, and calls arrive in the order they were
-  // sent — so groups land in the order the turn actually moved through
-  // them, never re-sorted, even when a later phase revisits an earlier
-  // label (the correction loop can return to "writing X" a second time).
-  const groups = new Map();
-  for (const call of sent) {
-    const key = call.phase ?? "(no phase recorded)";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(call);
-  }
-  const keys = [...groups.keys()];
-  keys.forEach((key, gi) => {
-    const calls = groups.get(key);
-    const head = document.createElement("p");
-    head.className = "fold-note fold-tree-head";
-    const headGlyph = gi === keys.length - 1 ? "└─" : "├─";
-    head.textContent = `${headGlyph} ${key}${calls.length > 1 ? ` (${calls.length} calls)` : ""}`;
-    wrap.append(head);
-    calls.forEach((call, ci) => {
-      const p = document.createElement("p");
-      p.className = "fold-note fold-tree-leaf";
-      const railGlyph = gi === keys.length - 1 ? " " : "│";
-      const leafGlyph = ci === calls.length - 1 ? "└─" : "├─";
-      p.textContent = `${railGlyph}  ${leafGlyph} ${describeSentCall(call, modelName)}`;
-      wrap.append(p);
-    });
+    seen?.set(key, callNo);
+    const pre = document.createElement("pre");
+    pre.className = "fold-msg";
+    pre.textContent = content;
+    wrap.append(role, pre);
   });
   return wrap;
+}
+
+/** A titled step of the GROUND panel — the overview says what happened; each
+ * step says one part of how, in the order it happened. */
+function foldSection(title, note) {
+  const sec = document.createElement("div");
+  sec.className = "fold-step";
+  const h = document.createElement("p");
+  h.className = "fold-step-title";
+  h.textContent = title;
+  sec.append(h);
+  if (note) {
+    const n = document.createElement("p");
+    n.className = "fold-step-note";
+    n.textContent = note;
+    sec.append(n);
+  }
+  return sec;
+}
+
+/** What retrieval handed the model, at a glance (user, 2026-09-15: "one
+ * thing that's not on there is the retrieval", then "this is quickly going to
+ * be overwhelming"). One line per source; the passages a checked claim rests
+ * on, as their own text; everything else behind Show all. A byte range means
+ * nothing to a reader, so each passage's address rides its hover. */
+const RETRIEVAL_TOP = 3;
+function foldRetrieval(record) {
+  const refs = record?.retrieved ?? [];
+  if (!refs.length) return null;
+  const range = (ref) => { const m = /^(.*)#(\d+)-(\d+)$/.exec(String(ref ?? "")); return m ? { name: m[1], a: Number(m[2]), b: Number(m[3]) } : null; };
+  const leans = [];
+  for (const c of record.claims ?? []) {
+    if (c.verdict !== "bound" && c.verdict !== "contradicted") continue;
+    for (const ref of [...(c.refs ?? []), ...(c.spans ?? []).map((sp) => sp.ref)]) if (ref) leans.push({ ref, r: range(ref), verdict: c.verdict });
+  }
+  const tagOf = (ref) => {
+    const r = range(ref);
+    let tag = null;
+    for (const l of leans) {
+      const same = l.ref === ref || (r && l.r && l.r.name === r.name && l.r.a < r.b && r.a < l.r.b);
+      if (!same) continue;
+      if (l.verdict === "contradicted") return "contradicts a claim";
+      tag = "backs a claim";
+    }
+    return tag;
+  };
+  const textOf = (ref) => {
+    const ctx = refContext(state.sources, ref) ?? refContext(state.citedMaterial ?? {}, ref);
+    const t = String(ctx?.cited ?? "").replace(/\s+/g, " ").trim();
+    return t ? (t.length > 160 ? `${t.slice(0, 159)}…` : t) : null;
+  };
+  const items = refs.map((ref, rank) => ({ ref, rank, name: String(ref).split("#")[0], tag: tagOf(ref) }));
+  const backs = items.filter((it) => it.tag === "backs a claim").length;
+  const contra = items.filter((it) => it.tag === "contradicts a claim").length;
+  const bySource = new Map();
+  for (const it of items) { if (!bySource.has(it.name)) bySource.set(it.name, []); bySource.get(it.name).push(it); }
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  const note = [`${plural(refs.length, "passage")} from ${plural(bySource.size, "source")}`, backs ? `${backs} back${backs === 1 ? "s" : ""} a claim` : null, contra ? `${contra} contradict${contra === 1 ? "s" : ""} one` : null].filter(Boolean).join(" · ");
+  const sec = foldSection("What it looked up", note);
+  const shownFirst = (it) => (backs || contra ? Boolean(it.tag) : it.rank < RETRIEVAL_TOP);
+  const rows = [];
+  for (const [name, list] of bySource) {
+    const src = document.createElement("div");
+    src.className = "fold-source";
+    const head = document.createElement("p");
+    head.className = "fold-source-head";
+    const nm = document.createElement("span");
+    nm.className = "fold-source-name";
+    nm.textContent = name === "web:search-results" ? "web search results" : name;
+    const ct = document.createElement("span");
+    ct.className = "fold-source-count";
+    ct.textContent = plural(list.length, "passage");
+    head.append(nm, ct);
+    src.append(head);
+    for (const it of list) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = `fold-passage${it.tag ? " used" : ""}`;
+      const text = textOf(it.ref);
+      const t = document.createElement("span");
+      t.className = "fold-passage-text";
+      t.textContent = text ? `“${text}”` : "this passage's text isn't kept past its turn";
+      b.append(t);
+      if (it.tag) {
+        const tg = document.createElement("span");
+        tg.className = `fold-passage-tag${it.tag === "contradicts a claim" ? " contra" : ""}`;
+        tg.textContent = it.tag;
+        b.append(tg);
+      }
+      b.title = `${it.ref} — read these bytes`;
+      b.onclick = () => reopen(it.ref);
+      b.hidden = !shownFirst(it);
+      src.append(b);
+      rows.push(b);
+    }
+    sec.append(src);
+  }
+  const initial = rows.map((b) => b.hidden);
+  if (initial.some(Boolean)) {
+    const all = document.createElement("button");
+    all.type = "button";
+    all.className = "fold-show-all";
+    const closedLabel = `Show all ${plural(refs.length, "passage")}`;
+    all.textContent = closedLabel;
+    let open = false;
+    all.onclick = () => {
+      open = !open;
+      rows.forEach((b, i) => { b.hidden = open ? false : initial[i]; });
+      all.textContent = open ? "Show fewer" : closedLabel;
+    };
+    sec.append(all);
+  }
+  return sec;
+}
+
+const CLAIM_VERDICT_WORD = { bound: "backed", contradicted: "contradicted" };
+/** What the check found, trimmed to what a reader can act on (user, 2026-09-15:
+ * "figure out the visual hierarchy and what the user doesnt actually need to
+ * know"): backed and contradicted claims with their addresses, and the
+ * answer's own sentences that nothing backs. Claims the reading could not
+ * settle are counted in the overview, not listed — they are mostly the
+ * extractor's own fragments; the full list stays in Copy JSON. */
+function recordClaimsList(record) {
+  const all = record?.claims ?? [];
+  const claims = all.filter((c) => c.verdict === "bound" || c.verdict === "contradicted");
+  const unsupported = [...new Set(record?.unsupported ?? [])];
+  const unbacked = [...new Set(record?.unbacked ?? [])];
+  if (!claims.length && !unsupported.length && !unbacked.length) return null;
+  const bound = claims.filter((c) => c.verdict === "bound").length;
+  const contradicted = claims.length - bound;
+  const unsettled = all.length - claims.length;
+  const note = [bound ? `${bound} backed` : null, contradicted ? `${contradicted} contradicted` : null, unsettled ? `${unsettled} couldn't be settled` : null, unbacked.length ? `${unbacked.length} with nothing to check against` : null].filter(Boolean).join(" · ");
+  const sec = foldSection("What it checked", note);
+  const line = (verdict, text, where, closest = null) => {
+    const p = document.createElement("p");
+    p.className = `fold-claim fold-claim-${verdict}`;
+    const v = document.createElement("span");
+    v.className = "fold-claim-verdict";
+    v.textContent = verdict === "unbacked" ? "nothing to check" : verdict === "unsupported" ? "not in the material" : (CLAIM_VERDICT_WORD[verdict] ?? verdict);
+    const t = document.createElement("span");
+    t.className = "fold-claim-text";
+    t.textContent = text;
+    if (closest) {
+      const c = document.createElement("span");
+      c.className = "fold-claim-closest";
+      c.textContent = ` — closest it does say: ${closest}`;
+      t.append(c);
+    }
+    p.append(v, t);
+    if (where) {
+      const a = document.createElement("button");
+      a.type = "button";
+      a.className = "ref attached";
+      a.textContent = chipText(where);
+      a.title = `${where} — read the bytes`;
+      a.onclick = () => reopen(where);
+      p.append(a);
+    }
+    sec.append(p);
+  };
+  for (const c of claims) line(c.verdict, `${c.end1 ?? "?"} —${c.polarity === "-" ? "not " : ""}${c.label ?? "?"}→ ${c.end2 ?? "?"}`, c.refs?.[0] ?? null);
+  for (const u of unsupported) line("unsupported", u, null);
+  for (const u of unbacked) {
+    const m = /^the material never says:\s*([\s\S]*?)(?:\s*\(closest it does say:\s*([\s\S]*)\))?$/.exec(u);
+    line("unbacked", m ? m[1] : u, null, m?.[2] ?? null);
+  }
+  return sec;
+}
+
+// Two of this turn's phase LABELS are, byte-for-byte, an already-registered
+// capacity (eoreader7/native/organs/capacities.js) — not a new typing
+// invented for this box, a citation of one that already exists: "checking
+// for material" is exactly `shouldPreflight`/`preflightQuery`'s own gate
+// (id "preflight", INS·Ground — Generate·Existence at Ground grain,
+// "generating ground where none exists"), and "folding the summary" is
+// exactly `advanceSummaryFold` (id "field", CON·Ground — Relate·Structure
+// at Ground grain, "maintaining the connective ground of a conversation").
+// Every OTHER phase this turn can carry ("planning", "reading for X",
+// "writing X", "rewriting X") has no such registration, so none is guessed
+// here — this repo's own standing rule (P58: "the cube is not a content
+// classifier") applies exactly as much to a disclosure panel as to a
+// reading organ.
+const EOT_PHASE = new Map([
+  ["checking for material", { op: "INS", cell: "INS·Ground", what: "preflight — generating ground where none exists, before the model drafts" }],
+  ["folding the summary", { op: "CON", cell: "CON·Ground", what: "field — maintaining the conversation's running ground" }],
+]);
+
+/**
+ * "What the model was asked" — every call this turn made, in the order it was
+ * sent, each under one heading (its phase, with the EOT glyph where the phase
+ * IS a registered capacity — EOT_PHASE above) and its messages in full beneath
+ * (user, 2026-09-15: "make it more clear what the model got prompted"). The
+ * one-sentence description of a call rides the heading's hover.
+ */
+function callTreeFor(sent, modelName) {
+  const sec = foldSection("What the model was asked", `${sent.length} call${sent.length === 1 ? "" : "s"} to ${modelName}`);
+  const seen = new Map();
+  sent.forEach((call, i) => {
+    const head = document.createElement("p");
+    head.className = "fold-call-head";
+    const eot = call.phase ? EOT_PHASE.get(call.phase) : null;
+    head.textContent = `${i + 1}. ${call.phase ?? "a call"}${eot ? `  ${OP_GLYPHS[eot.op] ?? eot.op}` : ""}`;
+    head.title = [describeSentCall(call, modelName), eot ? `${eot.cell} — ${eot.what}` : null].filter(Boolean).join("\n");
+    sec.append(head, callMessages(call, { seen, callNo: i + 1 }));
+  });
+  return sec;
 }
 
 /**
@@ -16504,12 +16768,10 @@ function callTreeFor(sent, modelName) {
  * meaningless or alarming to an ordinary reader. What changes here is the
  * DEFAULT VIEW, not the data: `answerRecordProse`/`describeSentCall` read the
  * identical `record`/`sent` this function always took and say what they mean
- * in plain sentences, and the wire payloads and record sit one click deeper
- * under a plainly-labelled "more" disclosure (renamed from "view raw",
- * 2026-09-15 — see that block's own comment for why; this repo's own
- * standing rule elsewhere still holds: hide by default, one more click for
- * detail, never delete — the record shown under "more" is trimmed of the
- * instrument's own internal plumbing only, never of a finding). A turn that
+ * in plain sentences; every message sent is drawn in full under its call,
+ * and the whole record plus those messages copy as JSON from the controls
+ * row (user, 2026-09-15: "no need for a more, but lets show it all here").
+ * A turn that
  * spent no model call still says so honestly.
  */
 function renderFold(node, { sent, record = null } = {}) {
@@ -16549,12 +16811,18 @@ function renderFold(node, { sent, record = null } = {}) {
   }
   // What spoke for this turn: every call's model and the machine it ran on,
   // beside the token count, so an answer never hides which mouth made it.
-  const spoke = mouthsLine(Number(node.dataset.turnSeq ?? -1));
+  const mouthSeq = Number(node.dataset.turnSeq ?? -1);
+  const spoke = mouthsLine(mouthSeq);
   if (spoke) {
+    // The count and the time on the line; which model, on whose machine, on
+    // hover — the call step below already names the model it asked.
+    const mouths = turnMouths.filter((x) => x.seq === mouthSeq);
+    const calls = mouths.reduce((n, x) => n + x.calls, 0);
+    const secs = mouths.reduce((n, x) => n + (x.ms ?? 0), 0) / 1000;
     const m = document.createElement("span");
     m.className = "turn-mouths";
-    m.textContent = spoke;
-    m.title = "which model answered each call of this turn, and on whose machine — measured at the call, not inferred";
+    m.textContent = `${calls} model call${calls === 1 ? "" : "s"}${secs ? ` · ${secs.toFixed(1)}s` : ""}`;
+    m.title = `${spoke} — which model answered each call, and on whose machine, measured at the call`;
     costParts.push(m);
   }
   if (costParts.length) {
@@ -16566,8 +16834,13 @@ function renderFold(node, { sent, record = null } = {}) {
   const out = box.querySelector("p");
   out.textContent = "";
 
-  // THE DEFAULT VIEW: plain sentences, what a curious but non-technical
-  // reader wants — what the turn found, and what was sent to answer it.
+  // THE DEFAULT VIEW: sentences for a curious but non-technical reader
+  // (answerRecordProse, answer-record.js). The plain/logic mode toggle this
+  // used to carry was removed (2026-09-15, user direction) — one reading,
+  // not a developer's choice of two; `bareLogic` stays exported for the
+  // proxy's own `thinking.logic` field (proxy-runner.mjs), just no longer
+  // drawn here.
+  box._foldData = { sent, record };
   if (record) {
     const p = document.createElement("p");
     p.className = "fold-note";
@@ -16575,6 +16848,8 @@ function renderFold(node, { sent, record = null } = {}) {
     out.append(p);
   }
 
+  const retrieval = foldRetrieval(record);
+  if (retrieval) out.append(retrieval);
   if (!sent?.length) {
     // Honest absence, not a blank box: a turn can genuinely spend no model
     // call (arithmetic, a chart, a public-record lookup, /run's sandbox) —
@@ -16587,50 +16862,38 @@ function renderFold(node, { sent, record = null } = {}) {
     const modelName = record?.model ?? state.model ?? "the model";
     out.append(callTreeFor(sent, modelName));
   }
+  const claimsList = recordClaimsList(record);
+  if (claimsList) out.append(claimsList);
 
-  // "MORE" — one click deeper, nothing deleted (renamed from "view raw",
-  // 2026-09-15: live user feedback on this exact box — a reader had gone
-  // looking for the verbatim prompt JSON and could not find it, because a
-  // COLLAPSED disclosure nested inside another collapsed disclosure and
-  // labelled with a developer's own term for itself is easy to miss
-  // entirely, not merely one click further. The fix is not another click:
-  // it is that everything a curious reader actually recognizes — the
-  // claims, what's unbacked, the sources, Aletheia's satisfaction read —
-  // is ALREADY in the plain-language prose and the call tree above,
-  // outside any further click. What is genuinely rare to want (the exact
-  // wire bytes sent to the model, and the instrument's own internal
-  // bookkeeping — a schema tag, a recipe hash, the reader's organ/lever
-  // names) stays one click away under a plainly-named "more", trimmed of
-  // that plumbing (`answerRecordForReading`, answer-record.js) — never
-  // deleted: the untrimmed record still lands whole on the durable log
-  // (records/answers.jsonl) and the model-swap diff reads it directly.
+  meta.querySelector(".fold-copy")?.remove();
   if (record || sent?.length) {
-    const raw = document.createElement("details");
-    raw.className = "fold";
-    raw.innerHTML = "<summary>more</summary>";
-    if (record) {
-      const pre = document.createElement("pre");
-      pre.className = "block";
-      const role = document.createElement("span");
-      role.className = "role";
-      role.textContent = answerRecordLine(record);
-      pre.append(role, document.createTextNode("\n" + JSON.stringify(answerRecordForReading(record), null, 2)));
-      raw.append(pre);
-    }
-    // Rendered as raw JSON.stringify, not this app's own pretty-printed
-    // role/content style, because "verbatim" is the whole point — a reader
-    // asking to see the actual wire payload should see exactly that, not a
-    // second-hand restatement of it.
-    for (const call of sent ?? []) {
-      const pre = document.createElement("pre");
-      pre.className = "block";
-      const role = document.createElement("span");
-      role.className = "role";
-      role.textContent = `call ${call.n} · ${call.messages.length} message(s)`;
-      pre.append(role, document.createTextNode("\n" + JSON.stringify(call.messages, null, 2)));
-      raw.append(pre);
-    }
-    out.append(raw);
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "fold-copy";
+    copy.textContent = "Copy JSON";
+    copy.title = "the full answer record and every message sent to the model this turn, as JSON";
+    copy.onclick = async () => {
+      const json = JSON.stringify({ record: record ?? null, calls: sent ?? [] }, null, 2);
+      // The clipboard API refuses without focus or on a non-secure origin (a
+      // room member on a LAN address); the older select-and-copy path still works there.
+      const viaSelection = () => {
+        const area = document.createElement("textarea");
+        area.value = json;
+        area.setAttribute("readonly", "");
+        area.style.position = "fixed";
+        area.style.opacity = "0";
+        document.body.append(area);
+        area.select();
+        const ok = document.execCommand("copy");
+        area.remove();
+        return ok;
+      };
+      let ok = false;
+      try { await navigator.clipboard.writeText(json); ok = true; } catch { ok = viaSelection(); }
+      copy.textContent = ok ? "Copied" : "Couldn't copy";
+      setTimeout(() => { copy.textContent = "Copy JSON"; }, 1600);
+    };
+    meta.append(copy);
   }
 }
 
@@ -18732,629 +18995,6 @@ syncGroundedUI();
   }
 }
 
-// ── Wiring (model-loops.js) ──────────────────────────────────────────────────
-// The last chat turn's real prompt ingredients, as nodes on the SAME graph
-// engine holograph-graph.js already draws (place()/draw(), reused whole —
-// "off"/"overridden" are new states on the identical hg-state-* hook draw()
-// already emits, nothing added there). A saved model-loop is a named set of
-// per-ingredient enable/override choices; switching one re-tunes the SAME
-// captured turn instantly, no new chat message needed.
-let wiringLoopsCache = null; // [{id, name}, …] from the server, "default" first
-let wiringPick = null; // which ingredient key the drawer is open on
-let wiringActiveId = (() => { try { return localStorage.getItem("fold-model-loop") || DEFAULT_MODEL_LOOP.id; } catch { return DEFAULT_MODEL_LOOP.id; } })();
-// The line above restores which loop the BAR shows as active; it does not
-// restore the real active loop model-loops.js's own module state holds —
-// caught live: a reload showed a saved loop highlighted while every turn
-// silently ran under Default until its chip was clicked again this
-// session. Fetching and setting the real loop here, once, closes that gap
-// with no UI touched (the Wiring pane may not be mounted at this point).
-if (wiringActiveId !== DEFAULT_MODEL_LOOP.id) {
-  fetch(`${EXPLORE_BASE}/api/model-loops?id=${encodeURIComponent(wiringActiveId)}`)
-    .then((r) => r.json())
-    .then((data) => { if (data?.loop) setActiveModelLoop(data.loop); })
-    .catch(() => { /* explore-server not reachable yet — Default keeps running, same as before this fix */ });
-}
-
-async function wiringFetchLoops() {
-  try {
-    const data = await (await fetch(`${EXPLORE_BASE}/api/model-loops`)).json();
-    wiringLoopsCache = data.loops?.length ? data.loops : [{ id: DEFAULT_MODEL_LOOP.id, name: DEFAULT_MODEL_LOOP.name }];
-  } catch {
-    wiringLoopsCache = [{ id: DEFAULT_MODEL_LOOP.id, name: DEFAULT_MODEL_LOOP.name }];
-  }
-  return wiringLoopsCache;
-}
-
-async function wiringActivate(id) {
-  let loop = DEFAULT_MODEL_LOOP;
-  if (id !== DEFAULT_MODEL_LOOP.id) {
-    try {
-      const data = await (await fetch(`${EXPLORE_BASE}/api/model-loops?id=${encodeURIComponent(id)}`)).json();
-      if (data?.loop) loop = data.loop;
-    } catch { /* explore-server not reachable — the default keeps running */ }
-  }
-  setActiveModelLoop(loop);
-  wiringActiveId = loop.id;
-  try { localStorage.setItem("fold-model-loop", wiringActiveId); } catch { /* kept for the session */ }
-  wiringCollapseDrawer(); // switching loops changes every node's meaning — never carry an expansion across that
-  renderWiring();
-}
-
-async function renderWiring() {
-  const host = $("wiring-graph");
-  if (!host) return;
-  wiringWireDrawerOnce();
-  wiringWireLoopToolbarOnce();
-  // Park the drawer back at its stable home BEFORE rebuilding the flow —
-  // host.replaceChildren below would otherwise orphan it if it's still
-  // sitting inside a card from a prior render (a detached element is no
-  // longer findable by $() at all, not merely hidden).
-  const drawerHome = $("wiring-drawer-home");
-  const drawer = $("wiring-drawer");
-  if (drawerHome && drawer && drawer.parentElement !== drawerHome) drawerHome.append(drawer);
-  wiringExpandedCard = null;
-  if (!wiringLoopsCache) await wiringFetchLoops();
-  renderWiringLoopsBar();
-  const captured = getLastCapturedTurn();
-  if (!captured) {
-    host.replaceChildren();
-    const p = document.createElement("p");
-    p.className = "wiring-empty";
-    p.textContent = "Send a chat message first, or load sample data above, to see this canvas draw real prompt ingredients.";
-    host.append(p);
-    wiringPick = null;
-    renderWiringSent(null);
-    return;
-  }
-  const loop = getActiveModelLoop();
-  const graph = loopGraphFor(captured, loop);
-  host.replaceChildren(renderWiringFlow(graph, {
-    onPick: (row, cardEl) => { if (!row) return; wiringPick = row.key; openWiringDrawer(row, cardEl); },
-    onReorder: wiringReorderIngredients,
-  }));
-  // If a card was expanded before this render (e.g. this render is the
-  // result of "apply to this loop" on that very card), re-expand the SAME
-  // card in the freshly-built flow so an edit lands in place rather than
-  // silently closing what the reader was just looking at.
-  if (wiringPick) {
-    const node = graph.nodes.find((n) => n.key === wiringPick);
-    const cardEl = host.querySelector(`.wiring-card[data-key="${CSS.escape(wiringPick)}"]`);
-    if (node && cardEl) openWiringDrawer(node.row, cardEl);
-    else wiringPick = null;
-  }
-  renderWiringSent(captured);
-}
-
-/** wiringReorderIngredients(ingredientOrder) — a drag-drop reorder applies
- * to the loop exactly like any other edit: forks the default the first
- * time, persists in place for a named loop. */
-async function wiringReorderIngredients(ingredientOrder) {
-  const loop = getActiveModelLoop();
-  await wiringApplyLoop({ ...loop, ingredientOrder });
-}
-
-// Which column a node's kind lands in — left-to-right on desktop, and (the
-// same DOM order) top-to-bottom on a phone, per the .wiring-flow/.wiring-col
-// CSS above. Not holograph-graph.js's general layered-DAG layout: this
-// canvas's own shape is small and fixed (stage → ingredient → assembled
-// message → sent), so a hand-placed column bucket is honest and far
-// simpler than forcing an arbitrary-topology algorithm sized for the
-// holograph's own referent graphs into a sideways orientation it was
-// never built for.
-// Two columns now, not four — the read-only fixed/assembled/sent nodes
-// that used to occupy the right two are gone (dropped outright, per "if we
-// can't adjust a parameter, it probably shouldn't be there"); every
-// remaining node is genuinely adjustable.
-const WIRING_COLUMN_OF = Object.freeze({ "pipeline-toggle": 0, "pipeline-value": 0, ingredient: 1 });
-
-/** renderWiringFlow(graph, {onPick}) → a .wiring-flow element: one .wiring-col
- * per column bucket, in order, each holding its nodes' cards in the order
- * loopGraphFor produced them. A card with drill:false (the read-only
- * history/user nodes) renders but never opens the drawer. */
-// Only the draftMaterial blocks have a USER-changeable order (model-
-// loops.js's own header on ingredientOrder says why — nothing downstream
-// reads a position, so reordering them is pure presentation). The
-// pipeline-stage cards are not draggable, but their fixed order is not
-// arbitrary: it is PIPELINE_STAGE_ORDER (model-loops.js), the mechanism's
-// own real execution sequence — webPreflight's search, then what shapes
-// the draft (material/passagesPerPart/resolutions/depth), then the
-// checking stages that only ever run once a draft exists
-// (makeRelationReader, the maxCorrections-bounded correction loop,
-// checkLink, and last, witnessSentences) — so the flow arrows below
-// (index.html's .wiring-card::after) tell the truth rather than a
-// plausible-looking guess. Caught live, 2026-09-10: an earlier build
-// ordered these by parameter TYPE (all toggles, then all values) with a
-// comment disclaiming any sequence between them, while the arrows next to
-// them asserted one anyway — reordered to match the real mechanism rather
-// than de-arrowed, since a genuine sequence exists and this canvas is
-// explicitly styled as an n8n-style flow, where an arrow means exactly
-// that. A readOnly node (system/user/history/sent) has no order question
-// at all — those kinds were dropped from the canvas outright, above.
-let wiringDragKey = null;
-let wiringExpandedCard = null; // the .wiring-card currently holding #wiring-drawer, or null
-
-function renderWiringFlow(graph, { onPick, onReorder } = {}) {
-  const flow = document.createElement("div");
-  flow.className = "wiring-flow";
-  const columns = [[], []];
-  for (const node of graph.nodes) (columns[WIRING_COLUMN_OF[node.kind] ?? 1] ??= []).push(node);
-  for (const nodes of columns) {
-    if (!nodes.length) continue;
-    const col = document.createElement("div");
-    col.className = "wiring-col";
-    for (const node of nodes) {
-      const draggable = node.kind === "ingredient" && DRAFT_MATERIAL_KEYS.includes(node.key) && typeof onReorder === "function";
-      // The outer box is a plain div, never a <button>: a <button> can't
-      // legally contain the drawer's own <select>/<textarea>/<button> once
-      // it expands in place inside this card (openWiringDrawer). The click
-      // target is the inner .wiring-card-head button instead.
-      const card = document.createElement("div");
-      card.className = "wiring-card";
-      card.dataset.key = node.key;
-      card.dataset.drill = String(node.drill !== false);
-      if (node.state) card.dataset.state = node.state;
-      if (draggable) {
-        card.draggable = true;
-        card.classList.add("wiring-draggable");
-        card.title = "drag to change where this block's text lands in the joined prompt";
-        card.addEventListener("dragstart", (ev) => { wiringDragKey = node.key; ev.dataTransfer.effectAllowed = "move"; card.classList.add("dragging"); });
-        card.addEventListener("dragend", () => { wiringDragKey = null; card.classList.remove("dragging"); });
-        card.addEventListener("dragover", (ev) => { if (wiringDragKey && wiringDragKey !== node.key) ev.preventDefault(); });
-        card.addEventListener("drop", (ev) => {
-          ev.preventDefault();
-          if (!wiringDragKey || wiringDragKey === node.key) return;
-          const current = orderedDraftMaterialKeys(getActiveModelLoop()).filter((k) => k !== wiringDragKey);
-          current.splice(current.indexOf(node.key), 0, wiringDragKey);
-          onReorder(current);
-        });
-      }
-      const head = document.createElement("button");
-      head.type = "button";
-      head.className = "wiring-card-head";
-      const title = document.createElement("div");
-      title.className = "wiring-card-title";
-      title.textContent = node.title;
-      head.append(title);
-      if (node.meta) {
-        const meta = document.createElement("div");
-        meta.className = "wiring-card-meta";
-        meta.textContent = node.meta;
-        head.append(meta);
-      }
-      // The plain-English "what does this do" line, visible on the
-      // COLLAPSED card — not only inside the drawer once opened. Caught
-      // live (user, 2026-09-09): a reader scanning the canvas never
-      // clicked most cards, so an explanation that only existed inside
-      // the drawer was, for practical purposes, an explanation nobody saw.
-      if (node.hint) {
-        const hint = document.createElement("div");
-        hint.className = "wiring-card-hint";
-        hint.textContent = node.hint;
-        head.append(hint);
-      }
-      card.append(head);
-      if (node.drill !== false && typeof onPick === "function") head.addEventListener("click", () => onPick(node.row, card));
-      col.append(card);
-    }
-    flow.append(col);
-  }
-  return flow;
-}
-
-/** renderWiringLoopsBar() — the loop switcher: a trigger button naming the
- * active loop, and (once opened) a searchable popover listbox. Default is
- * always pinned first and never hidden by the filter (there must always
- * be a visible way back to it); every saved loop after it is sorted
- * alphabetically (case-insensitive) so a reader scanning dozens of names
- * can actually find one. The list itself is a bounded, scrollable popover
- * (CSS) — this function does not care how many rows exist. */
-function renderWiringLoopsBar() {
-  const list = $("wiring-loops");
-  const label = $("wiring-combo-label");
-  if (!list) return;
-  list.replaceChildren();
-  const loops = wiringLoopsCache ?? [];
-  const saved = loops.filter((l) => l.id !== DEFAULT_MODEL_LOOP.id)
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-  const defaultLoop = loops.find((l) => l.id === DEFAULT_MODEL_LOOP.id) ?? DEFAULT_MODEL_LOOP;
-  list.append(wiringLoopRow(defaultLoop, { pinned: true }));
-  for (const l of saved) list.append(wiringLoopRow(l));
-  if (label) label.textContent = getActiveModelLoop().name;
-  wiringFilterLoopRows();
-}
-
-/** wiringLoopRow(loop, {pinned}) → the one `<li role="option">` for a loop
- * in the popover — clicking its name activates and closes the popover;
- * anything but Default also gets a delete (✕) that stops there instead of
- * selecting. Pulled out of renderWiringLoopsBar so pinning Default ahead
- * of the sorted rest doesn't need two near-duplicate blocks of DOM code. */
-function wiringLoopRow(l, { pinned = false } = {}) {
-  const row = document.createElement("li");
-  row.className = "wiring-loop-row";
-  row.role = "option";
-  row.dataset.loopName = l.name.toLowerCase();
-  row.setAttribute("aria-selected", String(l.id === wiringActiveId));
-  if (pinned) row.dataset.pinned = "1";
-  const name = document.createElement("span");
-  name.className = "wiring-loop-name";
-  name.textContent = l.name;
-  row.title = pinned ? "the wiring already running today — cannot be edited in place, duplicate it with + New" : l.id;
-  row.append(name);
-  row.addEventListener("click", async () => { await wiringActivate(l.id); wiringCloseLoopPanel(); });
-  if (!pinned) {
-    const del = document.createElement("button");
-    del.type = "button"; del.className = "wiring-loop-del"; del.append(phIcon(PH.x, 12)); del.title = `delete ${l.name}`;
-    del.addEventListener("click", async (ev) => {
-      ev.stopPropagation();
-      try { await fetch(`${EXPLORE_BASE}/api/model-loops?id=${encodeURIComponent(l.id)}`, { method: "DELETE" }); } catch { /* nothing more to do locally */ }
-      wiringLoopsCache = null;
-      if (wiringActiveId === l.id) { await wiringActivate(DEFAULT_MODEL_LOOP.id); return; }
-      renderWiring();
-    });
-    row.append(del);
-  }
-  return row;
-}
-
-/** wiringFilterLoopRows() — hides (never removes) rows whose name doesn't
- * contain the filter text; Default is exempt (there must always be a
- * visible way back to it). Reads the filter input fresh each call rather
- * than caching its value, so a filter typed before a re-render (activating
- * a loop, deleting one, an import landing) still applies after
- * renderWiringLoopsBar rebuilds the list. */
-function wiringFilterLoopRows() {
-  const list = $("wiring-loops");
-  const input = $("wiring-loop-filter");
-  if (!list) return;
-  const needle = (input?.value ?? "").trim().toLowerCase();
-  let shown = 0;
-  const total = list.children.length;
-  for (const row of list.children) {
-    const match = !needle || row.dataset.pinned || row.dataset.loopName.includes(needle);
-    row.hidden = !match;
-    if (match) shown++;
-  }
-  const count = $("wiring-loop-count");
-  if (count) {
-    count.hidden = total <= 1;
-    count.textContent = needle ? `${shown} of ${total}` : `${total} saved`;
-  }
-}
-
-/** wiringOpenLoopPanel() / wiringCloseLoopPanel() — the popover's own open
- * state. Opening clears any leftover filter text so the full list shows
- * first (typical searchable-select behavior: type to narrow, don't have
- * to clear a stale search from last time). */
-function wiringOpenLoopPanel() {
-  const panel = $("wiring-loop-panel");
-  const trigger = $("wiring-combo-trigger");
-  const filter = $("wiring-loop-filter");
-  if (!panel || panel.hidden === false) return;
-  panel.hidden = false;
-  trigger?.setAttribute("aria-expanded", "true");
-  if (filter) { filter.value = ""; wiringFilterLoopRows(); filter.focus(); }
-}
-function wiringCloseLoopPanel() {
-  const panel = $("wiring-loop-panel");
-  const trigger = $("wiring-combo-trigger");
-  if (panel) panel.hidden = true;
-  trigger?.setAttribute("aria-expanded", "false");
-}
-
-/** wiringWireLoopToolbarOnce() — the trigger/panel/filter and the
- * New/Download/Upload controls are static markup (index.html), not
- * rebuilt on every render the way the loop rows are, so they're wired
- * exactly once — the same guarded pattern wiringWireDrawerOnce already
- * uses for the drawer's own static buttons. */
-function wiringWireLoopToolbarOnce() {
-  const trigger = $("wiring-combo-trigger");
-  if (!trigger || trigger.dataset.wired) return;
-  trigger.dataset.wired = "1";
-  trigger.addEventListener("click", () => {
-    if ($("wiring-loop-panel")?.hidden === false) wiringCloseLoopPanel();
-    else wiringOpenLoopPanel();
-  });
-  const filter = $("wiring-loop-filter");
-  filter.addEventListener("input", wiringFilterLoopRows);
-  filter.addEventListener("keydown", (ev) => { if (ev.key === "Escape") { wiringCloseLoopPanel(); trigger.focus(); } });
-  // Click-away: a popover that only closes on selection/Escape is a trap
-  // the moment a reader clicks anywhere else on the canvas to look at
-  // something else.
-  document.addEventListener("click", (ev) => {
-    if ($("wiring-loop-panel")?.hidden !== false) return;
-    if (!$("wiring-combo")?.contains(ev.target)) wiringCloseLoopPanel();
-  });
-  $("wiring-new").addEventListener("click", wiringCreateLoop);
-  $("wiring-download").addEventListener("click", wiringDownloadLoop);
-  const upInput = $("wiring-upload-input");
-  upInput.addEventListener("change", async () => {
-    const file = upInput.files?.[0];
-    upInput.value = "";
-    if (file) await wiringImportLoop(file);
-  });
-  // "at any point" — load a made-up but representative turn through the
-  // exact same captureLastTurn a real one uses, so the canvas can be
-  // previewed and edited with no chat message sent and no model reachable.
-  $("wiring-sample")?.addEventListener("click", () => {
-    captureLastTurn(SAMPLE_CAPTURE.ingredients, SAMPLE_CAPTURE.shape, SAMPLE_CAPTURE.pipeline);
-    renderWiring();
-  });
-}
-
-/** wiringDownloadLoop() — "like n8n": the active loop's own saved shape,
- * verbatim, as a downloadable file — the same createObjectURL+<a download>
- * mechanism this file already uses for a build's own export (app.js's
- * build-download button). The default loop has nothing saved to export
- * (its `nodes` map ships empty from code) so the button is a no-op on it. */
-function wiringDownloadLoop() {
-  const loop = getActiveModelLoop();
-  if (loop.id === DEFAULT_MODEL_LOOP.id) { wiringStatus("Default has nothing saved to export — duplicate it with + New first."); return; }
-  const data = { name: loop.name, nodes: loop.nodes ?? {}, pipelineOptions: loop.pipelineOptions ?? {}, ingredientOrder: loop.ingredientOrder };
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
-  a.download = `${loop.id}.model-loop.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-/** wiringImportLoop(file) — reads, parses and shape-validates the file
- * (validateModelLoopImport — a malformed or unknown-keyed file is a typed
- * refusal, never a silently partial import), then saves it as a new loop
- * through the exact route "+ New" already uses, so an imported loop is
- * indistinguishable from a hand-built one — editable and re-exportable. */
-async function wiringImportLoop(file) {
-  let parsed;
-  try {
-    parsed = JSON.parse(await file.text());
-  } catch {
-    wiringStatus(`${file.name} is not valid JSON.`);
-    return;
-  }
-  const check = validateModelLoopImport(parsed);
-  if (!check.ok) { wiringStatus(`Refused to import ${file.name}: ${check.reason}.`); return; }
-  const data = await wiringSaveLoop(check.loop.name, check.loop.nodes, check.loop.pipelineOptions, check.loop.ingredientOrder);
-  if (!data?.loop) return;
-  wiringLoopsCache = null;
-  await wiringActivate(data.loop.id);
-}
-
-async function wiringSaveLoop(name, nodes, pipelineOptions = {}, ingredientOrder = undefined) {
-  try {
-    return await (await fetch(`${EXPLORE_BASE}/api/model-loops`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, nodes, pipelineOptions, ingredientOrder }),
-    })).json();
-  } catch {
-    wiringStatus("explore-server.mjs is not reachable on :8812 — a model-loop needs it to save.");
-    return null;
-  }
-}
-
-function wiringStatus(text) {
-  const s = $("wiring-status");
-  if (!s) return;
-  s.textContent = text;
-  s.hidden = false;
-  clearTimeout(wiringStatus._t);
-  wiringStatus._t = setTimeout(() => { s.hidden = true; }, 5000);
-}
-
-async function wiringCreateLoop() {
-  const active = getActiveModelLoop();
-  const name = await wiringPromptName(active.id === DEFAULT_MODEL_LOOP.id ? "" : `${active.name} copy`);
-  if (!name) return;
-  const data = await wiringSaveLoop(name, active.nodes ?? {}, active.pipelineOptions ?? {}, active.ingredientOrder);
-  if (!data?.loop) return;
-  wiringLoopsCache = null;
-  await wiringActivate(data.loop.id);
-}
-
-/** wiringPromptName(defaultValue) → Promise<string|null> — an inline
- * name field beside the loop switcher (never a native prompt(), which
- * this app uses nowhere else and which sandboxed/embedded contexts can
- * refuse outright). Resolves to the trimmed name on save, null on cancel
- * or an empty name. */
-function wiringPromptName(defaultValue = "") {
-  return new Promise((resolve) => {
-    const row = $("wiring-name-row");
-    const input = $("wiring-name-input");
-    if (!row || !input) { resolve(null); return; }
-    input.value = defaultValue;
-    row.hidden = false;
-    input.focus();
-    input.select();
-    const done = (value) => { row.hidden = true; cleanup(); resolve(value); };
-    const onSave = () => done(input.value.trim() || null);
-    const onCancel = () => done(null);
-    const onKey = (ev) => { if (ev.key === "Enter") onSave(); else if (ev.key === "Escape") onCancel(); };
-    const cleanup = () => {
-      $("wiring-name-save").removeEventListener("click", onSave);
-      $("wiring-name-cancel").removeEventListener("click", onCancel);
-      input.removeEventListener("keydown", onKey);
-    };
-    $("wiring-name-save").addEventListener("click", onSave);
-    $("wiring-name-cancel").addEventListener("click", onCancel);
-    input.addEventListener("keydown", onKey);
-  });
-}
-
-/** openWiringDrawer(row, cardEl) — expands the node's parameters IN PLACE,
- * inside the clicked card, rather than in a separate side/bottom panel a
- * reader could miss (caught live: "I wasn't seeing it down there" on
- * mobile, where the old panel rendered below the whole canvas). There is
- * only ever one #wiring-drawer element; it physically moves into whichever
- * card is expanded and moves back to #wiring-drawer-home when collapsed —
- * never cloned, so all its field-wiring stays the one implementation.
- * Clicking the already-expanded card's own head collapses it back. */
-function openWiringDrawer(row, cardEl) {
-  const drawer = $("wiring-drawer");
-  if (!drawer || !row) return;
-  if (cardEl) {
-    if (wiringExpandedCard === cardEl && !drawer.hidden) {
-      wiringCollapseDrawer();
-      return;
-    }
-    wiringExpandedCard?.classList.remove("expanded");
-    cardEl.append(drawer);
-    cardEl.classList.add("expanded");
-    wiringExpandedCard = cardEl;
-  }
-  drawer.hidden = false;
-  const loop = getActiveModelLoop();
-  const stage = PIPELINE_STAGE_META[row.key];
-  $("wiring-drawer-title").textContent = row.title ?? (stage ? stage.title : row.key);
-  $("wiring-drawer-hint").textContent = row.hint ?? stage?.hint ?? "";
-  $("wiring-save-node").hidden = Boolean(row.readOnly);
-  if (row.readOnly) {
-    $("wiring-ingredient-fields").hidden = false;
-    $("wiring-pipeline-fields").hidden = true;
-    $("wiring-enable").hidden = true;
-    $("wiring-override-field").hidden = true;
-    $("wiring-computed").textContent = row.computed;
-    return;
-  }
-  $("wiring-enable").hidden = false;
-  $("wiring-override-field").hidden = false;
-  $("wiring-ingredient-fields").hidden = Boolean(stage);
-  $("wiring-pipeline-fields").hidden = !stage;
-  if (!stage) {
-    const node = loop?.nodes?.[row.key];
-    $("wiring-enabled").checked = node?.enabled !== false;
-    $("wiring-computed").textContent = row.computed || "(empty this turn)";
-    $("wiring-override").value = typeof node?.override === "string" ? node.override : "";
-    return;
-  }
-  const opt = loop?.pipelineOptions?.[row.key];
-  const computedText = row.computed === null || row.computed === undefined
-    ? "not disclosed this turn — settable below regardless"
-    : String(row.computed);
-  $("wiring-pipeline-computed").textContent = computedText;
-  const isToggle = stage.kind === "pipeline-toggle";
-  $("wiring-pipeline-toggle").hidden = !isToggle;
-  $("wiring-pipeline-value-select").hidden = !(!isToggle && Array.isArray(stage.domain));
-  $("wiring-pipeline-value-number").hidden = !(!isToggle && stage.domain === "number");
-  if (isToggle) {
-    $("wiring-pipeline-toggle").value = typeof opt?.enabled === "boolean" ? (opt.enabled ? "on" : "off") : "";
-  } else if (Array.isArray(stage.domain)) {
-    const sel = $("wiring-pipeline-value-select");
-    sel.replaceChildren();
-    const inherit = document.createElement("option");
-    inherit.value = ""; inherit.textContent = "no change";
-    sel.append(inherit);
-    for (const v of stage.domain) {
-      const o = document.createElement("option");
-      o.value = String(v); o.textContent = String(v);
-      sel.append(o);
-    }
-    sel.value = opt && "value" in opt ? String(opt.value) : "";
-  } else {
-    $("wiring-pipeline-value-number").value = opt && "value" in opt ? String(opt.value) : "";
-  }
-}
-
-/** wiringCollapseDrawer() — hides the drawer and parks it back at
- * #wiring-drawer-home, clearing the expanded card's own highlight. Shared
- * by the close button and by re-clicking an already-expanded card's head. */
-function wiringCollapseDrawer() {
-  const drawer = $("wiring-drawer");
-  if (drawer) {
-    drawer.hidden = true;
-    $("wiring-drawer-home")?.append(drawer);
-  }
-  wiringExpandedCard?.classList.remove("expanded");
-  wiringExpandedCard = null;
-  wiringPick = null;
-}
-
-function wiringWireDrawerOnce() {
-  const drawer = $("wiring-drawer");
-  if (!drawer || drawer.dataset.wired) return;
-  drawer.dataset.wired = "1";
-  $("wiring-drawer-close").addEventListener("click", wiringCollapseDrawer);
-  $("wiring-save-node").addEventListener("click", wiringSaveNode);
-}
-
-async function wiringSaveNode() {
-  const key = wiringPick;
-  if (!key) return;
-  const loop = getActiveModelLoop();
-  const stage = PIPELINE_STAGE_META[key];
-  if (!stage) {
-    const enabled = $("wiring-enabled").checked;
-    const overrideText = $("wiring-override").value;
-    if (enabled && overrideText.trim()) {
-      const check = validateOverride(overrideText);
-      if (!check.ok) {
-        wiringStatus(`{${check.illegal.join("}, {")}} is not a real ingredient — legal references are any ingredient's own key (see the canvas) or {value} for this node's own computed text. Not saved.`);
-        return;
-      }
-    }
-    const nodes = { ...(loop.nodes ?? {}) };
-    if (!enabled) nodes[key] = { enabled: false };
-    else if (overrideText.trim()) nodes[key] = { override: overrideText };
-    else delete nodes[key];
-    await wiringApplyLoop({ ...loop, nodes });
-    return;
-  }
-  const pipelineOptions = { ...(loop.pipelineOptions ?? {}) };
-  if (stage.kind === "pipeline-toggle") {
-    const picked = $("wiring-pipeline-toggle").value;
-    if (picked === "on") pipelineOptions[key] = { enabled: true };
-    else if (picked === "off") pipelineOptions[key] = { enabled: false };
-    else delete pipelineOptions[key];
-  } else if (Array.isArray(stage.domain)) {
-    const picked = $("wiring-pipeline-value-select").value;
-    if (picked === "") delete pipelineOptions[key];
-    else pipelineOptions[key] = { value: stage.domain.every((v) => typeof v === "number") ? Number(picked) : picked };
-  } else {
-    const raw = $("wiring-pipeline-value-number").value;
-    if (raw.trim() === "") delete pipelineOptions[key];
-    else pipelineOptions[key] = { value: Number(raw) };
-  }
-  await wiringApplyLoop({ ...loop, pipelineOptions });
-}
-
-/** wiringApplyLoop(nextLoop) — makes nextLoop the active loop and persists
- * it. Editing the shipped default forks it into a new loop (named on the
- * spot), since the default ships from code and this server refuses to
- * overwrite it — the same "+ New" flow, triggered by the first edit. */
-async function wiringApplyLoop(nextLoop) {
-  if (nextLoop.id === DEFAULT_MODEL_LOOP.id) {
-    const name = await wiringPromptName("My loop");
-    if (!name) return;
-    const data = await wiringSaveLoop(name, nextLoop.nodes, nextLoop.pipelineOptions ?? {}, nextLoop.ingredientOrder);
-    if (!data?.loop) return;
-    wiringLoopsCache = null;
-    await wiringActivate(data.loop.id);
-    return;
-  }
-  setActiveModelLoop(nextLoop);
-  try {
-    await fetch(`${EXPLORE_BASE}/api/model-loops`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: nextLoop.id, name: nextLoop.name, nodes: nextLoop.nodes, pipelineOptions: nextLoop.pipelineOptions ?? {}, ingredientOrder: nextLoop.ingredientOrder }),
-    });
-  } catch { /* the change still applies for this session even if the save failed */ }
-  renderWiring();
-}
-
-function renderWiringSent(captured) {
-  const pre = $("wiring-sent");
-  if (!pre) return;
-  if (!captured) { pre.textContent = "(no turn captured yet)"; return; }
-  const loop = getActiveModelLoop();
-  const preview = previewFor(captured, loop);
-  const stageLines = Object.entries(loop?.pipelineOptions ?? {})
-    .filter(([, opt]) => typeof opt?.enabled === "boolean" || (opt && "value" in opt))
-    .map(([key, opt]) => `${PIPELINE_STAGE_META[key]?.title ?? key}: ${typeof opt.enabled === "boolean" ? (opt.enabled ? "forced on" : "forced off") : `set to ${opt.value}`}`);
-  const parts = [];
-  if (stageLines.length) parts.push(`[pipeline]\n${stageLines.join("\n")}`);
-  if (preview?.parts.length) parts.push(...preview.parts.map((p) => `[${p.key}]\n${p.value}`));
-  pre.textContent = parts.length ? parts.join("\n\n") : "(nothing — every ingredient this shape uses is empty or switched off)";
-}
-
 // ── views ────────────────────────────────────────────────────────────────────
 //
 // Wide, the chat and the panels sit side by side and the tabs switch only the
@@ -19362,7 +19002,7 @@ function renderWiringSent(captured) {
 // and the same click does both jobs. The editor and the terminal are panes
 // with no tab of their own — they open from a build or from its control.
 
-// Resources/Holograph/Wiring/GitHub are grouped behind one "More" tab
+// Resources/Holograph/GitHub/About-you are grouped behind one "More" tab
 // (2026-09-08, "too many tabs" — four peer tabs made the mobile bar
 // unreadable and the folded side-rail a long vertical scroll). They still
 // have their own tab-shaped buttons, in #more-subnav; MORE_GROUP (declared
@@ -19385,8 +19025,6 @@ function showView(name) {
   if (name === "terminal") $("term-in").focus();
   if (name === "resources") renderResources();
   if (name === "editor") editorLayout();
-  if (name === "holograph") renderHolograph();
-  if (name === "wiring") renderWiring();
   if (name === "profile") renderProfile();
 }
 
@@ -19417,10 +19055,6 @@ function setPanelWide(on) {
   if (b) { b.setAttribute("aria-pressed", String(panelWide)); b.textContent = panelWide ? "›" : "‹"; b.title = panelWide ? "open the conversation again" : "fold the conversation away — its tabs stay on the left, and this opens it again"; }
   const c = $("panel-collapse");
   if (c) { c.setAttribute("aria-pressed", String(panelCollapsed)); c.textContent = panelCollapsed ? "‹" : "›"; c.title = panelCollapsed ? "open this panel again" : "fold this panel away — its tabs stay on the right, and pressing one opens it again"; }
-  // The drawing is measured against the pane it is drawn in, so a width
-  // change is a redraw, not a reflow (holograph-graph.js::place).
-  if (document.body.dataset.view === "holograph") renderHolograph();
-  if (document.body.dataset.view === "wiring") renderWiring();
 }
 function setPanelCollapsed(on) {
   panelCollapsed = !!on;

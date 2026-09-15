@@ -6,8 +6,11 @@ const passages = [{ ref: "a.txt#0-60", text: "Amelia Hartley founded the Northga
 const ctx = { passages, model: "gemma2:2b", resolveName: (n) => (/hartley|northgate/i.test(n) ? new Set(["r1"]) : new Set()) };
 
 test("the ladder places a sentence on its highest rung and names the cell backstage", () => {
-  const s = "Amelia Hartley founded the Northgate Observatory in 1887.";
-  const bound = groundOf(s, { ...ctx, claims: [{ sentence: s, end1: "Amelia Hartley", label: "founded", end2: "the Northgate Observatory in 1887", verdict: "bound", spans: [{ ref: "a.txt#0-60", start: 0, end: 57 }] }] });
+  // NOT byte-verbatim in any passage (the passages say "founded the Northgate
+  // Observatory", this says "directed") — so it cannot be caught by the
+  // verbatim rung and the relation/witness/ledger rungs below are what decide.
+  const s = "Amelia Hartley directed the Northgate Observatory in 1887.";
+  const bound = groundOf(s, { ...ctx, claims: [{ sentence: s, end1: "Amelia Hartley", label: "directed", end2: "the Northgate Observatory in 1887", verdict: "bound", spans: [{ ref: "a.txt#0-60", start: 0, end: 57 }] }] });
   assert.equal(bound.tier, "bound"); assert.equal(bound.cell, "CON·Figure"); assert.deepEqual(bound.addresses, ["a.txt#0-60"]);
   assert.match(groundLine(bound), /^stated at a\.txt#0-60$/);
   const wit = groundOf(s, { ...ctx, witness: { sentence: s, witness: "states", decider: "founded the Northgate Observatory in 1887" } });
@@ -39,11 +42,14 @@ test("the ladder places a sentence on its highest rung and names the cell backst
   assert.equal(self.tier, "self"); assert.equal(self.cell, "self:model"); assert.equal(groundLine(self), "gemma2:2b — no source states this");
   const unasked = groundOf("The show ran nine seasons.", { ...ctx, witness: { witness: "skipped", why: "budget" } });
   assert.equal(unasked.tier, "self"); assert.match(unasked.detail, /not asked/); assert.equal(unasked.reached.witness, false, "a rung that never reached the sentence is said so");
-  assert.deepEqual(TIERS, ["bound", "witnessed", "recorded", "derived", "contested", "named", "self"]);
+  assert.deepEqual(TIERS, ["verbatim", "bound", "witnessed", "recorded", "derived", "contested", "named", "self"]);
 });
 
 test("witnessed tier: the engine's own placeholder span.ref (witness-sentences.js's joined 'passages' source) is never leaked as the address — the real per-passage ref is recovered instead (live bug, 2026-09-10)", () => {
-  const s = "The observatory opened in 1889.";
+  // NOT byte-verbatim in b.txt (that passage says "The observatory opened in
+  // 1889." — this says "The observatory finally opened in 1889."), so the
+  // witnessed rung is what decides, not the verbatim rung above it.
+  const s = "The observatory finally opened in 1889.";
   // The exact shape witness-sentences.js's rowFor/corroboration.js's span
   // builder actually produce: `span.ref` is the literal string "passages"
   // — the label for the ONE text every passage got joined into before the
@@ -249,4 +255,150 @@ test("names in a sentence are capitalised runs, never sentence-initial function 
   assert.deepEqual(namesIn("The X-Files was created by Chris Carter and aired on Fox."), ["X-Files", "Chris Carter", "Fox"]);
   assert.deepEqual(namesIn("Some viewers loved \"I Want to Believe\" and its tagline Trust No One, said Chris Carter."), ["Trust No One", "Chris Carter"], "a lone capitalised word at the sentence's start or inside a quoted title is capitalisation, not a name; a multi-word run still counts");
   assert.deepEqual(namesIn("Despite these successes, Mulder returned."), ["Mulder"], "a lone name mid-sentence counts");
+});
+
+test("a leading ¿/¡ (Spanish, Asturian, …) marks a question/exclamation's START, not its end — the sentence-initial veto must fire the same as after start-of-string or [.!?], not leak the interrogative pronoun as a name (found cross-lingual testing, 2026-09-15, Workflow: '¿Quién es el director del Observatorio de Peñasco?' let 'Quién' leak through and defeat identitySwapped's honest-answer guarantee downstream)", () => {
+  assert.deepEqual(namesIn("¿Quién es el director del Observatorio de Peñasco?"), ["Observatorio de Peñasco"], "the interrogative pronoun right after ¿ is excluded exactly as it is after start-of-string");
+  assert.deepEqual(namesIn("Quién es el director del Observatorio de Peñasco?"), ["Observatorio de Peñasco"], "the same sentence with ¿ removed already worked — control");
+  assert.deepEqual(namesIn("¡Que viva el Observatorio de Peñasco!"), ["Observatorio de Peñasco"], "¡ gets the same treatment as ¿");
+  assert.deepEqual(namesIn("Fue idea de Mulder. ¿Quién lo dudaba?"), ["Mulder"], "¿ after a real sentence boundary still excludes the pronoun that follows it, not just at string-start");
+});
+
+test("verbatim rung: a sentence byte-for-byte (folded) in the material's own bytes is grounded there, no names/witness needed — the 2-of-8 e2e cases that were word-for-word and still read 'self' (2026-09-15)", () => {
+  const vPassages = [{ ref: "chem.txt#0-40", text: "The chemical symbol for gold is Au." }];
+  const v = groundOf("The chemical symbol for gold is Au.", { passages: vPassages, model: "gemma2:2b", resolveName: () => new Set(), witness: { witness: "skipped", why: "unarmed-select" } });
+  assert.equal(v.tier, "verbatim"); assert.equal(v.cell, "SIG·Ground");
+  assert.deepEqual(v.addresses, ["chem.txt#0-40"]);
+  assert.match(v.detail, /word for word/);
+  assert.equal(groundLine(v), "stated verbatim in chem.txt#0-40");
+  // The SAME material states a different fact — not verbatim, no name to
+  // resolve, witness never armed → genuinely the model's own voice.
+  const notVerbatim = groundOf("The chemical symbol for silver is Ag.", { passages: vPassages, model: "gemma2:2b", resolveName: () => new Set(), witness: { witness: "skipped", why: "unarmed-select" } });
+  assert.equal(notVerbatim.tier, "self", "a byte-verbatim rung must not over-ground a sentence the material does NOT state");
+  // A short common phrase contained in a longer sentence must not fire — the
+  // rung requires >= 3 content tokens (a real claim, not a stray phrase).
+  const shortCommon = groundOf("Water is wet.", { passages: [{ ref: "x.txt#0-30", text: "Water is wet when it falls." }], model: "gemma2:2b", resolveName: () => new Set() });
+  assert.equal(shortCommon.tier, "self", "a 3-token sentence that happens to be contained is not a claim the material states as such");
+});
+
+test("leading-names: English's sentence-initial capitalisation convention is information, not a veto — a sentence-initial name in the ANSWER is offered when opt-in, and only the referent index confirms it (2026-09-15)", () => {
+  // #18/#24's answer-side names sit sentence-initial ("Jupiter is...",
+  // "Shakespeare authored...") and namesIn's L2 veto used to drop them before
+  // the named rung could even ask the index.
+  const resolveJupiter = (n) => (n === "Jupiter" ? new Set(["r1"]) : new Set());
+  const off = namesIn("Jupiter is the biggest of all the planets orbiting the Sun.");
+  assert.deepEqual(off, ["Sun"], "default (veto on): the sentence-initial single token is not a name candidate");
+  const on = namesIn("Jupiter is the biggest of all the planets orbiting the Sun.", { leading: true });
+  assert.deepEqual(on, ["Jupiter", "Sun"], "opt-in: the sentence-initial capital is offered as a candidate");
+  // A pure function word is still never a candidate, leading or not.
+  assert.deepEqual(namesIn("The biggest planet is Jupiter.", { leading: true }), ["Jupiter"]);
+  // Through the ladder: with leadingNames the sentence-initial name resolves
+  // and the sentence lands "named"; without it, nothing establishes.
+  const jup = groundOf("Jupiter is the biggest of all the planets orbiting the Sun.", { passages: [{ ref: "m.txt#0-60", text: "Jupiter is the largest planet in the solar system." }], model: "gemma2:2b", resolveName: resolveJupiter, witness: { witness: "skipped", why: "budget" }, leadingNames: true });
+  assert.equal(jup.tier, "named");
+  assert.deepEqual(jup.names, ["Jupiter"]);
+  const jupNoLeading = groundOf("Jupiter is the biggest of all the planets orbiting the Sun.", { passages: [{ ref: "m.txt#0-60", text: "Jupiter is the largest planet in the solar system." }], model: "gemma2:2b", resolveName: resolveJupiter, witness: { witness: "skipped", why: "budget" } });
+  assert.equal(jupNoLeading.tier, "self", "without the opt-in, the sentence-initial name is never asked, so nothing establishes");
+});
+
+test("human-readable sections: a chunk's own label (source.js::makeChunk's .label) is preferred over the byte address in the reader's line — 'Chapter 2' not 'a.txt#0-60' (user direction, 2026-09-15)", () => {
+  const labelled = [{ ref: "a.txt#0-60", label: "Chapter 2", text: "Amelia Hartley founded the Northgate Observatory in 1887." }];
+  const v = groundOf("Amelia Hartley founded the Northgate Observatory in 1887.", { passages: labelled, model: "gemma2:2b", resolveName: () => new Set() });
+  assert.equal(v.tier, "verbatim");
+  assert.equal(v.label, "Chapter 2");
+  assert.equal(groundLine(v), "stated verbatim in Chapter 2");
+  assert.deepEqual(v.addresses, ["a.txt#0-60"], "the byte ref still rides on addresses for reopen() — the label never stands in for finding the bytes");
+});
+
+test("omnilingual + typo-robust: the verbatim rung and the fold are script-neutral — Cyrillic, Hebrew, CJK, and a diacritic/typo difference still ground or refuse honestly (2026-09-15)", () => {
+  // Cyrillic, byte-verbatim (fold = NFD + lowercase, script-agnostic).
+  const cyr = groundOf("Наполеон вторгся в Россию в 1812 году.", { passages: [{ ref: "nap.txt#0-40", text: "Наполеон вторгся в Россию в 1812 году." }], model: "gemma2:2b", resolveName: () => new Set() });
+  assert.equal(cyr.tier, "verbatim", "a Cyrillic sentence byte-verbatim in the material is grounded — no English convention involved");
+  // Cyrillic, sentence-initial NAME (Cyrillic shares English's capital
+  // convention, so the leading-names toggle resolves it) — R3, the e2e case.
+  const cyrName = groundOf("Москва — столица России.", { passages: [{ ref: "m.txt#0-20", text: "Столица России — Москва." }], model: "gemma2:2b", resolveName: (n) => (/Москва/.test(n) ? new Set(["r1"]) : new Set()), leadingNames: true });
+  assert.equal(cyrName.tier, "named", "a sentence-initial Cyrillic name resolves once the leading-names toggle offers it to the index");
+  // Hebrew, no capitalisation at all — the rung needs none.
+  const heb = groundOf("המים רותחים במאה מעלות צלזיוס.", { passages: [{ ref: "h.txt#0-30", text: "המים רותחים במאה מעלות צלזיוס." }], model: "gemma2:2b", resolveName: () => new Set() });
+  assert.equal(heb.tier, "verbatim", "a Hebrew sentence (no case) byte-verbatim in the material is grounded");
+  // CJK, byte-verbatim.
+  const cjk = groundOf("化学元素金的符号是Au。", { passages: [{ ref: "c.txt#0-20", text: "化学元素金的符号是Au。" }], model: "gemma2:2b", resolveName: () => new Set() });
+  assert.equal(cjk.tier, "verbatim", "a CJK sentence byte-verbatim in the material is grounded");
+  // Diacritic tolerance is the fold's own (Bezúkhov/Bezukhov precedent) —
+  // a byte-verbatim rung reads the bytes as they are, and a NEAR-verbatim
+  // sentence with a typo is NOT falsely grounded.
+  const typo = groundOf("The chemical symbol for gold is Au.", { passages: [{ ref: "t.txt#0-40", text: "The chemical symbol for gold is Au. " }], model: "gemma2:2b", resolveName: () => new Set() });
+  assert.equal(typo.tier, "verbatim", "trailing-space difference folds away");
+  const near = groundOf("The chemical symobl for gold is Au.", { passages: [{ ref: "t.txt#0-40", text: "The chemical symbol for gold is Au." }], model: "gemma2:2b", resolveName: () => new Set() });
+  assert.equal(near.tier, "self", "a typo ('symobl') is not byte-verbatim — the rung never invents ground the bytes do not carry");
+  // Hebrew typo control, the e2e's own T1: honest self, never invented ground.
+  const hebTypo = groundOf("המים רוחים במאה מעלות צלזיוס.", { passages: [{ ref: "h.txt#0-30", text: "המים רותחים במאה מעלות צלזיוס." }], model: "gemma2:2b", resolveName: () => new Set() });
+  assert.equal(hebTypo.tier, "self", "a Hebrew typo ('רוחים' for 'רותחים') is not byte-verbatim — the script-neutral rung refuses honestly");
+  // THE PARAPHRASE WALL IS MATERIAL-SHAPED, NOT SCRIPT-SHAPED (2026-09-15,
+  // measured): a single-name material — English OR non-Latin — leaves the
+  // witness unarmed (no competing filler) and, without a resolvable name to
+  // fall back to, the sentence is honestly self. Same shape, same verdict.
+  const singleNameEn = groundOf("The great novel was written by Jane in the 1830s.", { passages: [{ ref: "e.txt#0-50", text: "The famous author Jane wrote the great novel in the 1830s." }], model: "gemma2:2b", resolveName: () => new Set(), witness: { witness: "skipped", why: "uncontained" } });
+  assert.equal(singleNameEn.tier, "self", "English single-name paraphrase with no resolvable name falls to self exactly like the non-Latin cases");
+  const singleNameCyr = groundOf("«Евгений Онегин» был написан Пушкиным в 1830-х годах.", { passages: [{ ref: "r.txt#0-50", text: "Пушкин написал «Евгения Онегина» в 1830-х годах." }], model: "gemma2:2b", resolveName: () => new Set(), witness: { witness: "skipped", why: "unarmed-select" } });
+  assert.equal(singleNameCyr.tier, "self", "Cyrillic single-name paraphrase hits the identical wall — the boundary is material shape, not script");
+});
+
+test("the Yoda principle, wired into the recorded rung's own match (P224's disclosed gap, closed 2026-09-15): a copula/identity note matches an answer's claim regardless of which end sits before or after 'is' — word order is grammar, not meaning; a genuine role-flip still refuses", () => {
+  // The material heard "the capital of France is Paris" onto the ledger
+  // (kernel/notes.js's own end1/label/end2 shape). The ANSWER states the
+  // identical relation in the OTHER order — "Paris is the capital of
+  // France" — which claimKey's ordered string would read as a different
+  // triple entirely. groundKey folds both to the same key because "is" is
+  // relation-kinds.js's SIG·Figure cell — an identity claim is
+  // order-independent by construction, never a string.
+  const capitalNote = { subject: "capital of France", verb: "is", object: "Paris", witnesses: ["fr.txt#0-40~r1"] };
+  const reordered = groundOf("Paris is the capital of France.", {
+    ...ctx, resolveName: () => new Set(),
+    claims: [{ sentence: "Paris is the capital of France.", end1: "Paris", label: "is", end2: "capital of France", verdict: "unbound" }],
+    notes: [capitalNote],
+  });
+  assert.equal(reordered.tier, "recorded", "the reordered copula claim lands on the SAME ledger note, not 'self'");
+  assert.deepEqual(reordered.addresses, ["fr.txt#0-40"]);
+  // The YODA reorder itself — "uh, France's capital, Paris is" — states the
+  // identical figure/ground pair the note already carries; a caller's own
+  // relation extractor would need its own word-order-off slot organ to
+  // PRODUCE this claim shape (grounding-gfp.js's own englishSlots), but once
+  // produced, this rung's match no longer refuses it for its order alone.
+  const yoda = groundOf("The capital of France, Paris is.", {
+    ...ctx, resolveName: () => new Set(),
+    claims: [{ sentence: "The capital of France, Paris is.", end1: "capital of France", label: "is", end2: "Paris", verdict: "unbound" }],
+    notes: [capitalNote],
+  });
+  assert.equal(yoda.tier, "recorded", "the canonical-order Yoda claim matches the note directly, and the reordered one above via the same fold");
+  // A ROLE-FLIP is a genuinely different, FALSE proposition ("France is the
+  // capital of Paris" swaps figure and ground) — its sorted ends differ from
+  // the true note's sorted ends exactly as its unsorted ends already did, so
+  // the fold that admits a reorder must not also admit a flip.
+  const flip = groundOf("France is the capital of Paris.", {
+    ...ctx, resolveName: () => new Set(),
+    claims: [{ sentence: "France is the capital of Paris.", end1: "France", label: "is", end2: "capital of Paris", verdict: "unbound" }],
+    notes: [capitalNote],
+  });
+  assert.notEqual(flip.tier, "recorded", "a role-flip states different ends (France vs. capital of Paris) — it must never match the true note");
+  // A non-identity relation (an action, CON·Figure — not SIG·Figure) is
+  // UNTOUCHED by the fold: order still matters, because "Napoleon defeated
+  // Kutuzov" and "Kutuzov defeated Napoleon" are not the same claim.
+  const actionNote = { subject: "Napoleon", verb: "defeated", object: "Kutuzov", witnesses: ["b.txt#0-30~r1"] };
+  const actionFlip = groundOf("Kutuzov defeated Napoleon.", {
+    ...ctx, resolveName: () => new Set(),
+    claims: [{ sentence: "Kutuzov defeated Napoleon.", end1: "Kutuzov", label: "defeated", end2: "Napoleon", verdict: "unbound" }],
+    notes: [actionNote],
+  });
+  assert.notEqual(actionFlip.tier, "recorded", "an ACTION relation stays position-sensitive — the fold is scoped to the SIG·Figure cell alone, never a blanket order-independence");
+  // Cross-lingual, per relation-kinds.js's own "omnilingual by construction"
+  // claim: a Hebrew copula ("היא") lands on the identical SIG·Figure cell as
+  // English "is", so the reorder-tolerance is not an English-specific patch.
+  const hebNote = { subject: "עיר הבירה של צרפת", verb: "היא", object: "פריז", witnesses: ["fr-he.txt#0-30~r1"] };
+  const hebReordered = groundOf("פריז היא עיר הבירה של צרפת.", {
+    ...ctx, resolveName: () => new Set(),
+    claims: [{ sentence: "פריז היא עיר הבירה של צרפת.", end1: "פריז", label: "היא", end2: "עיר הבירה של צרפת", verdict: "unbound" }],
+    notes: [hebNote],
+  });
+  assert.equal(hebReordered.tier, "recorded", "the reorder-tolerance is cell-based, not script-based — a Hebrew copula reorder matches its note exactly as the English one does");
 });

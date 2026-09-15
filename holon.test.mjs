@@ -44,14 +44,14 @@ import { pathosCueFor } from "./pathos-turn.js";
 // fixture that fakes what "bound" and "fillers" mean; it has to run the
 // real extraction the way a live turn actually does.
 const relationOrgans = async () => {
-  const { splitSentences } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/spans.js");
+  const { splitSentences } = await import("../eoreader7/native/adapters/text/spans.js");
   const { extractSurfaces, discoverReferents, namesCorefer, diaNorm } = await import(
-    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js"
+    "../eoreader7/native/adapters/text/surfaces.js"
   );
   const { discoverRelationVocab, extractRelations } = await import(
-    "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js"
+    "../eoreader7/native/adapters/text/relations.js"
   );
-  const { tokenize } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/material.js");
+  const { tokenize } = await import("../eoreader7/native/adapters/text/material.js");
   return { splitSentences, extractSurfaces, discoverReferents, namesCorefer, diaNorm, discoverRelationVocab, extractRelations, tokenize };
 };
 
@@ -933,6 +933,68 @@ test("a stubborn reproduction: the failure stays typed, and the mechanical answe
   assert.ok(result.refs.length >= 1, "verbatim material with its address is a warrant the assembly may keep");
 });
 
+test("a single, already-verified TRUE sentence is not flagged as reproduction — live specimen 2026-09-15: 'Paris is the capital of France.' is the only honest way to state a five-word fact, and the old behavior (demanding a rewrite) pushed a small model into a worse, stitched-together answer", async () => {
+  const relationsFor = makeRelationReader(await relationOrgans());
+  const franceCorpus = [
+    "France is a country in Western Europe. Paris is the capital of France. Paris sits on the Seine river.",
+  ].join("\n\n");
+  const franceChunks = chunkSource("france.txt", franceCorpus);
+  let corrected = false;
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const user = messages[1].content;
+    if (user.includes("copies the passage word for word")) corrected = true;
+    return "Paris is the capital of France.";
+  };
+  const result = await runHolonicTask({
+    task: "What's the capital of France?",
+    chunks: franceChunks,
+    call,
+    planMode: "flat",
+    makeRelationReader: relationsFor,
+  });
+  assert.equal(corrected, false, "a verified true, single-sentence factoid answer must not be sent back as 'copies the passage word for word'");
+  assert.ok(result.output.includes("Paris"));
+});
+
+test("the single-verified-fact exemption never fires without a real relation reader wired — an unverifiable single sentence gets no free pass", async () => {
+  const franceCorpus = ["France is a country in Western Europe. Paris is the capital of France."].join("\n\n");
+  const franceChunks = chunkSource("france2.txt", franceCorpus);
+  let corrected = false;
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const user = messages[1].content;
+    if (user.includes("copies the passage word for word")) {
+      corrected = true;
+      return "Paris, the capital, is a major European city.";
+    }
+    return "Paris is the capital of France.";
+  };
+  // No makeRelationReader injected — mirrors a caller with no relation tier
+  // wired (a real, if narrower, configuration); the exemption may only ever
+  // fire on a POSITIVELY verified bound claim, never on the mere absence of
+  // a checker to disprove it.
+  const result = await runHolonicTask({ task: "What's the capital of France?", chunks: franceChunks, call, planMode: "flat" });
+  assert.ok(corrected, "with no relation reader to verify the claim, the ordinary mass-majority test must still decide");
+});
+
+test("the single-verified-fact exemption does NOT rescue a genuine multi-sentence reproduction — the Kessington specimen above must still correct", async () => {
+  let corrected = false;
+  const call = async (messages) => {
+    if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const user = messages[1].content;
+    if (user.includes("copies the passage word for word")) {
+      corrected = true;
+      const refs = offeredRefs(user);
+      return `The report gives the harbor figure as 12% for the spring quarter. [${refs[0]}]`;
+    }
+    return "The Kessington report put the harbor figure at 12% for the spring quarter, revising the earlier estimate downward after the audit.";
+  };
+  const result = await runHolonicTask({ task: "what was the harbor figure?", chunks, call, planMode: "flat" });
+  assert.ok(corrected, "a genuinely evasive verbatim copy must still be caught — the exemption is not a blanket pass for anything one-sentence-shaped");
+  assert.ok(result.refs.length >= 1);
+});
+
 test("an echo answer establishes nothing: typed open, no refs granted", async () => {
   const call = async (messages) => {
     if (messages[0].content === PLAN_SYSTEM_PROMPT) return "irrelevant";
@@ -1751,8 +1813,8 @@ test("a slot with exactly ONE confirmed subject never trips the competing-subjec
 // hypergraph records beliefs... held BY AN EXPERIENCER, not just given by a
 // source") — grid.js's own tested evaluate/REC organs, not a parallel one.
 function freshGridFixture() {
-  return import("../eoreader7/legacy-eoreader6.1/packages/engine/operators.js").then(async (operators) => {
-    const taskLog = await import("../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js");
+  return import("../eoreader7/native/kernel/cube.js").then(async (operators) => {
+    const taskLog = await import("../eoreader7/native/kernel/task-log.js");
     const grid = makeGrid({ operators, taskLog });
     grid.withCapacities({ findCapacity, unresolvedCapacity });
     return grid;

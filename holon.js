@@ -74,7 +74,24 @@ import { parseSegments } from "./artifact.js";
 import { admitPassages } from "./read-on-arrival.js";
 import { asksAboutMaterial, materialView, abbreviate, aboutBlock } from "./about.js";
 import { interpretAsk } from "./about-call.js";
-import { getActiveModelLoop, applyModelLoop, captureLastTurn, joinDraftMaterial } from "./model-loops.js";
+
+// A relation claim carries end1/label/end2 (the SVO it read) but no `sentence`.
+// Every consumer keyed on `claim.sentence` — the witness's `settledBy`/
+// `endsFor` (its STRONG claim-end path), the expectation's `matchedSentences`
+// shortcut — was therefore dead in the flat (non-piece) path, silently
+// falling back to the witness's crude two-word ends. This anchors a claim to
+// the sentence that carries its first end's leading word AND its label, by
+// the words (never the splitter's boundary — the provenance.js/render findSentence
+// lesson at claim scale). A claim whose words no sentence carries keeps
+// `null`, which is byte-identical to the pre-anchor failure, never a guess.
+function sentenceForClaim(text, claim) {
+  const sents = splitSentences(String(text ?? "")).map((x) => x.trim()).filter(Boolean);
+  const f = (t) => String(t ?? "").toLowerCase();
+  const firstWord = f(claim?.end1 ?? claim?.subject).split(" ")[0] ?? "";
+  if (!firstWord) return null;
+  const label = f(claim?.label ?? claim?.verb);
+  return sents.find((x) => f(x).includes(firstWord) && f(x).includes(label)) ?? null;
+}
 
 // ── the decomposition gate ───────────────────────────────────────────────────
 //
@@ -2480,11 +2497,62 @@ export async function runPart({
   // handed verbatim as the snips, once, and never doubled as a raw source block.
   const retrieval = passages?.retrieval ?? null;
   const activated = retrieval?.basis === "activation";
+  // DEDUPED BEFORE SNIPPING (2026-09-15, live specimen: "What is the capital
+  // of France?" over a real web search handed the model 19 near-duplicate
+  // bullets — "Paris is the capital of France.", "The capital of France is
+  // Paris.", "Its capital is Paris...", four-plus restatements of one fact
+  // from four different search results, none of them literal repeats of
+  // each other's exact bytes). `dedupeSourceText` (fact-block.js) already
+  // exists for exactly this shape of redundancy — this file's own
+  // `dedupedSourceBlock` above uses it to thin the raw MATERIAL block — but
+  // this turn-snip path built its bullets from the UNDEDUPED passages, so
+  // the same six-ways-restated fact this file's own header already names
+  // for the MATERIAL block ("Hannibal Hamlin, 15th vice president,
+  // 1861-65") was reaching the "what the sources say, verbatim" digest a
+  // second, unfixed way. Same organ, same relation reader, no new
+  // heuristic — deduped by CLAIM (subject/label/object), never by exact
+  // text, so a real new fact survives untouched.
+  const dedupedProsePassages = passages.length ? dedupeSourceText(prosePassages.length ? prosePassages : passages, relations) : [];
+  // MECHANICAL CONFIDENCE — user direction, 2026-09-15: "if we mechanically
+  // are confident, just feed it the fact and we provide the citation... the
+  // logic is all outside the model... give it the very minimum it needs...
+  // idc if it's from the source, the source is what generated the
+  // holographical content." `factBlock` already IS that confidence,
+  // addressed (`spans`) and checked (`relations.read`) before the model
+  // ever sees a word of it — real live cost, the same specimen P228 names:
+  // a 19-bullet verbatim digest for a five-word fact, several bullets
+  // stitched verbatim into the shipped answer. The citation is attached
+  // mechanically regardless of what the model was shown (P55: the mouth
+  // never sees an address), so once something real is confirmed, the raw
+  // digest is not a second opinion the model usefully weighs — it is bulk
+  // a small model tends to just copy.
+  //
+  // RECALL, MEASURED BEFORE TRUSTING (user direction, same breath: "test it
+  // 100 times and test recall and with attachments"). A first cut trimmed
+  // whenever `factBlock` had ANY line at all and lost real facts on a live
+  // 100-trial run: a two-fact question ("when does the museum open, and
+  // what does admission cost") kept only the opening-hours line — the
+  // relation reader never bound the admission-price sentence at all — and
+  // the model, hand ONE fact and asked to answer a two-part question,
+  // answered the second part from nothing (a real fabricated "$10" against
+  // a material "$12"). One bound fact is not the same claim as "everything
+  // the question needs is bound" — coverage must be checked, not counted.
+  // The check reuses this file's own received stopword class
+  // (`CLAIM_STOPWORDS`, already imported) rather than a new list: every
+  // CONTENT word of the question must appear somewhere in the fact-block's
+  // own extracted lines, or the raw digest stays — a genuinely
+  // under-extracted or multi-part question falls through to the FULL
+  // digest exactly as before this pass, never fed less than it was.
+  const questionContentWords = [...new Set(String(question ?? "").toLowerCase().split(/[^\p{L}\p{N}']+/u).filter((w) => w.length > 2 && !CLAIM_STOPWORDS.has(w)))];
+  const factLinesText = (factBlock?.lines ?? []).join(" ").toLowerCase();
+  const mechanicallyConfident = Boolean(factBlock?.lines?.length) && questionContentWords.length > 0 && questionContentWords.every((w) => factLinesText.includes(w));
   const snipPrefix = piece
     ? (snips.length ? snipBlock(snips) : null)
     : activated
       ? (passages.length ? snipBlock(passages.map((p) => ({ ref: p.ref, start: 0, end: String(p.text ?? "").length, text: String(p.text ?? "") }))) : null)
-      : (passages.length ? turnSnipBlock(prosePassages.length ? prosePassages : passages, question) || null : null);
+      : mechanicallyConfident
+        ? null
+        : (passages.length ? turnSnipBlock(dedupedProsePassages, question) || null : null);
   // COMPRESSION (P179): a higher holon stands in for the lower material it
   // was computed from — a Lens line for the sentence it was read from, a
   // Paradigm line for every occurrence of a recurring act. So at level 2
@@ -2542,34 +2610,10 @@ export async function runPart({
   }
   const compress = activated || material === "snips" || (material === "auto" && resolutions >= 2);
   const handed = activated ? "activated sentences" : compress ? (snipPrefix ? "snips" : "passages (no snips to hand)") : "passages";
-  const rawSource = compress && snipPrefix ? null : (factBlock ? (spanBlock ?? dedupedSourceBlock) : dedupedSourceBlock);
+  const rawSource = mechanicallyConfident || (compress && snipPrefix) ? null : (factBlock ? (spanBlock ?? dedupedSourceBlock) : dedupedSourceBlock);
   // THE THREE RESOLUTIONS (resolutions.js): computed from the record, cut by the measurement, templated — never written by a model. The conversation-wide index is the caller's; this part's index stands in only when none was handed over, and the block says so.
   const resolution = resolutions > 0 ? resolutionBlocks({ level: resolutions, question: task || question, transcript, index: conversationIndex ?? referentIndex, notes: foldedNotes, voids: Array.isArray(hyperlexiconVoids) && hyperlexiconVoids.length ? hyperlexiconVoids : (hyperlexicon?.foldVoids && beliefNotes ? (() => { try { return hyperlexicon.foldVoids(beliefNotes); } catch { return []; } })() : []), records, dmdWindow, prominence: mentionBook ? (id) => (mentionBook.byId?.get(id)?.length ?? 0) : null }) : null;
-  // Model-loops (model-loops.js): every named block/suffix below is tuned
-  // through the active model-loop before it is joined into the prompt —
-  // a no-op for the default loop, so nothing here changes unless a saved
-  // loop says to. Downstream checking (grounding, citations, the
-  // correction loop) still reads the ORIGINAL locals above, never the
-  // tuned copy — an override changes what the model is asked, never what
-  // its answer is checked against. The RAW ingredients (below) are what
-  // gets captured for the canvas — never the tuned copy — so switching
-  // the active loop later re-tunes against the real mechanism's output
-  // rather than against whatever loop happened to be active this turn.
-  const modelLoopIngredients = {
-    comparisonLine, declaredLine, aboutLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock,
-    factBlockText: factBlock ? factBlock.text : null,
-    ledgerBlock, rawSource,
-    resolutionText: resolution?.text ?? null,
-    s2Frame, flatExecuteSystemPrompt: FLAT_EXECUTE_SYSTEM_PROMPT, chatSystemPrompt: CHAT_SYSTEM_PROMPT,
-    shapeSuffix, notesSuffix, priorPassSuffix, searchedVoidSuffix, chatContext,
-  };
-  const activeModelLoop = getActiveModelLoop();
-  const modelLoopTuned = applyModelLoop(modelLoopIngredients, activeModelLoop);
-  // The block ORDER is genuinely user-tunable (model-loops.js's own header
-  // says why: nothing downstream reads a position, only which stages run
-  // and in what sequence is off limits) — joinDraftMaterial permutes per
-  // the active loop's own ingredientOrder, natural order by default.
-  const draftMaterial = joinDraftMaterial(modelLoopTuned, activeModelLoop);
+  const draftMaterial = [comparisonLine, declaredLine, aboutLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, factBlock ? factBlock.text : null, ledgerBlock, rawSource].filter(Boolean).join("\n\n");
   // A turn with nothing attached is exactly the turn that should stand on
   // what was read BEFORE — until 2026-09-03 the ledger block reached only
   // the material branches, so a from-memory question never saw the ledger
@@ -2592,17 +2636,11 @@ export async function runPart({
   // this only withholds what THIS prompt offers; the note stays on
   // `state.hyperlexiconLog` exactly as before, and reaches every other
   // question (a decomposed part, a turn with real material, or a genuinely
-  // bare chat with nothing attached at all) exactly as before. Model-loop
-  // tuned (modelLoopTuned.ledgerBlock), same as every other ingredient here.
-  const ledgerSuffix = (!unretrievedSuffix && modelLoopTuned.ledgerBlock) ? `\n\n${modelLoopTuned.ledgerBlock}` : "";
-  // `resolution` is computed once, above (before modelLoopIngredients) —
+  // bare chat with nothing attached at all) exactly as before.
+  const ledgerSuffix = (!unretrievedSuffix && ledgerBlock) ? `\n\n${ledgerBlock}` : "";
+  // `resolution` is computed once, above —
   // reused here, never recomputed.
   const resolutionSuffix = resolution?.text ? `\n\n${resolution.text}` : "";
-  // Shape follows the SAME branch origin/main's fix now uses (`flat` first,
-  // never `passages.length` first) — a decomposed part is "execute-part"
-  // regardless of whether its own retrieval came back empty; only a FLAT
-  // turn's three shapes depend on passages/chatHistory.
-  const modelLoopShape = flat ? (passages.length ? "flat-material" : (chatHistory.length ? "chat-history" : "chat-bare")) : "execute-part";
   // A DECOMPOSED part (!flat) always builds its prompt from its own label/
   // description via buildExecutePrompt — even when this part's own
   // retrieval came back with nothing. buildExecutePrompt already has the
@@ -2625,20 +2663,20 @@ export async function runPart({
       ? [
           {
             role: "system",
-            content: [modelLoopTuned.s2Frame + modelLoopTuned.flatExecuteSystemPrompt + modelLoopTuned.shapeSuffix + modelLoopTuned.notesSuffix + modelLoopTuned.priorPassSuffix + todaySuffix + voiceCueSuffix, draftMaterial].join("\n\n") + modelLoopTuned.chatContext + resolutionSuffix,
+            content: [s2Frame + FLAT_EXECUTE_SYSTEM_PROMPT + shapeSuffix + notesSuffix + priorPassSuffix + todaySuffix + voiceCueSuffix, draftMaterial].join("\n\n") + chatContext + resolutionSuffix,
           },
           ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
           { role: "user", content: task || `${part.label}. ${part.description}` },
         ]
       : chatHistory.length
         ? [
-            { role: "system", content: `${modelLoopTuned.s2Frame}${modelLoopTuned.chatSystemPrompt}${modelLoopTuned.searchedVoidSuffix}${unretrievedSuffix}${modelLoopTuned.notesSuffix}${modelLoopTuned.priorPassSuffix}${todaySuffix}${voiceCueSuffix}${modelLoopTuned.chatContext}${ledgerSuffix}${resolutionSuffix}` },
+            { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${unretrievedSuffix}${notesSuffix}${priorPassSuffix}${todaySuffix}${voiceCueSuffix}${chatContext}${ledgerSuffix}${resolutionSuffix}` },
             ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
             { role: "user", content: task },
           ]
         : [
-            { role: "system", content: `${modelLoopTuned.s2Frame}${modelLoopTuned.chatSystemPrompt}${modelLoopTuned.searchedVoidSuffix}${unretrievedSuffix}${modelLoopTuned.notesSuffix}${modelLoopTuned.priorPassSuffix}${todaySuffix}${voiceCueSuffix}${ledgerSuffix}` },
-            { role: "user", content: `${task}${modelLoopTuned.chatContext}` },
+            { role: "system", content: `${s2Frame}${CHAT_SYSTEM_PROMPT}${searchedVoidSuffix}${unretrievedSuffix}${notesSuffix}${priorPassSuffix}${todaySuffix}${voiceCueSuffix}${ledgerSuffix}` },
+            { role: "user", content: `${task}${chatContext}` },
           ]
     : [
         // task_03d3a119: discourse rides in the SYSTEM message, same as the
@@ -2648,20 +2686,6 @@ export async function runPart({
         { role: "system", content: EXECUTE_SYSTEM_PROMPT + resolutionSuffix + discourseSuffix(discourse) },
         { role: "user", content: buildExecutePrompt(part, draftMaterial, piece) },
       ];
-  // Pipeline-stage snapshot (v2): what actually ran this part, read off
-  // runPart's own bindings — never a second computation of it. `depth`
-  // itself is not in scope here (runHolonicTask converts it to these
-  // budgets before calling runPart), so it is disclosed as unset rather
-  // than guessed.
-  captureLastTurn(modelLoopIngredients, modelLoopShape, {
-    makeRelationReader: Boolean(makeRelationReader),
-    witnessSentences: Boolean(witnessSentences),
-    checkLink: Boolean(checkLink),
-    resolutions,
-    material,
-    passagesPerPart,
-    maxCorrections,
-  });
   onProgress?.("execute", part, {
     // What this call will actually carry — the page's pace ledger turns it
     // into an expected duration.
@@ -2946,6 +2970,29 @@ export async function runPart({
     ),
     ...successionIncompleteFindings(t),
   ];
+  // A DRAFT THAT IS EXACTLY ONE SENTENCE, AND ALREADY VERIFIED TRUE by the
+  // relation reader, is not what reproducedFromContent's mass-majority test
+  // exists to catch (live specimen, 2026-09-15: "The capital of France is
+  // Paris." — a five-word fact stated the only honest way there is to state
+  // it — was flagged "copies the passage word for word", and the demanded
+  // rewrite ("answer in your own words, a paragraph") pushed a small model
+  // into stitching verbatim search-result bullets together instead, which
+  // is strictly worse than the draft it replaced). This file's own header on
+  // `reproducedFromContent` reasons entirely in MULTI-sentence terms ("nine
+  // short copied lines", "a real paragraph") — with exactly one sentence,
+  // "majority" degenerates to "is this the one true thing to say", which the
+  // relation reader has ALREADY answered via a real `bound` claim. Scoped
+  // narrowly on purpose: a multi-sentence verbatim dump is untouched (this
+  // never fires past one sentence), and a single sentence the reader could
+  // not verify (no claim, or an unbound/contradicted one) is untouched too —
+  // the exemption requires every extracted claim to be `bound`, never just
+  // "some of them".
+  const isVerifiedSingleFact = (t, c) => {
+    const sentences = splitSentences(String(t ?? "").replace(ADDRESS_RE, " ")).filter(Boolean);
+    if (sentences.length !== 1) return false;
+    const claims = c?.relations?.claims ?? [];
+    return claims.length > 0 && claims.every((cl) => cl.verdict === "bound");
+  };
   // The verdict, with the cut accounted for: judge() deliberately reads a
   // genuinely empty reply as no-verdict ("produced no text" is its own typed
   // open, not an echo) — but a draft stripScaffoldNarration EMPTIED is the
@@ -2961,11 +3008,15 @@ export async function runPart({
       ? { echoed: false, reproduced: false, narrated: false, incomplete: false }
       : !String(t ?? "").trim() && lastCleanRemoved > 0
         ? { echoed: true, reproduced: false, narrated: false, incomplete: false }
-        : {
-            ...judge(t),
-            narrated: lastNarrationTotal > 0 && lastNarrationCut > lastNarrationTotal / 2,
-            incomplete: isIncomplete(t, c),
-          };
+        : (() => {
+            const j = judge(t);
+            return {
+              ...j,
+              reproduced: j.reproduced && !isVerifiedSingleFact(t, c),
+              narrated: lastNarrationTotal > 0 && lastNarrationCut > lastNarrationTotal / 2,
+              incomplete: isIncomplete(t, c),
+            };
+          })();
 
   let rawDraft = await call(executeMessages, { effort: "low", maxTokens: executeMaxTokens, ...streaming });
   // LENGTH IS MEASURED, NEVER TRUSTED (P108). A piece's section that came
@@ -3642,7 +3693,7 @@ export async function runPart({
   // witness spends its budget on ERROR only — sentences whose claims the
   // expectation already authors (matched, with their addresses carried) cost
   // NOTHING to check; the asks go to novel and contradicted claims.
-  const dialogueClaims = check?.relations?.claims ?? [];
+  const dialogueClaims = (check?.relations?.claims ?? []).map((c) => ({ ...c, sentence: c.sentence ?? sentenceForClaim(stripFraming(text), c) }));
   const expectationError = expectation.claims.length ? errorOf(expectation, dialogueClaims, referentIndex) : null;
   const matchedSentences = new Set();
   if (expectationError?.matched?.length) {
@@ -4231,9 +4282,8 @@ export async function runHolonicTask({
       const disputes = hyperlexicon?.disputesOf && sharedHyperlexiconLog ? hyperlexicon.disputesOf(sharedHyperlexiconLog) : null;
       const index = piece.referentIndexFor && allPassages.length ? piece.referentIndexFor(allPassages) : null;
       const ctx = { notes, disputes, derived: hyperlexiconDerived ?? [], passages: allPassages, resolveName: index ? (n) => index.resolve(n) : null };
-      // a claim knows its sentence by the sentence that carries its first end and its label
-      const anchor = (text, claims) => { const sents = splitSentences(String(text ?? "")).map((x) => x.trim()).filter(Boolean); const f = (t) => String(t ?? "").toLowerCase(); return (claims ?? []).map((c) => ({ ...c, sentence: c.sentence ?? sents.find((x) => f(x).includes(f(c.end1 ?? c.subject).split(" ")[0] ?? "") && f(x).includes(f(c.label ?? c.verb))) ?? null })); };
-      const rv = await revisePiece(sections.map((s) => ({ label: s.part.label, text: s.text ?? "", claims: anchor(s.text, s.relations?.claims), witnessRows: s.witness?.rows ?? [], _s: s })), { groundOf, readAgainst, call, splitSentences, ctx, model: piece.model ?? null, systemPrompt: EXECUTE_SYSTEM_PROMPT, rounds: budgets.revisionRounds, asks: budgets.revisionAsks });
+      // a claim knows its sentence by the sentence that carries its first end and its label (sentenceForClaim, shared with the flat path)
+      const rv = await revisePiece(sections.map((s) => ({ label: s.part.label, text: s.text ?? "", claims: (s.relations?.claims ?? []).map((c) => ({ ...c, sentence: c.sentence ?? sentenceForClaim(s.text, c) })), witnessRows: s.witness?.rows ?? [], _s: s })), { groundOf, readAgainst, call, splitSentences, ctx, model: piece.model ?? null, systemPrompt: EXECUTE_SYSTEM_PROMPT, rounds: budgets.revisionRounds, asks: budgets.revisionAsks });
       // THE REVISION IS A LATER CELL (P137). It runs after every part's own
       // gate and could put back what a part's finding forbade — the same
       // shape P133 had at EVA, one level up. Bound here by everything the

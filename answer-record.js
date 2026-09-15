@@ -213,18 +213,19 @@ export function answerRecordProse(r) {
   if (!r) return "";
   const sentences = [];
 
-  // ALETHEIA'S ADDRESSED CAVEAT LEADS, when it fires — a reader deciding
-  // whether to trust the rest of this box should see this first. Scoped
-  // deliberately narrow: only the ADDRESSED layer (the answer barely shares
-  // any of the question's own words at all), never FILLED (a short, correct
-  // answer like "Yes, in 1969." can legitimately echo the question closely
-  // and would false-positive there) — ADDRESSED failing is the strong,
-  // low-false-positive signal that the answer is very likely about
-  // something else entirely, which is exactly the live specimen this
-  // closes (an RFP-transcript summary shipped as an "essay on the X-Files").
-  if (r.satisfaction && r.satisfaction.satisfied === false && r.satisfaction.at === "addressed") {
-    sentences.push(`This answer may not actually address what was asked — it shares almost none of the question's own wording (${r.satisfaction.reason ?? "checked and refused"}).`);
-  }
+  // ALETHEIA'S ADDRESSED CAVEAT — REMOVED 2026-09-15 (user direction: "this
+  // is dead wrong… let's not give caveats like this"). It was scoped to
+  // catch a real, severe case (an RFP-transcript summary shipped as an
+  // "essay on the X-Files", near-zero shared vocabulary over a LONG,
+  // substantively wrong-topic answer) but the same 25%-word-overlap test
+  // false-positives just as readily the OTHER way: a short, correct factoid
+  // answer legitimately shares little or none of the question's own words
+  // ("What's the capital of france?" → "That would be Paris!" — 0% overlap,
+  // and a bare "Paris." would score the same) — the exact false-positive
+  // shape this comment used to claim only FILLED (not ADDRESSED) was prone
+  // to. `aletheia.js`'s ADDRESSED layer and `r.satisfaction` are untouched
+  // and still ride the raw record (the "more" JSON, the model-swap diff);
+  // only this front-and-center, frequently-wrong warning is gone.
 
   // LOGOS leads too, for the identical reason the ADDRESSED caveat does: a
   // question whose own claims contradict themselves is worth knowing before
@@ -276,4 +277,55 @@ export function answerRecordProse(r) {
 
   if (!sentences.length) return "It didn't make any checkable claims this turn.";
   return sentences.join(" ");
+}
+
+/**
+ * The BARE LOGIC — a third reading of the record, deliberately between
+ * `answerRecordProse` (too glossed) and `answerRecordForReading`'s raw JSON
+ * (too raw): the turn's mechanical logic as a compact, human-readable-ish
+ * step trace. Every line is a literal field of the record, never an
+ * interpretation of one — the logic is bare in the sense that nothing is
+ * prettied up, and readable in the sense that it is not JSON. This is what a
+ * "mode" of the thinking disclosure renders (and what the proxy's `thinking`
+ * returns as `logic`): the same unconscious, mechanical record, in a form a
+ * person can scan.
+ *
+ * @returns {string[]} one line per step; empty for a null record.
+ */
+export function bareLogic(r) {
+  if (!r) return [];
+  const L = [];
+  const q = String(r.question ?? "").trim();
+  const ret = r.retrieved ?? [];
+  const claims = r.claims ?? [];
+  const unbacked = r.unbacked ?? [];
+  const unsupported = r.unsupported ?? [];
+  const abs = r.absenceTally ?? { citingVoid: 0, citingNone: 0 };
+  const answerChars = Number(r.answer?.chars ?? 0);
+  if (!q && !ret.length && !claims.length && !unbacked.length && !unsupported.length && !(abs.citingVoid + abs.citingNone) && !answerChars) return [];
+  if (q) L.push(`input     ${q}`);
+  if (r.logos?.cycle?.length) L.push(`logos     CYCLE — ${r.logos.cycle.join(" → ")}`);
+  const retSrc = (r.retrievedSources ?? []).join(", ");
+  L.push(`handed    ${ret.length} passage(s)${retSrc ? ` · sources ${retSrc}` : ""}`);
+  for (const ref of ret) L.push(`            ${ref}`);
+  const tally = r.tally ?? {};
+  const tallyBits = Object.entries(tally).map(([v, n]) => `${n} ${v}`).join(", ");
+  L.push(`said      ${claims.length} claim(s)${tallyBits ? ` — ${tallyBits}` : ""}`);
+  for (const c of claims) {
+    const verdict = String(c.verdict ?? "unheard").padEnd(12);
+    const refs = (c.refs ?? []).join(",");
+    L.push(`  [${verdict}] ${c.end1 ?? "?"} →${c.label ?? "?"}→ ${c.end2 ?? "?"}${refs ? `   @ ${refs}` : ""}`);
+  }
+  if (unbacked.length || unsupported.length) {
+    L.push(`nothing   backs: ${unsupported.length} unsupported · ${unbacked.length} unbacked`);
+    for (const u of unsupported) L.push(`  ! ${typeof u === "string" ? u : JSON.stringify(u)}`);
+    for (const u of unbacked) L.push(`  ? ${typeof u === "string" ? u : JSON.stringify(u)}`);
+  }
+  if (abs.citingVoid + abs.citingNone) {
+    L.push(`absences  ${abs.citingVoid + abs.citingNone} — ${abs.citingVoid} cite a declared gap · ${abs.citingNone} cite none`);
+  }
+  const a = String(answerChars);
+  L.push(`answer    ${a} char(s)`);
+  L.push(`identity  ${String(r.model ?? "-")}${r.recipe ? ` · recipe ${String(r.recipe).slice(0, 12)}` : ""}${r.frame ? ` · frame ${String(r.frame).slice(0, 16)}` : ""}`);
+  return L;
 }

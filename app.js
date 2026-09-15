@@ -5737,6 +5737,17 @@ async function runBuildOnce(entry) {
 const CODE_PIECE_BODY_TOKENS = 700;   // one function body per ask (P117)
 const CODE_PIECE_FIXES = 1;           // one fix per failing function, named by the traceback
 async function codePieceTurn(cp, typed, { onEvent = null } = {}) {
+  // The Coding pane is standalone (coding-pane.js's own header: "never
+  // imports app.js... not itself a conversation") and this turn is reached
+  // through guardedCoding's own busy guard, which switchConvo also checks —
+  // so state.active cannot move while this function runs, and the
+  // conversation it lands in IS the one active right now. Captured once,
+  // by reference, so "send to chat" below can write into the right place
+  // even if the person switches conversations before clicking it
+  // (task_3e9f2a31: sendChip used to read the live, swapped state.history
+  // at CLICK time, which silently redirects to whatever conversation
+  // happens to be active THEN, not the one this build actually ran under).
+  const targetConvo = state.convos[state.active];
   addMessage("user", typed);
   const node = addMessage("assistant", "");
   node.querySelector(".role-tag").textContent = "program";
@@ -5866,6 +5877,16 @@ async function codePieceTurn(cp, typed, { onEvent = null } = {}) {
   // sent: a multi-paragraph build log is not something a later turn needs
   // in its context by default, and consent to add it is a click, the same
   // posture the Folds panel's own ▶ run already holds for execution.
+  //
+  // Named in words which conversation that click will reach (P178's own
+  // rule for every deliberate cross-conversation crossing: "DISCLOSES it in
+  // words") — load-bearing on the narrow/mobile layout, where the
+  // conversation strip that would otherwise show it is not on screen at all
+  // (task_3e9f2a31).
+  const dest = document.createElement("span");
+  dest.className = "build-dest";
+  dest.textContent = `→ ${convoTitle(targetConvo)}`;
+  dest.title = "the conversation this build is attached to — the one it ran under, which may not be the one on screen now";
   const sendChip = document.createElement("button");
   sendChip.type = "button";
   sendChip.className = "build-chip send-to-chat";
@@ -5873,12 +5894,27 @@ async function codePieceTurn(cp, typed, { onEvent = null } = {}) {
   sendChip.append(document.createTextNode("send to chat"));
   sendChip.onclick = () => {
     if (sendChip.disabled) return;
-    state.history.push({ role: "user", content: typed }, { role: "assistant", content: lines.join("\n") });
+    // A conversation may be closed once this turn's own busy guard releases
+    // (renderThreads' close button is only disabled by state.busy/being the
+    // last one, not by a pending "send to chat"): targetConvo, if so, is an
+    // orphan — still a real object with its own .history array, but no
+    // longer in state.convos and never read by anything again. Writing to
+    // it would silently lose the write behind a false "sent" confirmation,
+    // worse than the bug this closes. Refused by name instead.
+    if (!state.convos.includes(targetConvo)) { sendChip.disabled = true; sendChip.textContent = `${convoTitle(targetConvo)} was closed — not sent`; return; }
+    // targetConvo.history, not the live/swapped state.history: while
+    // targetConvo is still the active conversation the two are the SAME
+    // array (switchConvo/stowWorkspace only ever reassign which object
+    // `state` points at, never clone a PER_CONVO field), so this is
+    // byte-identical to the old behavior in the common case — and correct
+    // in the one that wasn't, a conversation switch between the build
+    // finishing and this click silently redirecting the write.
+    targetConvo.history.push({ role: "user", content: typed }, { role: "assistant", content: lines.join("\n") });
     sendChip.disabled = true;
-    sendChip.textContent = "sent to chat";
+    sendChip.textContent = targetConvo === state.convos[state.active] ? "sent to chat" : `sent to ${convoTitle(targetConvo)}`;
     mirrorTermRecord("codepiece-sent-to-chat", { fold: n, via: "chat" });
   };
-  body.append(sendChip);
+  body.append(dest, sendChip);
   renderFold(node, { sent: sentCalls });
   renderThreads();
   $("status").textContent = readyLine();

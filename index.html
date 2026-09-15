@@ -1432,6 +1432,22 @@
         background: var(--accent-soft);
         text-align: left;
       }
+      /* Which conversation a "send to chat" click will actually reach —
+         disclosed in words beside the chip (task_3e9f2a31), not just left
+         to the conversation strip, which is absent entirely on a narrow
+         layout. Quiet by design: this is a fact about routing, not a
+         finding. */
+      .build-dest {
+        display: inline-block;
+        max-width: 220px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: middle;
+        margin: 2px 8px 10px 0;
+        font-size: 11.5px;
+        color: var(--muted);
+      }
       /* The Folds panel's controls: search, a declared ordering, and the
          list/cards switch. The bar filters a rendering — the logs beneath
          never change, and what a filter hides is counted next to the pane's

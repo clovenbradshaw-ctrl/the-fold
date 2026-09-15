@@ -126,6 +126,35 @@
 // optional and defaults to undefined, so a caller that never injects it
 // gets the exact prior behaviour, byte for byte — every existing test and
 // caller of this module is untouched until a caller opts in.
+//
+// COMPANY WIDENED FROM SENTENCE TO SENTENCE-OR-PARAGRAPH (added 2026-09-15;
+// Generality: universal — the paragraph unit is reused from source.js's own
+// `chunkProse` convention, never hand-picked, and only ever ADMITS more than
+// the sentence-only check did, so it cannot reopen either of this file's own
+// two founding refusal specimens). This is the OPPOSITE failure mode from
+// the coincidental-overlap gap named above and in `deniedTerms`'s own
+// header (too much getting in): COMPANY, exactly as it shipped, could
+// refuse a source that is genuinely, entirely about the question asked.
+// Found live: a freshly pasted, single-paragraph original source
+// ("Ridgeline Cider Works opened its taproom... [830 characters later]
+// ...800 gallons in year one to... their fifth year") named its subject
+// ("cider") in the opening sentence and stated the two asked-about numbers
+// ("year", "five") three sentences later — ordinary prose, naming a subject
+// once and then discussing it, not a special case — and COMPANY refused the
+// source because "cider" never shared a SENTENCE with "year" or "five"
+// anywhere in it, so the turn fabricated an answer with zero grounding
+// disclosure despite this being the ONLY, entirely on-topic source in the
+// conversation. `hasCompany` now checks SENTENCE first (the tighter,
+// original signal, and still the one reported in a passing `reason`), and
+// only when that fails falls back to PARAGRAPH — the same "cut at a blank
+// line" unit `source.js::chunkProse` already treats as meaningful, split on
+// the identical `\n\s*\n` boundary, reused rather than a fresh hand-picked
+// sentence-window. A paragraph is a strict superset of every sentence
+// inside it, so this can only WIDEN admission relative to the old check,
+// never narrow it — and it does not reopen the two specimens COMPANY was
+// built to close: the Sourcewell transcript's "today" and "date" sit in
+// separate paragraphs (a blank line apart) exactly as they sit in separate
+// sentences, so that refusal is unchanged.
 
 // Derived, not hand-picked: the same structural minimum clippy.js's own DMD
 // gate (`n >= 2`) and binding.js's arrivals floor already use for "how much
@@ -182,18 +211,60 @@ export function makeAdmission({ tokenize, splitSentences, negationWords } = {}) 
     return denied.size ? all.filter((t) => !denied.has(t)) : all;
   }
 
-  /** Do at least `need` of `shared`'s words appear together in one sentence
-   * of `sourceText`? The company check (see this file's own header) — only
-   * run when a sentence-splitter was injected; a caller that omitted one
-   * gets `true` unconditionally, i.e. no narrowing beyond the base floor. */
+  /** Does some run of `terms` in `text` carry `need` of `shared`'s words
+   * together? Shared by both tiers of `hasCompany`, below — the counting
+   * rule is identical at either grain, only the unit of text changes. */
+  function sharesEnough(text, shared, need) {
+    const terms = new Set(tokenize(text));
+    return shared.filter((t) => terms.has(t)).length >= need;
+  }
+
+  /** Do at least `need` of `shared`'s words appear together in one SENTENCE
+   * of `sourceText` — or, failing that, in one PARAGRAPH? The company check
+   * (see this file's own header) — only run when a sentence-splitter was
+   * injected; a caller that omitted one gets `true` unconditionally, i.e.
+   * no narrowing beyond the base floor.
+   *
+   * WIDENED FROM SENTENCE-ONLY TO SENTENCE-OR-PARAGRAPH (2026-09-15). A
+   * single flowing paragraph typically NAMES its subject once — often in
+   * an early sentence — and states further details about that subject in
+   * LATER sentences without repeating the subject noun every time: this is
+   * ordinary prose, not a special case. Requiring exact same-SENTENCE
+   * co-occurrence refused a freshly pasted, single-paragraph, genuinely
+   * on-topic source for exactly that reason — a real, live specimen:
+   * "Ridgeline Cider Works opened its taproom..." names the subject
+   * ("cider") in sentence one; "...800 gallons in year one to... their
+   * fifth year" states the two asked-about numbers three sentences later;
+   * "cider" and "year"/"five" never share one sentence anywhere in the
+   * source, so the source was refused for a question genuinely, entirely
+   * about it, with zero grounding disclosure on the fabricated answer that
+   * followed.
+   *
+   * The paragraph is not an invented window: it is the SAME unit
+   * source.js's own `chunkProse` already treats as meaningful ("a passage
+   * cut at a blank line is a paragraph and nothing more") — reused here,
+   * not re-derived, split on the identical `\n\s*\n` blank-line boundary.
+   * A paragraph is a strict WIDENING of a sentence (every sentence sits
+   * inside exactly one paragraph), so checking it can only ADMIT more than
+   * the sentence-only check did, never less — and it still refuses the
+   * original specimen this whole gate exists for: the stale Sourcewell
+   * transcript's "today" (paragraph one, the moderator's own greeting) and
+   * "date" (a separate, later paragraph about reference files) sit in
+   * DIFFERENT paragraphs, so they still never qualify as company. Sentence
+   * is checked FIRST and remains the tighter, more specific signal (its own
+   * disclosed reason when it fires); paragraph is the fallback that widens
+   * admission only when sentence-level company genuinely is not there. */
   function hasCompany(sourceText, shared, need) {
     if (typeof splitSentences !== "function" || need < 2) return true;
-    const sentences = splitSentences(String(sourceText ?? "")) ?? [];
-    return sentences.some((sent) => {
-      const text = typeof sent === "string" ? sent : sent?.text ?? "";
-      const terms = new Set(tokenize(text));
-      return shared.filter((t) => terms.has(t)).length >= need;
+    const text = String(sourceText ?? "");
+    const sentences = splitSentences(text) ?? [];
+    const inOneSentence = sentences.some((sent) => {
+      const t = typeof sent === "string" ? sent : sent?.text ?? "";
+      return sharesEnough(t, shared, need);
     });
+    if (inOneSentence) return true;
+    const paragraphs = text.split(/\n\s*\n/);
+    return paragraphs.some((para) => sharesEnough(para, shared, need));
   }
 
   /** Does `sourceText` share enough of `question`'s own vocabulary to be
@@ -227,7 +298,7 @@ export function makeAdmission({ tokenize, splitSentences, negationWords } = {}) 
       qTermsCount: qTerms.length,
       reason: admitted
         ? `shares ${shared.length} of the question's own word(s): ${shared.join(", ")}`
-        : `shares ${shared.length} of the question's own word(s) (${shared.join(", ")}) but never ${need} of them together in one sentence — refused as coincidental, not company (P31)`,
+        : `shares ${shared.length} of the question's own word(s) (${shared.join(", ")}) but never ${need} of them together in one sentence or even one paragraph — refused as coincidental, not company (P31)`,
     };
   }
 

@@ -187,6 +187,72 @@ test("company: admitSources end to end — the transcript is set aside for the d
   assert.equal(refused[0].name, "pasted.txt");
 });
 
+// ── company, widened to sentence-OR-paragraph (2026-09-15) ─────────────────
+// The live specimen: a freshly pasted, single-paragraph, entirely on-topic
+// source names its subject in the opening sentence and states the asked-
+// about numbers three sentences later — ordinary prose, and the pre-fix
+// sentence-only COMPANY check refused it, so the turn fabricated an answer
+// with zero grounding disclosure. See admission.js's own header, "COMPANY
+// WIDENED FROM SENTENCE TO SENTENCE-OR-PARAGRAPH", for the full account.
+const CIDER_SOURCE = `Ridgeline Cider Works opened its taproom in March 2019 in a converted grain silo on the edge of Millbrook. The founders, twin brothers Otto and Dean Varga, had spent four years homebrewing cider from apples off their grandfather's orchard before going commercial. Their flagship, "Silo Dry," uses a blend of five apple varieties, three of them heirloom types no longer grown commercially anywhere else in the county. Annual production climbed from 800 gallons in year one to just under 14,000 gallons by their fifth year, and they added a second fermentation building in 2022 to keep up.`;
+const CIDER_QUESTION = "how much cider did they produce in their first year, and how much by year five?";
+
+test("paragraph company: the live cider specimen — 'cider' names the subject in sentence one, 'year'/'five' state the answer three sentences later, never sharing a sentence — is now admitted", () => {
+  const pre = admissionWithCompany.sourceAdmits(CIDER_QUESTION, CIDER_SOURCE);
+  // pinned so the fix above is legible as a fix: the plain sentence-level
+  // check genuinely does not find company for this specimen.
+  assert.deepEqual(pre.shared.sort(), ["cider", "five", "year"]);
+  assert.equal(pre.admitted, true, `expected admission via paragraph company; got reason=${pre.reason}`);
+});
+
+test("paragraph company: admitSources end to end — the cider source is admitted and cited for the cider question", () => {
+  const { admitted, refused } = admissionWithCompany.admitSources(CIDER_QUESTION, [{ name: "pasted-8.txt", text: CIDER_SOURCE }]);
+  assert.deepEqual(admitted.map((a) => a.name), ["pasted-8.txt"]);
+  assert.equal(refused.length, 0);
+});
+
+test("paragraph company: the original Sourcewell specimen (P190's own founding case) is UNAFFECTED — 'today' and 'date' sit in separate paragraphs, not just separate sentences", () => {
+  const v = admissionWithCompany.sourceAdmits(DATE_QUESTION, RFP_TRANSCRIPT_WITH_DATE);
+  assert.equal(v.admitted, false, `expected refusal; got shared=${JSON.stringify(v.shared)}`);
+  assert.match(v.reason, /never .* together in one sentence or even one paragraph/);
+});
+
+test("paragraph company: two shared words that each sit in a DIFFERENT paragraph of an otherwise unremarkable two-paragraph document are still refused — the widening is paragraph-scoped, not whole-document", () => {
+  const material = `The bakery introduces a new recipe every autumn.
+
+The warehouse relocated last spring.`;
+  // "bakery" lives only in paragraph one, "warehouse" only in paragraph two
+  // — clears the bare floor (2 shared words) but neither paragraph, let
+  // alone any one sentence, ever states them together.
+  const v = admissionWithCompany.sourceAdmits("tell me about the bakery and the warehouse", material);
+  assert.deepEqual(v.shared, ["bakery", "warehouse"]);
+  assert.equal(v.admitted, false, `expected refusal; got shared=${JSON.stringify(v.shared)}`);
+  assert.match(v.reason, /never .* together in one sentence or even one paragraph/);
+});
+
+// P71 cross-domain replay: a structurally identical shape to the cider
+// specimen (two of the question's shared words sit in DIFFERENT sentences
+// of one flowing paragraph, so sentence-only company would refuse it),
+// built from vocabulary that shares nothing with cider/Ridgeline/gallons —
+// proving the fix reads PARAGRAPH STRUCTURE, not anything fitted to this
+// one specimen. Verified directly (not assumed): no single sentence of
+// this source contains both "observatory" (sentence 1) and "reflector"
+// (sentence 3) — the pre-fix, sentence-only check refuses this exact
+// material; only the paragraph fallback admits it.
+const OBSERVATORY_SOURCE = "Comstock Observatory opened to the public in the fall of 1994, after a decade of careful work grinding the primary mirror by hand. Visitors on a clear night receive a short introductory talk before the dome opens. The main instrument is a 20-inch reflector, among the largest amateur-built telescopes in the region. By the tenth season, attendance had grown substantially, and a small astronomy club now meets there every month.";
+const OBSERVATORY_QUESTION = "what kind of reflector does the observatory use?";
+
+test("P71 cross-domain replay: an unrelated single-paragraph specimen (an observatory, not a cidery) whose two shared words sit in different sentences is also admitted via paragraph company", () => {
+  const v = admissionWithCompany.sourceAdmits(OBSERVATORY_QUESTION, OBSERVATORY_SOURCE);
+  assert.deepEqual(v.shared.sort(), ["observatory", "reflector"]);
+  assert.equal(v.admitted, true, `expected admission via paragraph company; got reason=${v.reason}`);
+});
+
+test("P71 cross-domain replay, negative control: the SAME observatory source does not admit a question sharing only one coincidental word with it", () => {
+  const v = admissionWithCompany.sourceAdmits("how do you visit an art museum on a rainy day?", OBSERVATORY_SOURCE);
+  assert.equal(v.admitted, false, `expected refusal; got shared=${JSON.stringify(v.shared)}`);
+});
+
 // ── crownTestimony's own re-use of this gate (app.js, 2026-09-15) ──────────
 // The Per-Source Testimony spine (P39, capacity-runner.js::landAct/
 // mergeTestimony, crownTestimony in app.js) used to spend a full per-source

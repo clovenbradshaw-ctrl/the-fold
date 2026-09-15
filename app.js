@@ -5331,6 +5331,52 @@ async function gatewaysTurn(arg, question) {
 }
 
 /**
+ * /opencode — opencode (a separate local coding-CLI app on this machine)
+ * keeps its own record of every tool call it has run, including WebFetch
+ * results with the page's own already-extracted readable text. Bare
+ * `/opencode` lists which of opencode's sessions have fetched pages worth
+ * importing (a read against explore-server.mjs's own crossing — nothing
+ * written); `/opencode import [sessionId]` lands them into the SAME
+ * content-addressed web store /api/web/fetch already writes to, so they
+ * read afterward as ordinary saved sources, openable like anything this
+ * instrument fetched itself. `via.source: "opencode-import"` on the saved
+ * entry is the one honest tell that it came from opencode's own history
+ * rather than a fresh fetch (opencode-import.js's own header). Explicit-
+ * trigger only, like every other typed door here.
+ */
+async function opencodeTurn(arg, question) {
+  const importCmd = /^import\b/.test(arg);
+  const sessionId = importCmd ? arg.replace(/^import\s*/, "").trim() : "";
+  try {
+    if (importCmd) {
+      const res = await fetch(`${EXPLORE_BASE}/api/opencode/import`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(sessionId ? { sessionId } : {}),
+      });
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        return usageTurn(question, `the explore server answered ${res.status}${detail.error ? ` — ${detail.error}` : ""} — /opencode needs explore-server.mjs on ${EXPLORE_BASE}`, { what: "opencode" });
+      }
+      const got = await res.json();
+      const head = `imported ${got.imported} page(s) from opencode's own history${sessionId ? ` (session ${sessionId})` : ""}, ${got.skipped} already had this exact fetch, ${got.examined} examined:`;
+      const rows = got.entries.map((e) => `  ${e.url} · ${e.retrievedAt ?? "no timestamp"} · ${e.textChars ?? 0} chars`);
+      return usageTurn(question, `${head}${rows.length ? `\n${rows.join("\n")}` : ""}\n— landed as ordinary web sources, openable like anything /api/web/fetch saved`, { what: "opencode" });
+    }
+    const res = await fetch(`${EXPLORE_BASE}/api/opencode/sessions`);
+    if (!res.ok) return usageTurn(question, `the explore server answered ${res.status} — /opencode needs explore-server.mjs on ${EXPLORE_BASE}`, { what: "opencode" });
+    const got = await res.json();
+    if (!got.available) return usageTurn(question, `no opencode database found at ${got.path} — opencode does not appear to be installed on this machine`, { what: "opencode" });
+    if (!got.sessions.length) return usageTurn(question, `opencode has no fetched web pages on record yet`, { what: "opencode" });
+    const rows = got.sessions.slice(0, 20).map((s) => `  ${s.sessionId} · ${s.count} fetch(es) · latest ${s.latest ?? "unknown"}`);
+    const tail = got.sessions.length > 20 ? `\n… and ${got.sessions.length - 20} more session(s)` : "";
+    return usageTurn(question, `opencode sessions with fetched pages (${got.totalFetches} total across ${got.sessions.length} session(s)):\n${rows.join("\n")}${tail}\n/opencode import [sessionId] — land them as sources, recorded`, { what: "opencode" });
+  } catch (e) {
+    return usageTurn(question, `/opencode: ${e.message} — is explore-server.mjs running on ${EXPLORE_BASE}?`, { what: "opencode" });
+  }
+}
+
+/**
  * Fire-and-forget mirror onto the SAME durable record every terminal-typed
  * act already lands on (explore-server.mjs's `POST /api/term-record` →
  * its one `record(event, fields)` function, `record/explore-record.jsonl`)
@@ -8200,6 +8246,14 @@ async function send(question) {
   const gatewaysCmd = question.match(/^\/gateways\b\s*(.*)$/s);
   if (gatewaysCmd) return gatewaysTurn(gatewaysCmd[1]?.trim() ?? "", question);
 
+  // opencode's own already-fetched web pages, imported as sources (P13's
+  // web store, one register over: the fetch already happened, in a
+  // different local app — this door only ever reads opencode's own local
+  // database and writes into the SAME web/pages + web/history.jsonl store
+  // a live fetch already uses). Explicit-trigger only.
+  const opencodeCmd = question.match(/^\/opencode\b\s*(.*)$/s);
+  if (opencodeCmd) return opencodeTurn(opencodeCmd[1]?.trim() ?? "", question);
+
   // The routes (P118): where this page is and what it found reachable at
   // boot, re-probed on request. Mechanical, localhost / same-origin only.
   if (/^\/routes\b/.test(question)) return routesTurn(question);
@@ -8539,7 +8593,7 @@ async function send(question) {
 
 /** Every door the composer routes, read off the dispatch above — kept as one
  * list so the refusal for an unknown slash names all of them. */
-const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/facts", "/fold", "/gateways", "/help", "/holograph", "/ingest", "/join", "/learn", "/matrix", "/measure", "/model-loop", "/must", "/pool", "/preserve", "/priors", "/ranke", "/reading", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/source", "/task", "/transcribe", "/visual", "/void"]);
+const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/facts", "/fold", "/gateways", "/help", "/holograph", "/ingest", "/join", "/learn", "/look", "/matrix", "/measure", "/model-loop", "/must", "/opencode", "/pool", "/preserve", "/priors", "/ranke", "/reading", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/source", "/task", "/transcribe", "/visual", "/void"]);
 
 /**
  * /ingest — a repo becomes folds, mechanically. Every admissible file (the

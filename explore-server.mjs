@@ -28,10 +28,11 @@
 
 import http from "node:http";
 import { Worker } from "node:worker_threads";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createReadStream, statSync, readdirSync, openSync, readSync, closeSync, mkdirSync, appendFileSync, existsSync, writeFileSync, readFileSync, rmSync, unlinkSync } from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { foldExtract } from "../eoreader7/legacy-eoreader6.1/packages/host/index.js";
 import { foldLibrary, sanitizeFileName, LIBRARY_UPLOAD_MAX_BYTES } from "./library.js";
@@ -57,11 +58,24 @@ import {
   WEB_ARCHIVE_TIMEOUT_MS,
   WEB_UA,
   GATEWAYS, gatewayOf, blockedShape, readGatewayBody, foldGateways, rankGateways, gatewayLines, ECHO_HEADERS_URL, ECHO_IP_URL, parseEchoHeaders, parseEchoIp, leakVerdict } from "./web.js";
+// the opencode-import organ's pure half (row normalization, the entry
+// shape, the per-session summary) — the route below owns only the read of
+// opencode's own local SQLite store and the write into the SAME
+// content-addressed web/pages store fetchAndKeep already owns
+import { normalizeOpencodeParts, opencodeImportEntry, opencodeSessionSummary } from "./opencode-import.js";
 // the primary-source walk's pure half (citations out of a saved wiki face,
 // the claim-ordered ranking, the verbatim snip, the counted fold) — the
 // route below owns only the crossings
 import { extractCitations, rankPrimary, snipClaim, foldPrimary, PRIMARY_SOURCES_CONSULTED, PRIMARY_SNIPS_KEPT } from "./primary.js";
 import { chaseLedger as rankeChaseLedger, RANKE } from "../eoreader7/native/organs/ranke.js";
+// the "looking" organ's pure half (the page trigger — is the plain-text
+// reading of this page reading it WRONG?) and the page-render crossing (the
+// already-fetched HTML bytes rendered to a PNG by headless Chrome). The
+// actual two-sense READ (OpenCV/OCR + vision ladder) runs in the browser via
+// the existing /api/visual path, exactly as /visual already does — this
+// server owns the egress, the render, and the record, never a model call.
+import { shouldLookPage } from "../eoreader7/native/organs/look.js";
+import { renderHtmlToImage } from "./render-page.mjs";
 // the reference-library tier's pure half (provenance frontmatter, mechanical
 // candidate ordering, the snip check, the counted fold) — the route below
 // owns only the reads, confined to the corpus root
@@ -557,6 +571,95 @@ function webSettings() {
 function appendWebHistory(line) {
   mkdirSync(WEB_DIR, { recursive: true });
   appendFileSync(WEB_HISTORY_PATH, JSON.stringify(line) + "\n");
+}
+
+// ── the opencode-import door ─────────────────────────────────────────────
+// opencode (the separate coding-CLI app, a real, independent local
+// application on this same machine) keeps its own append-only record of
+// every tool call it has run, in a SQLite database under
+// `~/.local/share/opencode/opencode.db` — including, when the person has
+// used its WebFetch tool, the fetched page's own already-extracted
+// readable text. This is not a network egress (P13's own one sanctioned
+// crossing is unrelated — nothing here fetches anything remote) and it is
+// not the browse root either: it is a second local application's own data,
+// read the same declared way `priors-toggles.js`'s corpus walk already
+// reads `live_priors` outside this repo. Never written to; a database this
+// server did not create is read with the `sqlite3` CLI (already present on
+// this machine, so no new dependency), never opened for writing.
+//
+// A row's own `session_id` is validated against opencode's real id shape
+// (`ses_` + hex) before ever reaching a shell command — the one untrusted
+// input on this path (a request body), held to the same
+// validate-before-interpolate discipline `sanitizeFileName`/
+// `sanitizeTableName` already hold elsewhere in this codebase, since the
+// `sqlite3` CLI's own `-json` flag has no parameter-binding of its own.
+const OPENCODE_DB_PATH = process.env.OPENCODE_DB_PATH || path.join(os.homedir(), ".local/share/opencode/opencode.db");
+const OPENCODE_SESSION_ID_RE = /^ses_[a-zA-Z0-9]+$/;
+// A single call's own bound — declared, never tuned to a golden — so one
+// import request cannot silently walk hundreds of a person's own opencode
+// sessions' worth of fetched pages into this instrument's web store.
+const OPENCODE_IMPORT_MAX = 50;
+
+function opencodeDbAvailable() {
+  return existsSync(OPENCODE_DB_PATH);
+}
+
+/**
+ * Every `webfetch`-tool `part` row from opencode's own database, optionally
+ * scoped to one session. Read-only (`sqlite3 <db> -json "SELECT …"`); a
+ * broad `LIKE` narrows the SQL side (cheap, approximate — real filtering to
+ * genuine completed webfetch calls happens in `normalizeOpencodeParts`,
+ * which reads the JSON for real rather than trusting the LIKE). Throws only
+ * when the `sqlite3` binary itself is missing or the db is locked/corrupt —
+ * callers are expected to check `opencodeDbAvailable()` first.
+ */
+function queryOpencodeWebfetchRows({ sessionId } = {}) {
+  if (sessionId && !OPENCODE_SESSION_ID_RE.test(sessionId)) {
+    throw new Error("sessionId must match opencode's own ses_<hex> shape");
+  }
+  const where = sessionId ? `WHERE session_id = '${sessionId}' AND data LIKE '%"tool":"webfetch"%'` : `WHERE data LIKE '%"tool":"webfetch"%'`;
+  const sql = `SELECT id, session_id, data FROM part ${where} ORDER BY time_created DESC LIMIT 2000;`;
+  const got = spawnSync("sqlite3", [OPENCODE_DB_PATH, "-json", sql], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+  if (got.error) throw got.error;
+  if (got.status !== 0) throw new Error(`sqlite3 exited ${got.status}: ${got.stderr}`);
+  const trimmed = got.stdout.trim();
+  if (!trimmed) return [];
+  return JSON.parse(trimmed);
+}
+
+/**
+ * Land normalized opencode entries into the SAME content-addressed web
+ * store `fetchAndKeep` writes — an imported page is an ordinary web source
+ * from then on, openable and readable exactly like a page this instrument
+ * fetched itself, its `via` field the one honest tell of where it came
+ * from. Returns `{imported, skipped}`; `skipped` counts a normalized entry
+ * whose URL a kept entry already carries (opencode's own history often
+ * re-records the same fetch across many sessions — one file, one history
+ * row per genuinely new (url, retrievedAt) pair, not one per opencode row).
+ */
+function importOpencodeEntries(normalized) {
+  const existingJsonl = existsSync(WEB_HISTORY_PATH) ? readFileSync(WEB_HISTORY_PATH, "utf8") : "";
+  const { entries: already } = foldWebHistory(existingJsonl);
+  const seen = new Set(already.filter((e) => e.via?.source === "opencode-import").map((e) => `${e.url} ${e.retrievedAt}`));
+  mkdirSync(WEB_PAGES_DIR, { recursive: true });
+  const imported = [];
+  let skipped = 0;
+  for (const n of normalized.slice(0, OPENCODE_IMPORT_MAX)) {
+    const key = `${n.url} ${n.retrievedAt}`;
+    if (seen.has(key)) {
+      skipped += 1;
+      continue;
+    }
+    seen.add(key);
+    const sha = crypto.createHash("sha256").update(n.text, "utf8").digest("hex");
+    const textFile = path.join(WEB_PAGES_DIR, `${sha.slice(0, 16)}.txt`);
+    if (!existsSync(textFile)) writeFileSync(textFile, n.text);
+    const entry = opencodeImportEntry({ ...n, sha256: sha, textPath: relOf(textFile) });
+    appendWebHistory(entry);
+    record("opencode-import", { id: entry.id, url: entry.url, sessionId: n.sessionId, partId: n.partId, sha256: sha, bytes: entry.bytes });
+    imported.push(entry);
+  }
+  return { imported, skipped };
 }
 
 /** Fetch with the declared byte cap enforced on the stream, not after it. */
@@ -2472,6 +2575,42 @@ function mergeRelatingLedger(left, nominations) {
       }
       record("web-clear", { scope: body.id ?? "all", entries: victims.length, files: removed.size, bytes });
       return send(res, 200, { cleared: victims.length, files: removed.size, bytes, remaining: kept.length });
+    }
+
+    // ---- /api/opencode/sessions — what's THERE to import, never imported
+    // by asking: a real, typed refusal when opencode has no local database
+    // on this machine (never a silent empty list, which would read as "you
+    // have no opencode history" instead of "opencode isn't installed here").
+    if (req.method === "GET" && p === "/api/opencode/sessions") {
+      if (!opencodeDbAvailable()) return send(res, 200, { available: false, path: OPENCODE_DB_PATH, sessions: [] });
+      try {
+        const rows = queryOpencodeWebfetchRows({});
+        const normalized = normalizeOpencodeParts(rows);
+        return send(res, 200, { available: true, path: OPENCODE_DB_PATH, sessions: opencodeSessionSummary(normalized), totalFetches: normalized.length });
+      } catch (e) {
+        return send(res, 500, { available: true, path: OPENCODE_DB_PATH, error: e.message });
+      }
+    }
+
+    // ---- /api/opencode/import — the actual crossing: opencode's own
+    // already-fetched pages land in the SAME content-addressed web store
+    // /api/web/fetch writes to, so they read afterward as ordinary saved
+    // sources (Explore's "web" view, and the chat's material picker) —
+    // never a second, parallel store. Bounded by OPENCODE_IMPORT_MAX per
+    // call; `sessionId` narrows to one opencode conversation, omitted
+    // imports across all of them (still capped).
+    if (req.method === "POST" && p === "/api/opencode/import") {
+      if (!opencodeDbAvailable()) return send(res, 404, { error: `no opencode database at ${OPENCODE_DB_PATH}` });
+      const body = await readJsonBody(req);
+      let rows;
+      try {
+        rows = queryOpencodeWebfetchRows({ sessionId: body.sessionId || undefined });
+      } catch (e) {
+        return send(res, 400, { error: e.message });
+      }
+      const normalized = normalizeOpencodeParts(rows);
+      const { imported, skipped } = importOpencodeEntries(normalized);
+      return send(res, 200, { imported: imported.length, skipped, examined: normalized.length, entries: imported });
     }
 
     // ---- the gh CLI as a credential source. The GitHub App this organ was

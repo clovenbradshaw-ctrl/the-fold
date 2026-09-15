@@ -48,6 +48,15 @@ export const HELP = {
     tutorial: "Attach an image first (drop it or use the ＋ Add menu), then run this with its name. The server reads the image (OpenCV box and connector detection, per-region OCR) and the result attaches as an ordinary text source, so you can question and cite it like any document.",
     needs: "an attached image with that name; a server crossing (localhost)",
   },
+  "/look": {
+    category: "material",
+    name: "Look at a website",
+    summary: "renders a website to a full-page image and reads it with the same machinery /visual uses — layout, tables, diagrams, a JS shell — instead of only its text dump.",
+    syntax: "/look <url>",
+    example: "/look https://en.wikipedia.org/wiki/Battle_of_Borodino",
+    tutorial: "The URL is fetched through the same recorded egress as any other page read, rendered by headless Chrome, then read as an image: mechanical OpenCV/OCR structure first, a vision model's holistic read, fused into one addressed source (<host>.look.txt). TYPING THIS DOOR IS THE OPT-IN to the vision model use — the automatic look (clear extraction ambiguity, or a question about what's on a page) is mechanical-only by design, and a vision read always happens through this explicit door.",
+    needs: "a real Chrome/Chromium binary (CHROME_BIN or the standard path); a server crossing; a vision model for the full read (mechanical-only otherwise)",
+  },
   "/measure": {
     category: "material",
     name: "Measure a file",
@@ -360,6 +369,15 @@ export const HELP = {
     example: "/gateways",
     tutorial: "A refused direct fetch (403, a challenge shell, an empty page) tries public gateways in an order the record has learned. This shows that table; probe makes one recorded fetch through each so the table has something to learn from. A number here is a measurement of a route, never a promise about the web.",
     needs: "for probe: one recorded fetch through each gateway",
+  },
+  "/opencode": {
+    category: "system",
+    name: "Import from opencode",
+    summary: "lists — and, with import, lands — the web pages opencode (a separate local coding-CLI app) already fetched in its own past sessions.",
+    syntax: "/opencode\n/opencode import [sessionId]",
+    example: "/opencode",
+    tutorial: "opencode keeps its own local record of every WebFetch tool call it has run. Bare /opencode lists which of its sessions have fetched pages; import lands them into the same web store a live fetch would, so they read afterward as ordinary saved sources — never confused with a fresh fetch, since every imported entry says so.",
+    needs: "opencode installed on this machine, with a local database to read",
   },
 };
 

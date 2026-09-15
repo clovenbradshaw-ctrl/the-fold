@@ -59,7 +59,36 @@
 // exactly as declared for it.
 //
 // PURE. `tokenize` is the one organ, injected (cast.js pattern) so this
-// stays testable without importing the engine shim.
+// stays testable without importing the engine shim. `splitSentences` is a
+// second, OPTIONAL injected organ — see COMPANY, below.
+//
+// COMPANY, NOT BARE OCCURRENCE (added 2026-09-15; Generality: universal —
+// P71's own gate, reused rather than re-argued). Found live, on the real
+// running page, asking a genuinely unrelated question ("what's today's
+// date, and can you check the web for one real current headline?") against
+// the SAME stale Sourcewell transcript this file's own specimen names: the
+// transcript shares "today" (its own opening line, "thank you for joining
+// today's webinar") and "date" (a different paragraph, "keep their
+// reference files up to date") with the question — two DISTINCT content
+// words, clearing ADMISSION_FLOOR, admitted, and the turn answered from the
+// transcript again. Both words are real content words (correctly not
+// stopwords — tokenize() is right to keep them), but they never appear
+// TOGETHER anywhere in the source; each is independently, coincidentally
+// present. A bare word-count floor cannot tell "these two words are here
+// because this document is actually about what was asked" from "a long
+// enough document contains almost any two common words somewhere," and
+// longer sources make the coincidence more likely, not less — the same
+// bag-of-words blind spot P31 ("Number grounding: company, not bare
+// occurrence") already named and fixed one level down, for a single number
+// matching anywhere in a passage rather than in the SENTENCE that actually
+// states it. Applied here one level up: admission's own floor, once
+// cleared, now asks whether `need` of the shared words are attested
+// TOGETHER in at least one sentence of the source — not merely each
+// somewhere in it. `splitSentences` is optional and defaults to undefined,
+// so a caller that never injects it (this module's own existing tests, any
+// caller built before this date) gets the exact prior behaviour, byte for
+// byte — this is a strictly narrower admission, applied only where the
+// caller has opted in by supplying a sentence-splitter.
 
 // Derived, not hand-picked: the same structural minimum clippy.js's own DMD
 // gate (`n >= 2`) and binding.js's arrivals floor already use for "how much
@@ -67,11 +96,25 @@
 // never re-derived. See this file's own header, above, for the full reasoning.
 export const ADMISSION_FLOOR = 2;
 
-export function makeAdmission({ tokenize } = {}) {
+export function makeAdmission({ tokenize, splitSentences } = {}) {
   if (typeof tokenize !== "function") throw new TypeError("makeAdmission: tokenize is injected");
 
   function questionTerms(question) {
     return [...new Set(tokenize(String(question ?? "")))];
+  }
+
+  /** Do at least `need` of `shared`'s words appear together in one sentence
+   * of `sourceText`? The company check (see this file's own header) — only
+   * run when a sentence-splitter was injected; a caller that omitted one
+   * gets `true` unconditionally, i.e. no narrowing beyond the base floor. */
+  function hasCompany(sourceText, shared, need) {
+    if (typeof splitSentences !== "function" || need < 2) return true;
+    const sentences = splitSentences(String(sourceText ?? "")) ?? [];
+    return sentences.some((sent) => {
+      const text = typeof sent === "string" ? sent : sent?.text ?? "";
+      const terms = new Set(tokenize(text));
+      return shared.filter((t) => terms.has(t)).length >= need;
+    });
   }
 
   /** Does `sourceText` share enough of `question`'s own vocabulary to be
@@ -86,7 +129,17 @@ export function makeAdmission({ tokenize } = {}) {
     const sTerms = new Set(tokenize(String(sourceText ?? "")));
     const shared = qTerms.filter((t) => sTerms.has(t));
     const need = Math.min(floor, qTerms.length);
-    const admitted = shared.length >= need;
+    if (shared.length < need) {
+      return {
+        admitted: false,
+        ungateable: false,
+        shared,
+        need,
+        qTermsCount: qTerms.length,
+        reason: `shares only ${shared.length} of the question's ${qTerms.length} distinct word(s) (${shared.join(", ") || "none"}) — needs ${need}; refused as discourse-irrelevant to this question`,
+      };
+    }
+    const admitted = hasCompany(sourceText, shared, need);
     return {
       admitted,
       ungateable: false,
@@ -95,7 +148,7 @@ export function makeAdmission({ tokenize } = {}) {
       qTermsCount: qTerms.length,
       reason: admitted
         ? `shares ${shared.length} of the question's own word(s): ${shared.join(", ")}`
-        : `shares only ${shared.length} of the question's ${qTerms.length} distinct word(s) (${shared.join(", ") || "none"}) — needs ${need}; refused as discourse-irrelevant to this question`,
+        : `shares ${shared.length} of the question's own word(s) (${shared.join(", ")}) but never ${need} of them together in one sentence — refused as coincidental, not company (P31)`,
     };
   }
 

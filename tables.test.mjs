@@ -25,6 +25,29 @@ test("a question about the app's own things asks for a table", () => {
   assert.equal(detectTable("list the loaded files"), "sources");
 });
 
+test("the app's own spoken name does not hijack an unrelated question (live specimen, 2026-09-15, gemma2:2b)", () => {
+  // The chat had just named the assistant "The Fold" a turn earlier, so
+  // "the" sat immediately before the app's own name — exactly the article
+  // this file's subject check exists to require — and the whole message
+  // still carried an ASKS word ("what's") eleven words later, in a wholly
+  // unrelated sentence. Before the fix, this matched "folds" and the
+  // arithmetic question was silently discarded under a table caption.
+  assert.equal(
+    detectTable("good, The Fold it is then. quick arithmetic - what's 7 squared minus 12?"),
+    null,
+  );
+  // Confirms the naming turn itself is what flips it, not the arithmetic
+  // phrasing: with the name removed, this already read null.
+  assert.equal(detectTable("quick arithmetic - what's 7 squared minus 12?"), null);
+  // The same collision, unbounded by a sentence break: the name is
+  // addressed mid-sentence and an ASKS word ("what") still turns up later.
+  assert.equal(detectTable("The Fold said earlier that the answer was 5, so what do you make of this one?"), null);
+  // A genuine request for the table still works — the underlying table is a
+  // LIST of turn summaries, so a real request is naturally plural.
+  assert.equal(detectTable("what are my folds so far?"), "folds");
+  assert.equal(detectTable("list my folds"), "folds");
+});
+
 test("a question about the material is never hijacked", () => {
   // Each of these contains a subject word and an asking word, and every one of
   // them is a question about the corpus. Answering with a file listing would

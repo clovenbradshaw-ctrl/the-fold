@@ -35,7 +35,25 @@ const SUBJECTS = [
   [/\b(?:(?!(?:my|our|the|these|loaded|current)\b)[\w-]+\s+)?measurements?\b/i, "measurements"],
   [/\b(records?|on.?record|warrants?)\b/i, "records"],
   [/\b(sources?|materials?|files?|documents?|corpus|corpora)\b/i, "sources"],
-  [/\b(folds?|summary|discourse)\b/i, "folds"],
+  // Plural only, deliberately — "fold" singular is never widened with the
+  // measurements-style absorbable word because it is not only this table's
+  // subject, it is also the app's own spoken name ("The Fold"), and a name
+  // is addressed constantly in ordinary conversation ("good, The Fold it is
+  // then", "thanks Fold", "The Fold said earlier that..."). Live specimen,
+  // 2026-09-15, gemma2:2b: "good, The Fold it is then. quick arithmetic -
+  // what's 7 squared minus 12?" matched THE FOLD as this table's subject
+  // (the required article sits right in the name) and ASKS matched "what's"
+  // eleven words later in an unrelated sentence — the arithmetic question
+  // was silently discarded under a folds-table caption. The underlying
+  // table is inherently a LIST of many turn summaries (fold.js's own
+  // projectFolds), so a genuine request is naturally plural too ("what
+  // folds have been kept", "list my folds") — nobody asks for "the fold"
+  // singular to mean the running summary. Requiring the plural is a real
+  // grammatical distinction, not a hand-typed exclusion or a capitalisation
+  // veto (L2): the name is always singular, so pluralising it out of this
+  // regex closes the collision at its source rather than bounding its
+  // blast radius with a proximity window.
+  [/\bfolds\b/i, "folds"],
   [/\b(passages?|citations?|refs?|references?|addresses|retrieved)\b/i, "passages"],
 ];
 

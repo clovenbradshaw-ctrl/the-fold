@@ -8,9 +8,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { tokenize, retrieve } from "./source.js";
+import { splitSentences } from "../eoreader7/native/adapters/text/spans.js";
 import { makeAdmission, ADMISSION_FLOOR } from "./admission.js";
 
 const admission = makeAdmission({ tokenize });
+// The company-checking configuration (splitSentences injected) — see
+// admission.js's own header, "COMPANY, NOT BARE OCCURRENCE". The app wires
+// this same real sentence-splitter in; the tests above deliberately use the
+// bare `admission` instance so the base floor's own behaviour stays pinned
+// unperturbed by the narrower, opt-in check.
+const admissionWithCompany = makeAdmission({ tokenize, splitSentences });
 
 // A stand-in for the real Sourcewell RFP procurement webinar transcript —
 // entirely unrelated to the question, but long enough (as any real
@@ -123,4 +130,103 @@ test("admitSources splits a pool of sources into admitted/refused, each carrying
   assert.equal(refused.length, 1);
   assert.equal(refused[0].name, "rfp.txt");
   assert.match(refused[0].reason, /discourse-irrelevant/);
+});
+
+// ── company, not bare occurrence (P31, one level up) ────────────────────────
+// A second live specimen (2026-09-15), on the SAME stale Sourcewell
+// transcript, against a genuinely unrelated question: "what's today's date,
+// and can you check the web for one real current headline?" The transcript
+// shares two distinct content words with the question — "today" (its own
+// opening line) and "date" (a different paragraph, "keep their reference
+// files up to date") — clearing ADMISSION_FLOOR on the bare word-count
+// check, admitted, and the turn answered from the transcript again. Neither
+// word is a stopword (both are real content words), but they never occur
+// TOGETHER anywhere in the source — each is independently, coincidentally
+// present, the identical bag-of-words blind spot P31 already closed for a
+// number matched anywhere in a passage rather than in the sentence that
+// actually states it.
+const DATE_QUESTION = "what's today's date, and can you check the web for one real current headline?";
+const RFP_TRANSCRIPT_WITH_DATE = `${RFP_TRANSCRIPT}
+We strongly recommend vendors build a submission checklist well in advance of the deadline and keep their reference files up to date.
+`;
+
+test("company: the bare floor alone still admits the transcript on two words that never appear together (the pre-fix behaviour, pinned so the next case is legible as a fix)", () => {
+  const v = admission.sourceAdmits(DATE_QUESTION, RFP_TRANSCRIPT_WITH_DATE);
+  assert.equal(v.admitted, true);
+  assert.ok(v.shared.includes("today") && v.shared.includes("date"), `expected today+date in ${JSON.stringify(v.shared)}`);
+});
+
+test("company: with a sentence-splitter injected, the SAME transcript is refused for the SAME question — 'today' and 'date' are never in one sentence together", () => {
+  const v = admissionWithCompany.sourceAdmits(DATE_QUESTION, RFP_TRANSCRIPT_WITH_DATE);
+  assert.equal(v.admitted, false, `expected refusal; got shared=${JSON.stringify(v.shared)}`);
+  assert.match(v.reason, /never .* together in one sentence/);
+});
+
+test("company: a source that actually states two of the question's words in the SAME sentence is still admitted", () => {
+  const material = "Today's date is confirmed as the 15th, and the headline desk is already checking the wire for something current.";
+  const v = admissionWithCompany.sourceAdmits(DATE_QUESTION, material);
+  assert.equal(v.admitted, true);
+});
+
+test("company: the existing positive-admission specimens (X-Files, astronomy) are unaffected — their shared words already sit in one sentence", () => {
+  const xfiles = admissionWithCompany.sourceAdmits(QUESTION, "The X-Files essay contest asked entrants to write about Mulder and Scully.");
+  assert.equal(xfiles.admitted, true);
+  const astro = admissionWithCompany.sourceAdmits(
+    "what causes the orbit of a comet to change over time",
+    "A comet's orbit can change over time due to gravitational perturbations from planets and outgassing forces as it nears the sun.",
+  );
+  assert.equal(astro.admitted, true);
+});
+
+test("company: admitSources end to end — the transcript is set aside for the date/headline question even though it clears the bare word-count floor", () => {
+  const sources = [{ name: "pasted.txt", text: RFP_TRANSCRIPT_WITH_DATE }];
+  const { admitted, refused } = admissionWithCompany.admitSources(DATE_QUESTION, sources);
+  assert.equal(admitted.length, 0);
+  assert.equal(refused.length, 1);
+  assert.equal(refused[0].name, "pasted.txt");
+});
+
+// ── crownTestimony's own re-use of this gate (app.js, 2026-09-15) ──────────
+// The Per-Source Testimony spine (P39, capacity-runner.js::landAct/
+// mergeTestimony, crownTestimony in app.js) used to spend a full per-source
+// hypergraph "evaluate" act against `Object.keys(state.sources)` — EVERY
+// source ever pasted into the WORKSPACE, across every conversation,
+// unconditionally, for every claim a grounded turn's own answer made that
+// the pooled read left unresolved — with no relevance gate of its own. That
+// is the same "should this whole source even be treated as material for
+// this question" gap admission.js was built to close for retrieve(), one
+// door later and previously unguarded: a workspace holding an unrelated
+// stale attachment (this file's own RFP transcript) had it consulted, in
+// full, for a claim from a wholly unrelated conversation's turn — found
+// live chasing a reported "confirmed" mislabeling. app.js now filters the
+// workspace's source names through this SAME organ before spending any
+// evaluate act, keyed on the CLAIM's own subject/verb/object text (the
+// exact string crownTestimony already builds to mint the claim id and land
+// the act) rather than the turn's question — never a second relevance
+// notion. These tests exercise that exact call shape directly, over a
+// workspace-shaped source list spanning what would be several
+// conversations' worth of attachments, since a single-source unit test
+// cannot show a WORKSPACE-scoped leak (the class of bug this closes).
+test("crownTestimony's call shape: a claim from one conversation's unresolved answer, checked against a workspace holding several OTHER conversations' sources, is only tested against the one that actually shares its words", () => {
+  // Shaped exactly like app.js's own `${claim.end1} ${claim.label} ${claim.end2}`.
+  const claimText = "Gustave Eiffel designed Eiffel Tower";
+  const workspace = {
+    // Left behind by a conversation about the tower itself — genuinely on topic.
+    "eiffel.txt": "The Eiffel Tower is a wrought-iron lattice tower on the Champ de Mars in Paris, France. Gustave Eiffel's company designed and built it for the 1889 World's Fair.",
+    // Left behind by an entirely different conversation (this file's own live specimen).
+    "pasted.txt": RFP_TRANSCRIPT,
+    // A third conversation's own leftover attachment, also unrelated.
+    "recipe.txt": "Preheat the oven to 375F. Whisk the eggs and sugar until pale, then fold in the flour and butter before baking for twenty-five minutes.",
+  };
+  const { admitted, refused } = admissionWithCompany.admitSources(claimText, Object.entries(workspace).map(([name, text]) => ({ name, text })));
+  assert.deepEqual(admitted.map((a) => a.name), ["eiffel.txt"], `expected only the on-topic source admitted; got ${JSON.stringify(admitted.map((a) => a.name))}`);
+  assert.deepEqual(refused.map((r) => r.name).sort(), ["pasted.txt", "recipe.txt"]);
+});
+
+test("crownTestimony's call shape: a claim with nothing genuinely relevant anywhere in the workspace tests against ZERO sources — not the old unconditional Object.keys(state.sources) sweep", () => {
+  const claimText = "the tower stands at 330 meters";
+  const workspace = { "pasted.txt": RFP_TRANSCRIPT, "recipe.txt": "Bake the cake for forty minutes at 350 degrees and let it cool before frosting." };
+  const { admitted, refused } = admissionWithCompany.admitSources(claimText, Object.entries(workspace).map(([name, text]) => ({ name, text })));
+  assert.equal(admitted.length, 0);
+  assert.equal(refused.length, 2);
 });

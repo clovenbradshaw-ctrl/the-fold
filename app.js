@@ -12143,19 +12143,42 @@ async function crownTestimony(node, relationClaims) {
     return true;
   });
   if (!candidates.length) return;
-  const total = candidates.length * names.length;
+  // THE ADMISSION GATE, REUSED (2026-09-15; Generality: universal —
+  // admission.js's own gate, not re-argued). Every candidate here is a
+  // claim the TURN'S OWN admitted material left unresolved — P39's whole
+  // point is re-checking it against sources this turn never retrieved
+  // from — so without a relevance gate of its own, this loop spent a full
+  // per-source hypergraph read, and could CROWN A SENTENCE straight into
+  // the visible chat, against every document ever pasted into the
+  // WORKSPACE (`Object.keys(state.sources)`, unfiltered), in ANY
+  // conversation, for ANY grounded turn — the exact "whole-source
+  // relevance" question admission.js's own header names, just asked one
+  // door later and never asked here at all. Found live, 2026-09-15,
+  // reading this path while chasing a reported "confirmed" mislabeling: a
+  // workspace holding a stale, unrelated procurement-webinar transcript
+  // had it spent, unconditionally, on every grounded turn's own unresolved
+  // claims, regardless of topic. The SAME organ the turn's own
+  // material-inclusion gate already uses (`admissionGate`, module scope,
+  // above), reused verbatim — never a second relevance notion — gated on
+  // the CLAIM's own words (subject+verb+object), since that, not the
+  // turn's question, is what a per-source re-check is actually asking
+  // after. Computed once per claim, before any act is landed, so a
+  // refused source costs nothing (no evaluate act, no capacity read).
+  const perClaim = candidates.map((claim) => {
+    const claimText = `${claim.end1} ${claim.label} ${claim.end2}`.replace(/"/g, "'");
+    const { admitted, refused } = admissionGate.admitSources(claimText, names.map((name) => ({ name, text: state.sources[name] ?? "" })));
+    return { claim, claimText, testNames: admitted.map((a) => a.name), refused };
+  });
+  const total = perClaim.reduce((n, c) => n + c.testNames.length, 0);
+  if (!total) return; // every source was set aside as unrelated to every candidate claim — nothing to test
   let step = 0;
-  for (const claim of candidates) {
+  for (const { claim, claimText, testNames, refused } of perClaim) {
+    if (refused.length) disclose(`testimony: set aside ${refused.length} source(s) as unrelated to this claim (“${claimText}”): ${refused.map((r) => r.name).join(", ")}`);
+    if (!testNames.length) continue;
     // mintClaimId's own required parameter names (grid.js); the values
     // read off the claim's neutral arrangement (P72), the keys stay theirs.
     const claimId = await grid.mintClaimId({ subject: claim.end1, verb: claim.label, object: claim.end2 });
-    // One quoted token: grid's tokenizer keeps a quoted object whole, so a
-    // claim containing a bare clause keyword ("from", "ground") cannot
-    // shred the act line. An interior double quote would end the token
-    // early — swapped for an apostrophe before the line is built, and the
-    // round-trip check below compares against the swapped text.
-    const claimText = `${claim.end1} ${claim.label} ${claim.end2}`.replace(/"/g, "'");
-    for (const name of names) {
+    for (const name of testNames) {
       step += 1;
       $("status").textContent = `checking against each source · ${step}/${total}`;
       const line = `evaluate "${claimText}" at Link from differentiate ground "${String(name).replace(/"/g, "'")}" broken:rotation`;

@@ -197,7 +197,7 @@ import { readConstitutionally, constitutionalIndexFor, covers as constitutionalC
 // The AnswerRecord (Pass 19, P100): one per turn, persisted append-only,
 // shown first in the thinking panel — what was handed, what was said, what
 // nothing backs, and the reader's identity.
-import { detectLongForm, longFormTask, PART_TOKENS as LONGFORM_PART_TOKENS, WORDS_PER_SECTION as LONGFORM_WORDS_PER_SECTION, detectCodePiece, isCodeSource, inScope, headingsOf } from "./longform.js";
+import { detectLongForm, longFormTask, PART_TOKENS as LONGFORM_PART_TOKENS, WORDS_PER_SECTION as LONGFORM_WORDS_PER_SECTION, detectCodePiece, splitFeatures, isCodeSource, inScope, headingsOf } from "./longform.js";
 import { declaredReferents } from "./code-scout.js";
 import { CODE_RUNTIMES, skeletonFor, snipFor, spliceFunction, failingFunction, modelShare, stepWitnesses, stubMissing, modelRegions, didYouMean, renameCalls, qualifyCalls, moduleProbe, importedModules } from "./code-piece.js";
 import { editLine } from "./piece-edit.js";
@@ -1396,7 +1396,7 @@ let panelCollapsed = (() => { try { return localStorage.getItem("fold-panel-coll
 // declaration beside the function that uses it (which is where this first
 // lived) put boot in the same temporal dead trap panelWide's own comment
 // already names — caught live, 2026-09-08, the "More" tab's own first click.
-const MORE_GROUP = ["resources", "holograph", "wiring", "github", "profile"];
+const MORE_GROUP = ["resources", "holograph", "wiring", "github", "profile", "coding"];
 let lastMorePane = MORE_GROUP[0];
 function setViewMode(mode) {
   viewMode = mode === "eot" ? "eot" : "text";
@@ -2201,7 +2201,7 @@ const state = {
    */
   media: {},
 
-  /** Which view the Reading pane shows: "files" | "held" | "priors". */
+  /** Which view the Reading pane shows: "files" | "priors". */
   exploreView: "files",
   /** Last GET /api/priors response, or null before the first fetch resolves
    *  — the GIVEN count stays a typed gap ("—"), never a false 0, until then. */
@@ -2516,6 +2516,14 @@ function renderThreads() {
   const total = $("turn-total");
   if (total) total.hidden = true;
   const bar = $("threads");
+  // A single conversation gave this row the full browser-tab treatment
+  // (bordered pill, close x, a bottom border matching the panel tab bar
+  // right above it) for zero switching information — user, 2026-09-15:
+  // "yeah these tabs suck... like the double row I mean". Lightened to a
+  // quiet line (see .threads.single in index.html) whenever there is
+  // nothing to switch between; the moment a second conversation exists,
+  // the class drops and the full tab bar returns.
+  bar.classList.toggle("single", state.convos.length <= 1);
   // Checking/web do NOT live in this bar or in a tab's own pill — three
   // placements were tried live and rejected (the bar's right edge, inside
   // the active tab's own button, the header's icon cluster) before the
@@ -2579,11 +2587,36 @@ function renderThreads() {
 // the eval harness imports). Here the page just tracks which picker rungs
 // Ollama actually has, so routing never names a model that would fail on use.
 
+/**
+ * Ollama's own reachability at the exact moment this page first loads is a
+ * TIMING race, not a real absence — `./fold` starts serve.mjs and pulls a
+ * model before Ollama's own daemon is necessarily listening yet, and
+ * several sessions on this one machine can share it, so a request landing
+ * mid-warm-up is ordinary, not exceptional. A single failed fetch used to
+ * report "ollama not reachable" immediately and never look again until a
+ * manual reload — found live, 2026-09-15, reported as "i get the local
+ * server error sometimes." Retried a few times, briefly, before the
+ * typed refusal fires: a real absence still reports honestly, a passing
+ * race no longer costs a reload.
+ */
+async function fetchWithRetry(url, { attempts = 4, delayMs = 700 } = {}) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fetch(url);
+    } catch (e) {
+      lastErr = e;
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  throw lastErr;
+}
+
 async function fillModels() {
   const sel = $("model");
   sel.textContent = "";
   try {
-    const res = await fetch(`${ollamaBase()}/api/tags`);
+    const res = await fetchWithRetry(`${ollamaBase()}/api/tags`);
     const { models } = await res.json();
     const byName = new Map(models.map((m) => [m.name, m]));
     // The full raw set, unfiltered — S1_MODEL/S2_MODEL are specialists,
@@ -4571,6 +4604,59 @@ window.addEventListener("fold:attachments-changed", () => {
   renderWorkspaceSheet();
 });
 
+// ── coding-pane.js's two doors ──────────────────────────────────────────────
+// The Coding pane is standalone (github-pane.js's own pattern: it owns its
+// pane, talks to nothing here by import) and reaches this exact pipeline —
+// codePieceTurn for a fresh task, foldTurn for iterating on what it already
+// built — through the SAME custom-event shape fold:attachments-changed
+// above already established, never a new module coupling. app.js is the
+// only place that knows how to run a turn (state, complete(), the builds
+// log); coding-pane.js only ever describes what it wants and renders what
+// comes back.
+//
+// codingStep re-dispatches onEvent as one more window event — coding-pane.js
+// never imports app.js, so this is the only way the pipeline's structured
+// disclosure reaches it.
+function codingStep(type, payload) {
+  window.dispatchEvent(new CustomEvent("fold:coding-step", { detail: { type, payload } }));
+}
+// The ordinary composer's own busy guard (send()), replicated here because
+// this bypasses send()'s dispatcher on purpose — an explicit language and a
+// free-text spec, never the build-verb/runtime-word heuristic detectCodePiece
+// exists for. Mirrors guardedSend's own never-leave-busy-stuck discipline
+// (2026-09-05): a throw here must still release the composer.
+async function guardedCoding(run) {
+  if (state.busy) { codingStep("busy", {}); return; }
+  state.busy = true;
+  try {
+    await run();
+  } catch (e) {
+    codingStep("error", { message: e?.message ?? String(e) });
+    console.error("coding turn failed", e);
+    releaseBusy();
+  }
+}
+window.addEventListener("fold:coding-submit", (e) => {
+  const { lang, task } = e.detail ?? {};
+  guardedCoding(async () => {
+    // The one validation detectCodePiece would have done that codePieceTurn
+    // itself never receives a chance to (it is only ever called today with
+    // an already-nonempty features array) — codePieceTurn's own language
+    // check runs regardless and is disclosed through the same onEvent, so
+    // it is not repeated here.
+    const features = splitFeatures(String(task ?? "").trim());
+    if (!features.length) { codingStep("no_features", { task }); releaseBusy(); return; }
+    const cp = { lang, spec: task, features, parts: Math.max(2, Math.min(10, features.length)) };
+    await codePieceTurn(cp, task, { onEvent: codingStep });
+  });
+});
+window.addEventListener("fold:coding-iterate", (e) => {
+  const { n, instruction } = e.detail ?? {};
+  guardedCoding(async () => {
+    await foldTurn(n, instruction, instruction, { quiet: true, autoRun: true, onEvent: codingStep });
+  });
+});
+
 /**
  * A person, drawn. The colour is derived from the Matrix id so the same
  * person is the same colour everywhere and nobody has to be assigned one;
@@ -5376,25 +5462,32 @@ async function runBuildOnce(entry) {
 }
 const CODE_PIECE_BODY_TOKENS = 700;   // one function body per ask (P117)
 const CODE_PIECE_FIXES = 1;           // one fix per failing function, named by the traceback
-async function codePieceTurn(cp, typed) {
+async function codePieceTurn(cp, typed, { onEvent = null } = {}) {
   addMessage("user", typed);
   const node = addMessage("assistant", "");
   node.querySelector(".role-tag").textContent = "program";
   const body = node.querySelector(".body");
   const lines = [];
-  const say = (l) => { lines.push(l); body.textContent = lines.join("\n"); };
+  // A second, structured disclosure channel beside `say`'s prose — the
+  // Coding pane's own live step cards (coding-pane.js, via the
+  // "fold:coding-step" event app.js re-dispatches from onEvent) consume
+  // this; ordinary chat keeps reading `say`'s rendered lines exactly as
+  // before. Additive only: nothing here changes what say() renders, and a
+  // caller that never passes onEvent (every existing chat-triggered call)
+  // sees byte-identical behavior.
+  const say = (l, evt) => { lines.push(l); body.textContent = lines.join("\n"); if (evt) onEvent?.(evt.type, evt.payload ?? {}); };
   const sentCalls = [];
   const call = async (messages, opts = {}) => { sentCalls.push({ n: sentCalls.length + 1, messages }); return complete(messages, { ...opts, model: state.model }); };
-  if (!CODE_RUNTIMES.includes(cp.lang)) { say(`no skeleton for ${cp.lang} yet — the code piece builds ${CODE_RUNTIMES.join(" and ")} programs; the ordinary /run and /fold doors still take ${cp.lang}.`); releaseBusy(); return; }
+  if (!CODE_RUNTIMES.includes(cp.lang)) { say(`no skeleton for ${cp.lang} yet — the code piece builds ${CODE_RUNTIMES.join(" and ")} programs; the ordinary /run and /fold doors still take ${cp.lang}.`, { type: "unsupported_language", payload: { lang: cp.lang, supported: CODE_RUNTIMES } }); releaseBusy(); return; }
   // NUL → SIG → INS → CON → SYN, all mechanical: the spec's clauses in their own order are the dependency order; names off the clauses; the skeleton born as a build with a pipeline main.
   const sk = skeletonFor(cp.lang, cp.spec, cp.features);
   publishBuild({ type: "code", lang: cp.lang, code: sk.code }, `${cp.lang}: ${cp.spec.slice(0, 60)}`, typed);
   const entry = state.builds.at(-1);
   const n = entry.n;
-  say(`fold ${n} born as a skeleton, no model: ${sk.names.length} function(s) — ${sk.names.join(" → ")} — wired in order into main (${sk.code.length} chars, the instrument's)`);
+  say(`fold ${n} born as a skeleton, no model: ${sk.names.length} function(s) — ${sk.names.join(" → ")} — wired in order into main (${sk.code.length} chars, the instrument's)`, { type: "skeleton_born", payload: { fold: n, names: sk.names, code: sk.code, instrumentChars: sk.code.length } });
   mirrorTermRecord("codepiece-plan", { lang: cp.lang, spec: cp.spec, parts: sk.names, via: "chat" });
   let r0 = await runBuildOnce(entry);
-  say(`skeleton run: ${r0.summary ?? r0.skipped} (the first stub refusing is the expected witness)`);
+  say(`skeleton run: ${r0.summary ?? r0.skipped} (the first stub refusing is the expected witness)`, { type: "skeleton_run", payload: { fold: n, summary: r0.summary ?? r0.skipped, ok: r0.ok ?? null } });
   // SEG → EVA → REC, one function at a time: the snip is all the model sees; the run is the witness; the traceback names what to fix.
   let refusals = 0, fixes = 0, okRuns = 0, helpers = 0;
   const filledNames = [];
@@ -5405,12 +5498,17 @@ async function codePieceTurn(cp, typed) {
     const cur = buildFold(entry, null)?.code ?? "";
     const snip = snipFor(cp.lang, cur, name, clause, { previousClause: prev ? clauseOf.get(prev) ?? null : null, previousValue: prev ? witnessed[prev] ?? null : null, nextClause: next ? clauseOf.get(next) ?? null : null });
     if (!snip) return { refused: { type: "no_region" } };
-    const reply = await call([{ role: "user", content: snip.ask + note }], { maxTokens: CODE_PIECE_BODY_TOKENS });
+    // Kept and returned verbatim (not just an index into sentCalls) — a
+    // Coding-pane card's "what was sent" expand reads this directly, the
+    // same "show the exact bytes, invent nothing" discipline renderFold's
+    // own `sent` array already holds itself to.
+    const sentMessages = [{ role: "user", content: snip.ask + note }];
+    const reply = await call(sentMessages, { maxTokens: CODE_PIECE_BODY_TOKENS });
     const sp = spliceFunction(cp.lang, cur, name, reply);
-    if (sp.refused) return { refused: sp.refused };
+    if (sp.refused) return { refused: sp.refused, sentMessages };
     land(sp.code, `${name}: ${note ? "fix" : "body"} from the model, spliced by the instrument`);
     if (!filledNames.includes(name)) filledNames.push(name);
-    return { refused: null, chars: sp.modelChars };
+    return { refused: null, chars: sp.modelChars, sentMessages };
   };
   const runAndWitness = async () => { const r = await runBuildOnce(entry); witnessed = { ...witnessed, ...stepWitnesses(`${r.outcome?.stdout ?? ""}\n${r.outcome?.stderr ?? ""}`) }; return r; };
   // REC in dependency order: a run naming a function that fails is asked once for that function; a run naming an UNDEFINED name gets a stub for it (INS) and that stub is filled next (SEG) — the program grows the dependency the model reached for, bounded.
@@ -5425,13 +5523,13 @@ async function codePieceTurn(cp, typed) {
       const stderr = r.outcome?.stderr ?? "";
       const cur = buildFold(entry, null)?.code ?? "";
       const dym = didYouMean(stderr);
-      if (dym) { const rn = renameCalls(cur, dym.wrong, dym.right); if (rn.count) { land(rn.code, `${dym.wrong} → ${dym.right}: the traceback's own correction, ${rn.count} call site(s), no model`); say(`${name} called ${dym.wrong}; the run said it meant ${dym.right} — renamed ${rn.count} call(s), no model`); r = await runAndWitness(); continue; } }
+      if (dym) { const rn = renameCalls(cur, dym.wrong, dym.right); if (rn.count) { land(rn.code, `${dym.wrong} → ${dym.right}: the traceback's own correction, ${rn.count} call site(s), no model`); say(`${name} called ${dym.wrong}; the run said it meant ${dym.right} — renamed ${rn.count} call(s), no model`, { type: "mechanical_repair_rename", payload: { name, wrong: dym.wrong, right: dym.right, count: rn.count } }); r = await runAndWitness(); continue; } }
       const missingName = (stderr.match(/NameError: name '([A-Za-z_]\w*)' is not defined/) ?? [])[1] ?? null;
       if (missingName && cp.lang === "python") {
         const mods = importedModules(cp.lang, cur);
         let found = null;
         try { const probe = await runSandboxed("python", moduleProbe(cp.lang, missingName, mods)); found = (probe.stdout ?? "").trim().split(",").filter(Boolean)[0] ?? null; } catch { found = null; }
-        if (found) { const q = qualifyCalls(cur, missingName, found); if (q.count) { land(q.code, `${missingName} → ${found}.${missingName}: the sandbox found it on an imported module, ${q.count} call site(s), no model`); say(`${name} called ${missingName} bare; the sandbox found it on ${found} — qualified ${q.count} call(s), no model`); r = await runAndWitness(); continue; } }
+        if (found) { const q = qualifyCalls(cur, missingName, found); if (q.count) { land(q.code, `${missingName} → ${found}.${missingName}: the sandbox found it on an imported module, ${q.count} call site(s), no model`); say(`${name} called ${missingName} bare; the sandbox found it on ${found} — qualified ${q.count} call(s), no model`, { type: "mechanical_repair_qualify", payload: { name, missingName, foundModule: found, count: q.count } }); r = await runAndWitness(); continue; } }
       }
       break;
     }
@@ -5442,7 +5540,7 @@ async function codePieceTurn(cp, typed) {
         helpers += 1;
         land(missing.code, `${missing.name}: stub added — the run named it as undefined (dependency, INS)`);
         clauseOf.set(missing.name, `is the helper that ${name} calls as ${missing.name}`);
-        say(`${name} reached for ${missing.name}, which did not exist — stubbed it in dependency order and asking for its body`);
+        say(`${name} reached for ${missing.name}, which did not exist — stubbed it in dependency order and asking for its body`, { type: "helper_stub_added", payload: { name, helperName: missing.name } });
         const f = await fillOne(missing.name, clauseOf.get(missing.name), { prev: null, next: null });
         if (f.refused) break;
         fixes += 1;
@@ -5462,7 +5560,7 @@ async function codePieceTurn(cp, typed) {
   for (const [i, name] of sk.names.entries()) {
     const clause = cp.features[i];
     const filled = await fillOne(name, clause, { prev: sk.names[i - 1] ?? null, next: sk.names[i + 1] ?? null });
-    if (filled.refused) { refusals += 1; say(`${name}: the reply was not that function (${filled.refused.type}) — stub kept`); mirrorTermRecord("codepiece-part", { fold: n, part: name, refused: filled.refused.type, via: "chat" }); continue; }
+    if (filled.refused) { refusals += 1; say(`${name}: the reply was not that function (${filled.refused.type}) — stub kept`, { type: "function_refused", payload: { name, reason: filled.refused.type, sentMessages: filled.sentMessages ?? null } }); mirrorTermRecord("codepiece-part", { fold: n, part: name, refused: filled.refused.type, via: "chat" }); continue; }
     let r = await runAndWitness();
     let fixed = false;
     // DEF, witnessed: a step that returned nothing when a next step consumes
@@ -5470,20 +5568,20 @@ async function codePieceTurn(cp, typed) {
     // so ("NoneType: None"), and the mouth is told that fact once.
     if (i < sk.names.length - 1 && /^NoneType: None$/.test(witnessed[name] ?? "")) {
       const f = await fillOne(name, clause, { prev: sk.names[i - 1] ?? null, next: sk.names[i + 1], note: `\n\nWhen run, ${name} returned None, but the next step needs its result as \`previous\`. Return the value instead of only printing it.` });
-      if (!f.refused) { fixes += 1; r = await runAndWitness(); say(`${name} returned nothing; told so, asked once — now ${witnessed[name] ?? "unwitnessed"}`); }
+      if (!f.refused) { fixes += 1; r = await runAndWitness(); say(`${name} returned nothing; told so, asked once — now ${witnessed[name] ?? "unwitnessed"}`, { type: "none_return_repair", payload: { name, now: witnessed[name] ?? null, sentMessages: f.sentMessages ?? null } }); }
     }
     const stubNext = r.ok === false && i < sk.names.length - 1 && new RegExp(`NotImplementedError[^\\n]*${sk.names[i + 1]}|not implemented: ${sk.names[i + 1]}`).test(r.outcome?.stderr ?? "");
     if (r.ok === false && !stubNext) ({ r, fixed } = await repair(name, r));
     if (r.ok) okRuns += 1;
     const w = witnessed[name] ? ` · witnessed: ${witnessed[name].slice(0, 80)}` : "";
-    say(`${name} (${filled.chars} chars from the model) — ${r.summary ?? r.skipped}${fixed ? " (after repair)" : ""}${stubNext ? " — the next stub refusing, as expected" : ""}${w}`);
+    say(`${name} (${filled.chars} chars from the model) — ${r.summary ?? r.skipped}${fixed ? " (after repair)" : ""}${stubNext ? " — the next stub refusing, as expected" : ""}${w}`, { type: "function_step", payload: { name, chars: filled.chars, summary: r.summary ?? r.skipped, fixed, stubNext, witnessed: witnessed[name] ?? null, sentMessages: filled.sentMessages ?? null } });
     mirrorTermRecord("codepiece-part", { fold: n, part: name, ok: r.ok ?? null, fixed, chars: filled.chars, witnessed: witnessed[name] ?? null, via: "chat" });
   }
   const final = await runAndWitness();
   const code = buildFold(entry, null)?.code ?? "";
   const modelChars = modelRegions(cp.lang, code, filledNames);
   const share = modelShare(modelChars, code.length);
-  say(`done: fold ${n} · ${sk.names.length} function(s) + ${helpers} helper(s) the model reached for, ${refusals} refused · final run ${final.summary ?? final.skipped} · the model wrote ${modelChars} of ${code.length} chars (${Math.round((share ?? 0) * 100)}%); the instrument wrote the rest · ${fixes} fix(es)`);
+  say(`done: fold ${n} · ${sk.names.length} function(s) + ${helpers} helper(s) the model reached for, ${refusals} refused · final run ${final.summary ?? final.skipped} · the model wrote ${modelChars} of ${code.length} chars (${Math.round((share ?? 0) * 100)}%); the instrument wrote the rest · ${fixes} fix(es)`, { type: "done_summary", payload: { fold: n, parts: sk.names.length, helpers, refusals, finalSummary: final.summary ?? final.skipped, modelChars, totalChars: code.length, modelShare: share, fixes, code, sentCalls } });
   mirrorTermRecord("codepiece-done", { fold: n, lang: cp.lang, parts: sk.names.length, helpers, refusals, fixes, finalOk: final.ok ?? null, modelChars, totalChars: code.length, modelShare: share, witnessed, via: "chat" });
   // The build narration is generated here, in the fold's own turn — it does
   // not enter state.history (resent to the model on every later turn) until
@@ -6336,11 +6434,16 @@ async function transcribeTurn(typed) {
   statusP.className = "prose";
   statusP.textContent = "initializing transcription…";
   body.append(statusP);
-  // `foldP` used to be the turn's own "thinking" box, so a reader could
-  // expand it and watch the three layers populate live — it no longer is
-  // (2026-08-28, renderFold's own header carries the reason). A detached
-  // scratch element instead: the layers below still build and populate
-  // exactly as before, there is simply nothing left to attach them to.
+  // `foldP` used to be built here and left UNATTACHED — a residue from the
+  // 2026-08-28 "thinking" simplification (renderFold's own header), which
+  // was about the MODEL's own reasoning trace, not this pipeline's real,
+  // factual, mechanical layers. Found live, 2026-09-15: setting these
+  // layers' text/summary had been having no visible effect at all, because
+  // nothing had appended `foldP` to `body` since that change — every
+  // update to rawText/priorsText/etc. was invisible dead work. Appended
+  // for real now, so "get feedback in the chat (streaming text ideally)"
+  // and "the raw should be json with timestamps" both land somewhere a
+  // reader can actually see them.
   const foldP = document.createElement("p");
   const layerRaw = document.createElement("details");
   layerRaw.className = "fold";
@@ -6352,6 +6455,7 @@ async function transcribeTurn(typed) {
   layerSelf.className = "fold";
   layerSelf.innerHTML = `<summary>layer 3 · self-coref <span class="t-layer-status"></span></summary><p class="t-layer-text"></p>`;
   foldP.append(layerRaw, layerPriors, layerSelf);
+  body.append(foldP);
   const rawText = foldP.querySelector("details:nth-child(1) .t-layer-text");
   const priorsText = foldP.querySelector("details:nth-child(2) .t-layer-text");
   const priorsStatus = foldP.querySelector("details:nth-child(2) .t-layer-status");
@@ -6361,29 +6465,80 @@ async function transcribeTurn(typed) {
 function setLayerText(el, text) { if (el) el.textContent = text; }
 function setLayerStatus(el, s) { if (el) el.textContent = s; }
 
-  // ── file picker path ──────────────────────────────────────────────────
-  if (!arg) {
-    statusP.textContent = "opening file picker for audio…";
-    $("status").textContent = "waiting for audio file…";
+  // ── resume path ───────────────────────────────────────────────────────
+  // `/transcribe resume` continues the last transcription that threw
+  // partway through (a crash on a large file, reported live 2026-09-15) —
+  // `state.transcribeResume` is set only in the catch block below, and
+  // only when there is real work to resume.
+  const isResume = arg === "resume";
+  if (isResume && !state.transcribeResume) {
+    body.textContent = "nothing to resume — there is no transcription that stopped partway through.";
+    $("status").textContent = readyLine();
+    releaseBusy();
+    return;
+  }
 
-    try {
-      const blob = await pickAudioFile();
+  // ── file picker path ──────────────────────────────────────────────────
+  if (!arg || isResume) {
+    const resumeFrom = isResume ? state.transcribeResume : null;
+    let blob, fileLabel, name;
+    if (resumeFrom) {
+      ({ blob, fileLabel, name } = resumeFrom);
+      const atSec = resumeFrom.resumeFromSamples / 16000;
+      const at = `${Math.floor(atSec / 60)}:${String(Math.floor(atSec % 60)).padStart(2, "0")}`;
+      statusP.textContent = `resuming "${fileLabel}" from ${at} (${resumeFrom.priorText.length.toLocaleString()} chars already transcribed)…`;
+    } else {
+      statusP.textContent = "opening file picker for audio…";
+      $("status").textContent = "waiting for audio file…";
+      blob = await pickAudioFile();
       if (!blob) {
         body.textContent = "no file selected.";
         $("status").textContent = readyLine();
         releaseBusy();
         return;
       }
-      statusP.textContent = `transcribing with Whisper… ${WHISPER_DISCLOSURE}`;
-      $("status").textContent = "transcribing…";
-      const { text, duration, segments } = await transcribeBlob(blob, {
-        onProgress: (f) => { $("status").textContent = `transcribing… ${(f * 100).toFixed(0)}%`; },
-        onChunk: (partial) => { setLayerText(rawText, partial); },
-      });
+      fileLabel = blob.name || "audio";
+    }
+    const sizeMB = blob.size / 1_000_000;
+    let resumeFromSamples = resumeFrom?.resumeFromSamples ?? 0;
+    let partialText = resumeFrom?.priorText ?? "";
 
-      // Layer 1 done — log raw.
-      setLayerText(rawText, text);
-      await logTranscriptionLayer("raw", text, { source: "file", duration });
+    try {
+      // Runs off the main thread now (transcribe-worker.mjs) — this turn
+      // stays "busy" (state.busy), so the composer keeps accepting the next
+      // question and QUEUES it (send()'s own comment, drainQueue()) to run
+      // the instant this finishes, rather than sitting on a frozen page.
+      if (!resumeFrom) statusP.textContent = `transcribing "${fileLabel}" (${sizeMB.toFixed(1)} MB)… ${WHISPER_DISCLOSURE}${sizeMB > 50 ? " — a file this large may take a long time and can still hit this browser tab's memory limit; a shorter clip is more reliable, or it can be resumed with /transcribe resume if it stops partway." : ""}`;
+      layerRaw.open = true;
+      $("status").textContent = `transcribing "${fileLabel}"…`;
+      const { text, duration, segments } = await transcribeBlob(blob, {
+        resumeFromSamples,
+        priorText: partialText,
+        onProgress: (p) => {
+          const pct = `${Math.round((p.pct ?? 0) * 100)}%`;
+          $("status").textContent = p.stage === "download" ? `downloading Whisper model… ${pct}` : `transcribing "${fileLabel}"… ${pct}`;
+          layerRaw.querySelector("summary").textContent = p.stage === "download" ? `layer 1 · raw whisper (downloading model… ${pct})` : `layer 1 · raw whisper (transcribing… ${pct})`;
+          // Tracked live so a LATER failure resumes from the true point
+          // reached, not from wherever this call itself started.
+          if (p.stage === "transcribe" && p.resumeSamples != null) resumeFromSamples = p.resumeSamples;
+        },
+        onChunk: (partial) => { setLayerText(rawText, partial || "…"); partialText = partial; },
+      });
+      layerRaw.querySelector("summary").textContent = "layer 1 · raw whisper";
+      state.transcribeResume = null;
+
+      // Layer 1 done — log raw, as JSON WITH TIMESTAMPS (user direction,
+      // 2026-09-15), never flat text: this is Whisper's own address for
+      // its own claim (P138, this file's own comment two screens up) — the
+      // one layer that still has it, before the priors/self layers below
+      // resolve coreference and lose the per-span shape. `text` (flat,
+      // downstream of this) is untouched — priorsCoref/addSource/etc. all
+      // still take plain text exactly as before.
+      const rawJson = JSON.stringify(segments?.length ? segments : [{ text, timestamp: [0, duration] }], null, 2);
+      rawText.style.whiteSpace = "pre-wrap";
+      rawText.style.fontFamily = "var(--mono)";
+      setLayerText(rawText, rawJson);
+      await logTranscriptionLayer("raw", text, { source: "file", duration, segments });
 
       // Layer 2: priors-coref — connect entities to the priors corpus first.
       setLayerStatus(priorsStatus, "resolving…");
@@ -6404,9 +6559,36 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
       // `name@from-to`, so a citation of speech can be opened and HEARD, and
       // every check that works on text works on this unchanged. An
       // unaddressed transcript is still attached, with that fact said.
-      const name = `transcription-${Date.now()}.audio`;
+      // Named after the SOURCE FILE, not a bare timestamp — the point is
+      // being able to look at the Sources panel and see which audio a
+      // transcript belongs to (user direction, 2026-09-15). A resume reuses
+      // the SAME name `resumeFrom` already carried, so the finished
+      // transcript replaces the partial one in place rather than landing
+      // as a second, disconnected source.
+      if (!name) {
+        const base = fileLabel.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60) || "audio";
+        name = `${base}-transcript.txt`;
+        for (let i = 2; state.sources[name]; i += 1) name = `${base}-transcript-${i}.txt`;
+      }
       const parts = passagesFromSegments(name, segments ?? []);
       addSource(name, text, { passages: parts.length ? parts : undefined, kind: "audio", standing: AUDIO_STANDING });
+      // Bind the transcript to the audio it came from — a real CON
+      // (relate) act on the shared grid log (user direction, 2026-09-15:
+      // "the transcript need to be tied to the og file with a CON"), so
+      // "this text IS the transcript of that audio" is an addressed,
+      // disclosed fact on the record rather than only a naming convention.
+      // `warrant:transcription` lands it OFFERED (grid.js's own rule: a
+      // referent this log has not independently established still lands,
+      // carrying its own warrant, rather than being refused) — mechanical,
+      // no model call. fileLabel is quoted: an unsanitized source filename
+      // can contain the bare word "to" or spaces, which would otherwise
+      // fracture the object clause's own to-split (grid.js's tokenizer,
+      // confirmed by reading it before relying on it).
+      try {
+        const conLine = `relate ${name} to "${fileLabel.replace(/"/g, "'")}" at Link from cultivation warrant:transcription`;
+        const landed = landAct(grid, state.gridLog, conLine, { sources: state.sources, runCapacity });
+        if (landed.ok) { state.gridLog = landed.log; syncRecords(); }
+      } catch { /* the transcript is already attached either way — this is disclosure, not a dependency */ }
       const mins = Math.floor(duration / 60);
       const secs = Math.floor(duration % 60);
       statusP.textContent = `transcribed ${mins}:${String(secs).padStart(2, "0")} → attached as "${name}" (${text.length.toLocaleString()} chars) · 3 layers logged`;
@@ -6422,7 +6604,22 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
       renderFold(node, { fold });
       renderThreads();
     } catch (e) {
-      body.textContent = `transcription failed: ${e.message}`;
+      // Nothing is thrown away — whatever streamed in before the crash
+      // (partialText, from onChunk) is real transcribed audio and stays
+      // attached, labeled as partial rather than silently discarded
+      // (found necessary live, 2026-09-15: a 116.6 MB file crashed
+      // partway through and the old code lost the whole run).
+      if (partialText.trim()) {
+        if (!name) {
+          const base = fileLabel.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60) || "audio";
+          name = `${base}-transcript.txt`;
+          for (let i = 2; state.sources[name]; i += 1) name = `${base}-transcript-${i}.txt`;
+        }
+        addSource(name, partialText, { kind: "audio", standing: `${AUDIO_STANDING} — PARTIAL: transcription stopped before the end of the file (${e.message}); this is only what was heard before it stopped.` });
+      }
+      const canResume = resumeFromSamples > 0 || partialText.trim().length > 0;
+      state.transcribeResume = canResume ? { blob, fileLabel, name: name || null, resumeFromSamples, priorText: partialText } : null;
+      body.textContent = `transcription failed: ${e.message}${canResume ? ` — ${partialText.length.toLocaleString()} chars kept as "${name}"; type /transcribe resume to continue from where it stopped.` : ""}`;
     }
     $("status").textContent = readyLine();
     releaseBusy();
@@ -6435,16 +6632,26 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
 
   try {
     const { blob, title } = await fetchAudioFromUrl(arg);
-    statusP.textContent = `transcribing with Whisper… ${WHISPER_DISCLOSURE}`;
-    $("status").textContent = "transcribing…";
+    statusP.textContent = `transcribing "${title}"… ${WHISPER_DISCLOSURE}`;
+    layerRaw.open = true;
+    $("status").textContent = `transcribing "${title}"…`;
     const { text, duration, segments } = await transcribeBlob(blob, {
-      onProgress: (f) => { $("status").textContent = `transcribing… ${(f * 100).toFixed(0)}%`; },
-      onChunk: (partial) => { setLayerText(rawText, partial); },
+      onProgress: (p) => {
+        const pct = `${Math.round((p.pct ?? 0) * 100)}%`;
+        $("status").textContent = p.stage === "download" ? `downloading Whisper model… ${pct}` : `transcribing "${title}"… ${pct}`;
+        layerRaw.querySelector("summary").textContent = p.stage === "download" ? `layer 1 · raw whisper (downloading model… ${pct})` : `layer 1 · raw whisper (transcribing… ${pct})`;
+      },
+      onChunk: (partial) => { setLayerText(rawText, partial || "…"); },
     });
+    layerRaw.querySelector("summary").textContent = "layer 1 · raw whisper";
 
-    // Layer 1 done — log raw.
-    setLayerText(rawText, text);
-    await logTranscriptionLayer("raw", text, { source: "youtube", url: arg, title, duration });
+    // Layer 1 done — log raw, as JSON WITH TIMESTAMPS (see the file path's
+    // own comment above for why); `text` downstream stays plain.
+    const rawJson = JSON.stringify(segments?.length ? segments : [{ text, timestamp: [0, duration] }], null, 2);
+    rawText.style.whiteSpace = "pre-wrap";
+    rawText.style.fontFamily = "var(--mono)";
+    setLayerText(rawText, rawJson);
+    await logTranscriptionLayer("raw", text, { source: "youtube", url: arg, title, duration, segments });
 
     // Layer 2: priors-coref — connect entities to the priors corpus first.
     setLayerStatus(priorsStatus, "resolving…");
@@ -6463,6 +6670,15 @@ function setLayerStatus(el, s) { if (el) el.textContent = s; }
     // Attach as material and finish.
     const name = `${title.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60)}-transcript.txt`;
     addSource(name, text);
+    // Bind the transcript to the audio it came from — see the file path's
+    // own comment above for why (user direction, 2026-09-15). `title`
+    // (the video's own title, not sanitized) is quoted for the same
+    // "to"/spaces reason.
+    try {
+      const conLine = `relate ${name} to "${title.replace(/"/g, "'")}" at Link from cultivation warrant:transcription`;
+      const landed = landAct(grid, state.gridLog, conLine, { sources: state.sources, runCapacity });
+      if (landed.ok) { state.gridLog = landed.log; syncRecords(); }
+    } catch { /* the transcript is already attached either way */ }
     const mins = Math.floor(duration / 60);
     const secs = Math.floor(duration % 60);
     statusP.textContent = `transcribed "${title}" (${mins}:${String(secs).padStart(2, "0")}) → attached as "${name}" (${text.length.toLocaleString()} chars) · 3 layers logged`;
@@ -8033,7 +8249,7 @@ function parseOps(text) {
  * trigger) rather than a revision — a judgment concedes a ground, an
  * instruction compiles a new whole. Same machine, two landings.
  */
-async function foldTurn(n, instruction, typed, { rezero = false, trigger = null, tell = null, matchedOn = null, quiet = false, autoRun = true } = {}) {
+async function foldTurn(n, instruction, typed, { rezero = false, trigger = null, tell = null, matchedOn = null, quiet = false, autoRun = true, onEvent = null } = {}) {
   const entry = state.builds.find((b) => b.n === n);
   if (!entry) {
     const have = state.builds.length
@@ -8058,6 +8274,12 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
   const cur = buildFold(entry, null);
   const lang = cur.seg?.lang ?? "";
   logAct("asked", { text: typed });
+  // The Coding pane's own coarse disclosure of this door (two events
+  // bracketing the whole turn, not a step per internal mechanism — this
+  // function's scouting/mechanical-swap/witness-gate machinery is real,
+  // load-bearing, and not the-fold's own to re-instrument line by line;
+  // the before/after code is what the pane actually shows, as a diff).
+  onEvent?.("iterate_asked", { fold: n, instruction, lang, before: cur.code ?? "" });
 
   // SIG FIRST: resolve the operator's own words to the region of the code
   // they name, mechanically, before any model call. A hit shrinks the
@@ -8389,6 +8611,7 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
   state.turnFolds.push(fold);
   state.summary = advanceSummaryFold(state.summary, fold);
   logAct("folded", { line: fold });
+  onEvent?.("iterate_outcome", { fold: n, note, before: cur.code ?? "", after: code ?? cur.code ?? "", mechanical: landedPatch?.mechanical ?? false, sentCalls });
 
   renderFold(node, { sent: sentCalls });
   renderThreads();
@@ -16043,12 +16266,15 @@ function renderSources() {
 
 /**
  * Reading-workbench spec, Increment C. Switches which view the Reading pane
- * shows — "files" (every loaded source, READ's own destination), "held"
- * (the same list, filtered to what is actually live right now — muted
- * sources drop out, media never does), or "priors" (GIVEN's destination,
- * the toggle ledger). Search/sort/add belong to the file list alone; the
- * priors view has its own toggles instead, so the toolbar's action group
- * hides with it rather than sitting there disabled.
+ * shows — "files" (every loaded source, READ's own destination) or "priors"
+ * (GIVEN's destination, the toggle ledger). The third view this once had,
+ * "held" (the same file list filtered to what is actually live — muted
+ * sources dropped out), was removed by user direction, 2026-09-15: every
+ * row in "files" already shows its own mute state, so a separate filtered
+ * view added a tab without adding information.
+ * Search/sort/add belong to the file list alone; the priors view has its
+ * own toggles instead, so the toolbar's action group hides with it rather
+ * than sitting there disabled.
  */
 function setExploreView(view) {
   state.exploreView = view;
@@ -16058,7 +16284,7 @@ function setExploreView(view) {
   $("sources-list").hidden = onPriors;
   $("sources-actions").hidden = onPriors;
   $("priors-panel").hidden = !onPriors;
-  $("explore-heading").textContent = { files: "Sources", held: "Held now", priors: "Given" }[view] ?? "Sources";
+  $("explore-heading").textContent = { files: "Sources", priors: "Given" }[view] ?? "Sources";
   if (onPriors) renderPriorsPanel();
   else renderSourcesPanel();
 }
@@ -16066,13 +16292,10 @@ function setExploreView(view) {
 function renderSourcesPanel() {
   const list = $("sources-list");
   if (!list) return;
-  const heldOnly = state.exploreView === "held";
-  const names = (heldOnly ? Object.keys(state.sources).filter((n) => !state.muted.has(n)) : Object.keys(state.sources));
+  const names = Object.keys(state.sources);
   const mediaNames = Object.keys(state.media); // media is never muted — always held once loaded
   if (!names.length && !mediaNames.length) {
-    list.innerHTML = heldOnly
-      ? `<div class="sources-empty"><p>Nothing is held right now.</p><p class="sources-empty-sub">Every loaded source is muted — nothing is contributing to retrieval this turn.</p></div>`
-      : `<div class="sources-empty"><p>No sources yet.</p><p class="sources-empty-sub">Drop a file anywhere, paste text, or click ＋ Add to bring documents into this project.</p><p class="sources-empty-sub">Sources persist across sessions via the browser's private file system.</p></div>`;
+    list.innerHTML = `<div class="sources-empty"><p>No sources yet.</p><p class="sources-empty-sub">Drop a file anywhere, paste text, or click ＋ Add to bring documents into this project.</p><p class="sources-empty-sub">Sources persist across sessions via the browser's private file system.</p></div>`;
     // Research pages a turn fetched to CHECK an answer (P23's preflight,
     // proof-seeking, /ranke) are deliberately never written to
     // state.sources (P23: "turn-scoped, never written to state.sources" —
@@ -16084,7 +16307,7 @@ function renderSourcesPanel() {
     // direction: "research-pages disclosure in the tree". This still shows
     // under "No sources yet" — fetched-and-read is a different fact from
     // attached, and both can be true at once.
-    if (!heldOnly) renderResearchedSection(list);
+    renderResearchedSection(list);
     return;
   }
   const search = $("sources-search")?.value?.toLowerCase() ?? "";
@@ -16103,20 +16326,41 @@ function renderSourcesPanel() {
   const filtered = search ? entries.filter((e) => e.name.toLowerCase().includes(search)) : entries;
   filtered.sort(sortCmp);
   list.textContent = "";
-  for (const { name, text } of filtered) {
+
+  // Content nested by what it IS ABOUT (user direction, 2026-09-15: "have
+  // content nested so like an audio file spawns a transcript, thats a
+  // subelement") — read off the same CON (relate) acts the transcription
+  // door already lands on the shared grid log (app.js's own
+  // "relate <transcript> to <audio>" line), never a second, parallel
+  // relationship this list invents on its own. A relate act whose child
+  // side is not itself a loaded source is skipped here — that is the
+  // ledger recording a relation this list has nothing (yet) to nest.
+  const childToParent = new Map();
+  const parentToChildren = new Map();
+  for (const act of state.gridLog?.entries ?? []) {
+    if (act.verb !== "relate" || !Array.isArray(act.referents)) continue;
+    const [child, parent] = act.referents;
+    if (!state.sources[child] || childToParent.has(child)) continue;
+    childToParent.set(child, parent);
+    if (!parentToChildren.has(parent)) parentToChildren.set(parent, []);
+    parentToChildren.get(parent).push(child);
+  }
+
+  // Returns the row, appends nothing — callers place it (flat in the
+  // list, or inside a group's disclosure body).
+  function buildSourceRow(name, text, { nested = false } = {}) {
     const on = !state.muted.has(name);
     const prov = state.provenance[name];
     const ext = name.split(".").pop().toLowerCase();
     const icon = ({ md: "M", txt: "T", csv: ",", json: "{", html: "<", js: "JS", py: "PY", sql: "S", pdf: "PDF" })[ext]
       ?? name.charAt(0).toUpperCase();
     const row = document.createElement("div");
-    row.className = `sources-file${on ? "" : " sources-file-muted"}`;
+    row.className = `sources-file${on ? "" : " sources-file-muted"}${nested ? " sources-file-nested" : ""}`;
     row.innerHTML = `
       <div class="sources-file-icon">${icon}</div>
       <div class="sources-file-info">
         <div class="sources-file-name">${esc(name)}</div>
-        <div class="sources-file-meta">${countFor(name).toLocaleString()} passages · ${fmtBytes(text.length)}</div>
-        ${prov?.line ? `<div class="sources-file-prov">${esc(prov.line)}</div>` : ""}
+        <div class="sources-file-meta">${fmtBytes(text.length)}${prov?.line ? ` · ${esc(prov.line)}` : ""}</div>
       </div>
       <div class="sources-file-actions">
         <button type="button" data-action="mute" title="${on ? "silence" : "unsilence"} this source">${on ? "mute" : "unmute"}</button>
@@ -16132,7 +16376,60 @@ function renderSourcesPanel() {
       removeSource(name);
     };
     row.onclick = () => openSourceViewer(name);
-    list.append(row);
+    return row;
+  }
+
+  // A group (a parent and the children related to it) is a native
+  // <details> — collapsible for free, open by default so nothing already
+  // visible disappears without the reader choosing that (user direction,
+  // 2026-09-15: "lets be able to collapse, disclose").
+  function buildGroup(parentName, children) {
+    const details = document.createElement("details");
+    details.className = "sources-group";
+    details.open = true;
+    const summary = document.createElement("summary");
+    const parentText = state.sources[parentName];
+    if (parentText != null) {
+      // The rare case where the parent DOES have its own bytes — its real
+      // row, unchanged, just living inside a disclosure now.
+      summary.className = "sources-group-summary sources-group-summary-real";
+      summary.append(buildSourceRow(parentName, parentText));
+    } else {
+      // The common case today: the parent (the original audio) never kept
+      // its bytes (P138's own reason) — a plain, unclickable label stands
+      // in for it, named, rather than its children floating with no sign
+      // of what they are transcripts OF.
+      summary.className = "sources-group-head";
+      summary.innerHTML = `<span class="sources-group-icon">♪</span><span class="sources-group-name">${esc(parentName)}</span><span class="sources-group-note">not attached — bytes were never kept</span>`;
+    }
+    details.append(summary);
+    const body = document.createElement("div");
+    body.className = "sources-group-body";
+    for (const kid of children) {
+      if (!state.sources[kid]) continue;
+      body.append(buildSourceRow(kid, state.sources[kid], { nested: true }));
+    }
+    details.append(body);
+    return details;
+  }
+
+  const nestedAlready = new Set();
+  for (const { name, text } of filtered) {
+    if (nestedAlready.has(name)) continue; // already rendered under its parent, below
+    const parent = childToParent.get(name);
+    if (parent) {
+      const kids = parentToChildren.get(parent) ?? [name];
+      list.append(buildGroup(parent, kids));
+      for (const kid of kids) nestedAlready.add(kid);
+      continue;
+    }
+    const kids = parentToChildren.get(name);
+    if (kids?.length) {
+      list.append(buildGroup(name, kids));
+      for (const kid of kids) nestedAlready.add(kid);
+      continue;
+    }
+    list.append(buildSourceRow(name, text));
   }
   for (const name of mediaNames) {
     const m = state.media[name];
@@ -16158,7 +16455,7 @@ function renderSourcesPanel() {
     row.onclick = () => openMediaViewer(name);
     list.append(row);
   }
-  if (!heldOnly) renderResearchedSection(list);
+  renderResearchedSection(list);
 }
 
 /**
@@ -16182,7 +16479,7 @@ async function renderResearchedSection(list) {
   } catch {
     return; // no explore server reachable — the file list above still stands on its own
   }
-  if (token !== researchSectionToken || list !== $("sources-list") || state.exploreView === "held") return;
+  if (token !== researchSectionToken || list !== $("sources-list")) return;
   const seen = new Set();
   const entries = [];
   for (const e of hist.entries ?? []) {
@@ -16260,7 +16557,7 @@ async function openResearchedPage(e) {
   loading.className = "muted";
   loading.textContent = "reading the saved page…";
   body.append(loading);
-  $("source-viewer").showModal();
+  showSourceDoc();
 
   let text = "";
   try {
@@ -16612,6 +16909,27 @@ function esc(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+/**
+ * The document view replaces the source list within the Reading pane,
+ * rather than floating a dialog over it (user direction, 2026-09-15: "i
+ * mean a full page doc, not just a modal"). Switches to the Reading tab
+ * first — a source-open link inside a CHAT message can open one from
+ * anywhere, and "go look at this source" reasonably means "take me to
+ * it," not "pop up a box while I'm still looking at chat."
+ */
+function showSourceDoc() {
+  showView("explore");
+  $("sources-toolbar").hidden = true;
+  $("sources-list").hidden = true;
+  $("priors-panel").hidden = true;
+  $("source-viewer").hidden = false;
+}
+function hideSourceDoc() {
+  $("source-viewer").hidden = true;
+  $("sources-toolbar").hidden = false;
+  setExploreView(state.exploreView); // restores files-vs-priors' own hidden state and re-renders it
+}
+
 function openMediaViewer(name) {
   const m = state.media[name];
   if (!m) return;
@@ -16642,7 +16960,7 @@ function openMediaViewer(name) {
     p.style.color = "var(--muted)";
     body.append(p);
   }
-  $("source-viewer").showModal();
+  showSourceDoc();
 }
 
 function openSourceViewer(name) {
@@ -16682,7 +17000,53 @@ function openSourceViewer(name) {
     btn.classList.add("active");
     renderSourceViewerMode(btn.dataset.mode, info);
   };
-  $("source-viewer").showModal();
+  showSourceDoc();
+}
+
+/**
+ * A SOURCE file's own markdown is the author's, not a model's claim about
+ * anything — unlike the chat answer's own prose (which stays plain text
+ * plus mechanically-verified address refs, on purpose, per this app's own
+ * grounding discipline), showing "**bold**" as literal asterisks in an
+ * attached .md file is just the viewer failing to do its job. The CSS for
+ * strong/em/code was already here, unused, waiting for exactly this
+ * (found live, 2026-09-15 — "needs a real document viewer"). Safe by
+ * construction: every span is built with textContent, never innerHTML, so
+ * nothing in a source file's own bytes can inject markup. One pass,
+ * non-nested (a known, disclosed limit — "**bold *and* italic**" only
+ * resolves the outer match) — the common cases (bold, italic, inline code,
+ * links), not a full CommonMark inline grammar.
+ */
+function mdInline(text) {
+  const out = [];
+  const re = /`([^`]+)`|\*\*([^*]+)\*\*|__([^_]+)__|\*([^*]+)\*|_([^_]+)_|\[([^\]]+)\]\(([^)]+)\)/g;
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    if (m.index > last) out.push(document.createTextNode(text.slice(last, m.index)));
+    if (m[1] !== undefined) {
+      const el = document.createElement("code");
+      el.textContent = m[1];
+      out.push(el);
+    } else if (m[2] !== undefined || m[3] !== undefined) {
+      const el = document.createElement("strong");
+      el.textContent = m[2] ?? m[3];
+      out.push(el);
+    } else if (m[4] !== undefined || m[5] !== undefined) {
+      const el = document.createElement("em");
+      el.textContent = m[4] ?? m[5];
+      out.push(el);
+    } else if (m[6] !== undefined) {
+      const el = document.createElement("a");
+      el.textContent = m[6];
+      el.href = m[7];
+      el.target = "_blank";
+      el.rel = "noopener noreferrer";
+      out.push(el);
+    }
+    last = re.lastIndex;
+  }
+  if (last < text.length) out.push(document.createTextNode(text.slice(last)));
+  return out.length ? out : [document.createTextNode(text)];
 }
 
 function renderSourceViewerMode(mode, info) {
@@ -16695,7 +17059,7 @@ function renderSourceViewerMode(mode, info) {
   }
   // read mode — render the file as-is
   if (ext === "md" || ext === "markdown") {
-    renderBlocksInto(body, text, (chunk) => [document.createTextNode(chunk)]);
+    renderBlocksInto(body, text, mdInline);
   } else if (ext === "html" || ext === "htm") {
     const frame = document.createElement("iframe");
     frame.sandbox = "";
@@ -18613,7 +18977,7 @@ function syncModelPick() {
 // backdrop (or press Escape, which <dialog> gives natively) and it goes. The
 // ✕ in each sheet's head is the third way, and the only one that is visible:
 // Escape is not discoverable and a backdrop click is a guess.
-for (const id of ["reopen", "model-menu", "fold-view", "memory-menu", "attach-menu", "picker", "paste", "attach-sheet", "source-viewer", "mark-detail", "matrix-login", "pool", "room", "workspace"]) {
+for (const id of ["reopen", "model-menu", "fold-view", "memory-menu", "attach-menu", "picker", "paste", "attach-sheet", "mark-detail", "matrix-login", "pool", "room", "workspace"]) {
   const dlg = $(id);
   dlg?.addEventListener("click", (e) => {
     if (e.target === dlg) dlg.close();
@@ -18631,10 +18995,13 @@ for (const [btn, dlg] of [
   ["paste-x", "paste"],
   ["reopen-x", "reopen"],
   ["attach-sheet-x", "attach-sheet"],
-  ["source-viewer-x", "source-viewer"],
   ["mark-detail-x", "mark-detail"],
 ])
   $(btn).onclick = () => $(dlg).close();
+// #source-viewer is a full-pane view now, not a <dialog> — it has no
+// backdrop to click and its own "back" control just switches state back,
+// never .close().
+$("source-viewer-back").onclick = () => hideSourceDoc();
 
 $("model-pick").onclick = () => openSettings(true);
 

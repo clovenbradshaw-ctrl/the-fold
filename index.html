@@ -130,6 +130,16 @@
         border-radius: 7px;
         padding: 6px 10px;
       }
+      /* A base link color, not a scoped one — found live, 2026-09-15: the
+         source viewer's "open the live page" link had no rule covering it
+         at all (only .msg .body a, .priors-paper-row a.v, and .room-signup
+         a existed, each scoped to one surface) and fell back to the
+         browser's own default link blue on this app's near-black
+         background — unreadable. One base rule means every future <a>
+         this app creates is legible by default instead of needing to
+         remember its own color. */
+      a { color: var(--accent); }
+      a:hover { text-decoration-thickness: 2px; }
       button { cursor: pointer; }
       button:hover:not(:disabled) { border-color: var(--accent); }
       button:disabled { opacity: 0.5; cursor: default; }
@@ -1193,19 +1203,35 @@
         .controls input { flex: 1 1 38%; min-width: 0; font-size: 13px; }
         .controls #connect { flex: 0 0 auto; }
 
-        /* Panes become views. The tab bar sits at the bottom, in reach — and
-           stays there in chat view, which is the only way back to the panels,
-           so the panel column collapses to just its tabs rather than hiding. */
+        /* Panes become views. The tab bar sits at the TOP now (2026-09-15,
+           user direction: "i never look for them at the bottom" — reversing
+           the original "in reach" bottom-bar call below) — and stays there
+           in chat view, which is the only way back to the panels, so the
+           panel column collapses to just its tabs rather than hiding. */
         #col-chat { display: none; }
         body[data-view="chat"] #col-chat { display: flex; }
         body[data-view="chat"] #col-panel > .scroll { display: none; }
+        /* In every OTHER view, #col-chat is display:none — not a grid item
+           at all — so #col-panel is the grid's only item and naturally
+           lands in `main`'s first (1fr) row regardless of DOM order; the
+           .tabs-position change above already reached it there (confirmed
+           live). Chat view is different: BOTH #col-chat and #col-panel are
+           real grid items there, and #col-chat comes first in the DOM, so
+           plain auto-placement still put it in row 1 — the .tabs change
+           alone never reached this view. Scoped explicit placement, only
+           here, swaps which row is on top (auto/tabs) vs which one fills
+           (1fr/chat) without touching the single-item case above. */
+        body[data-view="chat"] main { grid-template-rows: auto 1fr; }
+        body[data-view="chat"] #col-panel { grid-row: 1; }
+        body[data-view="chat"] #col-chat { grid-row: 2; }
         .tabs {
-          order: 2;
+          order: 0;
           position: sticky;
-          bottom: 0;
+          top: 0;
+          z-index: 1;
           padding: 0;
-          border-bottom: none;
-          border-top: 1px solid var(--line);
+          border-top: none;
+          border-bottom: 1px solid var(--line);
           justify-content: space-around;
           flex-wrap: nowrap;
         }
@@ -1213,11 +1239,11 @@
           flex: 1;
           padding: 11px 4px;
           font-size: 12.5px;
-          border-bottom: none;
-          border-top: 2px solid transparent;
+          border-top: none;
+          border-bottom: 2px solid transparent;
         }
         .tabs button[aria-selected="true"] {
-          border-top-color: var(--accent);
+          border-bottom-color: var(--accent);
           background: var(--accent-soft);
         }
         .tabs .chat-tab { display: block; }
@@ -1226,10 +1252,11 @@
         #pane-explore { height: 100%; margin: -16px -20px; }
         #col-panel { flex-direction: column; }
         #col-panel .scroll { order: 1; }
-        /* The tab bar is the lowest thing on a phone, so the safe-area inset
-           belongs to it, not to the composer above it. */
-        .composer { padding: 10px 14px; }
-        .tabs { padding-bottom: env(safe-area-inset-bottom); }
+        /* The composer is the lowest thing on a phone now that the tab bar
+           moved to the top, so the safe-area inset belongs to it instead
+           (it used to belong to .tabs, back when .tabs was the lowest
+           element). */
+        .composer { padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); }
         .scroll { padding: 14px; }
         .sources-strip { padding: 8px 14px 0; }
         textarea#material { min-height: 160px; }
@@ -1628,6 +1655,32 @@
       #gh-content { width: 100%; font: 12px/1.5 var(--mono); resize: vertical; }
       #gh-code { font: 12px/1.5 var(--mono); }
       #gh-note { white-space: pre-wrap; }
+
+      /* The Coding pane: composer, iterate row, a live feed of step cards. */
+      #pane-coding { display: none; height: 100%; flex-direction: column; gap: 10px; overflow: hidden; }
+      #pane-coding.on { display: flex; }
+      .coding-compose, .coding-iterate { display: flex; flex-direction: column; gap: 6px; flex: none; }
+      .coding-iterate[hidden] { display: none; }
+      .coding-compose textarea { width: 100%; font: 12.5px/1.5 var(--sans); resize: vertical; }
+      .coding-compose-row { display: flex; gap: 8px; }
+      .coding-compose-row select { flex: none; }
+      .coding-compose-row input[type="text"] { flex: 1; font-size: 12.5px; }
+      .coding-iterate-label { font-size: 12px; color: var(--muted); }
+      .coding-feed { flex: 1; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+      .coding-card { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--panel); font-size: 12.5px; }
+      .coding-card-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+      .coding-card-title { flex: 1; min-width: 0; }
+      .coding-card-badge { flex: none; font-size: 10.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; }
+      .coding-card-badge-model { color: var(--accent); border-color: var(--accent); }
+      .coding-card-badge-refused, .coding-card-badge-error { color: var(--warn); border-color: var(--warn); }
+      .coding-card-code pre, .coding-card-sent pre { font: 11px/1.5 var(--mono); overflow-x: auto; max-height: 260px; overflow-y: auto; margin: 6px 0 0; }
+      .coding-card-note { font-size: 10.5px; color: var(--muted); font-style: italic; margin: 4px 0 0; }
+      .coding-card-sent summary, .coding-card-done > details > summary { cursor: pointer; font-size: 11px; color: var(--muted); margin-top: 4px; }
+      .coding-card-diff { font: 11px/1.45 var(--mono); margin-top: 6px; max-height: 320px; overflow-y: auto; }
+      .diff-line { display: flex; gap: 6px; white-space: pre-wrap; }
+      .diff-marker { flex: none; width: 1ch; color: var(--muted); }
+      .diff-add { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+      .diff-remove { background: color-mix(in srgb, var(--warn) 12%, transparent); text-decoration: line-through; text-decoration-color: var(--muted); }
       /* An attachment says the same four things wherever it appears — who
          you are there, what it holds, what the host learns, who else can
          see it — so the room and the repo can be read against each other
@@ -1710,7 +1763,26 @@
       /* button.term-toggle, not .term-toggle — `.tabs button` (0,1,1) would
          out-specify a bare class and stretch this flex:1 like a tab on
          mobile; the same specificity gotcha the desk's + New button hit. */
-      .tabs button.term-toggle { font-family: var(--mono); font-size: 12px; flex: none; align-self: center; margin-left: 6px; border-top: none; }
+      /* Styled as a small bordered pill — the same treatment the header's
+         own icon cluster ([m] / GitHub / theme) already uses for a global
+         utility control — rather than an underlined tab, so it reads as a
+         different KIND of thing from Chat/Reading/Folds/Log/More even
+         though it shares their row (mobile nav research, 2026-09-15: a
+         tab bar's own controls must not wear a second control's clothes;
+         the segmented-control fix for files/priors is the same lesson).
+         Measured live: undecorated, it sat as a bare glyph flush against
+         the row's right edge, reading as a clipped sixth tab. */
+      .tabs button.term-toggle {
+        font-family: var(--mono);
+        font-size: 12px;
+        flex: none;
+        align-self: center;
+        margin: 0 6px 0 8px;
+        padding: 3px 8px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--bg);
+      }
       .tabs button.term-toggle[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
       /* Open, the drawer is a REAL bottom region: the app above it shrinks,
          nothing is covered. The body is a plain block and main's height is a
@@ -2284,6 +2356,17 @@
       }
       .threads .thread-close:hover:not(:disabled) { color: var(--warn); }
       .threads .thread-close:disabled { opacity: 0.35; cursor: default; }
+      /* One conversation, nothing to switch between — the browser-tab
+         chrome (pill, border, close x) is weight with no payoff, and
+         stacked directly under the panel's own tab bar it read as two
+         tab rows fighting for the same job. Quiet line instead: no
+         border, no pill, no close x (already disabled below 2 convos
+         anyway); "+" stays the one live control. Reverts the instant a
+         second conversation exists (.single is toggled in renderThreads). */
+      .threads.single { border-bottom: none; padding-top: 4px; padding-bottom: 4px; }
+      .threads.single .thread-tab { background: none; border-bottom: none; }
+      .threads.single .thread-title { color: var(--muted); cursor: default; }
+      .threads.single .thread-close { display: none; }
 
       /* THE PANEL, FULL WIDTH (user, 2026-09-08: "we need the right panel to
          be able to be expanded to full screen and the left panel to be
@@ -2377,7 +2460,23 @@
         flex: 0 0 auto;
       }
       .thread { display: none; }
-      .thread.on { display: block; }
+      .thread.on { display: flex; flex-direction: column; min-height: 100%; }
+      /* A brand-new conversation has no .msg children yet — left as plain
+         block layout, the whole height of #chat sat blank (measured live,
+         mobile: 700+px of stark white above the composer, read as broken
+         rather than empty). :empty needs no JS: addMessage's first append
+         removes it structurally, no separate "clear the placeholder" call
+         to keep in sync. */
+      .thread.on:empty { align-items: center; justify-content: center; }
+      .thread.on:empty::before {
+        content: "a fresh conversation — ask something, paste material, or attach a source";
+        color: var(--muted);
+        font-size: 13px;
+        text-align: center;
+        max-width: 34ch;
+        line-height: 1.5;
+        padding: 0 24px;
+      }
 
       .composer {
         border-top: 1px solid var(--line);
@@ -2388,6 +2487,16 @@
         gap: 8px;
       }
       .composer textarea { width: 100%; resize: vertical; min-height: 52px; max-height: 220px; }
+      /* Textarea and its two actions on one row (2026-09-15): Send stacked
+         above memory, in a fixed-width column that never reflows the
+         textarea's own width as its label/badge change. align-items:
+         stretch (the default) lets the column match the textarea's own
+         height rather than being centered against it. */
+      .composer-input-row { display: flex; gap: 8px; }
+      .composer-input-row textarea { flex: 1; width: auto; }
+      .composer-side { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; justify-content: center; }
+      .composer-side #send { width: 100%; justify-content: center; }
+      .composer-side #memory-open { width: 100%; justify-content: center; white-space: nowrap; }
       /* One row under the input holds everything that decides what the next
          question is asked WITH: the door that adds material, the material
          itself, and the two switches that say whether it — or the web — is
@@ -2704,10 +2813,25 @@
           border-bottom: none;
         }
         .tabs::-webkit-scrollbar { display: none; }
+        /* Equal width, not natural width (user direction, 2026-09-15:
+           "the chat, reading, folds tabs need to be equally spaced across
+           the top") — reversing the choice the comment above this block
+           explains: flex:0 0 auto was chosen because SEVEN tabs at some
+           narrower width once wrapped into a ragged row. Checked before
+           reversing it, not assumed away: the six real tabs at 375px
+           (Chat/Reading/Folds/Log/More/>_) each fit well inside an equal
+           ~60px cell, "Reading" (the longest label) included — so equal
+           width holds at the shape this app actually has today.
+           flex-shrink stays enabled and .tabs keeps its own overflow-x
+           auto as a fallback: if a future tab addition ever makes equal
+           cells too tight, this degrades to shrinking together or
+           scrolling, never back to the wrap this rule was first written
+           to stop. */
         .tabs button {
-          flex: 0 0 auto;
+          flex: 1 1 auto;
+          min-width: 0;
           white-space: nowrap;
-          padding: 11px 14px;
+          padding: 11px 8px;
         }
         .fold-side { display: none; }
       }
@@ -2723,17 +2847,89 @@
          panel's full width rather than splitting one cramped row three ways
          — found live: at the panel's own real width this was fitting with
          only a few px to spare, which broke under real font metrics. */
-      .sources-toolbar { display: flex; gap: 8px; margin: 0 0 12px; align-items: center; flex-wrap: wrap; }
-      .sources-toolbar h2 { margin: 0; border: none; padding: 0; flex: none; }
-      .sources-actions { display: flex; gap: 8px; flex: 1 1 100%; min-width: 0; justify-content: flex-end; align-items: center; }
-      .sources-actions input[type="search"] {
-        font-size: 13px; flex: 1; min-width: 0;
+      /* Explicit column direction, unconditional (found live, 2026-09-15,
+         two bugs in a row): first, the 16px gutter had only ever been
+         added inside the max-width:900px media query, so a normal wide
+         desktop window never got it — this panel is narrow (320-430px,
+         main's own grid-template-columns) at EVERY window width, so the
+         fix has to be unconditional too. Second, an attempt to get the
+         same three-row stack WITHOUT flex-direction:column (relying on
+         flex-wrap plus .sources-actions' own flex-basis:100%) combined
+         badly with a LATER mobile-only rule that DID set
+         flex-direction:column: column-direction plus flex-wrap:wrap
+         together wrap into side-by-side COLUMNS, not stacked rows — all
+         three children landed on one visual row, .sources-actions and
+         .explore-subnav pushed straight off the right edge of a 375px
+         phone. Declaring the direction explicitly, once, here, is the
+         actual fix — no wrap needed when the direction is already
+         vertical. */
+      .sources-toolbar { display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin: 0 0 12px; padding: 0 16px; }
+      /* [hidden] and .sources-toolbar{display:flex} are the SAME
+         specificity (0,1,0,0 each), and author rules win that tie over the
+         UA stylesheet's own [hidden]{display:none} — found live,
+         2026-09-15: hiding the toolbar to show the full-page doc left it
+         visibly still there, `hidden` set but `display:flex` winning
+         anyway. The id selector below outranks the class rule regardless
+         of source order. */
+      #sources-toolbar[hidden] { display: none; }
+      /* Quieter, less crowded (user direction, 2026-09-15: "the whole
+         thing is still quite crowded... have johnny ives take a wack at
+         it"). The panel this lives in is narrow at EVERY window width —
+         it's a fixed-width side column, not a page — so "SOURCES" in the
+         app's loud, underlined, accent-colored h2 (the global rule every
+         OTHER section heading also uses) was fighting the search bar for
+         attention one line above it, in a space with no room for two
+         loud things. Scoped down to just this heading — the global h2
+         rule other sections rely on is untouched. */
+      .sources-toolbar h2 {
+        margin: 0; padding: 0; border: none; flex: none;
+        font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+        text-transform: uppercase; color: var(--muted);
       }
+      /* flex-wrap was unset (nowrap) here at every width, not only the
+         narrow one the mobile block already handled — found live,
+         2026-09-15 ("were heading off screen"): search+sort+Add have to
+         share one row, and the panel column is ~320-430px even in
+         "desktop" mode (main's own grid-template-columns), so this could
+         overflow past the panel's edge rather than reflow. */
+      .sources-actions { display: flex; flex-wrap: wrap; gap: 8px; flex: 1 1 100%; min-width: 0; justify-content: flex-end; align-items: center; }
+      .sources-actions input[type="search"] {
+        font-size: 13px; flex: 1 1 160px; min-width: 0;
+        background: var(--bg); border-color: transparent;
+      }
+      .sources-actions input[type="search"]:hover,
+      .sources-actions input[type="search"]:focus { border-color: var(--line); }
       .sources-actions select,
       .sources-actions button { font-size: 12px; white-space: nowrap; }
       .sources-actions select,
-      .sources-actions button:not(.primary) { color: var(--muted); }
-      .explore-subnav { display: flex; gap: 2px; border: 1px solid var(--line); border-radius: 6px; padding: 2px; flex: none; }
+      .sources-actions button:not(.primary) {
+        color: var(--muted); background: transparent; border-color: transparent;
+      }
+      .sources-actions select:hover,
+      .sources-actions button:not(.primary):hover { border-color: var(--line); }
+      /* A real segmented control, not another underline tab (corrected,
+         2026-09-15 — "it can't be the same types of tabs on each row"; the
+         first attempt copied the Chat/Reading/Folds underline treatment
+         here, which is exactly the confusable pairing the research says
+         to avoid: an underline row directly under another underline row
+         reads as one continuous tab level, not two). This is a FILTER
+         over the row above it (files vs. priors — which set of
+         documents), the segmented-control shape signals that
+         structurally: one quiet pill container, the active choice filled,
+         never a line under the text. Still restrained — a soft fill and
+         a hairline ring, not the loud bordered-box pill this had at the
+         very start of this pass. */
+      .explore-subnav {
+        display: inline-flex; flex: none; align-self: flex-start;
+        gap: 2px; padding: 2px; border-radius: 8px; background: var(--bg);
+      }
+      .explore-subnav .seg {
+        padding: 4px 10px; border-radius: 6px; border: none;
+      }
+      .explore-subnav .seg.active {
+        background: var(--panel); color: var(--ink); font-weight: 600;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+      }
       /* #more-subnav groups the four instrument-facing panes behind the
          "More" tab (above). Shown only while one of the four is the active
          view — body[data-view] already carries exactly that fact, so no
@@ -2818,8 +3014,22 @@
         padding-top: 10px; margin-top: 4px; font: 13px/1.6 var(--mono);
         white-space: pre-wrap; word-break: break-word;
       }
+      /* A second, more restrained pass (user direction, 2026-09-15: "how
+         would apple do it" / "more padding on sides") over what shipped
+         first. Three changes carry most of it: the filename moves to the
+         app's own sans (mono was reading as a developer tool, not a
+         document list — mono stays where it belongs, in the raw/code
+         views); the icon shrinks and quiets (a filled 36px accent square
+         repeated on every row was the loudest, most repetitive thing on
+         the screen — a name and a hairline-bordered tint says "file" just
+         as clearly at a third of the visual weight); and the action
+         buttons drop their boxed borders for plain text, in reach only on
+         hover, matching the restraint already applied to the toolbar
+         above. 16px horizontal padding now matches the toolbar's own —
+         it had none, so rows sat closer to the edge than the row above
+         them. */
       .sources-list {
-        flex: 1; overflow-y: auto; padding: 14px 0 0; min-height: 0;
+        flex: 1; overflow-y: auto; padding: 12px 16px 16px; min-height: 0;
       }
       .sources-empty {
         text-align: center; padding: 40px 20px; color: var(--muted);
@@ -2828,39 +3038,70 @@
       .sources-empty-sub { font-size: 13px; }
       .sources-file {
         display: flex; align-items: center; gap: 10px;
-        padding: 10px 12px; border-radius: 8px; cursor: pointer;
+        padding: 8px; margin: 0 -8px; border-radius: 8px; cursor: pointer;
         transition: background 0.12s;
       }
       .sources-file:hover { background: var(--accent-soft); }
       .sources-file-icon {
-        flex: none; width: 36px; height: 36px; border-radius: 6px;
+        flex: none; width: 26px; height: 26px; border-radius: 6px;
         display: flex; align-items: center; justify-content: center;
-        font-size: 18px; font-weight: 700; color: var(--bg);
-        background: var(--accent);
+        font-size: 11px; font-weight: 600; color: var(--accent);
+        background: var(--accent-soft); border: 1px solid var(--line);
       }
       .sources-file-info { flex: 1; min-width: 0; }
       .sources-file-name {
-        font-family: var(--mono); font-size: 13px; font-weight: 500;
+        font: 13.5px/1.3 var(--sans); font-weight: 500;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
       .sources-file-meta {
-        font-family: var(--mono); font-size: 11px; color: var(--muted);
+        font-size: 11.5px; color: var(--muted);
         margin-top: 1px;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
-      .sources-file-prov {
-        font-size: 11px; color: var(--muted); font-style: italic;
-        margin-top: 1px;
-      }
-      .sources-file-actions { flex: none; display: flex; gap: 4px; opacity: 0; transition: opacity 0.12s; }
+      .sources-file-actions { flex: none; display: flex; gap: 10px; opacity: 0; transition: opacity 0.12s; }
       .sources-file:hover .sources-file-actions { opacity: 1; }
       .sources-file-actions button {
-        font-size: 11.5px; padding: 3px 8px; background: transparent;
-        border: 1px solid var(--line); border-radius: 4px;
+        font-size: 11.5px; padding: 0; background: none; border: none;
         color: var(--muted); cursor: pointer;
       }
-      .sources-file-actions button:hover { color: var(--warn); border-color: var(--warn); }
+      .sources-file-actions button:hover { color: var(--warn); }
       .sources-file-muted { opacity: 0.45; }
-      .sources-file-muted .sources-file-icon { background: var(--muted); }
+      .sources-file-muted .sources-file-icon { color: var(--muted); }
+      /* Content nested by what it's about (user direction, 2026-09-15) —
+         a transcript indented under the audio it came from, a smaller
+         icon so the parent-child size relationship is visible at a
+         glance, not just the indent. */
+      .sources-file-nested { padding-left: 34px; }
+      .sources-file-nested .sources-file-icon { width: 22px; height: 22px; font-size: 9.5px; }
+      /* Groups are <details> now — collapsible for free (user direction,
+         2026-09-15: "lets be able to collapse, disclose"), open by
+         default. The marker is the ONLY disclosure affordance; a group
+         head or a real parent row must never also look clickable-to-open
+         in the way an ordinary row does. */
+      .sources-group { margin: 2px 0; }
+      .sources-group summary {
+        display: flex; align-items: center; list-style: none; cursor: pointer;
+        border-radius: 8px; transition: background 0.12s;
+      }
+      .sources-group summary::-webkit-details-marker { display: none; }
+      .sources-group summary::before {
+        content: ""; display: inline-block; width: 8px; height: 8px;
+        margin: 0 6px 0 2px; flex: none;
+        border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
+        transform: rotate(-45deg); transition: transform 0.12s; position: relative; top: -1px;
+      }
+      .sources-group[open] > summary::before { transform: rotate(45deg); top: 0; }
+      .sources-group-head {
+        display: flex; align-items: center; gap: 6px;
+        padding: 8px; font-size: 12px; color: var(--muted);
+      }
+      .sources-group-head:hover { background: var(--accent-soft); }
+      .sources-group-icon { flex: none; opacity: 0.7; }
+      .sources-group-name { font-weight: 500; }
+      .sources-group-note { font-size: 10.5px; font-style: italic; opacity: 0.7; }
+      .sources-group-summary-real { display: flex; align-items: center; }
+      .sources-group-summary-real .sources-file { flex: 1; }
+      .sources-group-body { padding-top: 2px; }
       /* Research pages a turn fetched to CHECK an answer, never attached —
          a distinct section under the real file list (found live,
          2026-09-09: a reader had no way to see what was actually read
@@ -2921,7 +3162,24 @@
       .source-viewer-body .viewer-raw {
         font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word;
       }
-      #source-viewer { max-width: 780px; width: 92vw; }
+      /* A REAL document view (user direction, 2026-09-15: "i mean a full
+         page doc, not just a modal") — fills the Reading pane itself,
+         replacing the source list, rather than floating a box over it.
+         #pane-explore is already a flex column (gap:0, its own rule
+         above); this is just one more flex item in it, hidden by default,
+         taking over when a document is open. */
+      #source-viewer[hidden] { display: none; }
+      #source-viewer:not([hidden]) { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+      #source-viewer .sheet-head { flex: 0 0 auto; }
+      #source-viewer .source-viewer-body { flex: 1; min-height: 0; max-height: none; overflow: auto; padding: 18px 20px; font-size: 14px; }
+      .doc-back {
+        display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto;
+        border: none; background: transparent; color: var(--muted);
+        font: 13px/1 var(--sans); padding: 6px 8px 6px 4px; border-radius: 6px;
+      }
+      .doc-back:hover { color: var(--accent); background: var(--accent-soft); }
+      .doc-back svg { width: 16px; height: 16px; }
+      .doc-title { flex: 1; min-width: 0; }
       .source-viewer-mode { display: flex; gap: 2px; background: var(--bg); border-radius: 6px; padding: 2px; }
       .seg { font: 12px/1 var(--sans); border: none; background: transparent; color: var(--muted); cursor: pointer; padding: 4px 10px; border-radius: 4px; transition: background 0.12s, color 0.12s; }
       .seg:hover { background: var(--accent-soft); color: var(--accent); }
@@ -3346,7 +3604,7 @@
            the attach menu was popping up as a 359px centred box). */
         dialog,
         dialog#attach-menu, dialog#memory-menu, dialog#picker, dialog#workspace,
-        dialog#room, dialog#source-viewer, dialog#model-menu {
+        dialog#room, dialog#model-menu {
           width: 100vw;
           max-width: 100vw;
         }
@@ -3367,12 +3625,15 @@
         .model-row { min-height: 52px; padding: 13px 16px; font-size: 14px; }
         #model-search { padding: 13px 16px; font-size: 16px; }
         .model-group { padding: 12px 16px 5px; font-size: 11.5px; }
-        #source-viewer { width: 100vw; max-width: 100vw; }
-        /* The reading pane's action row wraps instead of clipping its Add
-           button, and the pane — pulled edge to edge by the 900px rule — keeps
-           a gutter so nothing sits on the screen's edge. */
-        .sources-actions { flex-wrap: wrap; padding: 0 12px; }
-        .explore-subnav, .sources-strip { padding-left: 12px; padding-right: 12px; }
+        /* .sources-toolbar's own direction/padding is unconditional now
+           (base rule, above) — the two lines that used to duplicate it
+           here are gone; they were what caused the wrap-into-columns bug
+           this same date's later fix describes. .explore-subnav still
+           needs align-self here: without it, the column parent's own
+           align-items:stretch would pull this small tab group to the
+           full row width, same as .sources-actions. */
+        .explore-subnav { align-self: flex-start; padding-left: 0; padding-right: 0; }
+        .sources-strip { padding-left: 12px; padding-right: 12px; }
         .sources-actions > * { min-height: 40px; }
         .sources-actions input[type="search"], .sources-actions .search { flex: 1 1 100%; }
         /* The terminal drawer's two icons are reachable. */
@@ -3532,7 +3793,6 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
             <span id="model-name">no model</span>
             <span class="caret" aria-hidden="true">⌄</span>
           </button>
-          <textarea id="input" placeholder="Ask something… · /help lists every command · paste a big block to save it as a source" title="Enter to send, Shift+Enter for a newline. /help teaches every command; a pasted block over 1,000 characters is saved as a source by itself." rows="1"></textarea>
           <div class="composer-bar">
             <div id="attach-strip" aria-label="Attachments"></div>
             <!-- Not composer furniture: a bare "primary" switch with no room
@@ -3546,39 +3806,51 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
               <input type="checkbox" id="use-ranke" />
               <span class="track" aria-hidden="true"></span>
             </label>
-            <!-- ONE control for everything this question may draw on beyond
-                 the model itself — merged from what were three separate
-                 things (the paperclip Attach button, and a dropdown holding
-                 attachments/priors/cross-conversation) into one, all called
-                 "memory" (user direction, 2026-09-08). It opens the SAME
-                 sheet component every other menu in this app already uses
-                 (dialog#memory-menu, below, beside dialog#attach-menu) rather
-                 than a hand-rolled popover — a corner-anchored dropdown read
-                 as a cheaper, different kind of control next to the app's
-                 real dialogs, which is the opposite of elegant. Attaching is
-                 still a first-class, one-click action, not buried: the
-                 paperclip icon rides the trigger itself, and "Add
-                 attachment" is the sheet's own first row. Origin's own
-                 standalone #workspace-switch (same feature — P178 — built
-                 independently as a bare composer switch) is superseded by
-                 this merge: the identical id="workspace-switch"/
-                 id="use-workspace" pair already lives inside dialog#memory-
-                 menu below, and keeping both would duplicate those ids on
-                 the page. #priors-mode (below) is NOT the same feature under
-                 a shared word: it is the live_priors reference-corpus dial
-                 (state.priorsMode — off/background/foreground, whether
-                 corpus documents are checked against or attached as
-                 sources), distinct from this sheet's own #use-priors
-                 (whether the reader's received linguistic priors sharpen
-                 this question's checking) — so it stays its own composer
-                 control rather than folding into this menu. -->
-            <button type="button" id="memory-open" aria-label="Attach material, or set what this question may draw on beyond the model's own answer." title="Attach material, or set what this question may draw on beyond the model's own answer.">
-              <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M209.66,122.34a8,8,0,0,1,0,11.32l-82.05,82a56,56,0,0,1-79.2-79.21L147.67,35.73a40,40,0,1,1,56.61,56.55L105,193A24,24,0,1,1,71,159L154.3,74.38A8,8,0,1,1,165.7,85.6L82.39,170.31a8,8,0,1,0,11.27,11.36L192.93,81A24,24,0,1,0,159,47L59.76,147.68a40,40,0,1,0,56.53,56.62l82.06-82A8,8,0,0,1,209.66,122.34Z"/></svg>
-              <span>memory</span>
-              <span class="memory-count" id="memory-count" hidden style="align-items:center;justify-content:center;min-width:1.1em;height:1.1em;padding:0 0.3em;margin-left:0.35em;border-radius:999px;background:var(--accent, #6f5bd6);color:#fff;font-size:0.72em;line-height:1;"></span>
-            </button>
-            <span class="spacer"></span>
-            <button type="submit" class="primary" id="send" aria-label="Send" disabled><span>Send</span></button>
+          </div>
+          <!-- The textarea and its two actions share ONE row (user direction,
+               2026-09-15 — "bring the memory and send onto the same line" /
+               "put send above memory but same line as the chat box"): Send
+               and memory stack in a fixed-width column beside the input
+               rather than sitting on their own row underneath it, so
+               sending costs one less line of vertical space and the two
+               actions read as belonging to the box you just typed in, not
+               to a separate control strip. -->
+          <div class="composer-input-row">
+            <textarea id="input" placeholder="Ask something… · /help lists every command · paste a big block to save it as a source" title="Enter to send, Shift+Enter for a newline. /help teaches every command; a pasted block over 1,000 characters is saved as a source by itself." rows="1"></textarea>
+            <div class="composer-side">
+              <button type="submit" class="primary" id="send" aria-label="Send" disabled><span>Send</span></button>
+              <!-- ONE control for everything this question may draw on beyond
+                   the model itself — merged from what were three separate
+                   things (the paperclip Attach button, and a dropdown holding
+                   attachments/priors/cross-conversation) into one, all called
+                   "memory" (user direction, 2026-09-08). It opens the SAME
+                   sheet component every other menu in this app already uses
+                   (dialog#memory-menu, below, beside dialog#attach-menu) rather
+                   than a hand-rolled popover — a corner-anchored dropdown read
+                   as a cheaper, different kind of control next to the app's
+                   real dialogs, which is the opposite of elegant. Attaching is
+                   still a first-class, one-click action, not buried: the
+                   paperclip icon rides the trigger itself, and "Add
+                   attachment" is the sheet's own first row. Origin's own
+                   standalone #workspace-switch (same feature — P178 — built
+                   independently as a bare composer switch) is superseded by
+                   this merge: the identical id="workspace-switch"/
+                   id="use-workspace" pair already lives inside dialog#memory-
+                   menu below, and keeping both would duplicate those ids on
+                   the page. #priors-mode (below) is NOT the same feature under
+                   a shared word: it is the live_priors reference-corpus dial
+                   (state.priorsMode — off/background/foreground, whether
+                   corpus documents are checked against or attached as
+                   sources), distinct from this sheet's own #use-priors
+                   (whether the reader's received linguistic priors sharpen
+                   this question's checking) — so it stays its own composer
+                   control rather than folding into this menu. -->
+              <button type="button" id="memory-open" aria-label="Attach material, or set what this question may draw on beyond the model's own answer." title="Attach material, or set what this question may draw on beyond the model's own answer.">
+                <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M209.66,122.34a8,8,0,0,1,0,11.32l-82.05,82a56,56,0,0,1-79.2-79.21L147.67,35.73a40,40,0,1,1,56.61,56.55L105,193A24,24,0,1,1,71,159L154.3,74.38A8,8,0,1,1,165.7,85.6L82.39,170.31a8,8,0,1,0,11.27,11.36L192.93,81A24,24,0,1,0,159,47L59.76,147.68a40,40,0,1,0,56.53,56.62l82.06-82A8,8,0,0,1,209.66,122.34Z"/></svg>
+                <span>memory</span>
+                <span class="memory-count" id="memory-count" hidden style="align-items:center;justify-content:center;min-width:1.1em;height:1.1em;padding:0 0.3em;margin-left:0.35em;border-radius:999px;background:var(--accent, #6f5bd6);color:#fff;font-size:0.72em;line-height:1;"></span>
+              </button>
+            </div>
           </div>
         </form>
         <input type="file" id="file" multiple accept=".txt,.md,.markdown,.csv,.tsv,.json,.log,text/*,.png,.jpg,.jpeg,.gif,.webp,.svg,.bmp,.ico,.mp4,.webm,.ogv,.mov,.m4v,.mp3,.wav,.ogg,.oga,.flac,.m4a,.pdf,image/*,audio/*,video/*,application/pdf" hidden />
@@ -3623,6 +3895,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
                (attach-menu). This is about the SPEAKER, not the source
                material, so it gets a name that cannot be confused with it. -->
           <button type="button" role="tab" class="seg" data-pane="profile" title="What this instrument has noticed about you — your own name, role, projects, preferences. Proposed from what you say, never invented; review, edit or forget anything here.">About you</button>
+          <button type="button" role="tab" class="seg" data-pane="coding" title="Ask it to build something in the sandbox — every step it takes is shown here live: what it computed mechanically, what it asked the model, what the sandbox ran and witnessed.">Coding</button>
         </nav>
         <div class="scroll">
           <div class="pane" id="pane-builds">
@@ -3901,14 +4174,40 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
             </div>
           </div>
 
-          <div class="pane on" id="pane-explore">
-            <div class="sources-toolbar">
-              <h2 id="explore-heading">Sources</h2>
-              <div class="explore-subnav" id="explore-subnav" role="tablist" aria-label="reading views">
-                <button type="button" class="seg active" data-view="files">files</button>
-                <button type="button" class="seg" data-view="held">held</button>
-                <button type="button" class="seg" data-view="priors">priors</button>
+          <!-- coding-pane.js — standalone, like github-pane.js: it owns
+               this pane alone and app.js's tab switching is all it needs
+               from the rest of the page. codePieceTurn's/foldTurn's own
+               disclosure reaches it as "fold:coding-step" window events
+               (app.js), never an import — the same crossing
+               fold:attachments-changed already established. -->
+          <div class="pane" id="pane-coding">
+            <h2>Coding <button type="button" class="why" aria-label="what this is" title="Ask it to build something and watch it work: the spec becomes function names mechanically, one model call fills each function's body, the sandbox runs and witnesses every step, and known defects are repaired mechanically before the model is asked again. This also lands as an ordinary turn in Chat — this pane is a richer, live view of the same thing, not a second pipeline. Execution stays in the browser's own sandboxed Workers, same as the terminal — nothing here reaches a real file or a real shell.">?</button></h2>
+            <div class="coding-compose">
+              <textarea id="coding-task" rows="3" spellcheck="false" placeholder="what should it build? e.g. “a function that reverses a string and prints its length”" aria-label="what to build"></textarea>
+              <div class="coding-compose-row">
+                <select id="coding-lang" aria-label="language"></select>
+                <button type="button" id="coding-submit" class="primary">Build it</button>
               </div>
+            </div>
+            <div class="coding-iterate" id="coding-iterate" hidden>
+              <span class="coding-iterate-label">Ask for a change to <span id="coding-iterate-fold"></span>:</span>
+              <div class="coding-compose-row">
+                <input type="text" id="coding-iterate-input" spellcheck="false" placeholder="e.g. “handle an empty string”" aria-label="ask for a change" />
+                <button type="button" id="coding-iterate-submit">Ask for a change</button>
+              </div>
+            </div>
+            <div id="coding-feed" class="coding-feed"></div>
+          </div>
+
+          <div class="pane on" id="pane-explore">
+            <div class="sources-toolbar" id="sources-toolbar">
+              <h2 id="explore-heading">Sources</h2>
+              <!-- Search first, the files/held/priors switcher right under it
+                   (user direction, 2026-09-15: "make files and priors tabs
+                   under sources search bar") — DOM order drives the mobile
+                   column stack below, so this order IS the visual order
+                   there; desktop's single wide row is unaffected since it
+                   never wraps. -->
               <div class="sources-actions" id="sources-actions">
                 <input id="sources-search" type="search" spellcheck="false" placeholder="search sources" aria-label="search sources" />
                 <select id="sources-sort" aria-label="sort sources">
@@ -3919,6 +4218,10 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
                   <option value="smallest">smallest</option>
                 </select>
                 <button type="button" id="sources-add" class="primary" title="add a source">＋ Add</button>
+              </div>
+              <div class="explore-subnav" id="explore-subnav" role="tablist" aria-label="reading views">
+                <button type="button" class="seg active" data-view="files" title="Every source that has been loaded into this workspace.">files</button>
+                <button type="button" class="seg" data-view="priors" title="The reference-corpus toggle ledger — which live_priors documents are in play.">priors</button>
               </div>
             </div>
             <div id="sources-list" class="sources-list">
@@ -3932,6 +4235,31 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
                  ledger the /priors chat command and the terminal's `priors`
                  command already do — a flip here is a flip everywhere. -->
             <div id="priors-panel" class="priors-panel" hidden></div>
+            <!-- A REAL document view (user direction, 2026-09-15: "i mean a
+                 full page doc, not just a modal") — the same rendering this
+                 pane already had in a <dialog> (openSourceViewer/
+                 openMediaViewer/openResearchedPage, unchanged below), now
+                 filling the Reading pane itself instead of floating over it.
+                 Same element ids throughout on purpose: every renderer that
+                 already writes into #source-viewer-body/-name/-meta/-mode
+                 needed zero changes, only where those ids now live. -->
+            <div id="source-viewer" hidden>
+              <div class="sheet-head">
+                <button type="button" id="source-viewer-back" class="doc-back" title="back to sources">
+                  <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224,128a8,8,0,0,1-8,8H59.31l58.35,58.34a8,8,0,0,1-11.32,11.32l-72-72a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,11.32L59.31,120H216A8,8,0,0,1,224,128Z"/></svg>
+                  <span>sources</span>
+                </button>
+                <div class="doc-title">
+                  <h3 id="source-viewer-name"></h3>
+                  <p class="sub" id="source-viewer-meta"></p>
+                </div>
+                <div class="source-viewer-mode" id="source-viewer-mode">
+                  <button type="button" class="seg active" data-mode="read">read</button>
+                  <button type="button" class="seg" data-mode="raw">raw</button>
+                </div>
+              </div>
+              <div id="source-viewer-body" class="source-viewer-body"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -4084,29 +4412,6 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
         <button type="button" class="attach" id="attach-sheet-add">＋ Add more</button>
         <span class="spacer"></span>
         <button>Done</button>
-      </form>
-    </dialog>
-
-    <dialog id="source-viewer">
-      <div class="sheet-head">
-        <div>
-          <h3 id="source-viewer-name"></h3>
-          <p class="sub" id="source-viewer-meta"></p>
-        </div>
-        <div class="source-viewer-mode" id="source-viewer-mode">
-          <button type="button" class="seg active" data-mode="read">read</button>
-          <button type="button" class="seg" data-mode="raw">raw</button>
-        </div>
-        <button type="button" class="sheet-close" id="source-viewer-x" title="close" aria-label="close">
-          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
-        </button>
-      </div>
-      <div class="sheet-body">
-        <div id="source-viewer-body" class="source-viewer-body"></div>
-      </div>
-      <form method="dialog" class="sheet-foot">
-        <span class="spacer"></span>
-        <button>Close</button>
       </form>
     </dialog>
 
@@ -4385,5 +4690,6 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
     <script type="module" src="./app.js"></script>
       <script type="module" src="log-pane.js"></script>
       <script type="module" src="github-pane.js"></script>
+      <script type="module" src="coding-pane.js"></script>
   </body>
 </html>

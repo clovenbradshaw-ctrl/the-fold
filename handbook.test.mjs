@@ -35,6 +35,31 @@ test("findChapter matches by number or by filename, and misses honestly", () => 
   assert.equal(findChapter(index, "9.9"), null);
 });
 
+// REGRESSION: /help's own documented /learn example ("/learn constitution")
+// named a chapter by a title word, not a number or filename — typed exactly
+// as shown, findChapter used to find nothing (the sibling of task_23bbb378,
+// found the same day).
+test("findChapter falls back to a single distinctive title word, but only when it names exactly one chapter", () => {
+  const index = parseHandbookIndex(indexMd);
+  // The documented example, verbatim: names 4.3 "A constitution that edits itself".
+  const ch = findChapter(index, "constitution");
+  assert.ok(ch, "the /learn constitution example must resolve to a real chapter");
+  assert.equal(ch.n, "4.3");
+  assert.equal(ch.file, "403-a-constitution-that-edits-itself.md");
+  // Case-insensitive, whitespace-tolerant same as the number/file match.
+  assert.equal(findChapter(index, "  Constitution  ").n, "4.3");
+  // A word that names MORE than one chapter refuses rather than guessing —
+  // "nine" opens 2.1 "Nine verbs", 2.3 "Nine kinds of where", and 2.4 "Nine
+  // kinds of how".
+  assert.equal(findChapter(index, "nine"), null, "ambiguous across three real chapters — must not guess");
+  // A short, common word never reaches the title fallback at all, even
+  // where it happens to be unique to one title's own wording.
+  assert.equal(findChapter(index, "the"), null, "too common to mean one chapter, and would be ambiguous anyway");
+  // Number/file matching still wins outright — the fallback only runs when
+  // neither of those found anything.
+  assert.equal(findChapter(index, "1.1").file, "101-noticing.md");
+});
+
 test("a non-TOC line (prose, a heading) is simply not a match", () => {
   const index = parseHandbookIndex("# The Handbook\n\nSome prose about status.\n\n## Part 0\n");
   assert.deepEqual(index, []);

@@ -12263,10 +12263,39 @@ const REF_IN_TEXT = /\[([^\]]+?#\d+-\d+)\]/g;
  * splits paragraphs into per-line runs, so a sentence that wraps a line
  * never matches by strict inclusion — measured live as most sentences
  * rendering unclassified. The words are the identity; the whitespace is the
- * renderer's. */
+ * renderer's.
+ *
+ * FOUND LIVE (2026-09-15, task_23bbb378): a fabricated markdown-list
+ * specimen (a trail-log summary with an invented month and wrong hour
+ * totals) shipped with ZERO grounding disclosure — no citation chip, no ∅
+ * mark, no "unbacked" footnote, nothing, worse than the already-tracked
+ * plain-prose fabrication that at least drew one. Traced to this function:
+ * `classifySentences` (provenance.js, via cite.js's own `splitSentences`,
+ * "a newline boundary is unconditional — list items, one claim per line")
+ * classifies a list item's SENTENCE keeping its raw markdown, leading
+ * marker and all ("- June: 20 hours"). render.js's `parseBlocks` strips
+ * that exact marker before handing the item to `renderTaggedBlocks`
+ * (`UL_RE`/`OL_RE` capture only the text AFTER the marker, by design — an
+ * `<li>` supplies its own bullet). So `hay` here never contains the literal
+ * "-"/"1." the classified sentence's word list starts with, this function's
+ * whitespace-flexible regex still requires that first word to appear
+ * literally, and the match fails outright — not a weak grounding verdict,
+ * `sentenceSpans` finds nothing at all for that item and the whole line
+ * falls through to the plain, unwrapped tail (`taggedProse`'s own
+ * `refNodes(full.slice(cursor), known)` catch-all), which carries no mark
+ * of any kind. The fix generalizes this function's own stated principle one
+ * step further: a leading list marker is render.js's structure exactly the
+ * way whitespace is, not one of the sentence's own words, so it is stripped
+ * from `sentence` before the match — never from `hay`, which already lacks
+ * it for a real list item and still contains it verbatim for ordinary prose
+ * that happens to start a paragraph with a hyphen (parseBlocks would have
+ * routed a line like that into a list block too, so the two stay
+ * consistent). See provenance-render.test.mjs for the pinned regression,
+ * mirroring this function exactly as its own header already promises. */
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const LEADING_LIST_MARKER = /^(?:[-*•]|\d+[.)])\s+/;
 function findSentence(hay, sentence) {
-  const words = String(sentence).trim().split(/\s+/).filter(Boolean);
+  const words = String(sentence).trim().replace(LEADING_LIST_MARKER, "").split(/\s+/).filter(Boolean);
   if (!words.length) return null;
   const m = hay.match(new RegExp(words.map(escapeRe).join("\\s+")));
   return m ? { at: m.index, len: m[0].length } : null;

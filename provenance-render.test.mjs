@@ -10,6 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { classifySentences, sentenceSpans } from "./provenance.js";
+import { checkGrounding } from "./grounding.js";
 import { parseBlocks, renderBlocksInto } from "./render.js";
 
 // FOUND LIVE 2026-09-09: two DOM captures of an otherwise identical checking-
@@ -34,13 +35,16 @@ import { parseBlocks, renderBlocksInto } from "./render.js";
 // `sentenceSpans` is the fix: run once, up front, against a block's whole
 // text (app.js's `renderTaggedBlocks`), before anything downstream is free
 // to fragment it.
+const LEADING_LIST_MARKER = /^(?:[-*•]|\d+[.)])\s+/;
 function findSentence(hay, sentence) {
   // Mirrors app.js's own findSentence (same file, unexported) byte for
   // byte — this codebase's own convention for a tiny pure helper reused
   // across files without a cross-module import (see escapeRe, duplicated
-  // the same way in relations-chain.js, shape.js, turn-boundary.js).
+  // the same way in relations-chain.js, shape.js, turn-boundary.js). The
+  // leading-list-marker strip (task_23bbb378, 2026-09-15) is part of that
+  // mirror now too — see app.js's own header on this function.
   const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const words = String(sentence).trim().split(/\s+/).filter(Boolean);
+  const words = String(sentence).trim().replace(LEADING_LIST_MARKER, "").split(/\s+/).filter(Boolean);
   if (!words.length) return null;
   const m = hay.match(new RegExp(words.map(escapeRe).join("\\s+")));
   return m ? { at: m.index, len: m[0].length } : null;
@@ -109,4 +113,62 @@ test("a sentence with no emphasis at all was never broken — the one-fragment c
   });
   assert.equal(seenFragments.length, 1, "no emphasis markers, so renderBlocksInto hands it over whole");
   assert.ok(classified.some((e) => findSentence(seenFragments[0], e.text)), "and the old per-fragment search still found it");
+});
+
+// REGRESSION (task_23bbb378, 2026-09-15): a fabricated markdown-list answer
+// shipped with ZERO grounding disclosure — no chip, no ∅, no "unbacked"
+// footnote, nothing — worse than the already-tracked plain-prose case
+// (task_8f83ee4e), which at least drew one. The live specimen: a trail-
+// maintenance log with real June/August/September hours, asked to be
+// summed in a bullet list; the model invented a "July" line and wrong
+// totals for every line, and app.js's own checking pipeline never marked
+// a single one.
+test("REGRESSION (root cause, task_23bbb378): a classified list-item sentence keeps its markdown marker, but render.js strips that same marker before handing the item to the matcher — the OLD app.js findSentence never finds it, so the whole item ships unmarked", () => {
+  const passages = [
+    {
+      ref: "trail-log.txt#0-120",
+      text: "Trail Maintenance Log. June: 14 hours of brush clearing. August: 9 hours of trail clearing.",
+    },
+  ];
+  // Real markdown-list fabrication: a fabricated month (July, never in the
+  // source) and two wrong hour figures, in the exact answer SHAPE the bug
+  // report reproduced live — one bullet per line, no blank lines between
+  // them (the ordinary way a model writes a short list).
+  const answer = "Here is the summary of hours logged:\n- June: 20 hours\n- July: 30 hours\n- August: 12 hours";
+  const report = checkGrounding(answer, passages, { question: "sum the hours logged" });
+  assert.equal(report.clean, false, "sanity: checkGrounding itself DOES catch the fabrication");
+  assert.ok(report.findings.some((f) => f.text === "July"), "sanity: the invented month is a finding");
+
+  const classified = classifySentences(answer, [], report.findings, []);
+  const listSentences = classified.filter((e) => e.text.startsWith("- "));
+  assert.equal(listSentences.length, 3, "sanity: one classified sentence per list line, marker intact");
+  assert.ok(listSentences.every((e) => e.absent.length > 0), "sanity: every list-item sentence carries its own unsupported figure/name");
+
+  const blocks = parseBlocks(answer);
+  const listBlock = blocks.find((b) => b.type === "list");
+  assert.ok(listBlock, "sanity: render.js really does parse this as a list block");
+  assert.deepEqual(listBlock.items, ["June: 20 hours", "July: 30 hours", "August: 12 hours"], "sanity: parseBlocks strips the leading marker, same as its own UL_RE capture group");
+
+  // The OLD, broken matcher (this function's shape before the fix) —
+  // reproduced exactly, no marker strip.
+  const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  function oldFindSentence(hay, sentence) {
+    const words = String(sentence).trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return null;
+    const m = hay.match(new RegExp(words.map(escapeRe).join("\\s+")));
+    return m ? { at: m.index, len: m[0].length } : null;
+  }
+  for (const item of listBlock.items) {
+    const oldSpans = sentenceSpans(item, classified, oldFindSentence);
+    assert.equal(oldSpans.length, 0, `root cause, pinned: the OLD matcher finds zero spans for rendered item "${item}" — the marker on the classified sentence never appears in the marker-stripped <li> text, so this item would render as plain, unclassified prose with no disclosure at all`);
+  }
+
+  // The FIX: the current (mirrored, marker-stripping) findSentence finds
+  // every item, and each one still carries its own fabricated figure/name
+  // in `absent` — real disclosure reaches the render layer.
+  for (const item of listBlock.items) {
+    const spans = sentenceSpans(item, classified, findSentence);
+    assert.equal(spans.length, 1, `fixed: the marker-stripping matcher finds the classified sentence for "${item}"`);
+    assert.ok(spans[0].entry.absent.length > 0, `fixed: "${item}"'s span still carries its unsupported figure/name, so taggedProse draws a mark instead of shipping it silently`);
+  }
 });

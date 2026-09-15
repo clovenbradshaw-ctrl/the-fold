@@ -17168,12 +17168,26 @@ async function renderResearchedSection(list) {
     entries.push(e);
   }
   if (!entries.length) return;
-  entries.sort((a, b) => (b.fetchedAt ?? 0) - (a.fetchedAt ?? 0));
+  // The files list above is filtered by the same search box (renderSourcesPanel's
+  // own `search`), and this section used to ignore it outright — typing anything
+  // that matched no FILE fell through to showing the whole unfiltered researched
+  // pool (thousands of rows on a workspace with any real web history), found live
+  // 2026-09-15 searching for a fabricated document name that matched nothing.
+  // Filtered the same way: title or host, case-insensitive substring.
+  const search = $("sources-search")?.value?.toLowerCase() ?? "";
+  const total = entries.length;
+  const matched = search
+    ? entries.filter((e) => (e.title || "").toLowerCase().includes(search) || hostOf(e.finalUrl ?? e.url).toLowerCase().includes(search))
+    : entries;
+  if (!matched.length) return; // a search that matches no file should not fall through to "everything"
+  matched.sort((a, b) => (b.fetchedAt ?? 0) - (a.fetchedAt ?? 0));
   const heading = document.createElement("div");
   heading.className = "sources-section-head";
-  heading.textContent = `RESEARCHED — read to check answers, not attached (${entries.length})`;
+  heading.textContent = search
+    ? `RESEARCHED — read to check answers, not attached (${matched.length} of ${total})`
+    : `RESEARCHED — read to check answers, not attached (${total})`;
   list.append(heading);
-  for (const e of entries.slice(0, 12)) {
+  for (const e of matched.slice(0, 12)) {
     const host = hostOf(e.finalUrl ?? e.url);
     const row = document.createElement("div");
     row.className = "sources-file sources-file-research";

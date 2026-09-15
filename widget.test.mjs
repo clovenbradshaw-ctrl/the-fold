@@ -380,6 +380,73 @@ test("iterationTell: code-piece.js's own python scaffold never counts as a conte
   assert.equal(routeMessage("one more random one", builds), null);
 });
 
+test("iterationTell/routeMessage: code-piece.js's own per-step witness marker never counts as a content match (live, 2026-09-15)", () => {
+  // Reported live: built a small python "median of a list" function via
+  // the Coding tab (fold 3 in the reported conversation, fold 1 here —
+  // the mechanism is identical either way). Several ordinary chat turns
+  // later, a long, plain, non-coding farewell — "fair enough, pretty
+  // standard answer honestly but fine. ok, I've got to step away for now
+  // - this has been a fun poke around. thanks for the poem, the story,
+  // catching your own math mistake, and putting up with the nonsense
+  // string. talk again soon" — silently routed into a fold-revision
+  // attempt against that leftover build instead of being answered as
+  // ordinary chat. The model was asked to revise
+  // `print(f"[step 1 function_computes_median_list] …")` per the whole
+  // farewell, returned the identical code back, and the only thing
+  // rendered was "the model returned identical code — fold 1 is
+  // unchanged (churn refused by the log)" — no reply to the farewell at
+  // all. Reproduced live against the real page (gemma2:2b), confirmed via
+  // the turn's own "what the model saw" panel: `tell: "resolved"`,
+  // matched on the single word "step" — present in the farewell ("step
+  // away") and, by pure instrument construction, present in EVERY
+  // code-piece build's own generated `main()` (`skeletonFor`'s per-step
+  // witness line, python and js alike), regardless of what the function
+  // actually does. `foldTurn` itself has no fallback to an ordinary
+  // answer once `routeMessage` commits a turn to fold revision — by
+  // design, it is a dedicated revision turn, not a maybe — so the fix has
+  // to stop the false match at the router, the same place
+  // stripHtmlWrapper/stripPyScaffold already close this exact failure
+  // shape for other instrument-only tokens.
+  const median = skeletonFor("python", "a function that computes the median of a list of numbers", [
+    "a function that computes the median of a list of numbers",
+  ]);
+  const medianKnown = `a function that computes the median of a list of numbers\n${median.code}`;
+  assert.match(medianKnown, /\[step 1 /, "the fixture actually carries the per-step marker this test is about");
+  const farewell =
+    "fair enough, pretty standard answer honestly but fine. ok, I've got to step away for now - " +
+    "this has been a fun poke around. thanks for the poem, the story, catching your own math " +
+    "mistake, and putting up with the nonsense string. talk again soon";
+  assert.equal(iterationTell(farewell, medianKnown), null);
+
+  const builds = [{ n: 1, type: "code", lang: "python", text: medianKnown }];
+  // The live specimen's own discourse was not empty — several ordinary
+  // turns (an arithmetic question, a nonsense string) sat in the recency
+  // window, and one of them ("Multiply the decimal by the number...")
+  // shares the plain word "number" with the build's own "numbers" — a
+  // second, independent coincidence that alone satisfies discourseLocal.
+  // The fix must hold even so, because the primary tell (not the
+  // discourse gate) is where this false positive actually lives.
+  const liveDiscourse = [
+    "hey, what's 15% of 240? show me the calculation, then tell me if you think you might have made an arithmetic error anywhere",
+    "Here's how to calculate 15% of 240: ... Multiply the decimal by the number: 0.15 * 240 = 36. So, 15% of 240 is 36. I don't think I made any arithmetic errors.",
+    "asdlkfjqwoeiru zzzz blorp glorpxx 918273 !!!",
+    "It looks like you're just making random sounds!",
+  ].join("\n");
+  assert.equal(routeMessage(farewell, builds, { hasMaterial: false, discourse: liveDiscourse }), null);
+  assert.equal(routeMessage(farewell, builds, { hasMaterial: false, discourse: "" }), null);
+
+  // The affordance is narrower, never absent: a genuine complaint using
+  // the build's own real vocabulary (never just the scaffold's "step")
+  // still routes once the build is actually discourse-local.
+  const discussed = `user: a function that computes the median of a list of numbers\nassistant: ${median.code}`;
+  const complaint = routeMessage("the median function is broken, it always returns the wrong value", builds, {
+    hasMaterial: false,
+    discourse: discussed,
+  });
+  assert.equal(complaint?.n, 1);
+  assert.ok(!complaint.matchedOn.includes("step"), "the scaffold marker itself never rides as evidence");
+});
+
 test("iterationTell/routeMessage: a bare numeral shared with the build's own bytes is never content evidence", () => {
   // Found live in the SAME battery this file's scaffold test above already
   // documents, one channel further: the leftover "adds up the first 10
@@ -563,6 +630,56 @@ test("routeMessage: discourse locality also narrows resolved/judgment, not only 
   const timerChat = "user: build me a countdown timer in python\nassistant: " + countdown;
   assert.equal(routeMessage(greeting, builds, { discourse: timerChat })?.n, 1);
   assert.equal(routeMessage("the countdown is broken", builds, { discourse: timerChat })?.n, 1);
+});
+
+test("routeMessage: a farewell sent after a build has genuinely entered this conversation's discourse is not swallowed by a fold revision (live, 2026-09-15, task_0e06ff56)", () => {
+  // Reported live: build something in the Coding tab, click "send to
+  // chat" (app.js's `sendChip` — the build's own spec and narration land
+  // in `state.history` verbatim, the documented way a Coding-tab build
+  // "auto-surfaces" into a conversation), then say a plain, warm goodbye.
+  // `discourseLocal` (this file's own 2026-09-15 fix, the test block just
+  // above) cannot help here: the build genuinely WAS just discussed in
+  // this very conversation, so it correctly reads as locally salient —
+  // and the goodbye still fired `anaphoraTell` on "This" (a bare
+  // demonstrative, clause one of three, followed by the copula "was"),
+  // re-zeroing the build with the WHOLE farewell as its edit instruction
+  // and no reply to the farewell at all. Verified live against the real
+  // page (gemma2:2b): the "revision" landed a broken indentation edit,
+  // never an answer.
+  const countdown = skeletonFor("python", "count down from a starting number to zero, printing each remaining second", [
+    "count down from a starting number to zero",
+    "print each remaining second",
+  ]);
+  const known = `python: count down from a starting number to zero, printing each remaining second\n${countdown.code}`;
+  const builds = [{ n: 1, type: "code", lang: "python", text: known }];
+  // The narration `sendChip` actually pushes (app.js: `typed` + `lines.
+  // join("\n")`) — mentions the build's own function names, which is
+  // exactly what makes the build discourse-local without the message
+  // itself sharing any of the code's own vocabulary.
+  const discourse =
+    "user: count down from a starting number to zero, printing each remaining second\n" +
+    "assistant: fold 1 born as a skeleton: 2 function(s) — count_down_starting_number_to_zero → print_each_remaining_second";
+
+  // The bug: a warm goodbye, sent right after the build, still resolves.
+  assert.equal(
+    routeMessage("This was great, thank you so much for your help today. Goodbye for now!", builds, { discourse }),
+    null,
+  );
+  // A second phrasing of the identical shape — this closes a CLASS, not
+  // one hand-typed sentence.
+  assert.equal(routeMessage("That's all for now, appreciate the help. Talk soon!", builds, { discourse }), null);
+
+  // The affordance narrows, it does not vanish: the same message, with no
+  // trailing clause to move on to, is still exactly this function's own
+  // canonical anaphora case (the "before" half of the story, pinned
+  // visible the same way every other narrowing in this file is).
+  assert.equal(routeMessage("This was broken", builds, { discourse })?.n, 1);
+  // And a genuine trailing complaint — the pronoun IS the message's own
+  // last clause — still routes.
+  assert.equal(routeMessage("Thanks for building this, it's broken though", builds, { discourse })?.n, 1);
+  // The disclosed escape hatch: an explicit negated first-person judgment
+  // anywhere in the message is unambiguous regardless of clause order.
+  assert.equal(routeMessage("I don't like it, but thanks anyway!", builds, { discourse })?.n, 1);
 });
 
 test("routeMessage: the flagship same-conversation iteration is unaffected by discourse locality", () => {

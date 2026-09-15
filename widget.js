@@ -219,6 +219,40 @@ function stripPyScaffold(text) {
 }
 
 /**
+ * Strip code-piece.js's own per-step witness marker — `[step 1
+ * some_function_name]`, printed (python's `print(f"[step …")`) or logged
+ * (js's `` console.log(`[step …` ``) by EVERY code-piece build's own
+ * generated `main()` (RUNTIMES.python/js's `main(names)`, one line per
+ * feature, mechanical — never the model's or the operator's own words),
+ * so a run's stdout says what each step returned. The SAME
+ * non-discriminating-token shape `stripHtmlWrapper`/`stripPyScaffold`
+ * above already exist for: the bare word "step" inside that marker is
+ * ordinary, common English with nothing to do with what the function
+ * does, contributed by the instrument's own wiring to every code-piece
+ * build regardless of language or feature.
+ *
+ * Found live, 2026-09-15: a brand-new conversation's own ordinary
+ * farewell — "…ok, I've got to step away for now — this has been a fun
+ * poke around…" — carried the single word "step", and a leftover
+ * code-piece build (a "median of a list" function) matched on it via
+ * this exact marker, routing the farewell into a fold-revision attempt
+ * instead of an answer: the model was asked to revise
+ * `print(f"[step 1 function_computes_median_list] …")` per the words
+ * "I've got to step away for now…", returned the same code back, and the
+ * churn refusal ("fold N is unchanged") was the only thing rendered —
+ * the ordinary reply to the farewell was never produced. Only the
+ * literal marker is stripped, never the surrounding print/console.log
+ * call: a genuine reference to what that call DOES ("print", "console",
+ * "log", "type", "repr") stays real, matchable evidence, and the
+ * function's own real name inside the brackets is untouched too (it is
+ * also the `def`/`function` declaration itself, so nothing is lost by
+ * dropping its second, marker-only occurrence).
+ */
+function stripStepWitness(text) {
+  return String(text ?? "").replace(/\[step \d+ [^\]]*\]/g, " ");
+}
+
+/**
  * Bind the router to the engine's prior register.
  *
  * `makeWidgetRouter(priors)` → `{ iterationTell, routeSegment }`, where
@@ -234,6 +268,7 @@ export function makeWidgetRouter(priors, pos = {}) {
     INFLECTIONAL_SUFFIXES,
     INDEFINITE_DETERMINERS,
     DEFINITE_DETERMINERS,
+    SENTENCE_TERMINATORS,
   } = priors;
   // The POS classifier (wordclass.js's `classifyWord`/`dominantClass`,
   // real UD-treebank prior) is OPTIONAL and additive — see anaphoraTell,
@@ -241,7 +276,7 @@ export function makeWidgetRouter(priors, pos = {}) {
   // what it was before this parameter existed.
   const { classifyWord, dominantClass, posPrior } = pos;
 
-  for (const [name, set] of Object.entries({ ANAPHORIC_PRONOUNS, NEGATION_WORDS, INFLECTIONAL_SUFFIXES, INDEFINITE_DETERMINERS, DEFINITE_DETERMINERS })) {
+  for (const [name, set] of Object.entries({ ANAPHORIC_PRONOUNS, NEGATION_WORDS, INFLECTIONAL_SUFFIXES, INDEFINITE_DETERMINERS, DEFINITE_DETERMINERS, SENTENCE_TERMINATORS })) {
     if (!(set instanceof Set) || !set.size)
       throw new TypeError(`makeWidgetRouter: ${name} must come from the engine's prior register`);
   }
@@ -338,7 +373,7 @@ export function makeWidgetRouter(priors, pos = {}) {
     // The pointer is the more specific fact than the judging of it — a
     // judgment that arrives BY anaphora reports as the anaphor (the
     // earlier doctrine's own line, kept).
-    if (anaphoraTell(raw)) return "anaphora";
+    if (anaphoraTell(raw, judged)) return "anaphora";
     return null;
   }
 
@@ -385,9 +420,76 @@ export function makeWidgetRouter(priors, pos = {}) {
    * exactly as before this function existed. So nothing that used to
    * resolve stops resolving; this only narrows a false positive that a
    * loaded prior can actually rule out.
+   *
+   * ONLY THE MESSAGE'S OWN LAST SENTENCE IS READ, UNLESS `judged` (found
+   * live, 2026-09-15, task_0e06ff56). A Coding-tab build's own narration
+   * had been sent to the chat — `app.js`'s `sendChip`, or an ordinary
+   * build turn, either way the widget's bytes are now genuinely
+   * `discourseLocal`, so that narrowing (above, in `routeMessage`'s own
+   * header) cannot help here — and the NEXT, wholly unrelated message
+   * closing the conversation, "This was great, thank you so much for your
+   * help today. Goodbye for now!", still fired `anaphoraTell` on "this"
+   * (sentence one of two, followed by the copula "was" — pronominal by
+   * this function's own POS reading either way) and re-zeroed the build:
+   * `capture(message)` — the WHOLE message, "Goodbye for now!" included —
+   * landed as the fold's next edit instruction, and the model duly
+   * produced a `{find, add}` patch against Python it had never been asked
+   * to touch, landing a broken indentation edit with no reply to the
+   * farewell at all. Live, verified against the real page (gemma2:2b). A
+   * SECOND phrasing of the identical shape ("That's all for now,
+   * appreciate the help. Talk soon!") reproduces it the same way, and a
+   * French control sentence in the same slot does not, because
+   * ANAPHORIC_PRONOUNS is an English closed class — confirming the tell
+   * really is this function, not something upstream.
+   *
+   * SENTENCES, NOT `clauseForms`'s finer CLAUSES — the register's own
+   * SENTENCE_TERMINATORS (`.`, `!`, `?`, `…`; giver script/latn), never
+   * comma/semicolon/colon. The first attempt at this fix read clauseForms
+   * (the finer split `introducesTerm`/`pointedTerms` already use, which
+   * also breaks on a comma) and broke a PINNED test on the very next run:
+   * "what is this app, in one sentence?" is one ordinary interrogative
+   * sentence with an internal comma — "this" and the question mark belong
+   * to the same utterance — and reading only its last CLAUSE ("in one
+   * sentence") lost the pronoun that sentence-scoping keeps. A comma
+   * inside one sentence is not license to keep pointing past it, but it
+   * is also not a topic change; only a real sentence boundary is.
+   *
+   * The shared shape across every false positive and none of the true
+   * positives ("it's broken", "this is hideous", "that's too big", "make
+   * it bigger", "fix it, it's broken", "that's broken — build a new one
+   * from scratch", "what is this app, in one sentence?" — every one of
+   * them one sentence, whatever its internal commas): a demonstrative
+   * that opens a message and is never returned to — a LATER SENTENCE
+   * moving on to thanks, a farewell, an unconnected new topic — is
+   * exactly the discourse-deictic use linguistics already has a name for
+   * (Webber 1991): "this"/"that" pointing at the SITUATION just had, not
+   * at an entity a later sentence still needs. A one-sentence message (no
+   * SENTENCE_TERMINATORS inside it, whatever commas it holds) is
+   * unaffected — there is no "later" sentence to move on to, and every
+   * existing one-sentence specimen above still resolves exactly as
+   * before. `judged` (negation + first person, computed once by
+   * `iterationTell` and threaded through rather than re-derived) is the
+   * disclosed escape hatch: a message carrying an explicit negated
+   * first-person judgment ANYWHERE ("I don't like it. Thanks anyway!") is
+   * unambiguous evidence regardless of which sentence the pronoun sits
+   * in, so the full-message scan runs exactly as it always has whenever
+   * that fires.
+   *
+   * THE COST, STATED RATHER THAN PAPERED OVER (this file's own standing
+   * practice): an ordinary complaint immediately followed by an
+   * unconnected pleasantry IN A LATER SENTENCE, with no negation+first-
+   * person anywhere in it — "It's broken. Thanks for building it though."
+   * — no longer routes. That phrasing is rarer than the farewell class
+   * this closes and the number one bug this fix exists for is silent
+   * misrouting, not a missed routing that still reaches the operator as
+   * an ordinary (if less targeted) reply — the same asymmetry
+   * `triviallyChatty` (app.js) already argues for in the sibling S1/S2
+   * gate, applied here to routing instead of grounding.
    */
-  function anaphoraTell(message) {
-    for (const clause of clauseForms(message)) {
+  function anaphoraTell(message, judged = false) {
+    const sentences = sentenceForms(message);
+    const scan = judged ? sentences : sentences.slice(-1);
+    for (const clause of scan) {
       for (let i = 0; i < clause.length; i++) {
         const t = clause[i];
         if (!ANAPHORIC_PRONOUNS.has(t)) continue;
@@ -442,6 +544,32 @@ export function makeWidgetRouter(priors, pos = {}) {
       // Same widening as `forms`, same reason — this is its per-clause twin.
       .map((c) => c.split(/[^\p{L}\p{N}']+/u).filter(Boolean))
       .filter((c) => c.length);
+
+  /** The message's SENTENCES, in the `forms` fold — coarser than
+   * `clauseForms`, on purpose: only a real sentence terminator (the
+   * register's own SENTENCE_TERMINATORS — `.`/`!`/`?`/`…`, giver
+   * script/latn) starts a new one, so a comma stays INSIDE the sentence
+   * it punctuates. `anaphoraTell`'s own header explains why this,
+   * specifically, is the fold that question needs: "what is this app, in
+   * one sentence?" is one sentence with an internal comma, and
+   * `clauseForms`'s finer comma-splitting sentence would have lost the
+   * pronoun's own sentence. Built by hand rather than a regex over
+   * `[...SENTENCE_TERMINATORS]` so the register's own Set stays the one
+   * place this punctuation is named — no second, parallel spelling of it
+   * to drift from the first. */
+  const sentenceForms = (s) => {
+    const folded = foldDiacritics(String(s ?? ""))
+      .toLowerCase()
+      .replace(/[‘’]/g, "'");
+    const parts = [];
+    let cur = "";
+    for (const ch of folded) {
+      if (SENTENCE_TERMINATORS.has(ch)) { parts.push(cur); cur = ""; }
+      else cur += ch;
+    }
+    parts.push(cur);
+    return parts.map((c) => c.split(/[^\p{L}\p{N}']+/u).filter(Boolean)).filter((c) => c.length);
+  };
 
   /**
    * Does the message INTRODUCE this term rather than point at it? True only
@@ -537,7 +665,7 @@ export function makeWidgetRouter(priors, pos = {}) {
    * see the routing amendment this measurement produced.
    */
   function matchedTerms(message, known) {
-    const have = [...new Set(terms(stripPyScaffold(stripHtmlWrapper(known))))];
+    const have = [...new Set(terms(stripStepWitness(stripPyScaffold(stripHtmlWrapper(known)))))];
     if (!have.length) return [];
     const hits = [];
     for (const t of new Set(terms(message))) {

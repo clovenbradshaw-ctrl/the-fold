@@ -1202,6 +1202,34 @@
         letter-spacing: 0.02em;
         opacity: 0.85;
       }
+      /* /help (2026-09-15): the data was already grouped by category
+         (help.js); the plain-text render flattened it into one 68ch-wide
+         wall of identical lines, which a live reader called "crazy". This
+         is the same content, drawn as the hierarchy it already had — nothing
+         here hides a door, only spacing and type do the organizing. A
+         slightly wider bubble buys the list real rows instead of forcing
+         every summary to wrap through the prose column's narrow measure. */
+      .msg.help-msg { max-width: min(720px, 100%); }
+      .help-title { margin: 0 0 6px; font-size: 16px; font-weight: 700; }
+      .help-title .help-door-name { font-size: 14px; }
+      .help-intro { margin: 0 0 18px; color: var(--muted); }
+      .help-cat { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+      .help-cat.help-cat-first { margin-top: 0; padding-top: 0; border-top: none; }
+      .help-cat-name { margin: 0 0 8px; font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+      .help-cat-desc { font-size: 12.5px; font-weight: 400; text-transform: none; letter-spacing: normal; color: var(--muted); }
+      .help-doors { display: flex; flex-direction: column; gap: 7px; }
+      .help-door { display: flex; gap: 10px; align-items: baseline; }
+      .help-door-name { flex: 0 0 auto; font-family: var(--mono); font-size: 13px; color: var(--accent); white-space: nowrap; }
+      .help-door .help-door-name { width: var(--help-door-width, auto); }
+      .help-door-copy { font-size: 14px; color: var(--ink); min-width: 0; }
+      .help-footer { margin-top: 20px; font-size: 13px; color: var(--muted); }
+      .help-card .help-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+      .help-tutorial { margin: 10px 0 16px; }
+      .help-field { margin-bottom: 12px; }
+      .help-field-label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px; }
+      .help-field-body { font-family: var(--mono); font-size: 13.5px; background: var(--accent-soft); border-radius: 8px; padding: 9px 11px; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+      .help-needs { margin-top: 6px; color: var(--muted); font-size: 13.5px; }
+      .help-needs strong { color: var(--ink); font-weight: 600; }
       .msg.queued { opacity: 0.55; }
       .msg.queued .queue-tag {
         font-size: 10px;
@@ -1223,6 +1251,22 @@
         border-color: var(--accent);
         background: var(--accent-soft);
         text-align: left;
+      }
+      /* Which conversation a "send to chat" click will actually reach —
+         disclosed in words beside the chip (task_3e9f2a31), not just left
+         to the conversation strip, which is absent entirely on a narrow
+         layout. Quiet by design: this is a fact about routing, not a
+         finding. */
+      .build-dest {
+        display: inline-block;
+        max-width: 220px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: middle;
+        margin: 2px 8px 10px 0;
+        font-size: 11.5px;
+        color: var(--muted);
       }
       /* The Folds panel's controls: search, a declared ordering, and the
          list/cards switch. The bar filters a rendering — the logs beneath
@@ -4120,7 +4164,10 @@
         #col-chat:has(#chat > .chat-empty:only-child) > #chat-panel-switches {
           grid-column: 2;
           grid-row: 1;
-          position: static;
+          position: relative;
+          /* The base rule's floating offsets (top/right) would apply to a
+             positioned element; this one sits in the grid, not over it. */
+          inset: auto;
           align-self: stretch;
           align-items: center;
           gap: 8px;
@@ -4229,8 +4276,7 @@
          control, filled while it is on. The word stays for screen readers. */
       .composer-declare { flex-wrap: nowrap; }
       .composer-declare > .model-pick { margin-right: auto; }
-      .composer-declare > #checking-switch { margin-left: 0; }
-      .composer-declare > .switch {
+      :is(.composer-declare, #chat-panel-switches) > .switch {
         justify-content: center;
         width: 34px;
         height: 34px;
@@ -4241,8 +4287,8 @@
         border-radius: 8px;
         background: transparent;
       }
-      .composer-declare > .switch .track { display: none; }
-      .composer-declare > .switch .switch-label {
+      :is(.composer-declare, #chat-panel-switches) > .switch .track { display: none; }
+      :is(.composer-declare, #chat-panel-switches) > .switch .switch-label {
         display: inline;
         position: absolute;
         width: 1px;
@@ -4251,10 +4297,20 @@
         clip: rect(0 0 0 0);
         white-space: nowrap;
       }
-      .composer-declare > .switch:hover { border-color: var(--line); }
-      .composer-declare > .switch:has(input:checked) { background: var(--accent-soft); border-color: var(--accent); }
-      .composer-declare > .switch:has(input:checked) .ph { color: var(--accent); }
-      .composer-declare > .switch:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+      :is(.composer-declare, #chat-panel-switches) > .switch:hover { border-color: var(--line); }
+      :is(.composer-declare, #chat-panel-switches) > .switch:has(input:checked) { background: var(--accent-soft); border-color: var(--accent); }
+      :is(.composer-declare, #chat-panel-switches) > .switch:has(input:checked) .ph { color: var(--accent); }
+      :is(.composer-declare, #chat-panel-switches) > .switch:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+      /* Checking, right under the top bar's right-hand control (user,
+         2026-09-15: "put the check feature in top right of the top, right under
+         'reading'"). It floats, so the bar keeps its height. */
+      #chat-panel-switches > #checking-switch { position: absolute; top: calc(100% + 6px); right: 6px; z-index: 4; }
+      #chat-panel-switches > #checking-switch:not(:has(input:checked)) { background: var(--panel); border-color: var(--line); }
+      #col-chat:has(#chat > .chat-empty:only-child) #chat-panel-switches { position: relative; inset: auto; }
+      @media (max-width: 900px) {
+        #col-chat > #chat-panel-switches > #checking-switch { right: 10px; }
+        #col-chat > #chat.scroll { padding-top: 50px; }
+      }
       /* THE GROUND PANEL, ALL OF IT (user, 2026-09-15: "no need for a more, but
          lets show it all here" / "lets just give an affordance to copy the
          json"). Every message each call sent, in full, under its call line;
@@ -4277,10 +4333,6 @@
       .fold-step { margin: 14px 0 0; }
       .fold-step-title { margin: 0; font-size: 12.5px; font-weight: 600; color: var(--ink); }
       .fold-step-note { margin: 1px 0 6px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
-      .fold-source { margin: 6px 0 0; }
-      .fold-source-head { margin: 0 0 2px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
-      .fold-source-name { font-family: var(--mono); font-size: 12px; color: var(--ink); overflow-wrap: anywhere; }
-      .fold-source-count { font-size: 11.5px; color: var(--muted); }
       .fold-passage {
         display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px;
         width: 100%; margin: 3px 0 0; padding: 2px 0 2px 10px;
@@ -4294,11 +4346,19 @@
       .fold-passage:hover .fold-passage-text { color: var(--accent); }
       .fold-passage-tag { font-size: 11px; font-weight: 600; color: #287; white-space: nowrap; }
       .fold-passage-tag.contra { color: var(--warn); }
-      .fold-show-all { margin: 6px 0 0; padding: 0; border: 0; background: none; font: inherit; font-size: 12px; color: var(--accent); cursor: pointer; }
-      .fold-show-all:hover { text-decoration: underline; }
-      .fold-call-head { margin: 10px 0 2px; font-family: var(--mono); font-size: 12px; color: var(--ink); cursor: help; }
       .fold-call { margin: 0 0 6px; padding-left: 10px; border-left: 1px solid var(--line); }
-      .fold-msg-same { margin: 0 0 4px; font-size: 11.5px; font-style: italic; color: var(--muted); }
+      /* A row of the About panel that opens its full content in the right panel. */
+      .fold-link {
+        display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px;
+        width: 100%; margin: 4px 0 0; padding: 2px 0;
+        border: 0; background: none; text-align: left; font: inherit; cursor: pointer;
+      }
+      .fold-link-label { font-size: 12.5px; color: var(--accent); }
+      .fold-link-label::after { content: " \203a"; }
+      .fold-link-meta { font-size: 11.5px; color: var(--muted); }
+      .fold-link:hover .fold-link-label { text-decoration: underline; text-underline-offset: 2px; }
+      #pane-detail .fold-msg { max-height: none; }
+      #pane-detail .fold-passage { margin-top: 8px; }
       .fold-claim-closest { color: var(--muted); }
       .fold-msg-role { margin: 6px 0 2px; font-size: 11px; font-weight: 600; color: var(--muted); }
       .fold-msg {
@@ -4465,6 +4525,12 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
                view rather than a column beside the conversation. It names the
                pane it opens, so it is a destination and not a mystery menu. -->
           <button type="button" id="panel-door" class="panel-door" title="Open the panel — Reading, Folds, Log and the rest"><span id="panel-door-label">Reading</span></button>
+          <label class="switch chat-panel-switch" id="checking-switch" title="Checking — read every answer against your material and look up what nothing backs. The findings list under &quot;thinking&quot;; they are not drawn over the answer. Off is a plain chatbot: the model answers and nothing is verified. Per conversation — each tab keeps its own.">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M225.86,102.82c-3.77-3.94-7.67-8-9.14-11.57-1.36-3.27-1.44-8.69-1.52-13.94-.15-9.76-.31-20.82-8-28.51s-18.75-7.85-28.51-8c-5.25-.08-10.67-.16-13.94-1.52-3.56-1.47-7.63-5.37-11.57-9.14C146.28,23.51,138.44,16,128,16s-18.27,7.51-25.18,14.14c-3.94,3.77-8,7.67-11.57,9.14C88,40.64,82.56,40.72,77.31,40.8c-9.76.15-20.82.31-28.51,8S41,67.55,40.8,77.31c-.08,5.25-.16,10.67-1.52,13.94-1.47,3.56-5.37,7.63-9.14,11.57C23.51,109.72,16,117.56,16,128s7.51,18.27,14.14,25.18c3.77,3.94,7.67,8,9.14,11.57,1.36,3.27,1.44,8.69,1.52,13.94.15,9.76.31,20.82,8,28.51s18.75,7.85,28.51,8c5.25.08,10.67.16,13.94,1.52,3.56,1.47,7.63,5.37,11.57,9.14C109.72,232.49,117.56,240,128,240s18.27-7.51,25.18-14.14c3.94-3.77,8-7.67,11.57-9.14,3.27-1.36,8.69-1.44,13.94-1.52,9.76-.15,20.82-.31,28.51-8s7.85-18.75,8-28.51c.08-5.25.16-10.67,1.52-13.94,1.47-3.56,5.37-7.63,9.14-11.57C232.49,146.28,240,138.44,240,128S232.49,109.73,225.86,102.82Zm-11.55,39.29c-4.79,5-9.75,10.17-12.38,16.52-2.52,6.1-2.63,13.07-2.73,19.82-.1,7-.21,14.33-3.32,17.43s-10.39,3.22-17.43,3.32c-6.75.1-13.72.21-19.82,2.73-6.35,2.63-11.52,7.59-16.52,12.38S132,224,128,224s-9.15-4.92-14.11-9.69-10.17-9.75-16.52-12.38c-6.1-2.52-13.07-2.63-19.82-2.73-7-.1-14.33-.21-17.43-3.32s-3.22-10.39-3.32-17.43c-.1-6.75-.21-13.72-2.73-19.82-2.63-6.35-7.59-11.52-12.38-16.52S32,132,32,128s4.92-9.15,9.69-14.11,9.75-10.17,12.38-16.52c2.52-6.1,2.63-13.07,2.73-19.82.1-7,.21-14.33,3.32-17.43S70.51,56.9,77.55,56.8c6.75-.1,13.72-.21,19.82-2.73,6.35-2.63,11.52-7.59,16.52-12.38S124,32,128,32s9.15,4.92,14.11,9.69,10.17,9.75,16.52,12.38c6.1,2.52,13.07,2.63,19.82,2.73,7,.1,14.33.21,17.43,3.32s3.22,10.39,3.32,17.43c.1,6.75.21,13.72,2.73,19.82,2.63,6.35,7.59,11.52,12.38,16.52S224,124,224,128,219.08,137.15,214.31,142.11ZM173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34Z"/></svg>
+          <span class="switch-label">checking</span>
+          <input type="checkbox" id="use-checking" checked />
+          <span class="track" aria-hidden="true"></span>
+          </label>
         </div>
         <!-- #chat is empty until a conversation starts, and an empty
              conversation column read as an unfinished app (user, 2026-09-15).
@@ -4566,18 +4632,10 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
             <span id="model-name">no model</span>
             <span class="caret" aria-hidden="true">⌄</span>
           </button>
-          <!-- Checking and web, moved here (user, 2026-09-15: "put checking /
-               web next to model name"). They belong with the model: all three
-               declare what the NEXT turn is asked with. `grounded` is still
-               PER_CONVO in app.js — syncGroundedUI resyncs these two by id
-               wherever they physically sit, so switching conversation tabs
-               still reads that conversation's own settings. -->
-          <label class="switch chat-panel-switch" id="checking-switch" title="Checking — read every answer against your material and look up what nothing backs. The findings list under &quot;thinking&quot;; they are not drawn over the answer. Off is a plain chatbot: the model answers and nothing is verified. Per conversation — each tab keeps its own.">
-          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M225.86,102.82c-3.77-3.94-7.67-8-9.14-11.57-1.36-3.27-1.44-8.69-1.52-13.94-.15-9.76-.31-20.82-8-28.51s-18.75-7.85-28.51-8c-5.25-.08-10.67-.16-13.94-1.52-3.56-1.47-7.63-5.37-11.57-9.14C146.28,23.51,138.44,16,128,16s-18.27,7.51-25.18,14.14c-3.94,3.77-8,7.67-11.57,9.14C88,40.64,82.56,40.72,77.31,40.8c-9.76.15-20.82.31-28.51,8S41,67.55,40.8,77.31c-.08,5.25-.16,10.67-1.52,13.94-1.47,3.56-5.37,7.63-9.14,11.57C23.51,109.72,16,117.56,16,128s7.51,18.27,14.14,25.18c3.77,3.94,7.67,8,9.14,11.57,1.36,3.27,1.44,8.69,1.52,13.94.15,9.76.31,20.82,8,28.51s18.75,7.85,28.51,8c5.25.08,10.67.16,13.94,1.52,3.56,1.47,7.63,5.37,11.57,9.14C109.72,232.49,117.56,240,128,240s18.27-7.51,25.18-14.14c3.94-3.77,8-7.67,11.57-9.14,3.27-1.36,8.69-1.44,13.94-1.52,9.76-.15,20.82-.31,28.51-8s7.85-18.75,8-28.51c.08-5.25.16-10.67,1.52-13.94,1.47-3.56,5.37-7.63,9.14-11.57C232.49,146.28,240,138.44,240,128S232.49,109.73,225.86,102.82Zm-11.55,39.29c-4.79,5-9.75,10.17-12.38,16.52-2.52,6.1-2.63,13.07-2.73,19.82-.1,7-.21,14.33-3.32,17.43s-10.39,3.22-17.43,3.32c-6.75.1-13.72.21-19.82,2.73-6.35,2.63-11.52,7.59-16.52,12.38S132,224,128,224s-9.15-4.92-14.11-9.69-10.17-9.75-16.52-12.38c-6.1-2.52-13.07-2.63-19.82-2.73-7-.1-14.33-.21-17.43-3.32s-3.22-10.39-3.32-17.43c-.1-6.75-.21-13.72-2.73-19.82-2.63-6.35-7.59-11.52-12.38-16.52S32,132,32,128s4.92-9.15,9.69-14.11,9.75-10.17,12.38-16.52c2.52-6.1,2.63-13.07,2.73-19.82.1-7,.21-14.33,3.32-17.43S70.51,56.9,77.55,56.8c6.75-.1,13.72-.21,19.82-2.73,6.35-2.63,11.52-7.59,16.52-12.38S124,32,128,32s9.15,4.92,14.11,9.69,10.17,9.75,16.52,12.38c6.1,2.52,13.07,2.63,19.82,2.73,7,.1,14.33.21,17.43,3.32s3.22,10.39,3.32,17.43c.1,6.75.21,13.72,2.73,19.82,2.63,6.35,7.59,11.52,12.38,16.52S224,124,224,128,219.08,137.15,214.31,142.11ZM173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34Z"/></svg>
-          <span class="switch-label">checking</span>
-          <input type="checkbox" id="use-checking" checked />
-          <span class="track" aria-hidden="true"></span>
-          </label>
+          <!-- Web, beside the model: it declares what the next turn may reach.
+               Checking lives under the Reading door at the top right (user,
+               2026-09-15). syncGroundedUI resyncs both by id per conversation,
+               wherever they sit. -->
           <label class="switch chat-panel-switch" id="web-switch" title="Whether claims your attachments don't back are looked up online. One recorded search per claim, then up to 3 page reads.">
           <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,24h0A104,104,0,1,0,232,128,104.12,104.12,0,0,0,128,24Zm88,104a87.61,87.61,0,0,1-3.33,24H174.16a157.44,157.44,0,0,0,0-48h38.51A87.61,87.61,0,0,1,216,128ZM102,168H154a115.11,115.11,0,0,1-26,45A115.27,115.27,0,0,1,102,168Zm-3.9-16a140.84,140.84,0,0,1,0-48h59.88a140.84,140.84,0,0,1,0,48ZM40,128a87.61,87.61,0,0,1,3.33-24H81.84a157.44,157.44,0,0,0,0,48H43.33A87.61,87.61,0,0,1,40,128ZM154,88H102a115.11,115.11,0,0,1,26-45A115.27,115.27,0,0,1,154,88Zm52.33,0H170.71a135.28,135.28,0,0,0-22.3-45.6A88.29,88.29,0,0,1,206.37,88ZM107.59,42.4A135.28,135.28,0,0,0,85.29,88H49.63A88.29,88.29,0,0,1,107.59,42.4ZM49.63,168H85.29a135.28,135.28,0,0,0,22.3,45.6A88.29,88.29,0,0,1,49.63,168Zm98.78,45.6a135.28,135.28,0,0,0,22.3-45.6h35.66A88.29,88.29,0,0,1,148.41,213.6Z"/></svg>
           <span class="switch-label">web</span>
@@ -4770,6 +4828,15 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
             </div>
             <div id="log-lines"></div>
             <div id="log-note" class="log-note"></div>
+          </div>
+
+          <!-- What a turn's About panel links to: a call's full prompt, the
+               passages retrieval handed over, each claim it checked. No tab of
+               its own — it opens from those links, like the editor. -->
+          <div class="pane" id="pane-detail" hidden>
+            <h2 id="detail-title">Detail</h2>
+            <p class="pane-sub" id="detail-sub" hidden></p>
+            <div id="detail-body"></div>
           </div>
 
           <div class="pane" id="pane-terminal" hidden>

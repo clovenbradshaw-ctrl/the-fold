@@ -3382,6 +3382,8 @@ function buildHelpIndex(body) {
   }
   const wrap = document.createElement("div");
   wrap.className = "help-index";
+  // One door column for the whole index, as wide as the longest door name.
+  wrap.style.setProperty("--help-door-width", `${Math.max(...HELP_DOOR_NAMES.map((d) => d.length))}ch`);
   const h = document.createElement("h4");
   h.className = "help-title";
   h.textContent = "The Fold — the doors";
@@ -16517,11 +16519,8 @@ function describeSentCall(call, modelName) {
   return `Sent ${n} message${n === 1 ? "" : "s"} to ${modelName}: ${said}.${excerpt ? ` — “${excerpt}”` : ""}`;
 }
 
-/** Every message one call sent, in full, under a plain label (user, 2026-09-15:
- * "no need for a more, but lets show it all here"). A message word-for-word
- * identical to one an earlier call already showed is pointed at, not repeated —
- * the instructions are the same few thousand characters on every call. */
-function callMessages(call, { seen = null, callNo = null } = {}) {
+/** Every message one call sent, in full, under a plain label. */
+function callMessages(call) {
   const wrap = document.createElement("div");
   wrap.className = "fold-call";
   const messages = call?.messages ?? [];
@@ -16532,25 +16531,15 @@ function callMessages(call, { seen = null, callNo = null } = {}) {
     role.textContent = m?.role === "system" ? "Instructions"
       : m?.role === "assistant" ? "Earlier — the model"
       : i === lastUser ? "Question" : "Earlier — you";
-    const content = String(m?.content ?? "");
-    const key = `${m?.role}\u0000${content}`;
-    if (seen?.has(key)) {
-      const same = document.createElement("p");
-      same.className = "fold-msg-same";
-      same.textContent = `same as call ${seen.get(key)} (${content.length.toLocaleString()} characters)`;
-      wrap.append(role, same);
-      return;
-    }
-    seen?.set(key, callNo);
     const pre = document.createElement("pre");
     pre.className = "fold-msg";
-    pre.textContent = content;
+    pre.textContent = String(m?.content ?? "");
     wrap.append(role, pre);
   });
   return wrap;
 }
 
-/** A titled step of the GROUND panel — the overview says what happened; each
+/** A titled step of the About panel — the overview says what happened; each
  * step says one part of how, in the order it happened. */
 function foldSection(title, note) {
   const sec = document.createElement("div");
@@ -16567,16 +16556,52 @@ function foldSection(title, note) {
   }
   return sec;
 }
+/** Opens what a turn's About panel links to in the right panel (user,
+ * 2026-09-15: "where things take up a lot of space, make them linked to
+ * content that would appear in the right panel if clicked"). */
+function openDetail(title, sub, body) {
+  $("detail-title").textContent = title;
+  const subLine = $("detail-sub");
+  subLine.textContent = sub ?? "";
+  subLine.hidden = !sub;
+  $("detail-body").replaceChildren(body);
+  if (panelCollapsed) setPanelCollapsed(false);
+  // Conversation full screen hides the panel; step the layout control round to the split.
+  const layout = $("hero-expand");
+  if (layout && document.body.classList.contains("full-chat")) { layout.click(); layout.click(); }
+  showView("detail");
+  $("pane-detail").closest(".scroll")?.scrollTo(0, 0);
+}
 
-/** What retrieval handed the model, at a glance (user, 2026-09-15: "one
- * thing that's not on there is the retrieval", then "this is quickly going to
- * be overwhelming"). One line per source; the passages a checked claim rests
- * on, as their own text; everything else behind Show all. A byte range means
- * nothing to a reader, so each passage's address rides its hover. */
-const RETRIEVAL_TOP = 3;
+/** One row of the About panel that opens its full content in the right panel. */
+function foldLink(label, meta, open, title = "") {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "fold-link";
+  const l = document.createElement("span");
+  l.className = "fold-link-label";
+  l.textContent = label;
+  b.append(l);
+  if (meta) {
+    const m = document.createElement("span");
+    m.className = "fold-link-meta";
+    m.textContent = meta;
+    b.append(m);
+  }
+  if (title) b.title = title;
+  b.onclick = open;
+  return b;
+}
+
+/** What retrieval handed the model (user, 2026-09-15: "one thing that's not on
+ * there is the retrieval"). One row per source in the About panel; its
+ * passages open in the right panel, the ones a checked claim rests on first. A
+ * byte range means nothing to a reader, so each passage's address rides its
+ * hover. */
 function foldRetrieval(record) {
   const refs = record?.retrieved ?? [];
   if (!refs.length) return null;
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
   const range = (ref) => { const m = /^(.*)#(\d+)-(\d+)$/.exec(String(ref ?? "")); return m ? { name: m[1], a: Number(m[2]), b: Number(m[3]) } : null; };
   const leans = [];
   for (const c of record.claims ?? []) {
@@ -16597,123 +16622,101 @@ function foldRetrieval(record) {
   const textOf = (ref) => {
     const ctx = refContext(state.sources, ref) ?? refContext(state.citedMaterial ?? {}, ref);
     const t = String(ctx?.cited ?? "").replace(/\s+/g, " ").trim();
-    return t ? (t.length > 160 ? `${t.slice(0, 159)}…` : t) : null;
+    return t || null;
   };
-  const items = refs.map((ref, rank) => ({ ref, rank, name: String(ref).split("#")[0], tag: tagOf(ref) }));
-  const backs = items.filter((it) => it.tag === "backs a claim").length;
-  const contra = items.filter((it) => it.tag === "contradicts a claim").length;
   const bySource = new Map();
-  for (const it of items) { if (!bySource.has(it.name)) bySource.set(it.name, []); bySource.get(it.name).push(it); }
-  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
-  const note = [`${plural(refs.length, "passage")} from ${plural(bySource.size, "source")}`, backs ? `${backs} back${backs === 1 ? "s" : ""} a claim` : null, contra ? `${contra} contradict${contra === 1 ? "s" : ""} one` : null].filter(Boolean).join(" · ");
-  const sec = foldSection("What it looked up", note);
-  const shownFirst = (it) => (backs || contra ? Boolean(it.tag) : it.rank < RETRIEVAL_TOP);
-  const rows = [];
+  refs.forEach((ref) => {
+    const name = String(ref).split("#")[0];
+    if (!bySource.has(name)) bySource.set(name, []);
+    bySource.get(name).push({ ref, tag: tagOf(ref) });
+  });
+  const sec = foldSection("What it looked up", `${plural(refs.length, "passage")} from ${plural(bySource.size, "source")}, handed to the model with the question`);
   for (const [name, list] of bySource) {
-    const src = document.createElement("div");
-    src.className = "fold-source";
-    const head = document.createElement("p");
-    head.className = "fold-source-head";
-    const nm = document.createElement("span");
-    nm.className = "fold-source-name";
-    nm.textContent = name === "web:search-results" ? "web search results" : name;
-    const ct = document.createElement("span");
-    ct.className = "fold-source-count";
-    ct.textContent = plural(list.length, "passage");
-    head.append(nm, ct);
-    src.append(head);
-    for (const it of list) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = `fold-passage${it.tag ? " used" : ""}`;
-      const text = textOf(it.ref);
-      const t = document.createElement("span");
-      t.className = "fold-passage-text";
-      t.textContent = text ? `“${text}”` : "this passage's text isn't kept past its turn";
-      b.append(t);
-      if (it.tag) {
-        const tg = document.createElement("span");
-        tg.className = `fold-passage-tag${it.tag === "contradicts a claim" ? " contra" : ""}`;
-        tg.textContent = it.tag;
-        b.append(tg);
+    const shown = name === "web:search-results" ? "web search results" : name;
+    const backs = list.filter((it) => it.tag === "backs a claim").length;
+    const contra = list.filter((it) => it.tag === "contradicts a claim").length;
+    const meta = [plural(list.length, "passage"), backs ? `${backs} back${backs === 1 ? "s" : ""} a claim` : null, contra ? `${contra} contradict${contra === 1 ? "s" : ""} one` : null].filter(Boolean).join(" · ");
+    sec.append(foldLink(shown, meta, () => {
+      const body = document.createElement("div");
+      for (const it of [...list.filter((x) => x.tag), ...list.filter((x) => !x.tag)]) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = `fold-passage${it.tag ? " used" : ""}`;
+        const text = textOf(it.ref);
+        const t = document.createElement("span");
+        t.className = "fold-passage-text";
+        t.textContent = text ? `“${text}”` : "this passage's text isn't kept past its turn";
+        b.append(t);
+        if (it.tag) {
+          const tg = document.createElement("span");
+          tg.className = `fold-passage-tag${it.tag === "contradicts a claim" ? " contra" : ""}`;
+          tg.textContent = it.tag;
+          b.append(tg);
+        }
+        b.title = `${it.ref} — read these bytes`;
+        b.onclick = () => reopen(it.ref);
+        body.append(b);
       }
-      b.title = `${it.ref} — read these bytes`;
-      b.onclick = () => reopen(it.ref);
-      b.hidden = !shownFirst(it);
-      src.append(b);
-      rows.push(b);
-    }
-    sec.append(src);
-  }
-  const initial = rows.map((b) => b.hidden);
-  if (initial.some(Boolean)) {
-    const all = document.createElement("button");
-    all.type = "button";
-    all.className = "fold-show-all";
-    const closedLabel = `Show all ${plural(refs.length, "passage")}`;
-    all.textContent = closedLabel;
-    let open = false;
-    all.onclick = () => {
-      open = !open;
-      rows.forEach((b, i) => { b.hidden = open ? false : initial[i]; });
-      all.textContent = open ? "Show fewer" : closedLabel;
-    };
-    sec.append(all);
+      openDetail(shown, `${meta} — handed to the model with the question`, body);
+    }));
   }
   return sec;
 }
 
 const CLAIM_VERDICT_WORD = { bound: "backed", contradicted: "contradicted" };
-/** What the check found, trimmed to what a reader can act on (user, 2026-09-15:
- * "figure out the visual hierarchy and what the user doesnt actually need to
- * know"): backed and contradicted claims with their addresses, and the
- * answer's own sentences that nothing backs. Claims the reading could not
- * settle are counted in the overview, not listed — they are mostly the
- * extractor's own fragments; the full list stays in Copy JSON. */
+/** What the check found. The About panel carries the counts; each claim, with
+ * the address that backs it, opens in the right panel. */
 function recordClaimsList(record) {
   const all = record?.claims ?? [];
-  const claims = all.filter((c) => c.verdict === "bound" || c.verdict === "contradicted");
+  const settled = all.filter((c) => c.verdict === "bound" || c.verdict === "contradicted");
+  const unsettled = all.filter((c) => c.verdict !== "bound" && c.verdict !== "contradicted");
   const unsupported = [...new Set(record?.unsupported ?? [])];
   const unbacked = [...new Set(record?.unbacked ?? [])];
-  if (!claims.length && !unsupported.length && !unbacked.length) return null;
-  const bound = claims.filter((c) => c.verdict === "bound").length;
-  const contradicted = claims.length - bound;
-  const unsettled = all.length - claims.length;
-  const note = [bound ? `${bound} backed` : null, contradicted ? `${contradicted} contradicted` : null, unsettled ? `${unsettled} couldn't be settled` : null, unbacked.length ? `${unbacked.length} with nothing to check against` : null].filter(Boolean).join(" · ");
-  const sec = foldSection("What it checked", note);
-  const line = (verdict, text, where, closest = null) => {
-    const p = document.createElement("p");
-    p.className = `fold-claim fold-claim-${verdict}`;
-    const v = document.createElement("span");
-    v.className = "fold-claim-verdict";
-    v.textContent = verdict === "unbacked" ? "nothing to check" : verdict === "unsupported" ? "not in the material" : (CLAIM_VERDICT_WORD[verdict] ?? verdict);
-    const t = document.createElement("span");
-    t.className = "fold-claim-text";
-    t.textContent = text;
-    if (closest) {
-      const c = document.createElement("span");
-      c.className = "fold-claim-closest";
-      c.textContent = ` — closest it does say: ${closest}`;
-      t.append(c);
+  if (!all.length && !unsupported.length && !unbacked.length) return null;
+  const bound = settled.filter((c) => c.verdict === "bound").length;
+  const contradicted = settled.length - bound;
+  const counts = [bound ? `${bound} backed` : null, contradicted ? `${contradicted} contradicted` : null, unsupported.length ? `${unsupported.length} not in the material` : null, unbacked.length ? `${unbacked.length} with nothing to check against` : null, unsettled.length ? `${unsettled.length} couldn't be settled` : null].filter(Boolean).join(" · ");
+  const triple = (c) => `${c.end1 ?? "?"} —${c.polarity === "-" ? "not " : ""}${c.label ?? "?"}→ ${c.end2 ?? "?"}`;
+  const sec = foldSection("What it checked");
+  sec.append(foldLink(counts, null, () => {
+    const body = document.createElement("div");
+    body.className = "fold-claims";
+    const line = (verdict, text, where, closest = null) => {
+      const p = document.createElement("p");
+      p.className = `fold-claim fold-claim-${verdict}`;
+      const v = document.createElement("span");
+      v.className = "fold-claim-verdict";
+      v.textContent = verdict === "unbacked" ? "nothing to check" : verdict === "unsupported" ? "not in the material" : verdict === "unsettled" ? "couldn't settle" : (CLAIM_VERDICT_WORD[verdict] ?? verdict);
+      const t = document.createElement("span");
+      t.className = "fold-claim-text";
+      t.textContent = text;
+      if (closest) {
+        const c = document.createElement("span");
+        c.className = "fold-claim-closest";
+        c.textContent = ` — closest it does say: ${closest}`;
+        t.append(c);
+      }
+      p.append(v, t);
+      if (where) {
+        const a = document.createElement("button");
+        a.type = "button";
+        a.className = "ref attached";
+        a.textContent = chipText(where);
+        a.title = `${where} — read the bytes`;
+        a.onclick = () => reopen(where);
+        p.append(a);
+      }
+      body.append(p);
+    };
+    for (const c of settled) line(c.verdict, triple(c), c.refs?.[0] ?? null);
+    for (const u of unsupported) line("unsupported", u, null);
+    for (const u of unbacked) {
+      const m = /^the material never says:\s*([\s\S]*?)(?:\s*\(closest it does say:\s*([\s\S]*)\))?$/.exec(u);
+      line("unbacked", m ? m[1] : u, null, m?.[2] ?? null);
     }
-    p.append(v, t);
-    if (where) {
-      const a = document.createElement("button");
-      a.type = "button";
-      a.className = "ref attached";
-      a.textContent = chipText(where);
-      a.title = `${where} — read the bytes`;
-      a.onclick = () => reopen(where);
-      p.append(a);
-    }
-    sec.append(p);
-  };
-  for (const c of claims) line(c.verdict, `${c.end1 ?? "?"} —${c.polarity === "-" ? "not " : ""}${c.label ?? "?"}→ ${c.end2 ?? "?"}`, c.refs?.[0] ?? null);
-  for (const u of unsupported) line("unsupported", u, null);
-  for (const u of unbacked) {
-    const m = /^the material never says:\s*([\s\S]*?)(?:\s*\(closest it does say:\s*([\s\S]*)\))?$/.exec(u);
-    line("unbacked", m ? m[1] : u, null, m?.[2] ?? null);
-  }
+    for (const c of unsettled) line("unsettled", triple(c), null);
+    openDetail("What it checked", counts, body);
+  }));
   return sec;
 }
 
@@ -16737,21 +16740,18 @@ const EOT_PHASE = new Map([
 
 /**
  * "What the model was asked" — every call this turn made, in the order it was
- * sent, each under one heading (its phase, with the EOT glyph where the phase
- * IS a registered capacity — EOT_PHASE above) and its messages in full beneath
- * (user, 2026-09-15: "make it more clear what the model got prompted"). The
- * one-sentence description of a call rides the heading's hover.
+ * sent. Each row opens that call's messages, in full, in the right panel; the
+ * EOT glyph marks a phase that IS a registered capacity (EOT_PHASE above).
  */
 function callTreeFor(sent, modelName) {
   const sec = foldSection("What the model was asked", `${sent.length} call${sent.length === 1 ? "" : "s"} to ${modelName}`);
-  const seen = new Map();
   sent.forEach((call, i) => {
-    const head = document.createElement("p");
-    head.className = "fold-call-head";
     const eot = call.phase ? EOT_PHASE.get(call.phase) : null;
-    head.textContent = `${i + 1}. ${call.phase ?? "a call"}${eot ? `  ${OP_GLYPHS[eot.op] ?? eot.op}` : ""}`;
-    head.title = [describeSentCall(call, modelName), eot ? `${eot.cell} — ${eot.what}` : null].filter(Boolean).join("\n");
-    sec.append(head, callMessages(call, { seen, callNo: i + 1 }));
+    const messages = call?.messages ?? [];
+    const chars = messages.reduce((n, m) => n + String(m?.content ?? "").length, 0);
+    const label = `${i + 1}. ${call.phase ?? "a call"}${eot ? `  ${OP_GLYPHS[eot.op] ?? eot.op}` : ""}`;
+    const meta = `${messages.length} message${messages.length === 1 ? "" : "s"} · ${chars.toLocaleString()} characters`;
+    sec.append(foldLink(label, meta, () => openDetail(`Call ${i + 1} — ${call.phase ?? "a call"}`, describeSentCall(call, modelName), callMessages(call)), eot ? `${eot.cell} — ${eot.what}` : ""));
   });
   return sec;
 }

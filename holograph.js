@@ -225,7 +225,7 @@ export function expandReferent(model, name) {
 
 /** A row of the holograph: what it is (`kind`), its words (`title`, `meta`, `line`), the address it can re-expand to (`at`), and its parts (`drill`, lazily). */
 // A row carries, beside what it shows, the FIELDS a query may select on
-// (`data`, read by eoql.js — kind, state, turn, counts) and the keys of the
+// (`data` — kind, state, turn, counts) and the keys of the
 // rows it is tied to (`links`, read by the graph). Neither is shown.
 const row = (o) => Object.freeze({ kind: "row", meta: null, line: null, at: null, state: null, drill: null, data: null, links: null, ...o });
 /** Every row of a rung with its drill opened to `depth`, flat, each row knowing its depth and parent. */

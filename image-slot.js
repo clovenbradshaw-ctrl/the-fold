@@ -105,8 +105,6 @@
   // Keep the utm_source value in sync with UTM_SOURCE in
   // platform/web-agent/unsplash.ts — this file is a project-local
   // artifact and cannot import it (equality is pinned by tests).
-  const UNSPLASH_HOMEPAGE_HREF =
-    'https://unsplash.com/?utm_source=claude_design&utm_medium=referral';
   // Host rule mirrors the hotlink validator that admits Unsplash srcs into
   // pages in the first place (cdn$ in unsplash.ts: apex or any subdomain)
   // — Unsplash+ results serve from plus.unsplash.com, not just images.*,
@@ -1208,7 +1206,9 @@
             href ? mkLink(m[1], href) : document.createTextNode(m[1])
           );
           this._credit.appendChild(document.createTextNode(' on '));
-          this._credit.appendChild(mkLink('Unsplash', UNSPLASH_HOMEPAGE_HREF));
+          // Plain text, not a link: this app loads nothing from a non-local
+          // host (constitution II.13), so the homepage link is not offered.
+          this._credit.appendChild(document.createTextNode('Unsplash'));
         } else if (href) {
           this._credit.appendChild(mkLink(credit, href));
         } else {

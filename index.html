@@ -897,267 +897,11 @@
       .view-toggle { margin-left: 10px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: none; border: 0; padding: 0; cursor: pointer; font-family: var(--mono); }
       .view-toggle:hover { color: var(--accent); }
       .msg:not(:has(.loops:not([hidden]))) .view-toggle { display: none; }
-      /* THE HOLOGRAPH PANE (holograph.js): rows at a rung, drilled open into
-         their parts. Two axes: the rung ladder VERTICAL beside the rows
-         (bottom to top), the cursor HORIZONTAL beneath (time). Same accent
-         grammar as the cards: open is the accent, refused the warning. */
-      .holograph-body { display: flex; gap: 12px; align-items: flex-start; margin: 6px 0 4px; }
-      .holograph-side { display: flex; flex-direction: column; gap: 8px; flex: none; position: sticky; top: 0; }
-      .holograph-levels, .holograph-mode { display: flex; flex-direction: column; gap: 2px; background: var(--accent-soft); border-radius: 6px; padding: 3px; }
       /* EOT — the notation reads in the mono face, the way every act line on this page already does. */
-      .view-eot .hg-title, .view-eot .hg-meta, .view-eot .loop-eot, .view-eot .loop-step, .view-eot .loops-fold > summary { font-family: var(--mono); }
+      .view-eot .loop-eot, .view-eot .loop-step, .view-eot .loops-fold > summary { font-family: var(--mono); }
       .loop-eot { color: var(--ink); font-size: 12.5px; letter-spacing: 0.01em; }
       .loop.closed .loop-eot, .loop.waived .loop-eot { color: var(--muted); }
       .loop.refused .loop-eot { color: var(--warn); }
-      .view-eot .hg-row { margin-bottom: 2px; }
-      .view-eot .hg-line { display: none; }
-      /* The rung ladder is a ladder, not a menu: the terrain's own name, small
-         (user, 2026-09-08: "smaller vertical tabs"). Its plain reading is on
-         the hover, where an explanation nobody needs twice belongs. */
-      .holograph-levels .seg { text-align: left; padding: 3px 8px; font-size: 11px; line-height: 1.5; letter-spacing: 0.01em; }
-      /* The query bar — the notation in the mono face, the result count beside it. */
-      .holograph-query { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
-      .holograph-query input { flex: 1; min-width: 160px; font-family: var(--mono); font-size: 12.5px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
-      .holograph-query input:focus { outline: none; border-color: var(--accent); }
-      .holograph-query-note { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
-      /* THE GRAPH (holograph-graph.js): the WORD IS THE MARK — a node is a pill
-         carrying its own text, on its own line, indented by what it is part of;
-         ties are arcs. The same visual grammar explore.js's Network surface has
-         carried since 2026-08-16 (.gnode there), not a second costume for it. */
-      .hg-graph-wrap { width: 100%; overflow: hidden; }
-      .hg-graph { width: 100%; height: auto; display: block; touch-action: none; }
-      .hg-graph .hg-edge { stroke: var(--line); stroke-width: 1.1; fill: none; }
-      .hg-graph .hg-edge-part { stroke-dasharray: 2 3; }
-      .hg-graph .hg-edge-label { font-size: 9.5px; fill: var(--muted); }
-      .hg-graph .hg-pill { fill: var(--panel); stroke: var(--line); stroke-width: 1.2; }
-      .hg-graph .hg-node.hg-state-open .hg-pill, .hg-graph .hg-node.hg-gap .hg-pill, .hg-graph .hg-node.hg-whole .hg-pill { stroke: var(--accent); }
-      .hg-graph .hg-node.hg-state-refused .hg-pill { stroke: var(--warn); }
-      .hg-graph .hg-node.hg-state-contested .hg-pill { stroke: var(--think); }
-      .hg-graph .hg-node.hg-state-closed .hg-pill, .hg-graph .hg-node.hg-state-waived .hg-pill { stroke: var(--muted); opacity: 0.8; }
-      .hg-graph .hg-node.drillable { cursor: pointer; }
-      .hg-graph .hg-node:hover .hg-pill, .hg-graph .hg-node:focus .hg-pill { stroke: var(--accent); stroke-width: 2; outline: none; }
-      .hg-graph .hg-ring { stroke: var(--accent); stroke-width: 1; opacity: 0.55; }
-      /* A query's hits are lit and the rest dimmed — explore.js's own .lit/.far. */
-      .hg-graph .hg-node.lit .hg-pill { stroke: var(--accent); stroke-width: 2; fill: var(--accent-soft); }
-      .hg-graph .hg-node.far { opacity: 0.24; }
-      /* A HALO, so an arc passing behind a word never cuts it: the stroke is
-         the pane's own ground and `paint-order: stroke` puts the fill last,
-         which keeps the letter shapes true. The cartographers' technique. */
-      .hg-graph text { paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
-      .hg-graph .hg-label { fill: var(--ink); }
-      .hg-graph .hg-sub { font-size: 9.5px; fill: var(--muted); }
-      .view-eot .hg-graph .hg-label, .view-eot .hg-graph .hg-sub, .view-eot .hg-graph .hg-edge-label { font-family: var(--mono); }
-      .holograph-host { flex: 1; min-width: 0; }
-      .holograph-cursor { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; font-size: 11.5px; color: var(--muted); }
-      .holograph-cursor input[type="range"] { flex: 1; min-width: 120px; accent-color: var(--accent); }
-      .holograph-cursor-label { white-space: nowrap; font-family: var(--mono); font-size: 11px; }
-      .hg-rows { list-style: none; margin: 0; padding: 0; }
-      .hg-rows.depth-1, .hg-rows.depth-2, .hg-rows.depth-3, .hg-rows.depth-4 { margin: 2px 0 4px 14px; border-left: 2px solid var(--line); padding-left: 10px; }
-      .hg-row { margin: 0 0 4px; font-size: 13px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
-      .hg-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font: inherit; background: none; border: 0; padding: 0; text-align: left; color: inherit; width: 100%; }
-      button.hg-head { cursor: pointer; }
-      button.hg-head::before { content: "▸"; font-size: 9px; color: var(--muted); flex: none; transition: transform 0.15s; }
-      .hg-row.open > button.hg-head::before { transform: rotate(90deg); }
-      button.hg-head:hover .hg-title { color: var(--accent); }
-      .hg-title { color: var(--ink); }
-      .hg-row.hg-span .hg-title, .hg-row.hg-step .hg-title { color: var(--muted); font-size: 12.5px; }
-      .hg-meta { font-size: 11.5px; color: var(--muted); }
-      .hg-line { margin: 1px 0 0 16px; font-size: 12.5px; color: var(--muted); }
-      .hg-row.hg-state-open > .hg-head .hg-meta, .hg-row.hg-gap > .hg-head .hg-meta { color: var(--accent); }
-      .hg-row.hg-state-refused > .hg-head .hg-meta { color: var(--warn); }
-      .hg-row.hg-state-contested > .hg-head .hg-meta { color: var(--think); }
-      .hg-row.hg-place .ref.attached { margin-left: 16px; }
-      .hg-row.hg-empty { font-style: italic; }
-      .holograph .hg-mark.hg-ref rect { fill: var(--panel); stroke: var(--accent); stroke-width: 1; }
-      .holograph-cursor input[type="range"] { flex: 1; min-width: 120px; accent-color: var(--accent); }
-      .holograph-cursor-label { white-space: nowrap; font-family: var(--mono); font-size: 11px; }
-      .holograph .hg-sub { fill: var(--muted); font-size: 9.5px; }
-      .holograph .hg-node circle.hg-turn-node { fill: var(--panel); stroke: var(--accent); stroke-width: 1.5; }
-      .holograph-host { flex: 1; min-width: 0; }
-      .holograph-host svg { width: 100%; height: auto; display: block; }
-      .holograph .hg-edge { stroke: var(--line); }
-      .holograph .hg-whole circle { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
-      .holograph .hg-node circle.hg-asked { fill: var(--panel); stroke: var(--accent); stroke-width: 1.5; }
-      .holograph .hg-node circle.hg-said { fill: var(--panel); stroke: var(--muted); stroke-width: 1.2; }
-      .holograph .hg-node { cursor: pointer; }
-      .holograph .hg-node:hover circle, .holograph .hg-node:focus circle { stroke-width: 2.5; outline: none; }
-      .holograph .hg-label { font-size: 11px; fill: var(--ink); font-family: inherit; }
-      .holograph .hg-whole-label, .holograph .hg-omitted { fill: var(--muted); font-size: 10px; }
-      .holograph .hg-mark circle { fill: var(--muted); stroke: none; }
-      .holograph .hg-mark.hg-open circle { fill: var(--accent); }
-      .holograph .hg-mark.hg-refused circle { fill: var(--warn); }
-      .holograph .hg-mark.hg-contested circle { fill: var(--think); }
-      .holograph .hg-mark.hg-closed circle { fill: var(--muted); opacity: 0.7; }
-      .holograph .hg-mark circle.hg-ring { fill: none; stroke: currentColor; stroke-width: 0.9; opacity: 0.8; }
-      .holograph .hg-mark.hg-open { color: var(--accent); }
-      .holograph .hg-mark.hg-closed { color: var(--muted); }
-      .holograph .hg-mark.hg-refused { color: var(--warn); }
-      .holograph .hg-mark.hg-void { fill: none; stroke: var(--muted); stroke-dasharray: 2 2; stroke-width: 1.2; }
-      .holograph-detail { margin-top: 10px; font-size: 13px; line-height: 1.55; max-width: 66ch; }
-      .holograph-detail h3 { font-size: 14px; margin: 0 0 4px; }
-      .holograph-detail .hg-line { margin: 0 0 4px; color: var(--muted); }
-      .holograph-detail .hg-loops { margin: 2px 0 6px; padding-left: 18px; }
-      .holograph-detail .hg-loops li { margin: 0 0 3px; color: var(--muted); }
-      .holograph-detail .hg-loops li.hg-open { color: var(--ink); }
-      .holograph-detail .hg-loops li.hg-refused { color: var(--warn); }
-      .holograph-detail .hg-turn { margin: 6px 0; padding: 4px 10px; border-left: 2px solid var(--line); white-space: pre-wrap; color: var(--muted); font-size: 12.5px; }
-      /* THE WIRING PANE (model-loops.js): the last chat turn's real prompt
-         ingredients as nodes on the SAME graph engine holograph-graph.js
-         already draws — off/overridden are new states on the identical
-         hg-state-* hook draw() already emits, nothing added there. */
-      /* The loop switcher is a trigger button + popover (a searchable
-         select, not a permanently-visible grid) — at a handful of saved
-         loops a flat row of chips read fine, but a reader with dozens
-         asked for exactly this shape instead: closed, it's one line
-         naming the active loop; opened, a search box narrows a scrollable
-         list. New/Download/Upload stay a separate, always-visible cluster
-         so they never depend on the popover being open. */
-      .wiring-toolbar { display: flex; align-items: center; gap: 8px; margin: 6px 0 6px; }
-      .wiring-combo { position: relative; flex: 1; min-width: 0; max-width: 260px; }
-      .wiring-combo-trigger {
-        display: flex; align-items: center; gap: 6px; width: 100%; box-sizing: border-box;
-        font: inherit; font-size: 12.5px; padding: 4px 10px; border: 1px solid var(--line);
-        border-radius: 6px; background: var(--panel); color: var(--ink); cursor: pointer;
-      }
-      .wiring-combo-trigger:hover, .wiring-combo-trigger[aria-expanded="true"] { border-color: var(--accent); }
-      #wiring-combo-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
-      .wiring-combo-caret { color: var(--muted); font-size: 10px; }
-      .wiring-loop-panel {
-        position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; width: 260px;
-        background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); padding: 6px;
-      }
-      .wiring-loop-panel[hidden] { display: none; }
-      .wiring-loop-panel input { width: 100%; box-sizing: border-box; font-size: 12.5px; padding: 5px 8px; margin-bottom: 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
-      .wiring-loop-panel input:focus { outline: none; border-color: var(--accent); }
-      /* Bounded and scrollable, not endlessly tall: a handful of loops
-         never scrolls (the list simply falls short of max-height); dozens
-         get a fixed, predictable popover instead of one that keeps growing. */
-      .wiring-loops { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow-y: auto; }
-      .wiring-loops:empty { display: none; }
-      .wiring-loop-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 12.5px; }
-      /* [hidden] and this file's own `display: flex` are equal specificity
-         — the author rule wins the cascade either way, so a filtered-out
-         row stayed visually flexed despite `hidden`. Paired explicitly,
-         the same fix this file's .wiring-enable/#wiring-override-field
-         rule above already uses for the identical trap. */
-      .wiring-loop-row[hidden] { display: none; }
-      .wiring-loop-row:hover { background: var(--accent-soft); }
-      .wiring-loop-row[aria-selected="true"] { background: var(--accent); color: var(--panel); font-weight: 600; }
-      .wiring-loop-row[data-pinned] { font-weight: 600; }
-      .wiring-loop-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .wiring-loop-del { flex: none; font-size: 10.5px; padding: 1px 5px; color: var(--muted); background: none; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; }
-      .wiring-loop-del:hover { color: var(--warn); border-color: var(--warn); }
-      .wiring-loop-row[aria-selected="true"] .wiring-loop-del { color: var(--panel); border-color: var(--panel); }
-      .wiring-loop-empty { font-size: 12px; color: var(--muted); padding: 5px 8px; }
-      .wiring-loop-count { font-size: 11px; color: var(--muted); white-space: nowrap; }
-      .wiring-toolbar-actions { display: flex; gap: 4px; margin-left: auto; }
-      .wiring-name-row { display: flex; gap: 6px; margin: 0 0 10px; }
-      .wiring-name-row[hidden] { display: none; }
-      .wiring-name-row input { flex: 1; min-width: 140px; font-size: 12.5px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
-      .wiring-name-row input:focus { outline: none; border-color: var(--accent); }
-      .wiring-name-row button { font-size: 12px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: none; color: var(--ink); cursor: pointer; }
-      .wiring-name-row #wiring-name-save { border-color: var(--accent); color: var(--accent); }
-      .wiring-status { color: var(--warn); font-size: 12px; margin: 0 0 8px; }
-      .wiring-sample-line { margin: 0 0 8px; font-size: 12px; }
-      .wiring-sample-line .linkish { background: none; border: 0; color: var(--accent); cursor: pointer; font: inherit; font-size: 12px; padding: 0; }
-      .wiring-sample-line .linkish:hover { text-decoration: underline; }
-      .wiring-sample-note { color: var(--muted); margin-left: 4px; }
-      .seg.new { color: var(--accent); }
-      .seg.icon { padding: 3px 8px; font-size: 13px; line-height: 1; }
-      label.seg.icon { display: inline-flex; align-items: center; cursor: pointer; }
-      .wiring-body { display: flex; gap: 12px; align-items: flex-start; }
-      .wiring-host { flex: 1; min-width: 0; }
-      .wiring-empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
-      /* The canvas itself: sideways columns on desktop (n8n's own flow —
-         stage → ingredients → assembled message → sent, left to right),
-         one flattened vertical chain of cards on a phone (Zapier's own
-         shape — a node graph with parallel siblings has no good reading
-         order at 375px, so mobile linearizes it: pipeline stages, then
-         ingredients, then the assembled/user/sent nodes, top to bottom).
-         One DOM order does both — only flex-direction and the connector
-         glyph's position change under the media query below. */
-      .wiring-flow { display: flex; flex-direction: row; gap: 26px; align-items: flex-start; overflow-x: auto; padding: 4px 2px 18px; }
-      .wiring-col { display: flex; flex-direction: column; gap: 20px; min-width: 148px; position: relative; flex: none; }
-      /* Every adjacent pair gets its own connector, not just the four
-         column groups — a card with a sibling below it in its own column
-         is still "next" in the flow, and a graph with parallel siblings
-         and no visible edge reads as broken cards, not as a diagram
-         (caught live: "no arrows between them"). Within a column the
-         arrow always points down (cards always stack vertically, desktop
-         or mobile); between columns it points with the flow direction —
-         right on desktop, down on mobile, the one thing the media query
-         below still changes. */
-      .wiring-card:not(:last-child)::after {
-        content: "↓"; position: absolute; left: 50%; bottom: -19px; transform: translateX(-50%);
-        color: var(--muted); font-size: 13px; line-height: 1;
-      }
-      /* top: 28px (not 50%) — a column's ::after sits relative to its OWN
-         height, and the two columns are wildly uneven (9 pipeline cards
-         vs. 1 ingredient card), so a center-relative arrow floated in
-         empty space next to a short right column. Anchored near the
-         first card instead, which is where the reader's eye actually
-         crosses from one column to the next. */
-      .wiring-col:not(:last-child)::after {
-        content: "→"; position: absolute; top: 28px; right: -20px;
-        color: var(--muted); font-size: 14px; line-height: 1;
-      }
-      .wiring-card {
-        position: relative; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
-        background: var(--panel); text-align: left; font: inherit; color: var(--ink);
-      }
-      .wiring-card:hover { border-color: var(--accent); }
-      .wiring-card[data-drill="false"]:hover { border-color: var(--line); }
-      /* The card's outer box is a plain div, never a <button> — a <button>
-         may not legally contain the drawer's own <select>/<textarea>/
-         <button> once it expands in place (below), so the click target is
-         this INNER button, restyled (all:unset) to look identical to the
-         old whole-card button. */
-      .wiring-card-head { all: unset; display: block; width: 100%; cursor: pointer; text-align: left; font: inherit; color: inherit; }
-      .wiring-card[data-drill="false"] .wiring-card-head { cursor: default; }
-      .wiring-card.expanded { border-color: var(--accent); background: var(--accent-soft); }
-      .wiring-card.expanded .wiring-card-head { cursor: default; }
-      .wiring-card-title { font-size: 12px; font-weight: 600; }
-      .wiring-card-meta { font-size: 11px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
-      .wiring-card-hint { font-size: 10.5px; color: var(--muted); margin-top: 4px; line-height: 1.35; opacity: 0.85; }
-      .wiring-card[data-state="off"] { opacity: 0.5; }
-      .wiring-card[data-state="overridden"] { border-color: var(--accent); background: var(--accent-soft); }
-      @media (max-width: 767px) {
-        .wiring-flow { flex-direction: column; overflow-x: visible; gap: 20px; }
-        .wiring-col { min-width: 0; gap: 20px; }
-        .wiring-col:not(:last-child)::after { top: auto; right: auto; left: 50%; bottom: -19px; transform: translateX(-50%); }
-        .wiring-toolbar { flex-wrap: wrap; }
-        .wiring-combo { flex-basis: 100%; max-width: none; }
-        .wiring-loop-panel { width: 100%; }
-      }
-      .hg-graph .hg-node.hg-ingredient .hg-pill { cursor: pointer; }
-      .hg-graph .hg-node.hg-state-off .hg-pill { stroke: var(--muted); stroke-dasharray: 3 3; opacity: 0.55; }
-      .hg-graph .hg-node.hg-state-off .hg-label { fill: var(--muted); text-decoration: line-through; }
-      .hg-graph .hg-node.hg-state-overridden .hg-pill { stroke: var(--accent); stroke-width: 1.8; fill: var(--accent-soft); }
-      .hg-graph .hg-node.hg-sent .hg-pill { stroke: var(--ink); stroke-width: 1.6; }
-      .hg-graph .hg-node.hg-fixed .hg-pill { stroke-dasharray: 1 3; opacity: 0.75; }
-      /* No longer a side/bottom panel — openWiringDrawer moves this INTO
-         whichever card is expanded (a sibling of .wiring-card-head, never
-         inside it), so it only ever needs to fill that card's own width. */
-      .wiring-drawer { width: 100%; box-sizing: border-box; margin-top: 8px; border-top: 1px solid var(--line); padding-top: 8px; font-size: 12.5px; cursor: default; }
-      .wiring-drawer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-      .wiring-drawer-head button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; }
-      .wiring-enable { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; color: var(--ink); }
-      /* [hidden] and an author display rule of equal specificity are
-         decided by source order, and author beats the UA default either
-         way — the same trap P176's own loop-cards note already names for
-         this exact file. Paired explicitly, as that note's fix does. */
-      .wiring-enable[hidden], #wiring-override-field[hidden] { display: none; }
-      .wiring-label { margin: 8px 0 4px; color: var(--muted); font-size: 11.5px; }
-      .wiring-drawer-hint { margin: 0 0 8px; color: var(--ink); font-size: 12.5px; }
-      .wiring-label-sub { font-size: 10.5px; opacity: 0.8; }
-      .wiring-label-sub code { font-family: var(--mono); background: var(--accent-soft); border-radius: 3px; padding: 0 3px; }
-      .wiring-computed { max-height: 120px; overflow: auto; white-space: pre-wrap; font-size: 11.5px; color: var(--muted); background: var(--accent-soft); border-radius: 6px; padding: 6px 8px; margin: 0; }
-      .wiring-drawer textarea { width: 100%; min-height: 90px; font-family: var(--mono); font-size: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); padding: 6px 8px; resize: vertical; }
-      .wiring-drawer-actions { margin-top: 8px; text-align: right; }
-      .wiring-preview { margin-top: 12px; font-size: 12.5px; }
-      .wiring-preview summary { cursor: pointer; color: var(--muted); }
-      .wiring-preview pre { white-space: pre-wrap; font-size: 11.5px; color: var(--muted); margin: 8px 0 0; }
       /* Inside the disclosure the panel's own rail is already there, so a
          second one doubles up — the same reset `details.fold details.fold >
          div` already makes for nested panels. */
@@ -2167,8 +1911,7 @@
       .facts-table-cite { display: flex; flex-direction: column; gap: 4px; }
       /* The EOT cell — subject —verb→ object, the same shape explore.js's
          own linkNode()/linkText() already draw a graph edge with. Subject
-         and object are each their OWN pivotToHolograph button — a reader
-         may care about either end of the claim, not only the first. */
+         and object read as plain text. */
       .facts-table-eot { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px; font-family: var(--mono); font-size: 11.5px; line-height: 1.4; }
       .facts-table-eot-end {
         font: inherit;
@@ -3270,8 +3013,6 @@
          second piece of JS state is needed to know when to show it. */
       .more-subnav { display: none; gap: 2px; border: 1px solid var(--line); border-radius: 6px; padding: 2px; margin: 12px 20px 0; flex: none; }
       body[data-view="resources"] .more-subnav,
-      body[data-view="holograph"] .more-subnav,
-      body[data-view="wiring"] .more-subnav,
       body[data-view="github"] .more-subnav,
       body[data-view="profile"] .more-subnav { display: flex; }
       .more-subnav button { flex: 1; text-align: center; }
@@ -4343,6 +4084,251 @@
       }
       .chat-empty-starters button:hover { color: var(--ink); border-color: var(--accent); }
       @media (max-width: 900px) { .chat-empty { max-width: 34ch; } }
+
+      /* NARROW, REBUILT AGAINST A COMP (2026-09-15, user: "the narrow view is
+         weird and bad … think harder about the layout, find a comp"). Measured
+         before: chat view spent 153px on chrome (header, an "Explore ⌄" row,
+         the conversation row) plus a floating pill; panel view let the lone
+         Chat tab flex across the bar while Reading/Folds/Log collided. The comp
+         is Claude.ai and ChatGPT on a phone: the conversation owns the screen
+         under one slim bar, and the side content is its own view with a back
+         control on the left and its sections beside it. Placed last so it wins
+         over the four earlier narrow blocks without editing them. */
+      .panel-door { display: none; }
+      @media (max-width: 900px) {
+        /* Chat view: the panel column is not on screen at all. */
+        body[data-view="chat"] #col-panel { display: none; }
+        body[data-view="chat"] main { grid-template-rows: minmax(0, 1fr); }
+        body[data-view="chat"] #col-chat {
+          display: grid;
+          grid-row: 1;
+          grid-template-columns: minmax(0, 1fr) auto;
+          grid-template-rows: auto minmax(0, 1fr) auto;
+        }
+        #col-chat > * { grid-column: 1 / -1; }
+        /* One bar: conversations left, the mode and the panel door right. */
+        #col-chat > #threads,
+        #col-chat > #threads.single {
+          grid-column: 1;
+          grid-row: 1;
+          min-height: 48px;
+          padding: 0 4px 0 8px;
+          border-bottom: 1px solid var(--line);
+          background: var(--panel);
+        }
+        #col-chat > #chat-panel-switches,
+        #col-chat:has(#chat > .chat-empty:only-child) > #chat-panel-switches {
+          grid-column: 2;
+          grid-row: 1;
+          position: static;
+          align-self: stretch;
+          align-items: center;
+          gap: 8px;
+          margin: 0;
+          padding: 0 10px 0 4px;
+          border: 0;
+          border-bottom: 1px solid var(--line);
+          border-radius: 0;
+          background: var(--panel);
+        }
+        #col-chat > #chat { grid-row: 2; }
+        #col-chat > #chat.scroll { padding-top: 12px; }
+        #col-chat > .composer { grid-row: 3; }
+        .panel-door {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          min-height: 34px;
+          padding: 4px 8px 4px 10px;
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          background: var(--bg);
+          color: var(--ink);
+          font: inherit;
+          font-size: 13px;
+          white-space: nowrap;
+        }
+        .panel-door::after { content: "\203a"; color: var(--muted); font-size: 17px; line-height: 1; }
+
+        /* Panel view: back on the left, sections at their own width beside it,
+           the terminal pinned right. The Explore dropdown is retired here. */
+        #col-panel > .tabs {
+          display: flex;
+          flex-wrap: nowrap;
+          align-items: stretch;
+          justify-content: flex-start;
+          gap: 0;
+          padding: 0 6px 0 0;
+          overflow: visible;
+          border-bottom: 1px solid var(--line);
+          background: var(--panel);
+        }
+        #col-panel > .tabs > .explore-toggle { display: none; }
+        #col-panel > .tabs > button.chat-tab {
+          display: inline-flex;
+          align-items: center;
+          flex: 0 0 auto;
+          min-height: 48px;
+          padding: 0 14px 0 10px;
+          border: 0;
+          border-right: 1px solid var(--line);
+          background: none;
+          color: var(--ink);
+          font-size: 14px;
+        }
+        #col-panel > .tabs > button.chat-tab::before {
+          content: "\2039";
+          margin-right: 6px;
+          color: var(--accent);
+          font-size: 22px;
+          line-height: 1;
+        }
+        body:not([data-view="chat"]) #col-panel > .tabs > .tabs-secondary {
+          display: flex;
+          flex: 1 1 auto;
+          min-width: 0;
+          gap: 2px;
+          padding-left: 6px;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+        #col-panel > .tabs > .tabs-secondary::-webkit-scrollbar { display: none; }
+        #col-panel > .tabs > .tabs-secondary > button {
+          flex: 0 0 auto;
+          min-height: 48px;
+          padding: 0 12px;
+          border: 0;
+          border-bottom: 2px solid transparent;
+          background: none;
+          font-size: 14px;
+          white-space: nowrap;
+        }
+        #col-panel > .tabs > .tabs-secondary > button[aria-selected="true"] {
+          border-bottom-color: var(--accent);
+          background: none;
+          color: var(--ink);
+        }
+        #col-panel > .tabs > button.term-toggle { align-self: center; min-height: 34px; margin: 0 0 0 6px; }
+      }
+      /* The mark alone carries the brand on a phone; the wordmark was pushing
+         the workspace name down to "Wor…". */
+      @media (max-width: 480px) {
+        header h1.logo .wordmark { display: none; }
+        #workspace-chip { max-width: 52vw; }
+        /* The dot (or ring) already says private or shared; the word was
+           what cut the workspace's own name to "Worksp…". font-size 0 drops
+           only the word — the mark is sized in px, and the text stays in the
+           accessibility tree. */
+        .workspace-access { font-size: 0; }
+        .workspace-access::before { margin-right: 0; }
+      }
+      /* THE COMPOSER'S DECLARE ROW (user, 2026-09-15: "leave the model on the
+         left but put these two buttons on the right, and we click to turn on,
+         not additional booleans"). The checkbox inside each label stays —
+         app.js binds it by id — but the track is gone: the icon is the
+         control, filled while it is on. The word stays for screen readers. */
+      .composer-declare { flex-wrap: nowrap; }
+      .composer-declare > .model-pick { margin-right: auto; }
+      .composer-declare > #checking-switch { margin-left: 0; }
+      .composer-declare > .switch {
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        min-height: 34px;
+        padding: 0;
+        gap: 0;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        background: transparent;
+      }
+      .composer-declare > .switch .track { display: none; }
+      .composer-declare > .switch .switch-label {
+        display: inline;
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+      .composer-declare > .switch:hover { border-color: var(--line); }
+      .composer-declare > .switch:has(input:checked) { background: var(--accent-soft); border-color: var(--accent); }
+      .composer-declare > .switch:has(input:checked) .ph { color: var(--accent); }
+      .composer-declare > .switch:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+      /* THE GROUND PANEL, ALL OF IT (user, 2026-09-15: "no need for a more, but
+         lets show it all here" / "lets just give an affordance to copy the
+         json"). Every message each call sent, in full, under its call line;
+         the record's claims as scannable lines; the JSON one press away. */
+      .fold-copy {
+        font: inherit;
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 1px 8px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: none;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      .fold-copy:hover { color: var(--accent); border-color: var(--accent); }
+      /* Overview, then three steps in the order they happened — looked up,
+         asked, checked — each under a quiet title so the eye can find its
+         place without reading everything. */
+      .fold-step { margin: 14px 0 0; }
+      .fold-step-title { margin: 0; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+      .fold-step-note { margin: 1px 0 6px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+      .fold-source { margin: 6px 0 0; }
+      .fold-source-head { margin: 0 0 2px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+      .fold-source-name { font-family: var(--mono); font-size: 12px; color: var(--ink); overflow-wrap: anywhere; }
+      .fold-source-count { font-size: 11.5px; color: var(--muted); }
+      .fold-passage {
+        display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px;
+        width: 100%; margin: 3px 0 0; padding: 2px 0 2px 10px;
+        border: 0; border-left: 2px solid var(--line); background: none;
+        text-align: left; font: inherit; font-size: 12.5px; line-height: 1.45;
+        color: var(--muted); cursor: pointer;
+      }
+      /* The class's display would otherwise beat the hidden attribute. */
+      .fold-passage[hidden] { display: none; }
+      .fold-passage.used { border-left-color: var(--accent); color: var(--ink); }
+      .fold-passage:hover .fold-passage-text { color: var(--accent); }
+      .fold-passage-tag { font-size: 11px; font-weight: 600; color: #287; white-space: nowrap; }
+      .fold-passage-tag.contra { color: var(--warn); }
+      .fold-show-all { margin: 6px 0 0; padding: 0; border: 0; background: none; font: inherit; font-size: 12px; color: var(--accent); cursor: pointer; }
+      .fold-show-all:hover { text-decoration: underline; }
+      .fold-call-head { margin: 10px 0 2px; font-family: var(--mono); font-size: 12px; color: var(--ink); cursor: help; }
+      .fold-call { margin: 0 0 6px; padding-left: 10px; border-left: 1px solid var(--line); }
+      .fold-msg-same { margin: 0 0 4px; font-size: 11.5px; font-style: italic; color: var(--muted); }
+      .fold-claim-closest { color: var(--muted); }
+      .fold-msg-role { margin: 6px 0 2px; font-size: 11px; font-weight: 600; color: var(--muted); }
+      .fold-msg {
+        margin: 0;
+        padding: 6px 8px;
+        max-height: 22em;
+        overflow: auto;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        color: var(--ink);
+        background: color-mix(in oklch, var(--ink) 4%, var(--bg));
+        border-radius: 6px;
+      }
+      .fold-claims, .mark-claims { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 4px; }
+      .fold-claim, .mark-claim-row { margin: 0; display: flex; flex-wrap: nowrap; align-items: baseline; gap: 8px; font-size: 12px; line-height: 1.45; color: var(--ink); }
+      .fold-claim-verdict, .mark-claim-verdict { flex: none; min-width: 9.5em; font-size: 11px; font-weight: 600; color: var(--muted); }
+      .fold-claim-text, .mark-claim-triple { flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-size: 11.5px; overflow-wrap: anywhere; }
+      .fold-claim > .ref { flex: none; }
+      .fold-claim-bound .fold-claim-verdict, .mark-claim-bound .mark-claim-verdict { color: #287; }
+      .fold-claim-contradicted .fold-claim-verdict, .fold-claim-unsupported .fold-claim-verdict,
+      .mark-claim-contradicted .mark-claim-verdict { color: var(--warn); }
+      /* The Ground sheet's "what claims this": the claim, the exact sentence in
+         the material that states it, and the ledger's own entries for it. */
+      .mark-claims-head { margin: 10px 0 2px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+      .mark-claim { display: flex; flex-direction: column; gap: 4px; padding: 6px 0; border-top: 1px solid var(--line); }
+      .mark-claim-quote { margin: 0; padding-left: 10px; border-left: 2px solid var(--line); font-size: 13px; line-height: 1.5; color: var(--ink); }
+      .mark-claim-eot { margin: 0; font-family: var(--mono); font-size: 11px; line-height: 1.5; color: var(--muted); white-space: pre-wrap; }
     </style>
     <script src="./image-slot.js"></script>
   </head>
@@ -4475,6 +4461,10 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
             <button type="button" class="mode-opt" id="mode-build" role="radio" aria-checked="false" title="The code pipeline: a skeleton first, then one function at a time, each run in the sandbox and witnessed, repairs shown. Lands a fold you can ask for changes to.">Build</button>
           </div>
           <span class="iterating" id="iterating-fold" hidden></span>
+          <!-- The panel's door on a narrow screen, where the panel is its own
+               view rather than a column beside the conversation. It names the
+               pane it opens, so it is a destination and not a mystery menu. -->
+          <button type="button" id="panel-door" class="panel-door" title="Open the panel — Reading, Folds, Log and the rest"><span id="panel-door-label">Reading</span></button>
         </div>
         <!-- #chat is empty until a conversation starts, and an empty
              conversation column read as an unfinished app (user, 2026-09-15).
@@ -4690,7 +4680,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
           <button role="tab" data-pane="coding" class="code-only" aria-selected="false" title="Every step of the run, live: what it computed mechanically, what it asked the model, what the sandbox ran and witnessed.">Steps</button>
           <button role="tab" data-pane="builds" aria-selected="false">Folds</button>
           <button role="tab" data-pane="log" aria-selected="false" title="The record — everything this instrument did, newest first">Log</button>
-          <!-- Resources/Holograph/Wiring/GitHub/About-you are all
+          <!-- Resources/GitHub/About-you are all
                instrument-facing, not content the reading is about — peer
                tabs here made the bar unreadable on a phone (nowrap forced
                each label to shrink) and made the folded side-rail a long
@@ -4699,7 +4689,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
                that picks among them, so a new instrument surface never
                grows this bar again — "About you" (added same day) is the
                fifth entry this grouping was built to absorb. -->
-          <button role="tab" data-pane="more" aria-selected="false" popovertarget="more-subnav" title="Resources, Holograph, Wiring, GitHub, About you — everything about the instrument itself, grouped off the main bar">More <span class="caret" aria-hidden="true">⌄</span></button>
+          <button role="tab" data-pane="more" aria-selected="false" popovertarget="more-subnav" title="Resources, GitHub, About you — everything about the instrument itself, grouped off the main bar">More <span class="caret" aria-hidden="true">⌄</span></button>
           </div>
 
           <!-- The terminal is the panel's own drawer, so its control belongs on
@@ -4714,8 +4704,6 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
              the container changed, so nothing downstream knows. -->
         <nav class="more-subnav" id="more-subnav" popover="auto" role="tablist" aria-label="the instrument itself">
           <button type="button" role="tab" class="seg" data-pane="resources" title="What this instrument is connected to right now — mouths, servers, the room, the web, accounts — each probed, never assumed">Resources</button>
-          <button type="button" role="tab" class="seg" data-pane="holograph" title="The holograph — this conversation as the record holds it: what it is about, the loops on each referent, the gaps; press a referent to expand what holds it">Holograph</button>
-          <button type="button" role="tab" class="seg" data-pane="wiring" title="Every named block the last turn's prompt was built from, as nodes — toggle one off or type exact text and the next turn is built from that instead. Save a set as a named model-loop to switch back to it later.">Wiring</button>
           <button type="button" role="tab" class="seg" data-pane="github" title="Connect a GitHub account: pull/push one file, or sync skills and history — needs explore-server.mjs">GitHub</button>
           <!-- Deliberately not called "Memory" — the composer's own memory
                sheet already owns that word for material "beyond the model"
@@ -4773,126 +4761,6 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
             </div>
             <div class="res-tiles" id="res-tiles"></div>
             <div id="res-body"></div>
-          </div>
-
-          <div class="pane" id="pane-holograph" hidden>
-            <h2>Holograph</h2>
-            <label class="holograph-cursor" title="the cursor — the holograph as of any act on the record; drag it back to see the conversation as it stood then">
-              <input type="range" id="holograph-cursor" min="0" max="0" value="0" step="1" aria-label="cursor — as of which act on the record" />
-              <span id="holograph-cursor-label" class="holograph-cursor-label"></span>
-            </label>
-            <!-- THE QUERY BAR (eoql.js): a bare word scans; an operator's glyph or
-                 keyword begins an act — ∅ scan · ｜ field=value · ⊨ ⇐ (by arrow)
-                 · ⋈ name (follow links) · ⊛ field (group) · △ (count) · ⊢ N
-                 (first N / order). Acts chain with → or just follow. -->
-            <div class="holograph-query">
-              <input id="holograph-query" spellcheck="false" autocomplete="off" placeholder="∅ word · ｜ state=open · ⊨ ⇐ · ⋈ name · ⊛ kind · △ · ⊢ 5" aria-label="query — a word to search, a field to filter, or an EOT command over the rows; Escape clears" />
-              <span id="holograph-query-note" class="holograph-query-note"></span>
-            </div>
-            <div class="holograph-body">
-              <div class="holograph-side">
-                <div class="holograph-levels" id="holograph-levels" role="tablist" aria-label="the rung — the nine terrains, bottom to top, each standing in for the one below it"></div>
-                <div class="holograph-mode" id="holograph-mode" role="tablist" aria-label="visual (the notation) or text (sentences)"></div>
-              </div>
-              <div id="holograph-rows" class="holograph-host"></div>
-            </div>
-          </div>
-
-          <!-- Model-loops: every named block the last chat turn's prompt was
-               assembled from, as nodes — enable/disable or override one and
-               the NEXT turn is built from that instead (holon.js's own
-               ingredients, tuned before the join it already does; never a
-               second prompt-builder). "Default" is the shipped, unmodifiable
-               starting template; "+ New" saves a copy under a new name. -->
-          <div class="pane" id="pane-wiring" hidden>
-            <h2>Wiring <button type="button" class="why" aria-label="what this is" title="Every named block the last chat turn's prompt was assembled from — system prompt, suffixes, retrieved material, the ledger — as nodes on a canvas. Click one to switch it off or type exact replacement text; the next turn is built from that instead of the computed value. Save a set of changes as a new model-loop to name it and switch back to it later — the default loop is the wiring already running today and cannot be edited in place.">?</button></h2>
-            <div class="wiring-toolbar">
-              <div class="wiring-combo" id="wiring-combo">
-                <button type="button" id="wiring-combo-trigger" class="wiring-combo-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="wiring-loops">
-                  <span id="wiring-combo-label">Default</span><span class="wiring-combo-caret">▾</span>
-                </button>
-                <div class="wiring-loop-panel" id="wiring-loop-panel" hidden>
-                  <input type="text" id="wiring-loop-filter" spellcheck="false" autocomplete="off" placeholder="search model-loops…" aria-label="search saved model-loops" />
-                  <ul class="wiring-loops" id="wiring-loops" role="listbox" aria-label="saved model-loops"></ul>
-                </div>
-              </div>
-              <span class="wiring-loop-count" id="wiring-loop-count" hidden></span>
-              <span class="wiring-toolbar-actions">
-                <button type="button" id="wiring-new" class="seg new">+ New</button>
-                <button type="button" id="wiring-download" class="seg icon" title="download the active model-loop as JSON">⬇</button>
-                <label class="seg icon wiring-upload" title="upload a model-loop from a JSON file">⬆<input type="file" id="wiring-upload-input" accept="application/json,.json" hidden /></label>
-              </span>
-            </div>
-            <div class="wiring-name-row" id="wiring-name-row" hidden>
-              <input type="text" id="wiring-name-input" spellcheck="false" placeholder="name this model-loop…" />
-              <button type="button" id="wiring-name-save">save</button>
-              <button type="button" id="wiring-name-cancel">cancel</button>
-            </div>
-            <p class="wiring-status" id="wiring-status" hidden></p>
-            <!-- "at any point" — a way to see the canvas and try edits
-                 without a real chat turn (which needs a reachable model).
-                 Loads through the exact same captureLastTurn a real turn
-                 uses, so nothing downstream treats it as a second kind of
-                 data. -->
-            <p class="wiring-sample-line">
-              <button type="button" id="wiring-sample" class="linkish">▶ load sample data</button>
-              <span class="wiring-sample-note">— made-up, so you can see the canvas and try edits without sending a real chat message</span>
-            </p>
-            <div class="wiring-body">
-              <div id="wiring-graph" class="wiring-host holograph-host"></div>
-            </div>
-            <!-- Parked here when no card has it: renderWiring() moves this
-                 into whichever card is expanded (openWiringDrawer) and
-                 parks it back here before every re-render, so a re-render
-                 (replaceChildren on #wiring-graph) never orphans it. -->
-            <div id="wiring-drawer-home" hidden>
-              <div class="wiring-drawer" id="wiring-drawer" hidden>
-                <div class="wiring-drawer-head">
-                  <strong id="wiring-drawer-title"></strong>
-                  <button type="button" id="wiring-drawer-close" aria-label="close">✕</button>
-                </div>
-                <!-- The plain-English "what does this actually change" line
-                     — caught live (user, 2026-09-09: "i still dont get what
-                     any of these do almost"), a jargon title and an
-                     implementation-internals label were explaining this
-                     FILE's own mechanism, never the reader's actual
-                     question. This is the answer to that question, always
-                     shown, never requiring a hover or a click to find. -->
-                <p class="wiring-drawer-hint" id="wiring-drawer-hint"></p>
-                <div id="wiring-ingredient-fields">
-                  <label class="wiring-enable" id="wiring-enable">
-                    <input type="checkbox" id="wiring-enabled" />
-                    Include this when answering
-                  </label>
-                  <p class="wiring-label">What it says right now:</p>
-                  <pre id="wiring-computed" class="wiring-computed"></pre>
-                  <div id="wiring-override-field">
-                    <label class="wiring-label" for="wiring-override">Type your own instructions to replace it — leave blank to keep the current one.</label>
-                    <textarea id="wiring-override" spellcheck="false" rows="6"></textarea>
-                    <p class="wiring-label wiring-label-sub">Advanced: typing <code>{value}</code> keeps the current text and builds on it; <code>{otherKey}</code> pulls in another node's own text.</p>
-                  </div>
-                </div>
-                <div id="wiring-pipeline-fields" hidden>
-                  <p class="wiring-label">What happened this turn:</p>
-                  <pre id="wiring-pipeline-computed" class="wiring-computed"></pre>
-                  <label class="wiring-label" for="wiring-pipeline-toggle">Change this for this loop, or leave it matching the app's normal setting:</label>
-                  <select id="wiring-pipeline-toggle" hidden>
-                    <option value="">no change</option>
-                    <option value="on">always on</option>
-                    <option value="off">always off</option>
-                  </select>
-                  <select id="wiring-pipeline-value-select" hidden></select>
-                  <input id="wiring-pipeline-value-number" type="number" hidden placeholder="leave blank for no change" />
-                </div>
-                <div class="wiring-drawer-actions">
-                  <button type="button" id="wiring-save-node">Save to this loop</button>
-                </div>
-              </div>
-            </div>
-            <details class="wiring-preview">
-              <summary>Sent to model — the tuned ingredients the next turn would send, in order</summary>
-              <pre id="wiring-sent"></pre>
-            </details>
           </div>
 
           <div class="pane" id="pane-log" hidden>
@@ -5676,6 +5544,23 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
             exploreToggle.setAttribute("aria-expanded", open ? "true" : "false");
           });
         }
+        // The narrow chat bar's door reopens the pane you last had, and says
+        // which. "More" itself is skipped: it opens a popover anchored to a tab
+        // row that is not on screen in chat view — its menu items are tracked
+        // instead.
+        var panelDoor = document.getElementById("panel-door");
+        var panelDoorLabel = document.getElementById("panel-door-label");
+        var lastPanelTab = null;
+        document.querySelectorAll('#tabs-secondary [role="tab"][data-pane]:not([data-pane="more"]), #more-subnav [role="tab"][data-pane]').forEach(function (tab) {
+          tab.addEventListener("click", function () {
+            lastPanelTab = tab;
+            if (panelDoorLabel) panelDoorLabel.textContent = (tab.textContent || "").trim();
+          });
+        });
+        if (panelDoor) panelDoor.addEventListener("click", function () {
+          var tab = lastPanelTab || document.querySelector('#tabs-secondary [role="tab"][data-pane="explore"]');
+          if (tab) tab.click();
+        });
         // The pivot. Mode is what the NEXT turn is asked for; the thread is the
         // same either way, which is why this writes one attribute and touches
         // nothing else. Per-conversation persistence belongs in app.js beside
@@ -6128,7 +6013,6 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
         var PANE_EMPTY = {
           log: "The record — everything this instrument did, newest first. log-pane.js renders it; it is stubbed in this static preview.",
           resources: "What this instrument is connected to right now — mouths, servers, the room, the web, accounts — each probed, never assumed. Needs the local server.",
-          holograph: "This conversation as the record holds it: what it is about, the loops on each referent, the gaps. Nothing has been read yet.",
           coding: "Every step of a run lands here live — what it computed mechanically, what it asked the model, what the sandbox ran and witnessed.",
           builds: "The artifacts this conversation is iterating on. Nothing built yet — pivot to Build and describe what you want.",
           github: "Connect a GitHub account to pull or push one file, or to sync skills and history. Needs explore-server.mjs.",
@@ -6142,7 +6026,6 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
           log: "#log-lines",
           builds: "#builds-list",
           resources: "#res-list",
-          holograph: ".holograph-host",
           github: "#gh-body",
         };
         function noteEmptyPane(id) {
@@ -6157,7 +6040,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
           p.textContent = PANE_EMPTY[id];
           host.appendChild(p);
         }
-        var PANE_IDS = ["explore", "coding", "builds", "resources", "holograph", "wiring", "log", "github", "profile"];
+        var PANE_IDS = ["explore", "coding", "builds", "resources", "log", "github", "profile"];
         function showPane(pane) {
           var effective = pane === "more" ? "resources" : pane;
           PANE_IDS.forEach(function (id) {

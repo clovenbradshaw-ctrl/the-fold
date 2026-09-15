@@ -447,6 +447,66 @@ test("iterationTell/routeMessage: code-piece.js's own per-step witness marker ne
   assert.ok(!complaint.matchedOn.includes("step"), "the scaffold marker itself never rides as evidence");
 });
 
+test("iterationTell/routeMessage: the per-step witness marker's own diagnostic half ('type'/'repr') never rides as content evidence either (live, 2026-09-15, chess-club specimen)", () => {
+  // Found live, hours after the "step" fix above landed: a brand-new
+  // conversation, three ordinary chat turns in (none about code), pasted
+  // an original chess-club status report as an ordinary message. It
+  // shared no anaphora, no determiner, nothing — except the word
+  // "returning" ("returning champion Aisha Bello"), which stem-matched a
+  // real "return" statement in a leftover python build's CURRENT code
+  // (an is_prime function from an earlier, unrelated session). The
+  // discourse-locality gate (above) should have refused this — none of
+  // the conversation's own three prior turns mention "return" — but one
+  // of them ("does the type of oil matter much for high-heat searing?")
+  // shared the single word "type" with the SAME build's own generated
+  // witness line (`{type(r1).__name__}: {repr(r1)[:120]}`, unconditional
+  // in EVERY code-piece python build's `main()`, regardless of content),
+  // which satisfied discourseLocal and let the later "returning~return"
+  // match through unrefused. The router then re-zeroed the leftover
+  // build with the chess-club prose as its "trigger", asked the model for
+  // a {find, add} patch, and a SEG delete of every literal "return" in
+  // the function landed — producing broken code (no return statements at
+  // all) that failed at runtime with a bare IndentationError, and no
+  // reply to the chess-club message was ever produced.
+  const isPrime = skeletonFor("python", "a single function is_prime(n) that checks whether a number is prime", [
+    "a single function is_prime(n) that checks whether a number is prime",
+  ]);
+  // skeletonFor's own stub has no real body to return from; splice in the
+  // exact shape a model-completed version actually shipped with, so the
+  // fixture carries a genuine, unrelated "return" the way the live build did.
+  const primeCode = isPrime.code.replace(
+    /raise NotImplementedError\([^)]*\)/,
+    'if n <= 1:\n        return False\n    for i in range(2, int(n**0.5) + 1):\n        if n % i == 0:\n            return False\n    return True',
+  );
+  const known = `python: a single function is_prime(n) that checks whether a number is prime\n${primeCode}`;
+  assert.match(known, /\{type\(r1\)\.__name__\}/, "the fixture carries the generated diagnostic this test is about");
+  assert.match(known, /\breturn False\b/, "the fixture carries a genuine, unrelated return statement");
+
+  const builds = [{ n: 11, type: "code", lang: "python", text: known }];
+  const chessClub =
+    "Riverside Youth Chess Club - Fall Season Notes. We meet Tuesdays at the Riverside Community Center. " +
+    "October tournament had 19 participants and was won by returning champion Aisha Bello.";
+  // The three prior turns from the live specimen, none of which mention
+  // "return" — only "type", from the scaffold's own diagnostic line.
+  const discourse = [
+    "does the type of oil matter much for high-heat searing, or is that overblown?",
+    "It matters! For searing, a higher smoke point oil is ideal, like avocado oil.",
+    "if you had to describe the color blue to someone who's been blind since birth, how would you start?",
+    "Imagine the quietest, coldest part of a storm — that's the feeling of blue.",
+  ].join("\n");
+  // Sanity: before this fix, "type" alone satisfied discourseLocal.
+  assert.equal(
+    routeMessage(chessClub, builds, { hasMaterial: false, discourse: "" }),
+    null,
+    "with no discourse connection at all, the coincidental stem match must not route either",
+  );
+  assert.equal(
+    routeMessage(chessClub, builds, { hasMaterial: false, discourse }),
+    null,
+    "a scaffold-only discourse coincidence ('type') must not license a later, unrelated stem match ('returning~return')",
+  );
+});
+
 test("iterationTell/routeMessage: a bare numeral shared with the build's own bytes is never content evidence", () => {
   // Found live in the SAME battery this file's scaffold test above already
   // documents, one channel further: the leftover "adds up the first 10

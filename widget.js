@@ -243,13 +243,51 @@ function stripPyScaffold(text) {
  * the ordinary reply to the farewell was never produced. Only the
  * literal marker is stripped, never the surrounding print/console.log
  * call: a genuine reference to what that call DOES ("print", "console",
- * "log", "type", "repr") stays real, matchable evidence, and the
- * function's own real name inside the brackets is untouched too (it is
- * also the `def`/`function` declaration itself, so nothing is lost by
- * dropping its second, marker-only occurrence).
+ * "log") stays real, matchable evidence, and the function's own real
+ * name inside the brackets is untouched too (it is also the
+ * `def`/`function` declaration itself, so nothing is lost by dropping
+ * its second, marker-only occurrence).
+ *
+ * REVISED same day, hours later, by a second live specimen that refutes
+ * this function's own earlier reasoning about "type"/"repr": an entirely
+ * unrelated ordinary chat turn ("does the type of oil matter much for
+ * high-heat searing?") shared the single word "type" with a leftover
+ * python build's own `{type(r1).__name__}: {repr(r1)[:120]}` — the SAME
+ * per-step witness line's own diagnostic half, mechanically appended by
+ * `skeletonFor`'s `main()` to EVERY code-piece python build regardless of
+ * content, exactly as unconditional as the `[step N name]` marker beside
+ * it. The comment above reasoned this half was "real, matchable
+ * evidence" because it names what the call DOES — true of "print" or
+ * "console", false of "type": it is an ordinary, extremely common English
+ * word ("what type of oil…") that happens to also be a Python builtin,
+ * and the instrument's own construction — never the model's or the
+ * operator's words — puts it in every build's bytes. Diagnosed live: it
+ * satisfied `discourseLocal` (2026-09-15's own discourse-locality fix,
+ * above) via an unrelated PRIOR turn, which then let a SECOND message's
+ * "returning" stem-match a real, unrelated "return" elsewhere in the same
+ * build's code and re-zero it — the scaffold token was not even the
+ * message actually being routed, only the thing that made the leftover
+ * build look locally salient. Only the exact mechanically generated shape
+ * immediately following the step marker is stripped (python's
+ * `{type(v).__name__}: {repr(v)[:120]}`, js's `${typeof v}: ${JSON.
+ * stringify(v).slice(0, 120)}`) — never a bare `type(`/`repr(`/`typeof`
+ * anywhere else, so a genuine build whose own feature legitimately calls
+ * either stays fully matchable everywhere but this one generated line.
  */
 function stripStepWitness(text) {
-  return String(text ?? "").replace(/\[step \d+ [^\]]*\]/g, " ");
+  return String(text ?? "")
+    .replace(/\[step \d+ [^\]]*\]\s*\{type\([^)]*\)\.__name__\}:\s*\{repr\([^)]*\)\[:120\]\}/g, " ")
+    .replace(/\[step \d+ [^\]]*\]\s*\$\{typeof [^}]*\}:\s*\$\{JSON\.stringify\([^)]*\)\.slice\(0,\s?120\)\}/g, " ")
+    // A build's `__name__`/`type(...)` may already have been mangled by
+    // stripPyScaffold (this pipeline's own prior stage — `matchedTerms`
+    // composes `stripStepWitness(stripPyScaffold(...))`), which replaces
+    // every `__name__` occurrence with a bare space before this function
+    // ever sees the text — so `{type(r1).__name__}` can arrive here as
+    // `{type(r1). }`. Matched narrowly, immediately after a marker, same
+    // as above; a stray `{type(...). }` anywhere else in a build's bytes
+    // is untouched.
+    .replace(/\[step \d+ [^\]]*\]\s*\{type\([^)]*\)\.\s*\}:\s*\{repr\([^)]*\)\[:120\]\}/g, " ")
+    .replace(/\[step \d+ [^\]]*\]/g, " ");
 }
 
 /**

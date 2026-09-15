@@ -9008,8 +9008,22 @@ async function boundTurn(question, typed) {
     boundRaw = "";
   }
   const parsed = parseBound(boundRaw);
+  // parseBound's own degradation covers two different shapes (bound.test.mjs
+  // pins both): `boundRaw` failed to parse as JSON at all (the model wrote
+  // plain prose instead of the grammar — genuinely readable, worth showing
+  // verbatim), or it parsed FINE but `sentences` came back empty/junk (the
+  // model followed the shape, just said nothing in it) — in which case
+  // `boundRaw` IS the syntactically-valid-but-content-empty JSON itself
+  // (e.g. `{"sentences": [ \t\t ]}`), and showing it verbatim put raw braces
+  // and escaped whitespace in front of a reader instead of a sentence (live
+  // specimen, 2026-09-15: /bound on a runbook question). Only the first
+  // shape should ever reach the reader as "the raw text"; the second always
+  // gets the plain, typed message instead.
+  const boundLooksLikeJson = (() => { try { JSON.parse(String(boundRaw ?? "").trim() || " "); return true; } catch { return false; } })();
   const flat = stripSelfCitations(
-    parsed.degraded ? boundRaw || "(bound reply unusable — typed degradation)" : flattenBound(parsed),
+    parsed.degraded
+      ? (boundRaw && !boundLooksLikeJson ? boundRaw : "(bound reply unusable — typed degradation)")
+      : flattenBound(parsed),
   ).text;
   const boundGrounding = checkGrounding(flat, passages, { question, resolveName });
   const boundAttr = attribute(flat, passages, live);

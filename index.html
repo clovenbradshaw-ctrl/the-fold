@@ -3866,6 +3866,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
                anywhere still adds it; the pane below stays wired for that
                flow, just not fronted by a tab of its own). -->
           <button role="tab" data-pane="explore" aria-selected="true" title="The reading — the source in focus, and everything read from it">Reading</button>
+          <button role="tab" data-pane="coding" aria-selected="false" title="Ask it to build something in the sandbox — every step it takes is shown here live: what it computed mechanically, what it asked the model, what the sandbox ran and witnessed.">Coding</button>
           <button role="tab" data-pane="builds" aria-selected="false">Folds</button>
           <button role="tab" data-pane="log" aria-selected="false" title="The record — everything this instrument did, newest first">Log</button>
           <!-- Resources/Holograph/Wiring/GitHub/About-you are all
@@ -3895,7 +3896,6 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
                (attach-menu). This is about the SPEAKER, not the source
                material, so it gets a name that cannot be confused with it. -->
           <button type="button" role="tab" class="seg" data-pane="profile" title="What this instrument has noticed about you — your own name, role, projects, preferences. Proposed from what you say, never invented; review, edit or forget anything here.">About you</button>
-          <button type="button" role="tab" class="seg" data-pane="coding" title="Ask it to build something in the sandbox — every step it takes is shown here live: what it computed mechanically, what it asked the model, what the sandbox ran and witnessed.">Coding</button>
         </nav>
         <div class="scroll">
           <div class="pane" id="pane-builds">

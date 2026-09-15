@@ -1396,7 +1396,7 @@ let panelCollapsed = (() => { try { return localStorage.getItem("fold-panel-coll
 // declaration beside the function that uses it (which is where this first
 // lived) put boot in the same temporal dead trap panelWide's own comment
 // already names — caught live, 2026-09-08, the "More" tab's own first click.
-const MORE_GROUP = ["resources", "holograph", "wiring", "github", "profile", "coding"];
+const MORE_GROUP = ["resources", "holograph", "wiring", "github", "profile"];
 let lastMorePane = MORE_GROUP[0];
 function setViewMode(mode) {
   viewMode = mode === "eot" ? "eot" : "text";

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { detectLongForm, longFormTask, WORDS_PER_PAGE, detectCodePiece, isCodeSource, inScope, headingsOf, topicTerms } from "./longform.js";
+import { detectLongForm, longFormTask, WORDS_PER_PAGE, detectCodePiece, splitFeatures, isCodeSource, inScope, headingsOf, topicTerms } from "./longform.js";
 
 test("a writing ask with a stated length is long-form; the size comes from the number, the topic from the ask's own 'on'/'about'", () => {
   const lf = detectLongForm("write me a 30 page essay on the x files");
@@ -32,6 +32,13 @@ test("a program asked for by its shape: a building verb, a runtime the registry 
   assert.equal(detectCodePiece("write me a 30 page essay on the x files", { runtimes: ["js", "python"] }), null, "no runtime named → not a program");
   assert.equal(detectCodePiece("what does the python program print?", { runtimes: ["python"] }), null, "no spec → not a build");
   assert.equal(detectCodePiece("/run python\nprint(1)", { runtimes: ["python"] }), null);
+});
+
+test("splitFeatures is the same clause split detectCodePiece uses, callable on its own with an already-known spec", () => {
+  assert.deepEqual(splitFeatures("simulates 100 dice rolls, counts each face, and prints a histogram"), ["simulates 100 dice rolls", "counts each face", "prints a histogram"]);
+  assert.deepEqual(splitFeatures("reverses a string and prints its length"), ["reverses a string", "prints its length"]);
+  assert.deepEqual(splitFeatures("sorts"), [], "a single one-word clause is not a checkable feature");
+  assert.deepEqual(splitFeatures(""), []);
 });
 
 test("a code source is known by its name, never read as prose (P113)", () => {

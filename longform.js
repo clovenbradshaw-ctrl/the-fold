@@ -58,6 +58,15 @@ export function longFormTask({ pages, sections, kind, topic }) {
 const BUILD_RE = /\b(write|build|make|create|code|implement|program)\b/i;
 const ALIASES = Object.freeze({ javascript: "js", node: "js", py: "python", python3: "python", sqlite: "sql", rb: "ruby" });
 
+/** The clause split alone — a spec's own sentences, each a part to build.
+ *  Pulled out of detectCodePiece so a caller that already has an explicit
+ *  language and a free-text spec (the Coding pane's own composer, which
+ *  does not need the build-verb/runtime-word heuristic below at all) can
+ *  reuse the identical split rather than a second copy of this regex. */
+export function splitFeatures(spec) {
+  return String(spec ?? "").split(/\s*(?:;|,\s*(?:and\s+|then\s+)?|\band then\b|\band\b)\s*/i).map((f) => f.trim()).filter((f) => f.split(/\s+/).length >= 2);
+}
+
 export function detectCodePiece(question, { runtimes = [] } = {}) {
   const q = String(question ?? "").trim();
   if (!q || q.startsWith("/")) return null;
@@ -69,7 +78,7 @@ export function detectCodePiece(question, { runtimes = [] } = {}) {
   const specMatch = q.match(/\b(?:that|which|to|:)\s+(.+)$/is) ?? q.match(/:\s*(.+)$/s);
   const spec = (specMatch ? specMatch[1] : "").trim().replace(/[.!?\s]+$/g, "");
   if (!spec) return null;
-  const features = spec.split(/\s*(?:;|,\s*(?:and\s+|then\s+)?|\band then\b|\band\b)\s*/i).map((f) => f.trim()).filter((f) => f.split(/\s+/).length >= 2);
+  const features = splitFeatures(spec);
   if (!features.length) return null;
   return { lang, spec, features, parts: Math.max(2, Math.min(10, features.length)) };
 }

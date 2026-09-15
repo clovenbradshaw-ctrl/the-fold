@@ -656,6 +656,45 @@ export function makeWidgetRouter(priors, pos = {}) {
    * when its prior is unavailable. Only a caller that supplies its own
    * recent discourse (even an explicitly empty string, for a brand-new
    * conversation with no history yet) gets the narrower, correct read.
+   *
+   * DISCOURSE LOCALITY NARROWS "resolved"/"judgment" TOO, NOT ONLY
+   * "anaphora" (found live, 2026-09-15). The doctrine above this comment —
+   * "unlike resolved/judgment, which require the message to actually share
+   * a word with the CANDIDATE's own bytes, anaphora fires from the
+   * message's own grammar alone" — treated content-word overlap as strong
+   * evidence on its own, needing no salience check. A leftover build
+   * carrying a broken "count down time" python script (`time_left`, "Time
+   * left") sat in the workspace, and the FIRST message of a brand-new
+   * conversation — "hey! first time poking at this. what should I call
+   * you, and what are you actually good at?" — resolved onto it, matched
+   * on the single word "time": ordinary, idiomatic ("first time poking")
+   * and utterly unconnected to the build's own countdown timer, but a real,
+   * received English word all the same, so `resolvesInto` correctly (by
+   * its own narrower question) found overlap. `stripHtmlWrapper`/
+   * `stripPyScaffold`/`isBareNumeral` already exist for the SAME failure
+   * shape — a token contributed by construction rather than by the
+   * message's actual intent — but none of them are a list this specific
+   * common word could ever join without becoming exactly the "sample
+   * standing in for a whole" this file's own header refuses to write.
+   * `discourseLocal` is not such a list: it is the closed, already-tested
+   * mechanism this file already trusts to answer "was this candidate ever
+   * actually part of THIS conversation" — extending it to every tell,
+   * rather than only the grammar-alone one, treats a single word match
+   * exactly as skeptically as a bare pronoun once material is enough to
+   * explain it, which the incident above shows is warranted: an ordinary
+   * greeting can share one real word with a wholly unrelated leftover
+   * build by pure vocabulary coincidence, in a conversation that has never
+   * mentioned it. `hasMaterial` stays anaphora-only — it narrows a
+   * PRONOUN's referent between material and a build, a question that does
+   * not arise for a tell already grounded in the build's own vocabulary.
+   * The invariant this preserves, not merely a narrower one: "resolved"/
+   * "judgment" still route across conversations exactly as before whenever
+   * the build was ever actually salient in this one (the flagship
+   * same-turn case, and any later turn that mentioned the build first),
+   * and always via an explicit build reference ("build 3"), which never
+   * enters this loop at all. What stops is only the coincidence case —
+   * a shared word with a candidate this conversation has said nothing
+   * about.
    */
   function routeMessage(message, builds = [], { hasMaterial = false, discourse } = {}) {
     // `lang !== "markdown"` — found live, 2026-09-09: every word-overlap
@@ -686,11 +725,14 @@ export function makeWidgetRouter(priors, pos = {}) {
 
     for (let i = live.length - 1; i >= 0; i--) {
       const tell = iterationTell(message, live[i].text ?? "");
-      if (tell === "anaphora") {
-        if (hasMaterial) continue;
-        if (discourse !== undefined && !discourseLocal(discourse, live[i].text ?? "")) continue;
-      }
-      if (tell) return { n: live[i].n, tell, trigger: capture(message), ...evidenceOf(tell, message, live[i].text) };
+      if (!tell) continue;
+      if (tell === "anaphora" && hasMaterial) continue;
+      // Every tell, not only anaphora — see this function's own header,
+      // "DISCOURSE LOCALITY NARROWS resolved/judgment TOO". A single shared
+      // content word is exactly as coincidence-prone as a bare pronoun once
+      // the candidate was never actually part of this conversation.
+      if (discourse !== undefined && !discourseLocal(discourse, live[i].text ?? "")) continue;
+      return { n: live[i].n, tell, trigger: capture(message), ...evidenceOf(tell, message, live[i].text) };
     }
     return null;
   }

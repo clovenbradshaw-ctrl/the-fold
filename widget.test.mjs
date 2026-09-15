@@ -513,6 +513,58 @@ test("routeMessage: bare anaphora needs the build to be salient in THIS conversa
   assert.equal(routeMessage("does it still work?", builds, { discourse: codeChat })?.n, 6);
 });
 
+test("routeMessage: discourse locality also narrows resolved/judgment, not only anaphora", () => {
+  // Reported live, 2026-09-15: a workspace carried one leftover, broken
+  // build — a "count down time" python script with a syntax error
+  // (`time_left`, "Time left:") — from an earlier, unrelated session. In a
+  // BRAND-NEW conversation, the very first message, plain small talk with
+  // no slash command anywhere in it — "hey! first time poking at this.
+  // what should I call you, and what are you actually good at?" — was
+  // silently routed into a fold revision attempt against that build
+  // instead of being answered as ordinary chat, matched on the single word
+  // "time": a real, received English word, present by pure coincidence in
+  // the idiom "first time poking" and in the script's own countdown
+  // vocabulary. Before this fix, `stripHtmlWrapper`/`stripPyScaffold`/
+  // `isBareNumeral` had no defense for this — "time" is none of a wrapper
+  // tag, a scaffold token, or a bare numeral, it is ordinary content
+  // vocabulary — and only the "anaphora" tell was ever checked against the
+  // conversation's own discourse.
+  const countdown =
+    "python: count down time\n" +
+    "def countdown(time_left):\n" +
+    'print("Time left:", time_left)\n' +
+    "while time_left > 0:\n" +
+    "    time_left -= 1\n";
+  const builds = [{ n: 1, type: "code", lang: "python", text: countdown }];
+  const greeting = "hey! first time poking at this. what should I call you, and what are you actually good at?";
+
+  // The "before" half of the story, kept visible the same way the anaphora
+  // fix above pins it: a caller that never opts into discourse locality
+  // (no `discourse` option at all) keeps today's behavior unchanged.
+  assert.equal(routeMessage(greeting, builds)?.tell, "resolved");
+
+  // A brand-new conversation's own recent discourse — even the explicitly
+  // empty string a first message supplies — mentions none of the build's
+  // words, so the coincidental single-word match is refused. This is the
+  // actual reported bug, closed.
+  assert.equal(routeMessage(greeting, builds, { discourse: "" }), null);
+
+  // The same class of false positive reaches "judgment" through the
+  // identical channel (judgment is "resolved" plus a negation+first-person
+  // label) and is closed the same way.
+  assert.equal(
+    routeMessage("I really don't have much time today, can we keep this short?", builds, { discourse: "" }),
+    null,
+  );
+
+  // The affordance narrows, it does not vanish: this conversation's own
+  // recent discourse actually carrying the build's own words still routes
+  // it — a genuine complaint about a countdown timer just discussed.
+  const timerChat = "user: build me a countdown timer in python\nassistant: " + countdown;
+  assert.equal(routeMessage(greeting, builds, { discourse: timerChat })?.n, 1);
+  assert.equal(routeMessage("the countdown is broken", builds, { discourse: timerChat })?.n, 1);
+});
+
 test("routeMessage: the flagship same-conversation iteration is unaffected by discourse locality", () => {
   // The wall this fix must not break, stated in the caller's own terms
   // (app.js pushes the model's reply — code included — into state.history

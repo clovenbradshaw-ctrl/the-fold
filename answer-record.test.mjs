@@ -130,6 +130,24 @@ test("answerRecordProse: nothing to say is said plainly, never a blank box", () 
   assert.equal(answerRecordProse(null), "");
 });
 
+test("satisfaction (aletheia.js) is disclosed on the record when the caller supplies it, and absent otherwise", () => {
+  const withIt = answerRecord({ question: "q", satisfaction: { satisfied: false, at: "addressed", reason: "names 0% of the question's words" } });
+  assert.deepEqual(withIt.satisfaction, { satisfied: false, at: "addressed", reason: "names 0% of the question's words" });
+  const withoutIt = answerRecord({ question: "q" });
+  assert.equal("satisfaction" in withoutIt, false, "byte-identical to before this existed when a caller never runs the check");
+});
+
+test("answerRecordProse leads with Aletheia's ADDRESSED caveat when the answer shares almost none of the question's own words", () => {
+  const r = answerRecord({ question: "write me an essay on the x-files", satisfaction: { satisfied: false, at: "addressed", reason: "names 0% of the question's words" } });
+  const prose = answerRecordProse(r);
+  assert.match(prose, /^This answer may not actually address what was asked/);
+});
+
+test("answerRecordProse does NOT caveat a FILLED-only failure (a short, correct, closely-echoing answer must not be flagged)", () => {
+  const r = answerRecord({ question: "q", satisfaction: { satisfied: false, at: "filled", reason: "vacuous echo" } });
+  assert.doesNotMatch(answerRecordProse(r), /may not actually address/);
+});
+
 test("answerRecordProse: absences and open voids are put in words, not counted alone", () => {
   const voids = [{ id: "void:northgate observatory|director|*", subject: "Northgate Observatory", verb: "director", object: null, scope: { sources: ["a.txt", "b.txt"], read: 5, total: 5 } }];
   const r = answerRecord({

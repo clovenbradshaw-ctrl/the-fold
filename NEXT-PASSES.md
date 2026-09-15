@@ -482,15 +482,18 @@ in the file" — a lead, not a verdict; some of these are pure UI helpers
 (render, editor, folds-pane, templates) and some are servers' own pure halves
 — these remain here and are candidates for `native/organs/` (or the kernel):
 
-aperture arithmetic bound build-log builds chains claims clearance code-scout
-consequence constitution crown description-standing dialogue-graph fact-block
-firewall fold-log fold github grid ground-ledger handbook holon interact
+aperture arithmetic bound build-log builds chains clearance code-scout
+consequence constitution crown description-standing dialogue-graph
+fold-log fold github grid ground-ledger handbook holon interact
 library links metacognition mhc-interact mhc model-routing moves network pace
-pass-delta periodicity predigest proof provenance proxy-api read-source
+pass-delta periodicity predigest proof proxy-api read-source
 referent-fold reflex relations-chain reopen retrieval sameness seed seek
 segmentation shape skills sources-store store-sql store succession tables
 term-lessons title-fold transcribe-log unravel verification void-brief
 void-hl void-loop void-narration void-shape web-claim web-hunt wheels wikidata
+
+(`claims`, `fact-block`, `firewall` and `provenance` crossed 2026-09-14 —
+see the status note below.)
 
 The rule that governs the order, learned by moving the last closure: **move a
 closure together, never a file** — the seam's own header shows why hypergraph
@@ -516,6 +519,33 @@ closure), consistent with several files above being past-tense
 candidates rather than current ones; a fresh Phase 4 pass should
 re-derive this list from the actual current the-fold file tree rather
 than trust it standing.
+
+**Status note, added 2026-09-14.** `firewall.js`, `claims.js`,
+`fact-block.js` and `provenance.js` crossed to `eoreader7/native/organs/` —
+the four files in the named `holon.js` closure that had NO the-fold-only
+dependency of their own. `holon.js` itself is still blocked, and the block
+is sharper than this section's own "nearly is" hedge suggested: it imports
+~25 the-fold-local files beyond this named closure (`piece-edit.js`,
+`longform.js`, `dialogue.js`, `resolutions.js`, `ground-ladder.js`, and
+others), none of them shims — moving `holon.js` now would either invert the
+surface/engine boundary or require migrating those 25 first, a materially
+larger pass than this one. `verification.js`, `void-loop.js` and `void-hl.js`
+were found to have zero live importers in the-fold's current main
+checkout (only a stale, detached-HEAD worktree references them) and
+`void-brief.js`/`void-narration.js`/`void-shape.js` depend on that orphaned
+family — none of the six were moved, both because of that orphan status and
+because eoreader7 has active uncommitted work in this exact territory
+(`void-outline.js`, `void-holarchy.js`) that a shim would collide with.
+Two of the four moved organs had tests that reached across the boundary
+(firewall.test.mjs's own check of holon.js's prompts; provenance.test.mjs's
+own check of render.js's block splitter) — those tests split, with the
+pure half moving to eoreader7 and the boundary-crossing half staying in
+the-fold as `holon-firewall.test.mjs`/`provenance-render.test.mjs`,
+importing the organ through its shim. Full suites clean on both sides
+(the-fold 2326/2327, one pre-existing unrelated failure; eoreader7 organs
+595/597, two pre-existing failures in a concurrent session's own untracked
+WIP file) — see `firewall.js`/`claims.js`/`fact-block.js`/`provenance.js`'s
+shim headers and `eoreader7/native/organs/index.js`'s "Phase 4" comment.
 
 ## Pass 11 — Ranke: the primary-source chase, gated and witnessed (added 2026-09-03)
 

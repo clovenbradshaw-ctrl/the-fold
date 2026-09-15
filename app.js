@@ -1683,6 +1683,39 @@ import {
   retrieve,
   tokenize,
 } from "./source.js";
+import { makeAdmission } from "./admission.js";
+import { makeAletheia } from "./aletheia.js";
+// The discourse-admission gate (admission.js): should a whole ATTACHED
+// SOURCE even be treated as material for THIS question, before retrieve()
+// ever sees it? retrieve() itself keeps its declared no-relevance-floor
+// policy untouched (P4) — this runs one door earlier, at the point a
+// source's chunks become eligible for a turn at all. See admission.js's
+// own header for the live specimen this closes and why the floor is 2,
+// reused from this codebase's own structural minimum (clippy.js's DMD
+// gate, binding.js's arrivals floor), never a fresh hand-picked number.
+const admissionGate = makeAdmission({ tokenize });
+
+// Aletheia (aletheia.js) — the archon of SATISFACTION, Problem 1's second,
+// complementary fix: did the final answer address the question at ALL,
+// independent of whether any one claim bound to the material? A source-
+// admission refusal (above) prevents the specific hijack; this catches the
+// same failure SHAPE wherever it happens anyway (nothing attached at all,
+// a source that squeaked past admission, a materialless drift). Only the
+// ADDRESSED and FILLED layers run here — GROUNDED needs a "same claim
+// form" organ (Parmenides) this pass does not wire, so `same` is omitted
+// and that layer is skipped by aletheia.js's own design (never a silent
+// pass dressed as a real check: `judge()`'s GROUNDED block runs only when
+// `same` is a function). `contentWords` reuses `tokenize` verbatim — the
+// SAME vocabulary notion the admission gate above already uses, so the
+// two speak the same language rather than two independently-tuned word
+// lists drifting apart. `decline` recognizes this instrument's own honest-
+// absence phrasing (SEARCHED_VOID_PREFIX and its siblings, all "the
+// material doesn't say/state/mention X" in shape) so a correct "I don't
+// know" is never flagged as unsatisfying. NEVER used to edit, block, or
+// re-ask (P186: the mouth is not censored) — disclosed only, on the
+// AnswerRecord and in the plain-language prose (answer-record.js).
+const DECLINE_RE = /doesn'?t (say|state|mention|provide|give|specify)|does not (say|state|mention|provide|give|specify)\b|\bno (mention|date|number|way|information)\b|nothing (states|mentions|says)|\bnot stated\b|\bnot (mentioned|specified|given|provided)\b|not in the (material|text|source|passage)|the (material|text|passages?) (doesn'?t|does not|never)|\bI (could not|couldn'?t) find|no information (is )?available|the emptiness is real/i;
+const aletheia = makeAletheia({ contentWords: tokenize, decline: (s) => DECLINE_RE.test(String(s ?? "")) });
 
 // The base prompt is the constitution's fold — the one bounded paragraph of
 // it a mouth can honor. Everything else in that document binds this app's
@@ -9778,6 +9811,33 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
 
   const foldedRefs = (state.summary.records || []).flatMap((r) => r.refs);
   let live = liveChunks();
+  // THE DISCOURSE-ADMISSION GATE (admission.js). The live specimen: an old,
+  // unrelated RFP procurement transcript stayed attached from an earlier
+  // demo, and "write me an essay on the x-files" answered with a summary
+  // of the transcript instead — because retrieve() has no relevance floor
+  // BY DESIGN (P4) and the transcript shared exactly one coincidental word
+  // ("write") with the question. Applied per SOURCE, not per chunk: does
+  // THIS attached document share enough of the question's own vocabulary
+  // to be offered as material for it at all — a coarser, earlier question
+  // than Clippy's own claim-level DISCOURSE gate can answer (there is no
+  // extracted claim yet, and on a first-turn question no established
+  // reading to check a claim's referents against). A source that clears
+  // this is untouched by it — retrieve()'s own no-relevance-floor scoring
+  // over what remains is exactly as declared; only a source sharing fewer
+  // than the structural floor of the question's own content words is set
+  // aside for THIS turn — still loaded, still visible in Sources, exactly
+  // the same retrieval-only scope the mute toggle already has.
+  let admissionNote = null;
+  if (live.length) {
+    const bySource = new Map();
+    for (const c of live) if (!bySource.has(c.source)) bySource.set(c.source, state.sources[c.source] ?? c.text ?? "");
+    const { refused } = admissionGate.admitSources(task, [...bySource.entries()].map(([name, text]) => ({ name, text })));
+    if (refused.length) {
+      const refusedNames = new Set(refused.map((r) => r.name));
+      live = live.filter((c) => !refusedNames.has(c.source));
+      admissionNote = `set aside ${refused.length} attached source(s) as unrelated to this question: ${refused.map((r) => r.name).join(", ")}`;
+    }
+  }
   // A PIECE stands only on material in its scope (P114): sources whose text
   // carries every content word of the topic, plus what its own hunt finds.
   // Attached-for-something-else never reaches it, and what it stands on is
@@ -9892,6 +9952,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     logBlock.textContent += (logBlock.textContent ? "\n" : "") + line;
     node.scrollIntoView({ block: "end" });
   };
+  if (admissionNote) show(admissionNote);
   if (scopeNote) show(scopeNote);
 
   /** One passage of thinking. Split on blank lines so each paragraph is its
@@ -11368,6 +11429,13 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // is scoped to the call above); the reader has not changed since.
     const recFrame = state.grounded ? readerFrame() : null;
     const recRecipe = recFrame ? await readerRecipe(recFrame) : null;
+    // Aletheia's satisfaction read, on the actual question and the actual
+    // shipped answer — disclosure only (P186), never a gate. `judge()`
+    // itself refuses cleanly ({satisfied:false, at:"filled", reason:
+    // "nothing to judge"}) on an empty question or answer, so this needs
+    // no extra guard here.
+    let satisfaction = null;
+    try { satisfaction = aletheia.judge({ question: task, answer: result.output ?? "", material: [] }); } catch (e) { console.warn("aletheia:", e?.message ?? e); }
     answerRec = answerRecord({
       question: task, answer: result.output ?? "", model: turnModel, frame: recFrame, recipe: recRecipe,
       sections: result.sections ?? [], unsupported: result.unsupported ?? [], unbacked: result.unbacked ?? [],
@@ -11378,6 +11446,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       voids: state.grounded ? voidsNow() : [], witness: state.lastWitness ?? [], sameForm: sameFormOrgan,
       sources: Object.keys(state.sources).map((name) => ({ name, bytes: state.sources[name]?.length ?? null })),
       constitution: { prompt: "constitution.js::CONSTITUTION_PROMPT", sha256: await CONSTITUTION_SHA },
+      satisfaction,
     });
     appendRecord("answers", [JSON.stringify(answerRec)]).catch(() => {});
   } catch (e) { console.warn("answer record:", e?.message ?? e); }

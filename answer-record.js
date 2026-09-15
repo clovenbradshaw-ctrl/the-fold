@@ -78,7 +78,7 @@ export const claimKey = (c) => `${String(c.end1 ?? c.subject ?? "").toLowerCase(
  * @param {object} turn — { question, answer, model, frame, recipe, sections, unsupported, unbacked, unread, sources, constitution, cursor }
  * @returns {object} the record
  */
-export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [], sameForm = null } = {}) {
+export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [], sameForm = null, satisfaction = null } = {}) {
   const claims = [];
   const retrieved = [];
   for (const s of sections ?? []) {
@@ -127,6 +127,14 @@ export function answerRecord({ question, answer = "", model = null, frame = null
     voidsOpen: (voids ?? []).length,
     constitution,
     answer: { chars: String(answer ?? "").length },
+    // aletheia.js's satisfaction read (Problem 1's second, complementary
+    // fix): did the answer satisfy the question at all, independent of
+    // whether any one claim bound to the material? Disclosed always, never
+    // silently blended into the tally above and never used to edit or
+    // withhold the mouth's own answer (P186 — the mouth is not censored).
+    // `null` when the caller never ran the check (every pre-existing turn
+    // kind is byte-identical without it).
+    ...(satisfaction ? { satisfaction } : {}),
   };
 }
 
@@ -173,6 +181,19 @@ const plural = (n, word, word2 = `${word}s`) => `${n} ${n === 1 ? word : word2}`
 export function answerRecordProse(r) {
   if (!r) return "";
   const sentences = [];
+
+  // ALETHEIA'S ADDRESSED CAVEAT LEADS, when it fires — a reader deciding
+  // whether to trust the rest of this box should see this first. Scoped
+  // deliberately narrow: only the ADDRESSED layer (the answer barely shares
+  // any of the question's own words at all), never FILLED (a short, correct
+  // answer like "Yes, in 1969." can legitimately echo the question closely
+  // and would false-positive there) — ADDRESSED failing is the strong,
+  // low-false-positive signal that the answer is very likely about
+  // something else entirely, which is exactly the live specimen this
+  // closes (an RFP-transcript summary shipped as an "essay on the X-Files").
+  if (r.satisfaction && r.satisfaction.satisfied === false && r.satisfaction.at === "addressed") {
+    sentences.push(`This answer may not actually address what was asked — it shares almost none of the question's own wording (${r.satisfaction.reason ?? "checked and refused"}).`);
+  }
 
   const claims = r.claims?.length ?? 0;
   const bound = r.tally?.bound ?? 0;

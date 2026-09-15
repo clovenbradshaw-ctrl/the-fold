@@ -203,7 +203,7 @@ import { readConstitutionally, constitutionalIndexFor, covers as constitutionalC
 // nothing backs, and the reader's identity.
 import { detectLongForm, longFormTask, PART_TOKENS as LONGFORM_PART_TOKENS, WORDS_PER_SECTION as LONGFORM_WORDS_PER_SECTION, detectCodePiece, splitFeatures, isCodeSource, inScope, headingsOf } from "./longform.js";
 import { declaredReferents } from "./code-scout.js";
-import { CODE_RUNTIMES, skeletonFor, snipFor, spliceFunction, failingFunction, modelShare, stepWitnesses, stubMissing, modelRegions, didYouMean, renameCalls, qualifyCalls, moduleProbe, importedModules } from "./code-piece.js";
+import { CODE_RUNTIMES, skeletonFor, snipFor, spliceFunction, failingFunction, attributedFailure, modelShare, stepWitnesses, stubMissing, modelRegions, didYouMean, renameCalls, qualifyCalls, moduleProbe, importedModules } from "./code-piece.js";
 import { editLine } from "./piece-edit.js";
 import { revisionLine } from "./piece-revise.js";
 import { exportPiece } from "./piece-export.js";
@@ -5530,8 +5530,8 @@ async function rankeTurn(argstr, typed) {
   body.textContent = `Ranke: chasing to primary sources — up to ${maxFetches} fetch(es), ${maxSearches} search(es)…`;
   logAct("asked", { text: typed });
   let out;
-  try { out = await rankeChase({ maxFetches, maxSearches }); } catch (err) { body.textContent = `the chase failed: ${err?.message ?? err}`; return; }
-  if (out.refused) { body.textContent = out.refused; renderFold(node, {}); return; }
+  try { out = await rankeChase({ maxFetches, maxSearches }); } catch (err) { body.textContent = `the chase failed: ${err?.message ?? err}`; releaseBusy(); return; }
+  if (out.refused) { body.textContent = out.refused; renderFold(node, {}); releaseBusy(); return; }
   const r = out.report;
   const lines = [
     `Ranke: ${r.notesConsidered} note(s) standing on citing pages alone were chased; ${r.leads ?? 0} lead(s) found (a primary face carrying a note's words); the witness read ${r.witness?.reads ?? 0} and said "states" for ${r.witness?.states ?? 0}; ${r.notesAttested} note(s) now carry a primary witness (${out.landedCount} landed). Spent: ${r.fetches} fetch(es), ${r.searches} search(es) of ${maxFetches}/${maxSearches}.`,
@@ -5544,6 +5544,7 @@ async function rankeTurn(argstr, typed) {
   }
   body.textContent = lines.join("\n");
   renderFold(node, {});
+  releaseBusy(); // see factsTurn's own comment on this same bug class, found live the same pass
 }
 
 
@@ -6060,6 +6061,7 @@ async function corroborateTurn(argstr, typed) {
     });
   } catch (err) {
     body.textContent = `corroboration failed: ${err?.message ?? err}`;
+    releaseBusy(); // see factsTurn's own comment on this same bug class, found live the same pass
     return;
   }
   state.hyperlexiconLog = mergeAppendOnly(state.hyperlexiconLog, report.log ?? log, log, { append: nativeTaskLog.append });
@@ -6079,6 +6081,7 @@ async function corroborateTurn(argstr, typed) {
     settled: shown.settled, notes: notes.length, sources: sources.length, via: "chat",
   });
   logAct("checked", { text: `corroborate: ${report.attested.length} attested of ${report.asks} asks` });
+  releaseBusy(); // see factsTurn's own comment on this same bug class, found live the same pass
 }
 
 // ── /facts — a working document of grounded facts, iterated and logged ─────
@@ -6423,6 +6426,17 @@ async function factsTurn(argstr, typed) {
   body.append(p);
   mirrorTermRecord("facts", { n, notes: notes.length, composed: result.coverage.composed, withheld: result.coverage.withheld, fold: entry.n, via: "chat" });
   logAct("checked", { text: `facts: composed ${result.coverage.composed} of ${slice.length} into fold ${entry.n}` });
+  // Found live, 2026-09-15 (driving /facts against a workspace with several
+  // loaded sources): this door renders its own answer via addMessage/
+  // body.textContent rather than returning usageTurn(...) (whose own body
+  // calls releaseBusy — see usageTurn's own header), and guardedSend only
+  // calls releaseBusy on a REJECTED promise (2026-09-05's own fix, for a
+  // door that THROWS). A door that resolves normally, own-renders its
+  // result, and never calls releaseBusy leaves state.busy stuck true
+  // forever — every later message queues (the "QUEUED" tag) and never
+  // drains, with no error shown. Same shape found and fixed the same pass
+  // in corroborateTurn and rankeTurn.
+  releaseBusy();
 }
 
 async function actTurn(argstr, typed) {
@@ -10418,6 +10432,16 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   const questionForm = opts.longForm ? null : declaredFormOf(task);
   const questionSubject = voidBrief || opts.longForm ? null : subjectOf(task, { isAdposition });
   const convoScope = `c${convoNo}`;
+  // Hoisted out of the `if (!opts.longForm)` block below: `onProgress`
+  // (defined far later in this same function, for every phase/part of the
+  // turn) reads this by name, and a `const` scoped to that block's own
+  // `try` would go out of scope well before `onProgress` is even defined —
+  // a ReferenceError on every progress event, caught and warned
+  // ("loops (progress): loopAbout is not defined") rather than crashing,
+  // which is exactly why it went unnoticed: the loop cards silently never
+  // carried a subject/term "about" at all. Stays null on a long-form turn
+  // (opts.longForm), matching the block's own prior scope exactly.
+  let loopAbout = null;
   if (!opts.longForm) {
     try {
       // What a gap the check opens would close ON, in the material's own
@@ -10426,7 +10450,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // content words under the received stopword class. Computed here
       // because loops.js is pure and reads no index; it owns the phrasing,
       // this owns the organs.
-      const loopAbout = (() => {
+      loopAbout = (() => {
         try {
           const idx = conversationIndexNow();
           const names = [];

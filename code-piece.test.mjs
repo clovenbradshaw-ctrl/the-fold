@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { namesFor, skeletonFor, snipFor, spliceFunction, failingFunction, modelShare, stepWitnesses, stubMissing, modelRegions, didYouMean, renameCalls, qualifyCalls, moduleProbe, importedModules } from "./code-piece.js";
+import { namesFor, skeletonFor, snipFor, spliceFunction, failingFunction, attributedFailure, modelShare, stepWitnesses, stubMissing, modelRegions, didYouMean, renameCalls, qualifyCalls, moduleProbe, importedModules } from "./code-piece.js";
 
 const features = ["simulates 100 dice rolls", "counts each face", "prints a histogram"];
 
@@ -38,6 +38,28 @@ test("REC: the failing function is read off the traceback", () => {
   assert.equal(failingFunction("python", 'Traceback (most recent call last):\n  File "<exec>", line 20, in <module>\n  File "<exec>", line 17, in main\n  File "<exec>", line 9, in counts_face\nTypeError: bad', names), "counts_face");
   assert.equal(failingFunction("python", 'NotImplementedError: prints_histogram', names), "prints_histogram");
   assert.equal(failingFunction("python", "SyntaxError: invalid syntax", names), null);
+  // JS's own version of the same crude-substring approach: also correctly
+  // says "nobody" for a bare parse error that never got far enough to name
+  // anyone (task_434c33fd — a stray brace never fires the repair loop).
+  assert.equal(failingFunction("js", "SyntaxError: Unexpected token '}'", names), null);
+});
+
+test("REC, a bare syntax error: no frame exists to name a culprit, so the function just landed — the only code that changed since the last run that got far enough to parse — is blamed instead, in BOTH languages equally (task_434c33fd)", () => {
+  const names = ["simulates_dice_rolls", "counts_face", "prints_histogram"];
+  // The exact live shape (term-js-worker.mjs posts `${e.name}: ${e.message}`,
+  // no stack at all): failingFunction alone finds nobody, so today's app.js
+  // repair loop breaks with zero fix attempts — the reported bug.
+  assert.equal(attributedFailure("js", "SyntaxError: Unexpected token '}'", names, "counts_face"), "counts_face");
+  // Python's real traceback shape has the same hole for a genuine parse
+  // failure (no "in <function>" frame exists before the module ever runs).
+  assert.equal(attributedFailure("python", 'File "<exec>", line 5\n    def counts_face(:\nSyntaxError: invalid syntax', names, "counts_face"), "counts_face");
+  // A real, non-syntax failure with no nameable frame (e.g. a bare assert
+  // outside any function) must NOT be guessed at — only a SyntaxError licenses
+  // the fallback; anything else stays an honest null, same as before.
+  assert.equal(attributedFailure("js", "ReferenceError: x is not defined", names, "counts_face"), null);
+  // A frame the traceback DOES name still wins outright — the fallback never
+  // overrides a real attribution, even to the function currently in progress.
+  assert.equal(attributedFailure("python", 'Traceback (most recent call last):\n  File "<exec>", line 20, in <module>\n  File "<exec>", line 17, in main\n  File "<exec>", line 9, in counts_face\nTypeError: bad', names, "prints_histogram"), "counts_face");
 });
 
 test("EVA per step and INS in dependency order: main witnesses each step's value; a name the run says is undefined becomes a stub before main; the model's share is measured off the final code", () => {

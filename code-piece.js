@@ -181,5 +181,30 @@ export function importedModules(lang, code) {
 /** REC — which function the run's own last line names, or null. */
 export const failingFunction = (lang, stderr, names) => RUNTIMES[lang].failing(stderr, names);
 
+/**
+ * REC's real decision (task_434c33fd): which function does a failing run
+ * blame? `failingFunction` reads a STACK FRAME — python's "in <name>" line,
+ * js's crude name-substring check — and both correctly say null when no
+ * frame exists to read, which is exactly what a parse-time SyntaxError is:
+ * thrown before the interpreter ever enters a function, so nobody's name is
+ * anywhere in the message (confirmed live: term-js-worker.mjs posts a bare
+ * `${e.name}: ${e.message}`, no stack at all, for a stray brace). Both
+ * languages have this same hole, equally — `failingFunction`'s own pinned
+ * test already says so for python (`"SyntaxError: invalid syntax"` → null)
+ * and this file's test says so for js too. A caller mid-step (`app.js`'s
+ * `repair`) knows one more fact no bare stderr string carries, though: the
+ * function it JUST landed is the only code that changed since the last run
+ * that got far enough to parse at all — so when, and only when, the failure
+ * IS a SyntaxError (never guessed at for any other unattributed failure),
+ * that function is blamed by construction. A frame `failingFunction` DID
+ * name always wins outright; this is a fallback for the one case it is
+ * structurally unable to name anyone.
+ */
+export function attributedFailure(lang, stderr, names, current) {
+  const named = failingFunction(lang, stderr, names);
+  if (named) return named;
+  return /SyntaxError/.test(String(stderr ?? "")) ? current : null;
+}
+
 /** How much of the program the model wrote. */
 export const modelShare = (modelChars, totalChars) => (totalChars ? modelChars / totalChars : null);

@@ -3,6 +3,10 @@
 A reading that runs for months without degrading, on a machine nothing leaves.
 Its context window never grows — that's the mechanism, not the point.
 
+New here and the file listing looks like a lot? [`ARCHITECTURE.md`](ARCHITECTURE.md)
+groups all ~200 top-level modules by what they're for — this README only
+covers the six files the core mechanism needs.
+
 ## Quickstart
 
 ```bash
@@ -55,6 +59,10 @@ The two blocks are never merged. Merged, an addressed record would inherit the
 paraphrase's disclaimer and a paraphrase would inherit the record's authority.
 
 ## What runs where
+
+The six files the core mechanism needs. For everything else in this repo —
+the archons, the holograph, the terminal, model routing, and the rest —
+see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 | file | what it is |
 | --- | --- |

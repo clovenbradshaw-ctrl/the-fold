@@ -3902,7 +3902,21 @@ export async function runHolonicTask({
       return {
         answeredBeforeTheModel: known, calls: 0, depth: 0,
         task, plan: null, log: null, production: null,
-        sections: [{ part: { label: task, description: task }, text: known.text, passages: pool, refs: known.addresses, answeredBeforeTheModel: known }],
+        // No model drafted this text, so there is nothing for inspect()'s
+        // checking ladder to run — but the section still OWES every field
+        // an ordinary section carries, declared empty rather than absent
+        // (P4's own discipline: a real, checked "nothing" is not the same
+        // fact as a silently missing key). Found live (task_b5850fd4): app.js's
+        // `result.sections.flatMap((s) => s.attributions)` — one of five
+        // sibling reductions over `result.sections`, the other four already
+        // guarded with `?? []` — had no guard here, so `attributions` came
+        // back `undefined` for this section, flatMap kept it as a literal
+        // element, and classifySentences's very first line
+        // (`attributions.map((a) => [a.text, a])`) threw reading `.text` off
+        // it: a real, uncaught crash on every one of this door's six kinds
+        // (quote/record-check/comparison/cloze/prior-answer/which-passage),
+        // not only the "word for word" one that first surfaced it.
+        sections: [{ part: { label: task, description: task }, text: known.text, passages: pool, refs: known.addresses, attributions: [], answeredBeforeTheModel: known }],
         output: known.text, refs: known.addresses, unsupported: [], unbacked: [], open: [], channels: [],
         learned: [], gridLog, hyperlexiconLog, hyperlexiconTurnedAway: [],
       };

@@ -75,7 +75,7 @@ import { NOTHING, buildTable, chartOf, detectChart, detectTable, toMarkdown } fr
 // checkQuantity (P115): the pure door first, byte-identical, then the shaped
 // questions (units, choose, statistics, derivative, an equation) and the
 // calendar — each computed by the engine's own operation, never restated.
-import { checkQuantity } from "./arithmetic.js";
+import { checkQuantity, disputesQuantity } from "./arithmetic.js";
 import { asksAboutMaterial, materialView, aboutBlock, abbreviate } from "./about.js";
 
 // KaTeX, vendored per P1 (index.html links its CSS), renders arithmetic's
@@ -2157,6 +2157,16 @@ const state = {
   foldFolders: [],
   lastMessages: [],
   lastMaterialChars: 0,
+  /** The most recent mechanically-computed answer this conversation gave
+   *  (arithmetic.js's `checkQuantity` — never a model draft), so the VERY
+   *  NEXT turn can tell "the person disagrees with something WE COMPUTED"
+   *  apart from an ordinary correction of something the model said. Cleared
+   *  implicitly, not explicitly: `historyLen` pins the exact history length
+   *  it was set at, and any OTHER turn kind that runs in between (nearly
+   *  every one appends to `state.history`) makes that length stale, so the
+   *  guard below only ever fires the turn immediately after. See
+   *  disputesLastArithmetic's own header (arithmetic.js). */
+  lastArithmetic: null,
 
   /**
    * The terminal language's own append-only log (grid.js, P22). App-wide,
@@ -2281,6 +2291,7 @@ const PER_CONVO = [
   "turnFolds",
   "lastMessages",
   "lastMaterialChars",
+  "lastArithmetic",
   "reflexLog",
   "obligations",
   "meter",
@@ -2493,6 +2504,7 @@ function newConvo() {
     turnFolds: [],
     lastMessages: [],
     lastMaterialChars: 0,
+    lastArithmetic: null,
     reflexLog: emptyReflexLog(),
     meter: reflexMeter.create(),
     aperture: apertureMeter.create(),
@@ -7868,6 +7880,86 @@ async function arithmeticTurn(question, found) {
   const fold = mechanicalFoldLine(question, answer);
   state.turnFolds.push(fold);
   state.summary = advanceSummaryFold(state.summary, fold);
+  // The turn a DISPUTE of this exact answer must be checked in — see
+  // disputesQuantity's own header (arithmetic.js) and the door in send().
+  // Never set on a typed gap: nothing was settled, so there is nothing here
+  // for a later turn to defend.
+  state.lastArithmetic = found.gap ? null : { question, found, historyLen: state.history.length };
+
+  renderFold(node, { fold });
+  renderThreads();
+  $("status").textContent = readyLine();
+  releaseBusy();
+}
+
+/**
+ * The turn AFTER a computed answer, when the person disputes it
+ * (disputesQuantity, arithmetic.js). Re-verifies MECHANICALLY — the exact
+ * same door, the exact same expression, the exact same engine — rather than
+ * asking the model, because a person's disagreement is not new evidence
+ * about arithmetic the way it can be new evidence about what a passage
+ * says. `found` is never trusted as a cached value on its own honor: it is
+ * recomputed here, live, so what ships is "checked again and unchanged",
+ * never "remembered from before".
+ */
+async function arithmeticDisputeTurn(question, priorFound, dispute) {
+  addMessage("user", question);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+
+  const recomputed = checkQuantity(priorFound.expression, { math: window.math, now: new Date() }) ?? priorFound;
+  const held = !recomputed.gap && recomputed.display === priorFound.display;
+  const stand = held ? recomputed : priorFound;
+  const disagreement =
+    dispute.proposed != null
+      ? `I checked again: ${stand.expression} still comes out to ${stand.display}, not ${dispute.proposed}.`
+      : `I checked again: ${stand.expression} still comes out to ${stand.display}.`;
+  const answer =
+    `${stand.expression} = ${stand.display} — computed, not generated. ${disagreement} ` +
+    `A disagreement can change what I believe about something in the material; it cannot change what ${stand.expression} evaluates to. ` +
+    `If the expression itself should be different, tell me the corrected one and I will compute that.`;
+
+  body.textContent = "";
+  const wrap = document.createElement("div");
+  wrap.className = "arithmetic-result";
+  let rendered = false;
+  if (stand.tex) {
+    try {
+      wrap.innerHTML = katex.renderToString(stand.tex, { displayMode: true, throwOnError: false });
+      rendered = true;
+    } catch {
+      rendered = false;
+    }
+  }
+  if (!rendered) wrap.textContent = `${stand.expression} = ${stand.display}`;
+  const note = document.createElement("p");
+  note.className = "note";
+  note.textContent = "computed, not generated — re-verified, a correction of this one is not evidence";
+  const p = document.createElement("p");
+  p.className = "prose";
+  p.textContent = disagreement + " If the expression itself should be different, tell me the corrected one and I will compute that.";
+  body.append(wrap, note, p);
+
+  state.history.push(
+    { role: "user", content: question },
+    { role: "assistant", content: stripComputedCaption(answer) },
+  );
+  const turn = state.summary.turnCount + 1;
+  logAct("answered-from-state", {
+    what: "arithmetic-dispute-refused",
+    expression: stand.expression,
+    value: stand.value,
+    proposed: dispute.proposed,
+  });
+  observeExchange(turn, question, answer);
+  const fold = mechanicalFoldLine(question, answer);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+  // Chained: a second, third dispute of the SAME answer gets the identical
+  // mechanical stand rather than falling through to the model the moment
+  // the person tries again. Any OTHER turn in between still deactivates it
+  // — this only re-arms because it is, itself, a defense of the same answer.
+  state.lastArithmetic = { question: stand.expression, found: stand, historyLen: state.history.length };
 
   renderFold(node, { fold });
   renderThreads();
@@ -8188,6 +8280,24 @@ async function send(question) {
   // the world (or the material) always falls through untouched.
   const arithmetic = checkQuantity(question, { math: window.math, now: new Date() });
   if (arithmetic) return arithmeticTurn(question, arithmetic);
+
+  // A DISPUTE OF SOMETHING THIS APP COMPUTED IS NOT A CORRECTION — IT IS A
+  // RE-ASK (arithmetic.js's own header carries the full incident: "6 + 8 =
+  // 14" computed, then "That's wrong, it's actually 12." got a live,
+  // unqualified "You are absolutely right!" with nothing re-verified).
+  // Checked ONLY the turn immediately after a computed answer
+  // (`historyLen` pins the exact length `state.history` had the moment
+  // that answer was given — any other turn in between, model or
+  // mechanical, has already grown it), so this can never fire on a stray
+  // "wrong"/"actually" many turns later about something else entirely.
+  // correction.js's own premise check is UNTOUCHED — disagreeing with the
+  // MODEL's own claim stays exactly as legitimate as it always was; this
+  // door only ever intercepts a dispute of a number this app itself
+  // computed, never generated.
+  if (state.lastArithmetic && state.lastArithmetic.historyLen === state.history.length) {
+    const dispute = disputesQuantity(question, state.lastArithmetic.found);
+    if (dispute) return arithmeticDisputeTurn(question, state.lastArithmetic.found, dispute);
+  }
 
   // ABOUT the material ("what is this?", "what's this book about?", "is it
   // a book?") is answered from the SITUATION — a view of what is attached,
@@ -11624,7 +11734,18 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // unchecked turn must not acquire ON RECORD authority. Same guard send()
   // holds (`passages.length ? buildWarrantRecord(...) : null`), one level up.
   const offered = [...new Map(result.sections.flatMap((s) => s.passages).map((p) => [p.ref, p])).values()];
-  const attributions = result.sections.flatMap((s) => s.attributions);
+  // `?? []`, matching every sibling reduction below (`s.grounding?.findings
+  // ?? []`, `s.relations?.claims ?? []`, `s.witness?.rows ?? []`) — this one
+  // line lacked it, so a section this turn's own `answeredBeforeTheModel`
+  // door produced (holon.js — no model drafted, nothing to attribute) came
+  // back `undefined` here, `flatMap` kept it as a bare element, and
+  // classifySentences's `attributions.map((a) => [a.text, a])` threw on it
+  // (task_b5850fd4: "quote it word for word", and every other P173 kind).
+  // holon.js now declares that section's `attributions: []` explicitly too
+  // (belt and suspenders — a producer that owns its shape and a consumer
+  // that never trusts one blindly, the same two-sided discipline this file
+  // already applies everywhere else a section is read).
+  const attributions = result.sections.flatMap((s) => s.attributions ?? []);
   const turn = state.summary.turnCount + 1;
   const fold = mechanicalFoldLine(task, result.output);
   // The record is turn-sized and a task is not: overflow past the record's

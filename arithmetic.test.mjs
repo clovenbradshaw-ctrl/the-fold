@@ -248,3 +248,154 @@ test("checkQuantity: the clock joins the ladder after the calendar, before compa
   // Arithmetic still claims a pure expression even when `now` is supplied.
   assert.equal(checkQuantity("17 times 24", { math, now }).value, 408);
 });
+
+// ── disputesQuantity: a computed answer resists a false correction ─────────
+// Live specimen this closes: "What's 6 plus 8?" computed `6 + 8 = 14`
+// (checkArithmetic — mechanical, not the model); the next turn, "That's
+// wrong, it's actually 12." got an unqualified "You are absolutely right!"
+// from gemma2:2b, with nothing re-checked. The fix does not live in the
+// model's prompt — it is a door checked before the model is ever asked
+// again, the same posture `checkQuantity` itself already takes.
+import { disputesQuantity } from "./arithmetic.js";
+
+test("disputesQuantity: the exact live specimen — a false correction naming a different number is caught, with the disputed number read out", () => {
+  const found = checkArithmetic("What's 6 plus 8?", { math });
+  assert.equal(found.value, 14);
+  const dispute = disputesQuantity("That's wrong, it's actually 12.", found);
+  assert.deepEqual(dispute, { proposed: 12 });
+});
+
+test("disputesQuantity: a bare 'that's wrong', no replacement number, is still caught — nothing to compare, still nothing to defer to", () => {
+  const found = checkArithmetic("What's 6 plus 8?", { math });
+  const dispute = disputesQuantity("No, that's incorrect.", found);
+  assert.deepEqual(dispute, { proposed: null });
+  assert.equal(disputesQuantity("Actually, I don't think so.", found).proposed, null);
+});
+
+test("disputesQuantity: agreement is not a dispute — repeating the computed number back, with no dispute cue, is read correctly as confirmation", () => {
+  const found = checkArithmetic("What's 6 plus 8?", { math });
+  assert.equal(disputesQuantity("yes, 14, got it, thanks!", found), null);
+  assert.equal(disputesQuantity("great, that's what I got too", found), null);
+});
+
+test("disputesQuantity: a bare number with no dispute cue never fires — 'and 12 more of them' is not a correction of anything", () => {
+  const found = checkArithmetic("What's 6 plus 8?", { math });
+  assert.equal(disputesQuantity("ok, and 12 more of them arrived later", found), null);
+  assert.equal(disputesQuantity("I have 12 apples on the table", found), null);
+});
+
+test("disputesQuantity: a cue word naming a number that IS the computed one is not a dispute — the person is agreeing, loudly", () => {
+  const found = checkArithmetic("What's 6 plus 8?", { math });
+  // "actually"/"wrong" both fire the cue gate, but 14 is already the
+  // computed value — every number named checks out, so this is agreement
+  // wearing a corrective sentence, not a correction, and must not fire.
+  assert.equal(disputesQuantity("no, it's actually 14 — I was wrong to doubt you", found), null);
+});
+
+test("disputesQuantity: a typed gap defends nothing — the door never stands behind a computation that did not settle", () => {
+  const gap = { expression: "1/0", gap: "division by zero", display: undefined };
+  assert.equal(disputesQuantity("that's wrong, it's actually 12", gap), null);
+});
+
+test("disputesQuantity: comparison results (no .expression) are out of scope — correction.js's territory, untouched", () => {
+  const cmp = checkComparison("Which is earlier, 1805 or 1841, and how far apart?", { math });
+  assert.equal(cmp.expression, undefined);
+  assert.equal(disputesQuantity("that's wrong, it's actually 12", cmp), null);
+});
+
+test("disputesQuantity: a genuine correction of the MODEL'S OWN prose — correction.js's premise-check phrasing — never trips this door at all (no overlap, no interference)", () => {
+  const found = checkArithmetic("What's 6 plus 8?", { math });
+  // correction.js's own TRIGGER_RE shape ("we established/said/told me…")
+  // carries none of this door's dispute cues, so a real material correction
+  // reaches the model exactly as it always did — this is a control, proving
+  // the two mechanisms do not collide.
+  assert.equal(disputesQuantity("Earlier we established that the mayor was Cooper, right?", found), null);
+  assert.equal(disputesQuantity("you said the meeting was at 3pm", found), null);
+});
+
+test("disputesQuantity: re-verifying the SAME expression twice can never disagree with itself (idempotence, the whole basis for standing firm)", () => {
+  const found = checkArithmetic("What's 6 plus 8?", { math });
+  const again = checkArithmetic(found.expression, { math });
+  assert.equal(again.display, found.display);
+  assert.equal(again.value, found.value);
+});
+
+// ── stripCasualPreamble: the mechanical guarantee survives real preamble ───
+//
+// Live specimen this closes: "quick one -- what's 156 divided by 12?" fell
+// through the pure-arithmetic door entirely (WRAPPER_RE is anchored to the
+// string START, so ANY text before "what's" defeats it) and reached the
+// model instead, which answered a flatly wrong "12.8333" — 156/12 is 13.
+// Confirmed live via network inspection to have hit the real Ollama model,
+// never the mechanical door. Several DIFFERENT preamble phrasings are
+// pinned below, deliberately — the fix is a structural rule (a casual
+// clause ending in a dash/colon separator), not a list of the phrases that
+// happened to be reported, which the next new phrasing would defeat again.
+import { stripCasualPreamble } from "./arithmetic.js";
+
+test("stripCasualPreamble: the exact live specimen — 156 divided by 12 is 13, not the model's wrong 12.8333", () => {
+  const out = checkArithmetic("quick one -- what's 156 divided by 12?", { math });
+  assert.ok(out, "the mechanical door must claim this question at all");
+  assert.equal(out.value, 13);
+  assert.equal(out.display, "13");
+});
+
+test("stripCasualPreamble: several different preamble phrasings all reach the mechanical door — the rule generalizes, it is not a list", () => {
+  assert.equal(checkArithmetic("wait, let me redo that -- what's 9 times 6?", { math }).value, 54);
+  assert.equal(checkArithmetic("Quick question: what's 17 times 24?", { math }).value, 408);
+  assert.equal(checkArithmetic("quick one - what's 20 minus 4?", { math }).value, 16); // a single dash, not just "--"
+  assert.equal(checkArithmetic("let's see -- what's 8 squared?", { math }).value, 64); // an apostrophe inside the preamble
+  assert.equal(checkArithmetic("Hold on -- what's 100 over 4?", { math }).value, 25); // a comma AND a dash before "what's"
+});
+
+test("stripCasualPreamble: a CHAINED preamble (two separators) clears in full, not just its first clause", () => {
+  assert.equal(checkArithmetic("Well, OK -- quick one: what's 6 times 7?", { math }).value, 42);
+});
+
+test("stripCasualPreamble: P52's own safety net still holds with a casual preamble in front of it — a real yes/no comparison is never hijacked into the reversed-subtraction reading", () => {
+  // Without any preamble this was already pinned above; the same specimen,
+  // now with the exact kind of preamble that used to defeat WRAPPER_RE
+  // entirely, must still fail to reach evaluation — "Is" is still outside
+  // the strippable set no matter what came before it.
+  assert.equal(detectArithmetic("quick one -- is 3 less than 10?", { math }), null);
+  assert.equal(detectArithmetic("Quick check: is 5 subtracted from 12 correct?", { math }), null);
+});
+
+test("stripCasualPreamble: a real expression's own leading operator is never mistaken for a preamble separator", () => {
+  // "5 - 3" starts with a digit, not a letter — the preamble regex can
+  // never even begin to match it, so ordinary subtraction is untouched.
+  assert.equal(checkArithmetic("12 - 5", { math }).value, 7);
+  assert.equal(checkArithmetic("-5 + 3", { math }).value, -2);
+});
+
+test("stripCasualPreamble: sqrt's own letters still stop the strip cold, even with a real preamble in front of it", () => {
+  // "quick one -- " is a genuine, strippable preamble here; what this pins
+  // is that PREAMBLE_RE's own scan cannot then continue PAST "what's the "
+  // and swallow "sqrt" too — the parenthesis right after it has no dash/colon
+  // before it, so the strip stops exactly where WRAPPER_RE's own whitelist
+  // was built to stop it ("a function name is never mistaken for a
+  // strippable wrapper word"), preamble or not.
+  assert.equal(checkArithmetic("quick one -- what's the square root of 144?", { math }).value, 12);
+});
+
+test("stripCasualPreamble: no separator, no strip — a leading word before a wrapper word with nothing to mark it as a preamble is correctly left alone and still bails", () => {
+  // "quick one" with no dash/colon before "what's" is not a preamble this
+  // module is confident reading; the whole point of anchoring on the
+  // separator is that the module never guesses where casual words end.
+  assert.equal(checkArithmetic("quick one what's 5 + 3", { math }), null);
+});
+
+test("stripCasualPreamble: exported directly — the loop is bounded and idempotent past its own fixed point", () => {
+  assert.equal(stripCasualPreamble("quick one -- what's 5 + 3?"), "what's 5 + 3?");
+  assert.equal(stripCasualPreamble("what's 5 + 3?"), "what's 5 + 3?"); // no separator: unchanged
+  assert.equal(stripCasualPreamble("Is 3 less than 10?"), "Is 3 less than 10?"); // no separator: unchanged
+  assert.equal(stripCasualPreamble(""), "");
+});
+
+test("stripCasualPreamble: the same class of bug is closed at the shaped-questions and calendar doors too, sharing the one helper rather than a second mechanism", () => {
+  assert.equal(checkShaped("quick one -- what is 10 choose 3?", { math }).value, 120);
+  assert.equal(checkShaped("quick one -- how many kilometers are in 5 miles?", { math }).value, 8.04672);
+  assert.equal(checkCalendar("quick one -- how many days are there between 2026-01-01 and 2026-09-05?").value, 247);
+  // Unaffected — a real question about the world still bails, preamble or not.
+  assert.equal(detectShaped("quick one -- who is the mayor of Nashville?", { math }), null);
+});

@@ -3020,6 +3020,43 @@ test("P173: a question the instrument can answer exactly is answered with NO mod
   assert.equal(r2.answeredBeforeTheModel, undefined);
 });
 
+test("P173/regression (task_b5850fd4): a section this door produces still carries every array field an ordinary section does, declared empty rather than absent — app.js's real crash, reproduced at the shape level", async () => {
+  // Live specimen that crashed the real page: a "word for word"/"verbatim"
+  // request routes through answerable.js::quoteBytes (answerBeforeTheModel's
+  // "quote" kind) with NO model call at all — and the section this early
+  // return used to build had no `attributions` key. app.js reduces every
+  // section's `attributions` with `result.sections.flatMap((s) =>
+  // s.attributions)` (no `?? []`, unlike its four sibling reductions two
+  // lines below it), so the missing key came back `undefined` for this
+  // section, `flatMap` kept it as a bare element in the merged array, and
+  // classifySentences's own first line — `attributions.map((a) => [a.text,
+  // a])` — threw "Cannot read properties of undefined (reading 'text')" on
+  // it. guardedSend caught it (no conversation-bricking), but a mechanical
+  // door answering instantly should never throw at all.
+  const chunks = chunkSource(
+    "gettysburg.txt",
+    "Four score and seven years ago our fathers brought forth on this continent a new nation, conceived in liberty, and dedicated to the proposition that all men are created equal.",
+  );
+  let calls = 0;
+  const r = await runHolonicTask({
+    task: 'Is this word for word what it says: "Four score and seven years ago our forefathers brought forth upon this continent a great new nation"?',
+    chunks, planMode: "flat",
+    call: async () => { calls += 1; return "(the model should never be asked)"; },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  assert.equal(calls, 0, "quoteBytes answers before the model — this is the door the crash lives in");
+  assert.equal(r.answeredBeforeTheModel.kind, "quote");
+  // The regression itself: every section — this door's included — must be
+  // safe under the EXACT reduction app.js runs over `result.sections`, with
+  // no per-call-site `?? []` required to survive it.
+  const attributions = r.sections.flatMap((s) => s.attributions);
+  assert.deepEqual(attributions, [], "the mechanical section declares attributions: [], never an absent key");
+  assert.doesNotThrow(
+    () => attributions.map((a) => [a.text, a]),
+    "classifySentences's own first line, replayed against this door's section — must never throw",
+  );
+});
+
 test("P174: S2 is recruited by difficulty — an easy turn spends fewer witness asks than an argued one, and the person's slider is a floor and a ceiling", async () => {
   const easy = chunkSource("h.txt", "The harbor light was built in 1841 by Ada Rowe. The harbor light stands above the coast. The harbor light is white.");
   // Retrieved (it shares "harbor"), but it does not answer: low coverage of

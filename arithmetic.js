@@ -116,10 +116,45 @@ const HAS_OPERATOR_RE = /[-+*/^]|sqrt\(/;
 // purity check right after.
 const WRAPPER_RE = /^\s*(?:what'?s|what\s+is|calculate|compute|solve|evaluate|find)\s*:?\s*(?:the\s+)?/i;
 
+/** A casual introductory clause before the real question — "quick one --",
+ * "wait, let me redo that --", "Quick question:" — measured live: WRAPPER_RE
+ * is anchored to the string START, so ANY such preamble defeats it entirely
+ * ("quick one -- what's 156 divided by 12?" fell through to the model and
+ * came back wrong — 156/12 is 13). The fix is not another hand-typed phrase
+ * ("quick one", "wait", "let me redo that" — the exact list a NEW specimen
+ * would defeat again next week) but the structural rule the phrasings share:
+ * a preamble clause is letters, apostrophes, commas and periods ONLY, ending
+ * at a dash/colon-like separator. No digit and no paren is ever in that
+ * class, so a real expression's own leading `-` ("5 - 3") can never be
+ * mistaken for one — the separator can only be reached by a run of nothing
+ * but casual words, and `sqrt(144)`'s own letters stop the match cold at the
+ * `(` exactly the way WRAPPER_RE's own whitelist above already protects
+ * `sqrt`. Applied in a small bounded loop so a chained preamble ("OK --
+ * quick one: what's...") clears in full, not just its first clause.
+ *
+ * This is the SAME property P52 already relies on for its own safety net:
+ * "Is" is never inside the strippable set (WRAPPER_RE's alternation still
+ * requires "what" before "is"), so "Is 3 less than 10?" — with or without a
+ * casual preamble in front of it — still survives normalization as a stray
+ * word and fails PURE_EXPRESSION_RE regardless of what the reversal computed
+ * underneath it (pinned in arithmetic.test.mjs, preamble variants included).
+ */
+const PREAMBLE_RE = /^\s*[A-Za-z][A-Za-z'\s,.]*?[-:–—]{1,2}\s*/;
+const PREAMBLE_MAX_STRIPS = 3;
+export function stripCasualPreamble(s) {
+  let out = String(s ?? "");
+  for (let i = 0; i < PREAMBLE_MAX_STRIPS; i++) {
+    const next = out.replace(PREAMBLE_RE, "");
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
+
 export function detectArithmetic(question, { math } = {}) {
   const normalized = normalizeArithmeticPhrase(question);
   if (!normalized) return null;
-  const stripped = normalized.replace(WRAPPER_RE, "").replace(/[?!.]+\s*$/, "").trim();
+  const stripped = stripCasualPreamble(normalized).replace(WRAPPER_RE, "").replace(/[?!.]+\s*$/, "").trim();
   if (!HAS_DIGIT_RE.test(stripped) || !HAS_OPERATOR_RE.test(stripped)) return null;
   if (!PURE_EXPRESSION_RE.test(stripped)) return null;
   if (!math || typeof math.parse !== "function") return { expression: stripped, parseable: null };
@@ -210,7 +245,12 @@ export function claimedValue(text) {
 const SHAPE_WRAPPER_RE = /^\s*(?:please\s+)?(?:what'?s|what\s+is|what\s+are|what\s+was|calculate|compute|solve|evaluate|find|work\s+out|tell\s+me|how\s+much\s+is)\s*:?\s*(?:the\s+)?/i;
 const SHAPE_TAIL_RE = /[?!.]+\s*$/;
 const SHAPE_NUM = "-?\\d[\\d,]*(?:\\.\\d+)?";
-const shapeClean = (q) => stripThousands(String(q ?? "")).replace(SHAPE_WRAPPER_RE, "").replace(SHAPE_TAIL_RE, "").trim();
+// SHAPE_WRAPPER_RE has the identical string-start anchor as WRAPPER_RE, and
+// the identical defeat: a casual preamble in front of it ("quick one --
+// what's 10 choose 3?") falls through to the model exactly the way the pure
+// door did. Same fix, same shared, already-verified helper — not a second
+// preamble mechanism invented for this door.
+const shapeClean = (q) => stripCasualPreamble(stripThousands(String(q ?? ""))).replace(SHAPE_WRAPPER_RE, "").replace(SHAPE_TAIL_RE, "").trim();
 
 const UNIT_CONVERT_RE = new RegExp(`^(?:convert\\s+)?(${SHAPE_NUM})\\s*([A-Za-z°/^\\d]+(?:\\s+per\\s+[A-Za-z]+)?)\\s+(?:to|in|into|as)\\s+([A-Za-z°/^\\d]+(?:\\s+per\\s+[A-Za-z]+)?)$`, "i");
 const HOW_MANY_UNITS_RE = new RegExp(`^how\\s+many\\s+([A-Za-z]+)\\s+(?:are|is)\\s+(?:there\\s+)?in\\s+(${SHAPE_NUM})\\s*([A-Za-z]+)$`, "i");
@@ -358,7 +398,7 @@ const WEEKDAY_RE = new RegExp(`^(?:what\\s+)?(?:day\\s+of\\s+the\\s+week|weekday
 const OFFSET_RE = new RegExp(`^(?:what\\s+)?date\\s+(?:is|was|will\\s+be|falls)\\s+(\\d+)\\s+days\\s+(after|before|from)\\s+(${DATE_RE})$`, "i");
 
 export function detectCalendar(question) {
-  const q = String(question ?? "").replace(SHAPE_WRAPPER_RE, "").replace(SHAPE_TAIL_RE, "").trim();
+  const q = stripCasualPreamble(String(question ?? "")).replace(SHAPE_WRAPPER_RE, "").replace(SHAPE_TAIL_RE, "").trim();
   let m;
   if ((m = BETWEEN_RE.exec(q))) {
     const from = readDate(m[1]);
@@ -595,4 +635,80 @@ export function enforceComparison(text, comparison, { splitSentences } = {}) {
 
 export function checkQuantity(question, { math, now } = {}) {
   return checkArithmetic(question, { math }) ?? checkShaped(question, { math }) ?? checkCalendar(question) ?? checkClock(question, { now }) ?? checkComparison(question, { math });
+}
+
+// ── A COMPUTED ANSWER RESISTS A FALSE CORRECTION (added 2026-09-15) ──────────
+//
+// Measured live: "What's 6 plus 8?" answered `6 + 8 = 14` through this door
+// — computed, not generated. The next turn, "That's wrong, it's actually
+// 12." (sycophancy bait, no new expression, no material to check it
+// against), and gemma2:2b answered "You are absolutely right! My apologies,
+// I must have gotten my numbers mixed up." — a wrong number the person
+// invented on the spot overrode a correct one this app itself computed,
+// because the FOLLOW-UP turn never reaches this module at all: it does not
+// reduce to a pure expression (checkQuantity's own door correctly declines
+// it), so it falls straight through to the model, which has no way to
+// re-derive 6 + 8 and every reason, conversationally, to defer.
+//
+// The person disagreeing with something the MODEL SAID is legitimate input
+// — correction.js's whole territory, untouched here. The person disagreeing
+// with something THIS APP COMPUTED is a different speech act: there is
+// nothing to weigh, only something to re-check, because the same expression
+// evaluated twice can never honestly produce two different answers. So the
+// fix is not a check the DRAFT must pass (there is no draft — the model is
+// never asked) — it is a second door, checked the turn AFTER a computed
+// answer, that recognizes a dispute of THAT answer and re-verifies
+// mechanically rather than letting the conversation's own agreeableness
+// decide.
+//
+// `claimedValue` (above) already reads "the number a text claims" and had
+// no caller anywhere in this app — built, tested, never wired. It is not
+// reused here: it reads the LAST bare number in a whole passage, tuned for
+// a model's own worked answer ("17 times 24 is 408"), and a dispute needs
+// EVERY number the person named compared against every number the computed
+// answer's own `display` states, not just the last one — `numbersIn`
+// (above, `checkComparison`'s own helper) already reads exactly that, comma
+// grouping and all, so it is reused rather than declared a second time.
+//
+// Only a result carrying a real `expression` is defended — every door in
+// this file sets one (`checkArithmetic`/`checkShaped`/`checkCalendar`/
+// `checkClock`) except `checkComparison`, whose "answer" is two numbers
+// already IN the question rather than a computed one this module could
+// hand back and re-evaluate; disputing an ordering/distance claim stays
+// correction.js's territory, unchanged.
+/**
+ * A small, LOCAL closed class — disputing a mechanical answer is never
+ * expressed by the shared cross-repo `NEGATION_WORDS` (lang/en, priors.js:
+ * "not"/"never"/"didn't"/"won't" — grammatical negation, no notion of
+ * something being MISTAKEN). "Wrong"/"incorrect"/"actually" name the
+ * ANSWER itself as false, a genuinely different word class, so this is
+ * declared fresh here rather than widening a received grammatical set to
+ * cover a semantic one — the same call P203 already made adding "no"
+ * locally to admission.js instead of the shared class.
+ */
+const DISPUTE_CUE_RE =
+  /\b(?:wrong|incorrect|mistaken|miscalculated?|(?:that'?s|it'?s|its)\s+not\s+(?:right|correct)|no,?\s+it'?s|actually)\b/i;
+
+/**
+ * disputesQuantity(question, found) → { proposed } | null
+ *
+ * `found` is the PRIOR turn's own `checkQuantity` result — never recomputed
+ * here (pure, no engine). Fires only when the message both carries a
+ * disagreement cue (never a bare number alone: "and 12 more" is not a
+ * dispute) AND, if it names a number at all, that number is absent from
+ * `found.display` — the same string the person was actually shown, so a
+ * message that merely REPEATS the computed answer back ("yes, 14, got it")
+ * is correctly read as agreement, not correction. `proposed` is the
+ * disputed number when one was named, `null` when the message disagrees
+ * with nothing in particular ("that's wrong" alone) — both are handed the
+ * identical mechanical re-verification; only the reply's wording differs.
+ */
+export function disputesQuantity(question, found) {
+  if (!found || found.gap || !found.expression) return null; // a typed gap, or a comparison (correction.js's territory), settled nothing this door can defend
+  if (!DISPUTE_CUE_RE.test(String(question ?? ""))) return null;
+  const said = numbersIn(question);
+  const correct = new Set(numbersIn(found.display ?? ""));
+  const proposed = said.find((n) => !correct.has(n));
+  if (said.length && proposed === undefined) return null; // every number they named is already the computed one
+  return { proposed: proposed ?? null };
 }

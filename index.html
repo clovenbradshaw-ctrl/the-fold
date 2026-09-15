@@ -1383,6 +1383,33 @@
         letter-spacing: 0.02em;
         opacity: 0.85;
       }
+      /* /help (2026-09-15): the data was already grouped by category
+         (help.js); the plain-text render flattened it into one 68ch-wide
+         wall of identical lines, which a live reader called "crazy". This
+         is the same content, drawn as the hierarchy it already had — nothing
+         here hides a door, only spacing and type do the organizing. A
+         slightly wider bubble buys the list real rows instead of forcing
+         every summary to wrap through the prose column's narrow measure. */
+      .msg.help-msg { max-width: min(720px, 100%); }
+      .help-title { margin: 0 0 6px; font-size: 16px; font-weight: 700; }
+      .help-title .help-door-name { font-size: 14px; }
+      .help-intro { margin: 0 0 18px; color: var(--muted); }
+      .help-cat { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+      .help-cat.help-cat-first { margin-top: 0; padding-top: 0; border-top: none; }
+      .help-cat-name { margin: 0 0 8px; font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+      .help-cat-desc { font-size: 12.5px; font-weight: 400; text-transform: none; letter-spacing: normal; color: var(--muted); }
+      .help-doors { display: flex; flex-direction: column; gap: 7px; }
+      .help-door { display: flex; gap: 10px; align-items: baseline; }
+      .help-door-name { flex: 0 0 auto; font-family: var(--mono); font-size: 13px; color: var(--accent); white-space: nowrap; }
+      .help-door-copy { font-size: 14px; color: var(--ink); min-width: 0; }
+      .help-footer { margin-top: 20px; font-size: 13px; color: var(--muted); }
+      .help-card .help-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+      .help-tutorial { margin: 10px 0 16px; }
+      .help-field { margin-bottom: 12px; }
+      .help-field-label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px; }
+      .help-field-body { font-family: var(--mono); font-size: 13.5px; background: var(--accent-soft); border-radius: 8px; padding: 9px 11px; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+      .help-needs { margin-top: 6px; color: var(--muted); font-size: 13.5px; }
+      .help-needs strong { color: var(--ink); font-weight: 600; }
       .msg.queued { opacity: 0.55; }
       .msg.queued .queue-tag {
         font-size: 10px;

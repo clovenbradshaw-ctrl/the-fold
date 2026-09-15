@@ -171,7 +171,11 @@ import { persistSource, unpersistSource, loadSources } from "./sources-store.js"
 import { isAutoSourceCandidate, parseSourceCommand, nextPastedName, previewSavedText } from "./source-door.js";
 // The /help tutorial (user direction, 2026-09-11): every door, its syntax,
 // an example, and a walkthrough — data, computed and printed, never a model.
-import { renderHelp } from "./help.js";
+// renderHelp still feeds the plain-text record/history (unchanged); the
+// structured HELP/HELP_CATEGORIES/normalizeDoor are read directly so the
+// CHAT bubble can draw the same data as real hierarchy instead of one flat
+// wall of text (2026-09-15 — see helpTurn, below).
+import { renderHelp, HELP, HELP_CATEGORIES, HELP_DOOR_NAMES, normalizeDoor } from "./help.js";
 // One durable reading record (Pass 17, P98): the three kernel logs this app
 // holds persist to OPFS as append-only JSONL and replay on boot through the
 // kernel's own `append`, so the accumulated reading no longer ends at reload.
@@ -3423,6 +3427,178 @@ function usageTurn(question, usage, { what = "usage" } = {}) {
   renderThreads();
   $("status").textContent = readyLine();
   releaseBusy();
+}
+
+/**
+ * /help — same turn shape as usageTurn (the record/history/fold all carry
+ * help.js's plain-text renderHelp(), byte-identical to before), but the
+ * chat BUBBLE draws the structured HELP/HELP_CATEGORIES data as real
+ * hierarchy instead of one 68ch-wide wall of identical-looking lines.
+ *
+ * Found live (2026-09-15): the data behind /help was already grouped by
+ * category (help.js's own docstring — "the tutorial is data, computed and
+ * printed") — seven categories, each door a name+summary. The reader's
+ * "the /help that was crazy" traced to the DRAWING, not the data: every
+ * door rendered as one plain-text line (`/door — name — summary`, three
+ * clauses joined by em dashes) at the same size/weight as every other
+ * line, all 34 of them back to back with no separation but a blank line
+ * between categories. Same shape this file has hit before (P189's "what
+ * the model saw" box): the fix is not fewer doors, it is a rendering that
+ * uses the grouping that already exists. Nothing is removed — every door
+ * still lists, `entry.name` still shows (one hop deeper, in the door
+ * card's own heading), and the untrimmed plain-text index still lands on
+ * `state.history` and the fold/record exactly as it did before this pass.
+ */
+function helpTurn(question, query) {
+  addMessage("user", question);
+  const node = addMessage("assistant", "");
+  node.classList.add("help-msg");
+  const body = node.querySelector(".body");
+  const raw = String(query ?? "").trim();
+  if (!raw) {
+    buildHelpIndex(body);
+  } else {
+    const key = normalizeDoor(query);
+    if (key) buildHelpCard(body, key, HELP[key]);
+    else buildHelpUnknown(body, query);
+  }
+  const usage = renderHelp(query);
+  state.history.push(
+    { role: "user", content: question },
+    { role: "assistant", content: stripComputedCaption(usage) },
+  );
+  const turn = state.summary.turnCount + 1;
+  logAct("answered-from-state", { what: "help" });
+  observeExchange(turn, question, usage);
+  const fold = mechanicalFoldLine(question, usage);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+  renderFold(node, { fold });
+  renderThreads();
+  $("status").textContent = readyLine();
+  releaseBusy();
+}
+
+/** The bare /help grouped index, drawn as real sections rather than one
+ * flat run of lines: a heading + intro, then one block per category (its
+ * name bold, its own one-line description muted beside it), each door a
+ * two-column row — a mono `/door` anchor a reader's eye can track down the
+ * list, and its summary in ordinary prose beside it. `entry.name` is left
+ * out of this row on purpose (it mostly restates the summary in fewer
+ * words); it still renders, undiscarded, in that door's own card heading. */
+function buildHelpIndex(body) {
+  const byCat = new Map();
+  for (const door of HELP_DOOR_NAMES) {
+    const e = HELP[door];
+    if (!byCat.has(e.category)) byCat.set(e.category, []);
+    byCat.get(e.category).push({ door, ...e });
+  }
+  const wrap = document.createElement("div");
+  wrap.className = "help-index";
+  const h = document.createElement("h4");
+  h.className = "help-title";
+  h.textContent = "The Fold — the doors";
+  const intro = document.createElement("p");
+  intro.className = "help-intro";
+  intro.textContent = "Every door below is checked before any model call, so what you type is never hijacked. Most are mechanical (computed, never generated); the ones that call a model or reach the network say so in their own card.";
+  wrap.append(h, intro);
+  let first = true;
+  for (const [cat, entries] of byCat) {
+    const [catName, catDesc] = String(HELP_CATEGORIES[cat]).split(" — ");
+    const section = document.createElement("div");
+    section.className = first ? "help-cat help-cat-first" : "help-cat";
+    first = false;
+    const catH = document.createElement("h5");
+    catH.className = "help-cat-name";
+    catH.textContent = catName;
+    if (catDesc) {
+      const desc = document.createElement("span");
+      desc.className = "help-cat-desc";
+      desc.textContent = ` — ${catDesc}`;
+      catH.append(desc);
+    }
+    const list = document.createElement("div");
+    list.className = "help-doors";
+    for (const e of entries) {
+      const row = document.createElement("div");
+      row.className = "help-door";
+      const code = document.createElement("code");
+      code.className = "help-door-name";
+      code.textContent = e.door;
+      const copy = document.createElement("span");
+      copy.className = "help-door-copy";
+      copy.textContent = e.summary;
+      row.append(code, copy);
+      list.append(row);
+    }
+    section.append(catH, list);
+    wrap.append(section);
+  }
+  const footer = document.createElement("p");
+  footer.className = "help-footer";
+  footer.textContent = "Pasting a large block (over 1,000 characters) straight into the composer saves it as a source by itself, with no command at all. Type /help <door> — e.g. /help fold — for that command's full walkthrough.";
+  wrap.append(footer);
+  body.replaceChildren(wrap);
+}
+
+/** One door's full card — syntax, a worked example, the walkthrough — with
+ * the syntax/example blocks set in a monospace field, matching how a real
+ * command already reads in a user bubble, rather than plain paragraphs. */
+function buildHelpCard(body, door, entry) {
+  const wrap = document.createElement("div");
+  wrap.className = "help-card";
+  const h = document.createElement("h4");
+  h.className = "help-title";
+  const code = document.createElement("code");
+  code.className = "help-door-name";
+  code.textContent = door;
+  const cat = document.createElement("span");
+  cat.className = "help-cat-desc";
+  cat.textContent = ` (${String(HELP_CATEGORIES[entry.category]).split(" — ")[0]})`;
+  h.append(code, document.createTextNode(" — " + entry.name), cat);
+  const tut = document.createElement("p");
+  tut.className = "help-tutorial";
+  tut.textContent = entry.tutorial;
+  wrap.append(h, tut, helpField("Syntax", entry.syntax), helpField("Example", entry.example));
+  const needs = document.createElement("p");
+  needs.className = "help-needs";
+  const strong = document.createElement("strong");
+  strong.textContent = "You need: ";
+  needs.append(strong, document.createTextNode(entry.needs));
+  wrap.append(needs);
+  body.replaceChildren(wrap);
+}
+
+function helpField(label, text) {
+  const box = document.createElement("div");
+  box.className = "help-field";
+  const cap = document.createElement("span");
+  cap.className = "help-field-label";
+  cap.textContent = label;
+  const pre = document.createElement("pre");
+  pre.className = "help-field-body";
+  pre.textContent = text;
+  box.append(cap, pre);
+  return box;
+}
+
+/** A door nobody knows: the same typed refusal renderHelp always gave,
+ * just with the known doors set in mono so they read as a list to scan
+ * rather than one run-on line of slash-separated words. */
+function buildHelpUnknown(body, query) {
+  const wrap = document.createElement("div");
+  wrap.className = "help-index";
+  const asked = String(query ?? "").trim().replace(/^\//, "") || "that";
+  const p = document.createElement("p");
+  p.textContent = `There is no door named "${asked}".`;
+  const list = document.createElement("p");
+  list.className = "help-cat-desc";
+  list.textContent = HELP_DOOR_NAMES.join("  ");
+  const hint = document.createElement("p");
+  hint.className = "help-footer";
+  hint.textContent = "Type /help for the grouped index, or /help <door> — e.g. /help fold — for one command's walkthrough.";
+  wrap.append(p, list, hint);
+  body.replaceChildren(wrap);
 }
 
 /**
@@ -7755,7 +7931,7 @@ async function send(question) {
   // syntax, a worked example, the walkthrough. Mechanical: the tutorial is
   // data (help.js), computed and printed, never a model call.
   const helpDoor = question.match(/^\/help\b\s*(\S*)/)?.[1];
-  if (helpDoor !== undefined) return usageTurn(question, renderHelp(helpDoor), { what: "help" });
+  if (helpDoor !== undefined) return helpTurn(question, helpDoor);
 
   const task = question.match(/^\/task\s+(\S[\s\S]*)/)?.[1];
   if (task) return holonicTurn(task, question, "model");

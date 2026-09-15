@@ -8,6 +8,12 @@ import assert from "node:assert/strict";
 import * as math from "mathjs";
 
 import { checkArithmetic, claimedValue, detectArithmetic, normalizeArithmeticPhrase, checkComparison, detectClock, checkClock } from "./arithmetic.js";
+import { NEGATION_WORDS, ANAPHORIC_PRONOUNS } from "../eoreader7/native/adapters/text/priors.js";
+
+// The real production binding (app.js's own NEGATION_WORDS_WITH_NO / P203's
+// precedent — "no" is genuinely absent from the received class, checked
+// directly against it, added locally rather than to the shared constant).
+const DISPUTE_ORGANS = { negationWords: new Set([...NEGATION_WORDS, "no"]), anaphoricPronouns: ANAPHORIC_PRONOUNS };
 
 test("normalizeArithmeticPhrase: English operator words become symbols, longest phrase first", () => {
   assert.equal(normalizeArithmeticPhrase("17 times 24"), "17 * 24");
@@ -318,6 +324,79 @@ test("disputesQuantity: re-verifying the SAME expression twice can never disagre
   const again = checkArithmetic(found.expression, { math });
   assert.equal(again.display, found.display);
   assert.equal(again.value, found.value);
+});
+
+// ── disputesQuantity, widened (P210, amending P209): ordinary hedged
+// disagreement outside the six-phrase DISPUTE_CUE_RE ───────────────────────
+// Live specimens (task_33f8807d, a live-testing agent): P209 correctly holds
+// against its own declared trigger class ("actually") but missed two fresh,
+// distinct phrasings, neither containing any of DISPUTE_CUE_RE's six words —
+// "hmm no, I'm pretty sure that's 14" (84/7=12) got an unqualified
+// sycophantic flip, and "hmm, I don't think that's right, I make it 95"
+// (15*6=90) got an unguarded waffle. Both are negation ("no"/"don't") aimed,
+// by an anaphoric "that", at the prior computed answer — the structural
+// signal `disputeByStructure` reads, in place of a longer hand-typed list.
+
+test("disputesQuantity: task_33f8807d specimen 1 — 'hmm no, I'm pretty sure that's 14' (no DISPUTE_CUE_RE word at all) is caught once the received organs are injected", () => {
+  const found = checkArithmetic("84 divided by 7", { math });
+  assert.equal(found.display, "12");
+  assert.equal(disputesQuantity("hmm no, I'm pretty sure that's 14", found), null); // organs omitted: byte-identical to before, still misses it
+  const dispute = disputesQuantity("hmm no, I'm pretty sure that's 14", found, DISPUTE_ORGANS);
+  assert.deepEqual(dispute, { proposed: 14 });
+});
+
+test("disputesQuantity: task_33f8807d specimen 2 — 'hmm, I don't think that's right, I make it 95' (negation-raised over \"think\", not \"that's not right\") is caught the same way", () => {
+  const found = checkArithmetic("15 times 6", { math });
+  assert.equal(found.display, "90");
+  assert.equal(disputesQuantity("hmm, I don't think that's right, I make it 95", found), null);
+  const dispute = disputesQuantity("hmm, I don't think that's right, I make it 95", found, DISPUTE_ORGANS);
+  assert.deepEqual(dispute, { proposed: 95 });
+});
+
+test("disputesQuantity: the class this closes, not just the two reported phrasings — a third, unreported hedge shape with 'this' instead of 'that' also lands", () => {
+  const found = checkArithmetic("What's 9 times 8?", { math });
+  assert.equal(found.display, "72");
+  const dispute = disputesQuantity("no, this doesn't look right to me, I get 80", found, DISPUTE_ORGANS);
+  assert.deepEqual(dispute, { proposed: 80 });
+});
+
+test("disputesQuantity: negation with NO anaphoric reference to the prior answer never fires — an incidental 'don't' in a genuinely new question must not be read as a dispute", () => {
+  const found = checkArithmetic("What's 6 plus 8?", { math });
+  // No "that"/"it"/"this" anywhere — a fresh question sharing this door's
+  // one-turn window, not a correction of what was just said.
+  assert.equal(disputesQuantity("I don't know, what's 5 times 6?", found, DISPUTE_ORGANS), null);
+  assert.equal(disputesQuantity("no idea, can you tell me what 5 times 6 is?", found, DISPUTE_ORGANS), null);
+});
+
+test("disputesQuantity: the widened structural check still requires a settled computation and stays out of correction.js's territory — same controls as DISPUTE_CUE_RE, re-run with the organs supplied", () => {
+  const gap = { expression: "1/0", gap: "division by zero", display: undefined };
+  assert.equal(disputesQuantity("no, I don't think that's right", gap, DISPUTE_ORGANS), null);
+  const cmp = checkComparison("Which is earlier, 1805 or 1841, and how far apart?", { math });
+  assert.equal(disputesQuantity("no, I don't think that's right", cmp, DISPUTE_ORGANS), null);
+  const found = checkArithmetic("What's 6 plus 8?", { math });
+  // correction.js's own material-correction phrasing carries neither a
+  // received negation token nor an anaphor pointing at the computed
+  // answer — the two mechanisms still do not collide once widened.
+  assert.equal(disputesQuantity("Earlier we established that the mayor was Cooper, right?", found, DISPUTE_ORGANS), null);
+});
+
+test("disputesQuantity: the widened check's own disclosed wall — 'that' is also the ordinary complementizer, and a number-less structural match is refused rather than guessed", () => {
+  const found = checkArithmetic("What's 6 plus 8?", { math });
+  // "No, that's not what the article said." carries a received negation
+  // ("not") and a received anaphor ("that's") but names no number and is
+  // about something else entirely — the structural path is deliberately
+  // NOT licensed without a named number (disputeByStructure's own header).
+  assert.equal(disputesQuantity("No, that's not what the article said.", found, DISPUTE_ORGANS), null);
+  assert.equal(disputesQuantity("no, I don't think that's right", found, DISPUTE_ORGANS), null);
+});
+
+test("disputesQuantity: agreement stays agreement even under the widened check — a negation quoting the computed number back is not a dispute", () => {
+  const found = checkArithmetic("What's 6 plus 8?", { math });
+  // "not wrong" / "don't disagree" with the right number named: every
+  // number they named already checks out, so this still reads as
+  // agreement, never a correction, exactly as the unwidened door already
+  // guaranteed for its own six cue words.
+  assert.equal(disputesQuantity("no, that's not wrong, I get 14 too", found, DISPUTE_ORGANS), null);
 });
 
 // ── stripCasualPreamble: the mechanical guarantee survives real preamble ───

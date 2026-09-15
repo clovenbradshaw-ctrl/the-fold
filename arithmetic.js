@@ -689,24 +689,99 @@ export function checkQuantity(question, { math, now } = {}) {
 const DISPUTE_CUE_RE =
   /\b(?:wrong|incorrect|mistaken|miscalculated?|(?:that'?s|it'?s|its)\s+not\s+(?:right|correct)|no,?\s+it'?s|actually)\b/i;
 
+/** Unicode-aware word split, apostrophes kept inside a token ("don't",
+ * "that's" stay one form) — the identical shape widget.js's own `forms()`
+ * already uses for this exact purpose (reading a received closed class
+ * against a message's own tokens), not re-derived. */
+const wordsOf = (s) =>
+  String(s ?? "").toLowerCase().replace(/[‘’]/g, "'").split(/[^\p{L}\p{N}']+/u).filter(Boolean);
+
 /**
- * disputesQuantity(question, found) → { proposed } | null
+ * disputeByStructure(question, { negationWords, anaphoricPronouns }) → bool
+ *
+ * P209's own DISPUTE_CUE_RE closes six fixed phrasings; live specimens
+ * (task_33f8807d — "hmm no, I'm pretty sure that's 14", "hmm, I don't
+ * think that's right, I make it 95") show ordinary hedged disagreement
+ * routinely misses all six, because English negates a disagreement with
+ * "think" ("I DON'T think that's right") as often as it negates the
+ * answer directly ("that's not right"). Widening the six-word list to a
+ * longer one repeats the mistake this repo has already named and undone
+ * once for this exact class (widget.js's own header, on ITS OWN prior
+ * hand-typed word lists: "not a simplification of English, it was a
+ * sample of it standing in for the whole").
+ *
+ * The structural signal instead: a received NEGATION_WORDS token (P41/P43's
+ * own pattern — a closed grammatical class with its giver, injected, never
+ * hand-typed here) co-occurring with a received ANAPHORIC_PRONOUNS token
+ * ("that"/"it"/"this"/…, priors.js again) — i.e. the message negates
+ * something WHILE POINTING BACK at the prior computed answer. Both
+ * specimens above carry "that's"; "no" is added locally to the negation
+ * set exactly the way P203 added it to admission.js's own copy — checked
+ * and confirmed absent from the received class for the identical reason
+ * (it is a discourse particle, not the class's own grammatical negators),
+ * and added ONLY here, not to the shared cross-repo constant.
+ *
+ * Requiring BOTH tokens (never negation alone) is deliberate and load-
+ * bearing: a genuine new question sharing this door's one-turn window can
+ * carry an incidental negation with no anaphoric reference at all ("I
+ * don't know, what's 5 times 6?" — "don't" present, no "that"/"it"/"this"
+ * anywhere) and must never be read as a dispute of the PRIOR answer.
+ * Anaphora is the tell that the negation is aimed at what was just said,
+ * not at something else in the same breath.
+ *
+ * A THIRD, DISCLOSED requirement, found by trying to break this before
+ * shipping it: "that" is also the ordinary English complementizer ("no,
+ * that's not what the article said"), not only a demonstrative pointing at
+ * the arithmetic answer — and that sentence carries both a received
+ * negation word AND a received anaphor while being about something else
+ * entirely, one turn after an unrelated computed answer. DISPUTE_CUE_RE's
+ * own six words are unambiguous evaluations of correctness ("wrong",
+ * "incorrect", "not right/correct") and stay licensed on their own for a
+ * bare, number-less dispute; this wider, ambiguous structural signal is
+ * licensed only when the message ALSO names a number — exactly what both
+ * real specimens do ("...that's 14", "...I make it 95") and what an
+ * unrelated correction about something else typically does not. A bare
+ * "I don't think that's right" with no number is a real, disclosed
+ * residue this widening does not close — the safer side to fail on.
+ */
+function disputeByStructure(question, { negationWords, anaphoricPronouns } = {}) {
+  if (!(negationWords instanceof Set) || !negationWords.size) return false;
+  if (!(anaphoricPronouns instanceof Set) || !anaphoricPronouns.size) return false;
+  const toks = wordsOf(question);
+  if (!toks.length) return false;
+  return toks.some((t) => negationWords.has(t)) && toks.some((t) => anaphoricPronouns.has(t));
+}
+
+/**
+ * disputesQuantity(question, found, organs) → { proposed } | null
  *
  * `found` is the PRIOR turn's own `checkQuantity` result — never recomputed
- * here (pure, no engine). Fires only when the message both carries a
- * disagreement cue (never a bare number alone: "and 12 more" is not a
- * dispute) AND, if it names a number at all, that number is absent from
- * `found.display` — the same string the person was actually shown, so a
- * message that merely REPEATS the computed answer back ("yes, 14, got it")
- * is correctly read as agreement, not correction. `proposed` is the
- * disputed number when one was named, `null` when the message disagrees
- * with nothing in particular ("that's wrong" alone) — both are handed the
- * identical mechanical re-verification; only the reply's wording differs.
+ * here (pure, no engine). Fires when the message either matches
+ * DISPUTE_CUE_RE (unchanged) or clears `disputeByStructure` above — and,
+ * if it names a number at all, that number is absent from `found.display`
+ * — the same string the person was actually shown, so a message that
+ * merely REPEATS the computed answer back ("yes, 14, got it") is correctly
+ * read as agreement, not correction. `proposed` is the disputed number
+ * when one was named, `null` when the message disagrees with nothing in
+ * particular ("that's wrong" alone) — both are handed the identical
+ * mechanical re-verification; only the reply's wording differs.
+ *
+ * `organs` (optional, opt-in, cast.js pattern — P41/P43's own precedent):
+ * `{ negationWords, anaphoricPronouns }`, the engine's received priors.js
+ * classes. Omitted, this function is byte-identical to before — the
+ * structural widening only activates where a real caller injects the
+ * classes (app.js does, at the one production call site).
  */
-export function disputesQuantity(question, found) {
+export function disputesQuantity(question, found, organs = {}) {
   if (!found || found.gap || !found.expression) return null; // a typed gap, or a comparison (correction.js's territory), settled nothing this door can defend
-  if (!DISPUTE_CUE_RE.test(String(question ?? ""))) return null;
+  const q = String(question ?? "");
   const said = numbersIn(question);
+  const cued = DISPUTE_CUE_RE.test(q);
+  // The structural (non-cue-word) path is licensed only when a number is
+  // also named — see disputeByStructure's own header for why "that"'s
+  // ordinary complementizer use makes a bare structural match too ambiguous
+  // to trust on its own.
+  if (!cued && !(said.length && disputeByStructure(q, organs))) return null;
   const correct = new Set(numbersIn(found.display ?? ""));
   const proposed = said.find((n) => !correct.has(n));
   if (said.length && proposed === undefined) return null; // every number they named is already the computed one

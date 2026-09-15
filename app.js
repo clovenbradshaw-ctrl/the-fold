@@ -17756,6 +17756,15 @@ $("not-served")?.remove();
   try {
     const saved = await loadSources();
     let restoredAny = false;
+    // sources-store.js tags a source `legacy: true` when it came from the
+    // flat, origin-wide store that predates per-tab session isolation — a
+    // real, disclosed exception to PER_WORKSPACE's own "between workspaces
+    // there is no switch" (CLAUDE.md, Workspaces): this tab did not save
+    // it, and neither did anyone in this conversation. Named here rather
+    // than blended silently into "the sources this session has," the same
+    // "disclosed, not silently dropped" posture P190's admission gate
+    // already holds for a refused source.
+    const legacyNames = [];
     for (const { name, text, meta } of saved) {
       if (!state.sources[name]) {
         addSource(name, text, { fromBoot: true });
@@ -17767,7 +17776,14 @@ $("not-served")?.remove();
         // reverting to "attached, no author, no date" on every reload.
         if (meta?.provenance) state.provenance[name] = meta.provenance;
         if (meta?.pageFace) state.pageFaces[name] = meta.pageFace;
+        if (meta?.legacy) legacyNames.push(name);
       }
+    }
+    if (legacyNames.length && state.convos?.length) {
+      addMessage(
+        "assistant",
+        `${legacyNames.length} restored source${legacyNames.length === 1 ? "" : "s"} came from this browser's shared, origin-wide storage rather than this tab's own: ${legacyNames.join(", ")}. They predate per-tab isolation, or were saved by a different tab that shares this address — still usable as material, but nothing this session attached itself.`,
+      );
     }
     // The Folds panel (a /facts table's Source/Citation controls, its
     // References' real APA/MLA) may have already drawn once, synchronously,

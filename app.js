@@ -1702,7 +1702,30 @@ import { makeAletheia } from "./aletheia.js";
 // floor alone still admits a source whose two shared words never appear
 // TOGETHER in it (P31's "company, not bare occurrence," one level up); see
 // admission.js's own header for the full account.
-const admissionGate = makeAdmission({ tokenize, splitSentences: engineSentences });
+//
+// `negationWords` (added 2026-09-15) turns on admission's own DENIAL check
+// — a THIRD live specimen (two independent reproductions, same day) showed
+// a person correcting a fabrication ("there's no coffee shop or oat milk
+// anywhere in what I sent you") got the SAME leaked source re-admitted,
+// this time tagged "confirmed" — the correction's own quoted-back words
+// handed the gate exactly the vocabulary it needed. See admission.js's own
+// header, "A DENIED TERM IS NOT AN ASSERTED TERM," for the full account.
+// The engine's own `NEGATION_WORDS` (lang/en, priors.js) is missing "no" —
+// checked against its own test suite, no consumer asserts it is absent on
+// purpose, but this pass does not widen that shared, cross-repo closed
+// class blind (relations.js's polarity gate, widget.js's judgment tell,
+// and hypergraph.js's P43 gate all read it too, and are out of this pass's
+// scope). "no" is added HERE ONLY, locally, for this gate's own narrower
+// question ("is this word being denied in the person's own message," not
+// "does an extracted clause's object carry a negated polarity") — a
+// correction almost always reads "there's no X"/"no X here," and that is
+// the single most common English sentential negator missing from the
+// received set for exactly this shape of sentence.
+const admissionGate = makeAdmission({
+  tokenize,
+  splitSentences: engineSentences,
+  negationWords: new Set([...enginePriors.NEGATION_WORDS, "no"]),
+});
 
 // Aletheia (aletheia.js) — the archon of SATISFACTION, Problem 1's second,
 // complementary fix: did the final answer address the question at ALL,

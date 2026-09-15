@@ -139,8 +139,44 @@ function sameForm(a, b, suffixes) {
  * (this module compares TOKENS, not sentences), so it is refused outright
  * rather than given a company test it has no sentence to pass.
  */
+/**
+ * The English spelled-out cardinal numbers, zero through twelve — the
+ * range ordinary prose and ordinary code comments write OUT rather than as
+ * digits (most style conventions spell a dozen or fewer; beyond that,
+ * writers reach for digits, which the regexes below already cover). A
+ * genuinely closed grammatical class, not an open list — kept local rather
+ * than a received prior because no giver exports one; the same standing
+ * `IMAGE_REFERRING_WORDS` (app.js) already holds for a closed class this
+ * codebase has not received from elsewhere.
+ */
+const SPELLED_NUMBERS = new Set([
+  "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+  "nine", "ten", "eleven", "twelve",
+]);
+
+/**
+ * A bare numeral, digits or spelled out — see this function's own header
+ * above for the digit half's full reasoning (P31: "a bare number
+ * discriminates nothing"). Extended 2026-09-15: found live, "quick one -
+ * what's 5 subtracted from 12?" matched fold 10 on the single WORD "one",
+ * present in the build's own model-generated docstring ("one is not
+ * considered a prime number") — the identical referent-less shape the
+ * digit half already excludes (a loop counter, an array index, a step tag
+ * puts a small number into nearly every program; a natural-language aside
+ * puts its SPELLED form into nearly every explanatory comment or sentence
+ * just as often), one register over. "one" is additionally the single
+ * most overloaded word in this set in ordinary English — simultaneously a
+ * numeral, an indefinite pronoun ("someone", "no one"), and a bare
+ * noun-substitute ("a quick one", "a good one", "which one") — none of
+ * which is a genuine reference back to a prior build, unlike a genuine
+ * demonstrative ("this"/"that", ANAPHORIC_PRONOUNS) or a definite phrase
+ * ("the counter"). Scoped to a CLOSED, small cardinal range rather than an
+ * open list of number words for the identical reason the digit half is a
+ * regex rather than an enumeration: the shape is what disqualifies it, not
+ * a guess at which particular numbers appear in code.
+ */
 function isBareNumeral(t) {
-  return /^\d+$/.test(t) || /^[ivxlcdm]+$/.test(t);
+  return /^\d+$/.test(t) || /^[ivxlcdm]+$/.test(t) || SPELLED_NUMBERS.has(t);
 }
 
 /**

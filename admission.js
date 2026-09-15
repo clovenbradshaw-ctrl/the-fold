@@ -89,6 +89,43 @@
 // caller built before this date) gets the exact prior behaviour, byte for
 // byte — this is a strictly narrower admission, applied only where the
 // caller has opted in by supplying a sentence-splitter.
+//
+// A DENIED TERM IS NOT ASSERTED TERM (added 2026-09-15; Generality:
+// universal — a correction is the opposite of an endorsement, and this
+// floor cannot tell them apart without being told). Found live, twice
+// independently, chasing a report of a fabrication coming back "confirmed"
+// — the highest grounding badge — AFTER the person corrected it: a
+// fabricated coffee-shop/oat-milk aside was named back to REFUTE it
+// ("there's no coffee shop or oat milk anywhere in what I sent you, that's
+// a garden report") and the very act of naming the hallucinated terms gave
+// this gate exactly the vocabulary overlap it needed to legitimately admit
+// the stale, unrelated coffee-shop source the fabrication had leaked from
+// in the first place — which then genuinely DOES contain "coffee shop" and
+// "oat milk" together in one sentence, so COMPANY (above) cleared too, and
+// the ground ladder correctly, honestly marked it "confirmed": the sentence
+// really is in that (utterly wrong-context) source. The gate was not wrong
+// about the bytes; it was answering a question it was never asked — a
+// human denying "there's no X here" is not offering X as this turn's own
+// topic, and treating every word in a message as equally positive evidence
+// cannot tell "the reader is asserting this" from "the reader is quoting
+// something back to reject it." Closed one level below `questionTerms`,
+// not by editing `hasCompany` or the floor: a word is excluded from the
+// question's OWN vocabulary when every occurrence of it in the message sits
+// inside a negation's scope (a received `negationWords` closed class,
+// optional — see `deniedTerms`, below) — never when it is ALSO asserted
+// somewhere else in the same message, so a genuinely mixed message ("I like
+// coffee, but there's no oat milk here") still offers "coffee" as real
+// vocabulary and only withholds "oat"/"milk". Scope runs from the negation
+// trigger to the end of its own sentence (the same `splitSentences` organ
+// this file already takes for COMPANY, reused rather than a second
+// sentence notion) — deliberately coarse in the safer direction: losing a
+// stray un-negated word inside the scope costs this turn one weak vote
+// toward admitting a source it probably should not have leaned on alone
+// anyway, while a scope too narrow lets a denied term keep legitimizing the
+// exact source it was named specifically to refute. `negationWords` is
+// optional and defaults to undefined, so a caller that never injects it
+// gets the exact prior behaviour, byte for byte — every existing test and
+// caller of this module is untouched until a caller opts in.
 
 // Derived, not hand-picked: the same structural minimum clippy.js's own DMD
 // gate (`n >= 2`) and binding.js's arrivals floor already use for "how much
@@ -96,11 +133,53 @@
 // never re-derived. See this file's own header, above, for the full reasoning.
 export const ADMISSION_FLOOR = 2;
 
-export function makeAdmission({ tokenize, splitSentences } = {}) {
+export function makeAdmission({ tokenize, splitSentences, negationWords } = {}) {
   if (typeof tokenize !== "function") throw new TypeError("makeAdmission: tokenize is injected");
 
+  /** A raw word scan (case-preserved, position-tracked) — separate from
+   * `tokenize`, which already strips stopwords/short words and cannot tell
+   * where in the ORIGINAL text a match sat. Mirrors the character class
+   * `tokenize` itself splits on (source.js's own header). */
+  function rawWords(text) {
+    return [...String(text ?? "").matchAll(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu)];
+  }
+
+  /** Words that occur ONLY inside a negation's scope somewhere in `text` —
+   * "there's no coffee shop" DENIES "coffee" and "shop", it does not assert
+   * them, and a denial is not positive evidence a source is relevant to
+   * this question (see this file's own header, "A DENIED TERM IS NOT AN
+   * ASSERTED TERM"). A term that is ALSO asserted outside any negation's
+   * scope elsewhere in the same text is never excluded — this only ever
+   * strips a term that the message never actually asserts anywhere.
+   * `negationWords` is the caller-injected closed class (optional); a
+   * caller that omits it gets an empty exclusion set unconditionally. */
+  function deniedTerms(text) {
+    if (!negationWords || typeof negationWords.has !== "function") return new Set();
+    const s = String(text ?? "");
+    const sentences = typeof splitSentences === "function" ? (splitSentences(s) ?? []) : [{ text: s, offset: 0 }];
+    const denied = new Set();
+    const asserted = new Set();
+    for (const sent of sentences) {
+      const t = typeof sent === "string" ? sent : (sent?.text ?? "");
+      const words = rawWords(t);
+      const cut = words.find((w) => negationWords.has(w[0].toLowerCase()))?.index;
+      if (cut === undefined) {
+        for (const term of tokenize(t)) asserted.add(term);
+        continue;
+      }
+      for (const term of tokenize(t.slice(0, cut))) asserted.add(term);
+      for (const term of tokenize(t.slice(cut))) denied.add(term);
+    }
+    const onlyDenied = new Set();
+    for (const term of denied) if (!asserted.has(term)) onlyDenied.add(term);
+    return onlyDenied;
+  }
+
   function questionTerms(question) {
-    return [...new Set(tokenize(String(question ?? "")))];
+    const q = String(question ?? "");
+    const all = [...new Set(tokenize(q))];
+    const denied = deniedTerms(q);
+    return denied.size ? all.filter((t) => !denied.has(t)) : all;
   }
 
   /** Do at least `need` of `shared`'s words appear together in one sentence

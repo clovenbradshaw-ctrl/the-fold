@@ -58,6 +58,40 @@ test("scope (P114): a source is in a piece's scope only when it carries every co
   assert.deepEqual(h, ["The X-Files", "Production", "Casting and characters"], "a heading heads a paragraph; list items, citations and infobox rows are not headings");
 });
 
+// ── company, not bare occurrence, in inScope (2026-09-15) ───────────────────
+// Live specimen: a stale, unrelated cross-conversation source scattered
+// every one of a short topic's own words across DIFFERENT paragraphs, each
+// about something else — the prior "every term appears somewhere" reading
+// judged it in scope; the fix requires the topic's words to appear TOGETHER
+// in one sentence, the same P31 principle admission.js already applies one
+// door earlier.
+test("company (P31, one level up from admission.js): a topic whose words are scattered across different, unrelated paragraphs of a long stale source is NOT in scope, even though every word appears somewhere in it", () => {
+  const stale = [
+    "On Saturday, the company ran out of oat milk around 2pm and had to turn away several latte orders at the coffee shop.",
+    "Priya Desai led the relocation of the engineering team from Austin to Denver after their lease in Texas expired in March 2019, citing the mountain-biking culture, shorter commutes, and cheaper cost of living.",
+    "Since May, Saturdays have consistently been the busiest day at the coffee shop near the new Denver office.",
+  ].join(" ");
+  // "team" and "chess" never occur in the same sentence of the stale
+  // source — "team" sits in the relocation sentence, "chess" nowhere at
+  // all — so a topic built to share only generic, scattered words is
+  // correctly refused.
+  assert.equal(inScope("the chess team", stale), false, `topicTerms=${JSON.stringify(topicTerms("the chess team"))}`);
+});
+
+test("company: a topic whose words genuinely co-occur in one of the source's own sentences is still in scope", () => {
+  const material = "The chess team's coach announced two new tournament results this week: Aisha placed first and Marcus placed second.";
+  assert.equal(inScope("the chess team", material), true);
+});
+
+test("company: a one-word topic still admits on bare presence — the need caps at what the topic offers, the same rule ADMISSION_FLOOR uses", () => {
+  assert.equal(inScope("photosynthesis", "Photosynthesis converts light energy into chemical energy in plants."), true);
+});
+
+test("company: the pre-existing positive specimens (Battle of Borodino, X-Files) are unaffected — their topic words already sit in one sentence of the admitted source", () => {
+  assert.equal(inScope("the Battle of Borodino", "Tolstoy wrote of the battle at Borodino."), true);
+  assert.equal(inScope("the x files", "The X-Files is a series."), true);
+});
+
 test("P136: a passage is prose or code by what it IS, not what it is called — a rendered article is not source code", () => {
   // The live bug: `.html` was in the code list, so every passage of a rendered
   // encyclopaedia article was dropped from prosePassages — the pool that feeds

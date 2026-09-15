@@ -553,6 +553,40 @@ test("iterationTell/routeMessage: a bare numeral shared with the build's own byt
   assert.equal(iterationTell("what are the two speakers talking about?", known), null);
 });
 
+test("iterationTell/routeMessage: a bare SPELLED-OUT numeral shared with the build's own bytes is never content evidence either (live, 2026-09-15, 'quick one' specimen)", () => {
+  // Found live: "quick one - what's 5 subtracted from 12?" — an ordinary
+  // arithmetic question with zero real relation to a leftover Coding-tab
+  // build — hijacked fold 10 (a prime-checking function), "matched on:
+  // one". Root cause verified directly against the real router rather than
+  // assumed from the report: "one" is NOT a member of ANAPHORIC_PRONOUNS
+  // (checked against the real closed class, priors.js — it holds only
+  // "it"/"it's"/"this"/"this's"/"that"/"that's"/"these"/"those"), so
+  // anaphoraTell never had anything to do with this specimen; the actual
+  // channel is FORM RESOLUTION (matchedTerms/pointedTerms), because the
+  // word "one" — a real, non-stopword, length-3 token — sat in the build's
+  // own MODEL-WRITTEN docstring ("one is not considered a prime number"),
+  // an ordinary natural-language aside a small model writes into generated
+  // code about as often as a digit does. The fix is the digit-numeral
+  // exclusion above, widened to its spelled-out form (isBareNumeral) —
+  // never anaphoraTell, which was never the mechanism.
+  const known = `python: checks whether a number is prime\ndef is_prime(n):\n    """Returns True if n is prime. Note: one is not considered a prime number, and neither is zero."""\n    if n < 2:\n        return False\n    for i in range(2, int(n ** 0.5) + 1):\n        if n % i == 0:\n            return False\n    return True\n`;
+  assert.match(known, /\bone\b/, "the fixture actually carries the spelled-out numeral this test is about");
+  assert.equal(iterationTell("quick one - what's 5 subtracted from 12?", known), null);
+  const builds = [{ n: 10, type: "code", lang: "python", text: known }];
+  assert.equal(routeMessage("quick one - what's 5 subtracted from 12?", builds), null);
+
+  // Not narrowed into silence: a spelled-out numeral alone never counts,
+  // but a message whose OTHER words share the build's real vocabulary
+  // still resolves exactly as before.
+  assert.equal(iterationTell("fix is_prime, it says one is prime", known), "resolved");
+
+  // A genuine, non-numeral "one" idiom ("a good one", "which one") is
+  // refused the identical way — the fix is the word's SHAPE (a member of
+  // the closed cardinal-number class), not the specific sentence.
+  assert.equal(iterationTell("nice work, that's a good one", known), "anaphora", "\"that's\" still fires anaphoraTell on its own — unaffected by the numeral fix");
+  assert.equal(iterationTell("which one should I pick?", known), null, "no anaphor, no definite phrase, and now no bare-numeral match either");
+});
+
 test("routeMessage: a bare anaphor is not evidence for a leftover build once material is attached", () => {
   // The THIRD channel the same battery hit, closing the reported bug: a
   // genuinely anaphoric "that" ("does THAT sound like a healthy diet to

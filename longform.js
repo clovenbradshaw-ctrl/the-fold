@@ -112,12 +112,51 @@ export const isCodeSource = (name, text = null) =>
 const foldT = (t) => String(t ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 /** The topic's content words, folded: every one must appear in a source for it to be in a piece's scope (P114). */
 export const topicTerms = (topic) => [...new Set(foldT(topic).split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2 && !/^(the|and|for|with|from|about|into|over)$/.test(w)))];
-/** In scope: a source whose text carries every content word of the topic. Material attached for something else never reaches a piece (measured 2026-09-05: the self-review drew a Borodino prose poem from a War and Peace slice attached hours earlier). */
+
+// A lightweight, in-file sentence split \u2014 this module stays PURE (no engine
+// import, no injected organ), so this is a cheap approximation, never the
+// real sentence-terminator/abbreviation-aware splitter (spans.js) the app
+// injects into admission.js. Good enough for the company check below: real
+// sentence-ending punctuation followed by a capital/digit, or a paragraph
+// break, is a real boundary for ordinary prose even if it occasionally
+// misjudges an abbreviation \u2014 the same trade-off admission.js's own
+// `hasCompany` accepts for a caller with no sentence-splitter injected,
+// just resolved the OTHER way (a permissive fallback there; a cheap real
+// splitter here, since `inScope` has no "omit and stay permissive" option
+// without losing the fix entirely).
+const roughSentences = (text) => String(text ?? "").split(/(?<=[.!?])\s+(?=[A-Z0-9])|\n{2,}/);
+
+/**
+ * In scope: a source whose text carries every content word of the topic \u2014
+ * AND, once that clears, at least `need` of those words attested TOGETHER
+ * in one of the source's own sentences, never merely scattered somewhere
+ * across a large document (P31 "company, not bare occurrence," the same
+ * principle admission.js already applies one door earlier \u2014 see that
+ * file's own header). Found live, 2026-09-15, chasing a reported piece-mode
+ * leak: this function's own prior "every term appears somewhere" reading
+ * was confirmed the weaker of the two ("a weak raw-substring 'every term'
+ * match over workspace-wide sources, structurally much weaker than
+ * admission.js" \u2014 a live investigation's own words); a long, unrelated,
+ * stale source can coincidentally carry every one of a short topic's own
+ * words, each in a different paragraph about something else entirely.
+ * `need` caps at what the topic offers (a one-word topic asks for company
+ * of one, i.e. bare presence \u2014 the same floor-capping rule
+ * ADMISSION_FLOOR uses), so a genuinely narrow topic is never held to an
+ * impossible bar. Material attached for something else never reaches a
+ * piece (measured 2026-09-05: the self-review drew a Borodino prose poem
+ * from a War and Peace slice attached hours earlier).
+ */
 export function inScope(topic, text) {
   const terms = topicTerms(topic);
   if (!terms.length) return true;
   const f = foldT(text);
-  return terms.every((t) => f.includes(t));
+  if (!terms.every((t) => f.includes(t))) return false;
+  const need = Math.min(2, terms.length);
+  if (need < 2) return true;
+  return roughSentences(text).some((s) => {
+    const sf = foldT(s);
+    return terms.filter((t) => sf.includes(t)).length >= need;
+  });
 }
 /** The sources' own section headings: short lines with no terminal punctuation, standing alone — the outline the material already has, handed to the planner as a fact (P114). */
 export function headingsOf(text, { max = 40 } = {}) {

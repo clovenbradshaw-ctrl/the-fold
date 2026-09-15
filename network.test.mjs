@@ -224,7 +224,7 @@ test("THE SPECIMEN: all three fixes together bind the real infobox shape — Gar
 test("THE CONTROL: the Link-grain organ really does get zero here, so this is a grain gap", { skip: !havePage }, async () => {
   // Without this the whole diagnosis is an assertion. A vocabulary gap
   // degrades; a grain mismatch floors — and it floors.
-  const E = "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/";
+  const E = "../eoreader7/native/adapters/text/";
   const { makeRelationReader } = await import("./hypergraph.js");
   const { splitSentences } = await import(`${E}spans.js`);
   const { discoverReferents, namesCorefer, diaNorm } = await import(`${E}surfaces.js`);

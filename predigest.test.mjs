@@ -56,7 +56,7 @@ test("sediment + compile: the artifact carries its receipts, and compiling never
     corpus: [{ source: "work:one", path: "fixture", encounters: 3, capped: false }],
     received: [
       { schema: "MorphologyPrior@1", giver: "UniMorph English", path: "../eoreader7/native/priors/morphology-eng.json" },
-      { gap: "not-present", detail: "POSPrior@1 lives in the legacy-eoreader6.1 submodule, uninitialized in this checkout" },
+      { gap: "not-present", detail: "POSPrior@1 lives in the frozen legacy engine submodule, uninitialized in this checkout" },
     ],
     organs: ORGANS,
   });

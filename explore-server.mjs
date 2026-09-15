@@ -135,18 +135,21 @@ const ENGINE_V7 = path.resolve(ROOT, "..", "eoreader7", "native");
 // browser, and this server also serves the chat page whole.
 const NUL = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "nul");
 // serve.mjs's priors-data mount, carried here for the same reason as
-// /engine and /nul: real, giver-cited data (POSPrior@1) read live off
-// eoreader6.1's own gitignored, locally-reproducible build directory —
-// never a stale copy vendored into this repo.
-const PRIORS_DATA = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "scripts", "corpus");
+// /engine and /nul: real, giver-cited data (POSPrior@1 — UD_English-EWT)
+// read live off eoreader7's native committed fixtures
+// (native/eval/the-fold/fixtures — the same byte-identical artifact this
+// repo's own priors-data/ and live_priors commit), never a stale copy
+// vendored into this repo. It used to point at eoreader6.1's scripts/corpus/
+// gitignored build dir, which on disk held only the raw corpora — never the
+// derived prior — so the old primary had been served by the fallback chain
+// the whole time.
+const PRIORS_DATA = path.resolve(ROOT, "..", "eoreader7", "native", "eval", "the-fold", "fixtures");
 // Shipped fallbacks for the same mount — serve.mjs carries the full
-// reasoning (P73 + P74): the primary is a gitignored dir in a usually-absent
-// submodule, so without the chain the prior 404'd on every fresh checkout
-// and every organ gated on it silently degraded to off. Chain: sibling
-// live build dir -> this repo's own committed artifact (priors-data/) ->
-// live_priors' committed artifact. The alias is the declared eng->en
-// naming translation between eoreader6.1's ISO-3 file names and
-// live_priors' LANG_OF codes.
+// reasoning (P73 + P74): this repo's own committed artifact (priors-data/,
+// present on every checkout of this repo, no sibling needed) -> live_priors'
+// committed artifact (for names this repo does not vendor). The alias is the
+// declared eng->en naming translation between eoreader6.1's ISO-3 file
+// names and live_priors' LANG_OF codes.
 const PRIORS_DATA_OWN = path.resolve(ROOT, "priors-data");
 const PRIORS_DATA_SHIPPED = path.resolve(ROOT, "..", "live_priors", "derived-priors", "pos-priors");
 const PRIORS_DATA_ALIASES = { "pos-prior-eng.json": "pos-prior-en.json" };

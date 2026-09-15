@@ -358,7 +358,7 @@ export function makeWidgetRouter(priors, pos = {}) {
   // CLAUSE_OPENERS is OPTIONAL, unlike the classes above — it was only
   // promoted into the engine's register on 2026-09-01 (priors.js's own
   // header), so an older caller's prior object (this file's own test
-  // fixture, `legacy-eoreader6.1`, still in the suite by design — CLAUDE.md's
+  // fixture, the frozen legacy engine, still in the suite by design — CLAUDE.md's
   // ratchet keeps the frozen provider as a reference, not a thing this file
   // may edit) does not carry it. Falls open, not closed, the same posture
   // every other optional prior in this file already takes: absent it,

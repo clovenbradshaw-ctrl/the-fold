@@ -18,8 +18,8 @@
 // and measure.js): the engine's own operator algebra and append-only task
 // log arrive as arguments, via `makeGrid({ operators, taskLog })`, so this
 // module loads from `/engine` in the page and by relative path in tests —
-// see grid.test.mjs for the real organs (../eoreader7/legacy-eoreader6.1/packages/engine/
-// operators.js and .../holon/task-log.js), never a stub.
+// see grid.test.mjs for the real organs (the frozen legacy engine's
+// `packages/engine/operators.js` and `.../holon/task-log.js`), never a stub.
 //
 // ── WHY THIS REUSES THE ENGINE'S ALGEBRA RATHER THAN RE-DERIVING IT ────────
 //

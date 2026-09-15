@@ -10,9 +10,9 @@
 // task-log.js`), which is what `void-shape.test.mjs` — the module this one
 // builds directly on — already imports, and what the repo's own
 // "Retire eoreader6.1: the-fold depends on eoreader7 alone" direction
-// points at. `grid.test.mjs` still imports the legacy
-// `legacy-eoreader6.1/packages/engine/...` path, which is an uninitialised
-// submodule in this checkout, so that file cannot run here at all. One
+// points at. `grid.test.mjs` still imports the frozen legacy engine path,
+// which is an uninitialised submodule in this checkout, so that file cannot
+// run here at all. One
 // consequence of the native path is real and named: the native kernel
 // exports no `checkCubeProgression`/`isCurrentOperator`, and `grid.js`
 // already guards for exactly that (`foldGrid`'s `progression` falls back

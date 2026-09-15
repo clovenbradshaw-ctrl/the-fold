@@ -6,7 +6,7 @@
 // its engine organs. A SEPARATE file from metacognition.test.mjs on
 // purpose (the hyperlexicon-stance.test.mjs precedent, in reverse): that
 // file imports only eoreader7's native kernel and must keep running in a
-// checkout where `legacy-eoreader6.1` is an uninitialized submodule; this
+// checkout where the frozen legacy engine submodule is uninitialized; this
 // file needs the legacy engine's tiers.js and honestly fails to load
 // where it is absent, exactly like the rest of the engine-path suite.
 //

@@ -38,13 +38,13 @@
    "serve.mjs": [
     "packages/engine",
     "nul",
-    "scripts/corpus",
+    "native/eval/the-fold/fixtures",
     "native"
    ],
    "explore-server.mjs": [
     "packages/engine",
     "nul",
-    "scripts/corpus",
+    "native/eval/the-fold/fixtures",
     "native"
    ]
   },

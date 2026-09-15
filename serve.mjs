@@ -74,41 +74,30 @@ for (const [name, dir] of [["../eoreader7/native", ENGINE_V7], ["../eoreader7/le
     process.exit(2);
   }
 }
-// Real, giver-cited data (POSPrior@1, scripts/build-pos-prior.mjs's own
-// output) — never a fact this repo derives or vendors a stale copy of.
-// scripts/corpus/ is eoreader6.1's OWN gitignored, locally-reproducible
-// build directory (its README says so directly: raw corpora are "stripped
-// out" of the published snapshot) — this mount, like /engine and /nul,
-// reads it live off that disk rather than copying the 376KB file into this
-// repo, so a rebuilt prior (e.g. eoreader6.1's own disclosed next step,
-// extending it with participle FEATS) is picked up with no second copy to
-// go stale. hypergraph.js's own posPriorFor() (app.js-injected) types the
-// absence honestly when the file has never been built locally, rather than
-// assuming every checkout has run the builder.
-const PRIORS_DATA = resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "scripts", "corpus");
-// The SHIPPED fallback for the same mount (P74): the primary above is a
-// gitignored build directory inside a submodule most checkouts never
-// initialize, so on a fresh machine the fetch 404'd and every organ gated
-// on this prior silently degraded to off — hypergraph.js's vocabulary-level
-// POS gate included, which is exactly the 18/32-junk admission condition
-// eval/admission-gate.mjs measures. live_priors commits the SAME
-// POSPrior@1 artifact (UD_English-EWT, giver + license + per-file sha256),
-// so the mount now falls back to it — still read live off a sibling repo,
-// never a copy vendored here, the same discipline as /engine and /nul.
-// The alias is a DECLARED translation between two naming conventions
-// (eoreader6.1 keys files by ISO-3 "eng"; live_priors by its own LANG_OF
-// codes, "en") — THRAX_MAP's own precedent: named at the seam, once.
+// Real, giver-cited data (POSPrior@1 — UD_English-EWT, giver + license +
+// per-file sha256), never a fact this repo derives or vendors a stale copy
+// of. The primary now points at eoreader7's native committed fixtures
+// (native/eval/the-fold/fixtures — the same byte-identical artifact this
+// repo's own priors-data/ and live_priors commit). It used to point at
+// eoreader6.1's scripts/corpus/ gitignored build dir, but that dir on disk
+// held only the raw corpora (en_ewt-ud-train.conllu,
+// pg2600-war-and-peace.txt) — never the derived prior — so the old primary
+// had actually been served by the fallback chain below the whole time.
+// hypergraph.js's own posPriorFor() (app.js-injected) types the absence
+// honestly rather than assuming every checkout has the file.
+const PRIORS_DATA = resolve(ROOT, "..", "eoreader7", "native", "eval", "the-fold", "fixtures");
+// Shipped fallbacks for the same mount (P73 + P74), still read live off
+// sibling disks — never a copy vendored here — ordered by
+// freshness-then-availability, for checkouts where the sibling's committed
+// fixture is absent and for names this repo does not vendor: this repo's
+// own committed artifact (priors-data/, present on every checkout of this
+// repo, no sibling needed) → live_priors' committed artifact (for names
+// this repo does not vendor). The alias is a DECLARED translation between
+// two naming conventions (eoreader6.1 keys files by ISO-3 "eng";
+// live_priors by its own LANG_OF codes, "en") — THRAX_MAP's own precedent:
+// named at the seam, once.
 const PRIORS_DATA_SHIPPED = resolve(ROOT, "..", "live_priors", "derived-priors", "pos-priors");
 const PRIORS_DATA_ALIASES = { "pos-prior-eng.json": "pos-prior-en.json" };
-// A second shipped tier, found at merge (P73 + P74 landing together): P73
-// committed the SAME POSPrior@1 into THIS repo's own priors-data/ — but the
-// mount above shadowed it, so on a checkout without the sibling build dir
-// the fetch STILL 404'd, the exact masquerade P74 measured. The chain is
-// now honest and ordered by freshness-then-availability: the sibling's
-// live build dir (rebuilt priors picked up with no copy to go stale) →
-// this repo's own committed artifact (present on every checkout of this
-// repo, no sibling needed) → live_priors' committed artifact (for names
-// this repo does not vendor).
 const PRIORS_DATA_OWN = resolve(ROOT, "priors-data");
 const PORT = Number(process.argv[2] ?? 8811);
 

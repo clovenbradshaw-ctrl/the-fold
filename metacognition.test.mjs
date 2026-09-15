@@ -7,7 +7,7 @@
 // `kernel/task-log.js` — imported by relative path, the same precedent
 // `void-loop.test.mjs`/`hyperlexicon-stance.test.mjs` already set for a
 // module whose test needs the append-only substrate but this checkout's
-// `legacy-eoreader6.1` submodule is uninitialized (confirmed empty before
+// frozen legacy engine submodule is uninitialized (confirmed empty before
 // writing this file). Relation edges throughout are hand-built fixtures,
 // shaped exactly like `hypergraph.js`'s real output (`{subject, verb,
 // object, verdict}`, the five-verdict vocabulary this repo's grounding

@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { premisesOf, checkPremises, premiseFacts, premiseGuard, premiseReferents, repeatsAbsentPremise, correctTurn, cutProcessTalk, stripLeadingFraming, turnSnipBlock } from "./correction.js";
+import { premisesOf, checkPremises, premiseFacts, premiseGuard, premiseReferents, premiseContentGap, repeatsAbsentPremise, correctTurn, cutProcessTalk, stripLeadingFraming, turnSnipBlock } from "./correction.js";
 import { splitSentences } from "./cite.js";
+import { positionOn } from "./dialogue.js";
 
 const passages = [
   { ref: "p.md#0-300", text: "The EFFECT_READS_THE_WHOLE_RUN constant is the named export that states it. It was declared in 1841 by Ada Rowe." },
@@ -51,6 +52,59 @@ test("a premise the material does establish passes clean and produces no facts b
   assert.equal(c.contradicted.length, 0);
   assert.equal(c.unverified.length, 0, JSON.stringify(c.premises[0]?.flags));
   assert.equal(premiseFacts(c), "");
+});
+
+// ── premiseContentGap: a leading question's false premise, with no marker at
+// all, silently confirmed (task_b5850fd4) ─────────────────────────────────
+//
+// Live specimen: "So the report says the Elm Street bridge collapsed in
+// 1998, right?" against a source that discusses the bridge and the year
+// 1998 at length but never once says it collapsed. `atomsOf` (snip-check.js)
+// only extracts numbers/years/names, so the shared year and the bridge's
+// own name were enough to clear the OLD atom-only check with zero flags —
+// `checkPremises` reported the premise fully verified, and `positionOn`'s
+// "yes" branch prepended "Yes — that is what the sources say" to the
+// SHIPPED ANSWER, spliced in AFTER every grounding/citation pass had
+// already run (holon.js:3651, `text = position.text + text`), so it carried
+// no citation chip, no ground underline, no ∅ mark — nothing — directly
+// ahead of the model's own drafted answer, which correctly identified the
+// premise as false and DID carry a real mark for saying so.
+const bridgePassages = [
+  { ref: "report.txt", text: "The annual inspection report noted the bridge remained structurally sound throughout 1998, with no incidents recorded. Maintenance crews repainted the guardrails in June." },
+];
+
+test("premiseContentGap/checkPremises: the live specimen — a false premise sharing a real date and name with the material, but never the actual claim, is no longer silently confirmed", () => {
+  const q = "So the report says the bridge collapsed in 1998, right?";
+  const c = checkPremises(q, bridgePassages, {});
+  assert.equal(c.premises.length, 1);
+  // The OLD behavior this closes: zero flags, zero unverified, on a
+  // genuinely false premise — pin the negative directly, not just the fix.
+  assert.equal(c.premises[0].flags.length, 0, "the atom check alone finds nothing wrong — the year and the name both check out");
+  assert.deepEqual(c.premises[0].contentGap, ["collapsed"], "the actual claim word, never seen anywhere in the material, is the one real signal");
+  assert.equal(c.unverified.length, 1, "the content gap now counts toward unverified — the premise does NOT check out clean");
+  assert.equal(c.contradicted.length, 0, "a content gap is not a year-mismatch contradiction — a weaker, honest finding, not an overclaimed one");
+  const position = positionOn(c);
+  assert.notEqual(position.verdict, "yes", "the record must never say 'yes' to a premise whose own claim word is unattested anywhere");
+  assert.equal(position.verdict, "not-in-sources");
+  const facts = premiseFacts(c);
+  assert.match(facts, /do not use "collapsed" anywhere/);
+  assert.doesNotMatch(facts, /"says"/, "a reporting verb is framing, never the claim — REPORTING_VERBS excludes it");
+});
+
+test("premiseContentGap: control — the identical 'X says Y' framing on a TRUE premise still confirms cleanly; the reporting-verb exclusion does not cost real confirmations", () => {
+  const q = "So the report says the bridge remained sound in 1998, right?";
+  const c = checkPremises(q, bridgePassages, {});
+  assert.deepEqual(c.premises[0].contentGap, []);
+  assert.equal(c.unverified.length, 0);
+  assert.equal(positionOn(c).verdict, "yes");
+  assert.equal(premiseFacts(c), "");
+});
+
+test("premiseContentGap: a compound identifier embedding an already-flagged name atom is not reported a second time (the Sherman regression this fix could have reintroduced)", () => {
+  const atoms = [{ kind: "name", value: "Sherman" }];
+  const snips = [{ text: "The EFFECT_READS_THE_WHOLE_RUN constant is the named export that states it." }];
+  const gap = premiseContentGap("EFFECT_READS_THE_Sherman_RUN is the named export that states it", snips, atoms);
+  assert.deepEqual(gap, [], "the compound token contains the already-reported name; every other word is genuinely present");
 });
 
 test("a wrong answer is corrected at a plain turn: the flagged year is rewritten when the rewrite clears, and left standing when it does not", async () => {

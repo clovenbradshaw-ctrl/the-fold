@@ -108,6 +108,63 @@ export function premisesOf(question) {
  * Each premise's atoms looked for in the material — the same containment with
  * company P122 uses, over snips built from the passages the turn actually has.
  */
+/**
+ * premiseContentGap(premiseText, snips, atoms) → the premise's own content
+ * words that appear NOWHERE in the material at all.
+ *
+ * `atomsOf` (snip-check.js) only ever extracts numbers, years and names — a
+ * premise whose false content is an ACTION or STATE ("the bridge collapsed"
+ * vs. "the bridge remained sound") can clear the atom check completely on a
+ * coincidentally-shared date or topic word while the actual claim it makes
+ * is never once attested anywhere. Measured live (task_b5850fd4): "So the
+ * report says the Elm Street bridge collapsed in 1998, right?" against a
+ * report that never uses the word "collapsed" at all — the year and the
+ * bridge's own name both genuinely appear, `checkSentence` finds zero
+ * flagged atoms, `checkPremises` reported zero unverified premises, and
+ * `positionOn`'s "yes" branch then prepended "Yes — that is what the
+ * sources say" to the SHIPPED ANSWER, spliced in after every grounding pass
+ * had already run so it carried no citation, no ∅ mark, nothing — directly
+ * contradicting the model's own drafted answer two sentences later, which
+ * correctly identified the premise as false and carried a real mark for
+ * saying so.
+ *
+ * This is not a semantic check — it is the SAME absence-of-evidence
+ * `premiseFacts` already reports for a missing atom VALUE, widened to the
+ * premise's other content words. A word the premise's own claim rests on
+ * that appears in no snip at all is real, checkable evidence the claim is
+ * not the material's own — never proof the claim is false (morphology
+ * drift, "closure" for "closed", is a real, disclosed false-positive risk
+ * this scoped check does not solve), only ever enough to withhold a
+ * confident "yes" (folded into `unverified` below), never enough on its
+ * own to convict a "no" (a real `contradiction` still requires
+ * `checkSentence`'s own stronger year-mismatch evidence).
+ */
+// The verb FRAMING a premise ("the report SAYS…", "the article STATES…") is
+// never itself the claim — a source practically never contains the literal
+// word "says" about its own contents, whether the thing it is quoted as
+// saying is true or false. Measured live while building this check: a
+// wholly TRUE restated premise ("the report says the bridge remained sound
+// in 1998, right?") flagged "says" as an absence and would have been
+// wrongly downgraded from a genuine "yes" — this closed class is what a
+// real control caught before it could ship. Declared locally (no received
+// class covers "words that report an utterance" specifically); NEVER
+// excludes a reporting NOUN ("report", "article"), only the verb.
+const REPORTING_VERBS = new Set(["says", "say", "said", "states", "state", "stated", "claims", "claim", "claimed", "reports", "reported", "mentions", "mention", "mentioned", "notes", "noted", "shows", "show", "showed", "indicates", "indicate", "indicated", "tells", "tell", "told", "wrote", "writes", "write"]);
+export function premiseContentGap(premiseText, snips = [], atoms = []) {
+  // A compound token (an identifier joined by underscores, which this
+  // file's own `contentWords` deliberately keeps whole rather than
+  // splitting — line above, `[^\p{L}\p{N}_]+`) can EMBED an atom's own
+  // value without being equal to it — "EFFECT_READS_THE_Sherman_RUN"
+  // contains the name atom "Sherman" but folds to one longer token. A
+  // substring check both ways (never reported twice for the same real
+  // absence, pinned in correction.test.mjs) rather than exact equality.
+  const atomFolds = atoms.map((a) => fold(a.value)).filter(Boolean);
+  const material = fold(snips.map((s) => s.text).join(" "));
+  return contentWords(premiseText).filter(
+    (w) => !REPORTING_VERBS.has(w) && !atomFolds.some((af) => w.includes(af) || af.includes(w)) && !material.includes(w),
+  );
+}
+
 export function checkPremises(question, passages = [], { terms = [], cited = null, referentIndexFor = null } = {}) {
   const premises = premisesOf(question);
   if (!premises.length) return { premises: [], unverified: [], contradicted: [], snips: 0 };
@@ -129,11 +186,15 @@ export function checkPremises(question, passages = [], { terms = [], cited = nul
     // claim is about someone that passage never introduces — and that is a
     // finding of a different and better kind than a missing substring.
     const ref = referentIndexFor ? premiseReferents(p.text, scoped, { referentIndexFor }) : { unresolved: [], reached: false };
-    return { ...p, atoms: c.atoms, flags: c.flags, contradiction: c.contradiction, supported: c.supported, beyondReach: ref.reached ? ref.unresolved : [], castReached: ref.reached };
+    // Skipped when a real contradiction already fired: a numeric mismatch is
+    // the stronger finding, and re-flagging the same premise on top of it as
+    // merely "content missing" would understate what was actually found.
+    const contentGap = c.contradiction ? [] : premiseContentGap(p.text, snips, c.atoms);
+    return { ...p, atoms: c.atoms, flags: c.flags, contradiction: c.contradiction, supported: c.supported, beyondReach: ref.reached ? ref.unresolved : [], castReached: ref.reached, contentGap };
   });
   return {
     premises: rows,
-    unverified: rows.filter((r) => (r.flags.length || r.beyondReach.length) && !r.contradiction),
+    unverified: rows.filter((r) => (r.flags.length || r.beyondReach.length || r.contentGap.length) && !r.contradiction),
     contradicted: rows.filter((r) => r.contradiction),
     snips: snips.length,
     snipRows: snips,
@@ -213,7 +274,7 @@ export function premiseFacts(check) {
       lines.push(`- ${t} [${r.contradiction.ref}#${r.contradiction.start}-${r.contradiction.end}]`);
     }
   }
-  const absent = [...new Set(check.premises.flatMap((r) => (r.contradiction ? [] : r.flags.map((f) => f.value))))];
+  const absent = [...new Set(check.premises.flatMap((r) => (r.contradiction ? [] : [...r.flags.map((f) => f.value), ...(r.contentGap ?? [])])))];
   const strangers = [...new Set(check.premises.flatMap((r) => r.beyondReach ?? []))];
   const parts = [];
   if (lines.length) parts.push(`What these sources say about it:\n${lines.join("\n")}`);
@@ -233,7 +294,7 @@ export function premiseFacts(check) {
  */
 export function premiseGuard(check) {
   if (!check?.premises?.length) return [];
-  return [...new Set(check.premises.flatMap((r) => (r.contradiction ? [] : [...r.flags.map((f) => f.value), ...(r.beyondReach ?? [])])))]
+  return [...new Set(check.premises.flatMap((r) => (r.contradiction ? [] : [...r.flags.map((f) => f.value), ...(r.beyondReach ?? []), ...(r.contentGap ?? [])])))]
     .filter(Boolean)
     .map((value) => ({ value, fold: fold(value) }));
 }

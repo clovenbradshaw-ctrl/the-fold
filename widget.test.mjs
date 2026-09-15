@@ -20,18 +20,39 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import * as taskLog from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
 import { checkCubeProgression } from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
 import { RENDERABLE, parseSegments, toDocument } from "./artifact.js";
 import { makeBuildLog } from "./build-log.js";
 import { tokenize } from "./source.js";
 import * as enginePriors from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
+import { CLAUSE_OPENERS } from "../eoreader7/native/adapters/text/priors.js";
+import { classifyWord, dominantClass } from "../eoreader7/native/adapters/text/wordclass.js";
 import { makeWidgetRouter } from "./widget.js";
 import { skeletonFor } from "./code-piece.js";
 
 // The router bound to the engine's REAL prior register — the same closed
 // classes the page gets from /engine. No stub carries these walls either.
 const { iterationTell, routeMessage, routeSegment } = makeWidgetRouter(enginePriors);
+
+// A SECOND router, additive to the one above — bound the way app.js actually
+// binds it in production: `enginePriors` above is the FROZEN legacy
+// provider (CLAUDE.md's own ratchet keeps it as a reference, never edited),
+// which predates CLAUSE_OPENERS (promoted into the register 2026-09-01) and
+// carries no POS prior at all. `routedReal` merges in the native provider's
+// CLAUSE_OPENERS and the real, committed UD-treebank POS prior
+// (priors-data/pos-prior-eng.json — the SAME file app.js fetches), so the
+// specimens below are verified against what actually ships, not a stand-in.
+const here = path.dirname(fileURLToPath(import.meta.url));
+const realPosPrior = JSON.parse(fs.readFileSync(path.join(here, "priors-data/pos-prior-eng.json"), "utf8"));
+const routedReal = makeWidgetRouter(
+  { ...enginePriors, CLAUSE_OPENERS },
+  { classifyWord, dominantClass, posPrior: () => realPosPrior },
+);
 
 const buildLog = makeBuildLog(taskLog);
 
@@ -1218,4 +1239,103 @@ test("a markdown build (a composed document, not a widget) is never a routeMessa
   // not touch the tells themselves.
   const widget = { n: 2, type: "code", lang: "html", text: '<button class="counter">0</button>' };
   assert.equal(routeMessage("I don't like the counter", [factsDoc, widget])?.n, 2);
+});
+
+// ── three more false-positive classes (live, 2026-09-15) ───────────────────
+//
+// Found in ONE ~30-turn batch of ordinary conversation, on top of the
+// five-plus same-day fixes already above: (a) an ordinary farewell shared
+// "great"~"greatest" (INFLECTIONAL_SUFFIXES' own "est") with an unrelated
+// leftover build's docstring; (b) an ordinary factual correction shared the
+// bare word "whether" with a different leftover build's comment, and the
+// resulting re-zero applied a DESTRUCTIVE literal find/replace patch that
+// stripped every `def ` from the code; (c) a factual correction shared
+// "backwards"~"backward" (the same suffix class's bare "s") and wove an
+// unrequested code edit into the model's own prose. `routedReal` (above) is
+// what verifies all three — CLAUSE_OPENERS and the real POS prior are both
+// required for the fix to engage, exactly as they are in production.
+
+const gcdKnown = `python
+def gcd(a, b):
+    """Computes the greatest common divisor of two numbers."""
+    while b:
+        a, b = b, a % b
+    return a
+`;
+const validatorKnown = `python
+def validate(x):
+    # check whether the input is a positive integer
+    return isinstance(x, int) and x > 0
+`;
+const walkBackwardKnown = `python
+def walk(items):
+    # walks backward through the indices
+    for i in range(len(items) - 1, -1, -1):
+        yield items[i]
+`;
+
+test("(a) 'great'~'greatest': a morphological (non-exact) fold across a comparative/superlative degree is no longer sole evidence — an ordinary farewell does not resolve into an unrelated leftover build's docstring", () => {
+  const msg = "Great, thanks so much for the help today!";
+  assert.deepEqual(routedReal.matchedTerms(msg, gcdKnown), []);
+  assert.equal(routedReal.iterationTell(msg, gcdKnown), null);
+  assert.equal(routedReal.routeMessage(msg, [{ n: 1, type: "code", lang: "python", text: gcdKnown }]), null);
+});
+
+test("(b) 'whether': a CLAUSE_OPENER (priors.js's own subordinator/relative-pronoun class) is never content evidence, on the message side — this is the MORE SEVERE class, since the false routing it used to cause landed a destructive patch, not just a missed reply", () => {
+  const msg = "I want to correct something: the treaty was signed in 1868, not 1867, regardless of whether earlier sources say otherwise.";
+  assert.deepEqual(routedReal.matchedTerms(msg, validatorKnown), []);
+  assert.equal(routedReal.iterationTell(msg, validatorKnown), null);
+  assert.equal(routedReal.routeMessage(msg, [{ n: 1, type: "code", lang: "python", text: validatorKnown }]), null);
+  // The fix closes the WHOLE CLASS, not the one word: every member of
+  // CLAUSE_OPENERS is equally excluded, not just "whether" — pinned so the
+  // next specimen ("because", "although", "unless"...) does not need its
+  // own patch the way five-plus prior fixes each needed their own.
+  const becauseKnown = `python
+def log_event(reason):
+    # only log because the caller explicitly asked for it
+    print(reason)
+`;
+  const msgBecause = "I'm updating this because the numbers were wrong last time.";
+  assert.deepEqual(routedReal.matchedTerms(msgBecause, becauseKnown), []);
+});
+
+test("(c) 'backwards'~'backward': the identical morphological gate as (a), a different suffix ('s', not 'est') and a different part of speech (adverb, not adjective) — both excluded by the SAME rule, not two separate patches", () => {
+  const msg = "The list should be processed backwards, not forwards, per the updated requirements.";
+  assert.deepEqual(routedReal.matchedTerms(msg, walkBackwardKnown), []);
+  assert.equal(routedReal.iterationTell(msg, walkBackwardKnown), null);
+  assert.equal(routedReal.routeMessage(msg, [{ n: 1, type: "code", lang: "python", text: walkBackwardKnown }]), null);
+});
+
+test("(a)/(c) fail-then-pass: the pre-fix router (no CLAUSE_OPENERS, no POS prior — exactly what this file's own default `enginePriors` router still is) reproduces all three false positives, confirming the fix is what closes them and not an unrelated change", () => {
+  // The default, POS-free router (line ~35) is the pre-fix shape for
+  // every caller that has not opted into CLAUSE_OPENERS/the POS prior —
+  // matchedTerms/iterationTell here show exactly the routing this file's
+  // own fix exists to prevent, using the SAME three specimens above.
+  assert.deepEqual(iterationTell("Great, thanks so much for the help today!", gcdKnown), "resolved");
+  assert.deepEqual(iterationTell(
+    "I want to correct something: the treaty was signed in 1868, not 1867, regardless of whether earlier sources say otherwise.",
+    validatorKnown,
+  ), "judgment");
+  assert.deepEqual(iterationTell("The list should be processed backwards, not forwards, per the updated requirements.", walkBackwardKnown), "resolved");
+});
+
+test("the morphological gate never touches an EXACT match — real code identifiers and the flagship suffix cases (buttons/colors) keep working exactly as before", () => {
+  assert.equal(routedReal.iterationTell("the counter is broken", 'html\n<div class="counter">0</div><button id="inc">+</button>'), "resolved");
+  assert.equal(routedReal.iterationTell("the colors are wrong", 'html\n<b style="color:#fff">x</b>'), "resolved");
+  assert.equal(routedReal.iterationTell("make the buttons bigger", 'html\n<button>x</button>'), "resolved");
+  assert.equal(routedReal.iterationTell("fix adds_up_first_even", "python\ndef adds_up_first_even(n):\n    return n"), "resolved");
+});
+
+test("both new gates fall OPEN, not closed, when their prior is unavailable — matching every other optional-prior gate this file already has", () => {
+  // CLAUSE_OPENERS absent: the base router (legacy priors alone) still
+  // reads "whether" as ordinary content, exactly as it did before this class
+  // was ever wired in — disclosed, not silently narrowed for every caller.
+  assert.deepEqual(iterationTell(
+    "I want to correct something: the treaty was signed in 1868, not 1867, regardless of whether earlier sources say otherwise.",
+    validatorKnown,
+  ), "judgment");
+  // POS prior absent (CLAUSE_OPENERS present, pos missing): a suffix fold
+  // is unrestricted, exactly as it was before the morphological gate existed.
+  const routedNoPos = makeWidgetRouter({ ...enginePriors, CLAUSE_OPENERS });
+  assert.equal(routedNoPos.iterationTell("Great, thanks so much for the help today!", gcdKnown), "resolved");
 });

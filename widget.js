@@ -343,6 +343,7 @@ export function makeWidgetRouter(priors, pos = {}) {
     INDEFINITE_DETERMINERS,
     DEFINITE_DETERMINERS,
     SENTENCE_TERMINATORS,
+    CLAUSE_OPENERS,
   } = priors;
   // The POS classifier (wordclass.js's `classifyWord`/`dominantClass`,
   // real UD-treebank prior) is OPTIONAL and additive — see anaphoraTell,
@@ -354,6 +355,16 @@ export function makeWidgetRouter(priors, pos = {}) {
     if (!(set instanceof Set) || !set.size)
       throw new TypeError(`makeWidgetRouter: ${name} must come from the engine's prior register`);
   }
+  // CLAUSE_OPENERS is OPTIONAL, unlike the classes above — it was only
+  // promoted into the engine's register on 2026-09-01 (priors.js's own
+  // header), so an older caller's prior object (this file's own test
+  // fixture, `legacy-eoreader6.1`, still in the suite by design — CLAUDE.md's
+  // ratchet keeps the frozen provider as a reference, not a thing this file
+  // may edit) does not carry it. Falls open, not closed, the same posture
+  // every other optional prior in this file already takes: absent it,
+  // `matchedTerms` (below) behaves exactly as it did before this class
+  // existed here at all.
+  const clauseOpeners = CLAUSE_OPENERS instanceof Set ? CLAUSE_OPENERS : null;
 
   // TWO FOLDS, EACH THE RIGHT ONE FOR ITS SIDE — and they are not
   // interchangeable, which is worth stating because reaching for the
@@ -738,15 +749,83 @@ export function makeWidgetRouter(priors, pos = {}) {
    * organs instead of this module's tokenizer) is named, not built, here —
    * see the routing amendment this measurement produced.
    */
+  /**
+   * A morphological (non-exact) sameForm match is weaker evidence than an
+   * identical one, and this file's own established suffix class
+   * (INFLECTIONAL_SUFFIXES: s/es/ed/ing/er/est/'s) does not distinguish a
+   * genuine plural ("button"~"buttons") from a comparative/superlative
+   * degree ("great"~"greatest") or a directional adverb's optional "-s"
+   * ("backward"~"backwards") — the suffix folds all three identically, and
+   * nothing about the SUFFIX itself tells them apart. Found live,
+   * 2026-09-15, in one ~30-turn batch: an ordinary farewell ("great,
+   * that's really helpful, thanks so much!") matched an unrelated leftover
+   * build's own docstring ("the greatest common divisor") on "great"~
+   * "greatest" alone, silently re-zeroing it instead of replying; a
+   * factual correction carrying "backwards" matched a different leftover
+   * build's own "backward" the identical way, weaving an unrequested code
+   * edit into the model's own prose.
+   *
+   * The gate reuses the POS prior already injected for `anaphoraTell`
+   * (wordclass.js's classifyWord/dominantClass, real UD-treebank counts —
+   * the SAME closed, giver-named resource this file already trusts, never
+   * a second guessed rule): a pair that folds by SUFFIX, not identity,
+   * must have every side the prior can classify (found, and clearing
+   * dominantClass's own declared 0.5 floor) read as a NOUN or PROPN.
+   * Measured directly against the real prior: "button"/"buttons" and
+   * "color"/"colors" are NOUN at every observed occurrence; "great" is ADJ
+   * at a 0.99 share, "greatest" ADJ at 1.0; "backward" is ADV at 1.0
+   * ("backwards" itself is out-of-vocabulary in the treebank — that
+   * absence is never held against a pair on its own, only the OTHER
+   * side's own classification is, the identical "OOV is absence of
+   * evidence, not evidence against" posture `anaphoraTell`'s own OOV rule
+   * already takes one function up).
+   *
+   * Falls fully open — identical to every prior behavior — when the POS
+   * prior is unavailable, matching every other optional-prior gate in
+   * this file: this can only narrow a false positive a loaded prior can
+   * actually rule out, never remove an affordance nothing here replaces.
+   * Never consulted for an EXACT match (t === s, matchedTerms' own first
+   * branch) — a real code identifier shared verbatim ("counter",
+   * "is_prime") is not the mechanism this closes and stays exactly as
+   * trusted as before.
+   */
+  function morphologicalMatchAllowed(t, s) {
+    if (!classifyWord || !dominantClass) return true;
+    const prior = typeof posPrior === "function" ? posPrior() : posPrior;
+    if (!prior) return true;
+    for (const w of [t, s]) {
+      const d = dominantClass(classifyWord(w, { posPrior: prior }), { minShare: 0.5 });
+      if (d && d.upos !== "NOUN" && d.upos !== "PROPN") return false;
+    }
+    return true;
+  }
+
   function matchedTerms(message, known) {
     const have = [...new Set(terms(stripStepWitness(stripPyScaffold(stripHtmlWrapper(known)))))];
     if (!have.length) return [];
     const hits = [];
     for (const t of new Set(terms(message))) {
       if (isBareNumeral(t)) continue; // never content evidence — see isBareNumeral's own header
+      // CLAUSE_OPENERS (priors.js: subordinators and relative pronouns
+      // that OPEN a subordinate clause — that/which/who/whom/whose/
+      // because/although/though/while/when/whether/unless/since/before/
+      // after/until/if/to/how) are function words, not content — the same
+      // shape STOPWORDS already excludes for the closed set it covers,
+      // widened by the register's own next class over. Found live,
+      // 2026-09-15: an ordinary factual correction carrying "whether"
+      // (this class's own member — "if it matters whether…") matched a
+      // wholly unrelated leftover build's comment on the bare token alone,
+      // and the resulting re-zero applied a destructive literal patch that
+      // stripped every `def ` from the code — a false positive that
+      // silently CORRUPTED working code rather than merely failing to
+      // answer. Excluded on the MESSAGE side only, matching isBareNumeral's
+      // own placement: a build's own bytes are not filtered by this class,
+      // only what the operator's own words may count as evidence.
+      if (clauseOpeners && clauseOpeners.has(t)) continue;
       for (const s of have) {
-        if (sameForm(t, s, INFLECTIONAL_SUFFIXES)) {
-          hits.push(s === t ? t : `${t}~${s}`);
+        if (t === s) { hits.push(t); break; }
+        if (sameForm(t, s, INFLECTIONAL_SUFFIXES) && morphologicalMatchAllowed(t, s)) {
+          hits.push(`${t}~${s}`);
           break;
         }
       }

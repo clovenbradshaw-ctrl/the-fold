@@ -29,7 +29,7 @@
 // PURE: no model, no I/O, no engine of its own (the arithmetic engine and the
 // sentence splitter are injected, this repo's standing pattern).
 import { checkComparison } from "./arithmetic.js";
-import { quotedAsk, turnRef } from "./transcript.js";
+import { quotedAsk, turnRef, lastOwnTurn } from "./transcript.js";
 
 /** A blank as the probes and people write one: three or more underscores, or a bracketed ellipsis. */
 const BLANK_RE = /_{3,}|\[\s*\.\.\.\s*\]|\.\.\.\.+/;
@@ -125,8 +125,16 @@ const QUOTE_ASK_RE = /\b(?:quote (?:it|that|them|the passage|the words)|(?:show|
 const RECORD_CHECK_RE = /\b(?:did (?:the (?:book|text|novel|source)|it) (?:actually |really )?(?:include|contain|have|say) (?:all |any of )?(?:those|these|them\b|that passage|the passages?|such passages)|are (?:those|these|they) (?:real|actual|actually there|genuine)|did you (?:make (?:that|those|them) up|invent|fabricate)|do (?:those|these) (?:passages|quotes|references|addresses) (?:exist|really exist)|(?:are|were) (?:those|these) (?:passages|quotes|references) (?:in|from) the (?:book|text))\b/i;
 const squash2 = (t) => String(t ?? "").replace(/\s+/g, " ").trim();
 const excerpt = (text, n = 420) => { const t = squash2(text); return t.length > n ? `${t.slice(0, n)}…` : t; };
-/** The last answer's addresses, or the retrieved ones: what "those passages" can mean. */
-const lastRefs = (transcript = [], passages = []) => { const last = transcript[transcript.length - 1]; const fromLast = [...new Set((last?.refs ?? []).filter(Boolean))]; return fromLast.length ? fromLast : [...new Set(passages.map((p) => p?.ref).filter(Boolean))]; };
+/**
+ * The last answer's addresses, or the retrieved ones: what "those passages"
+ * can mean. `lastOwnTurn` (transcript.js), never the array's bare last
+ * element — a workspace-spanning `transcript` (app.js::transcriptNow)
+ * appends other conversations' rows after this one's own, and this door
+ * ships whatever it quotes with no "in another conversation" disclosure at
+ * all, unlike `priorAnswer` above — so a foreign conversation's own cited
+ * addresses must never stand in for "those passages" here.
+ */
+const lastRefs = (transcript = [], passages = []) => { const last = lastOwnTurn(transcript); const fromLast = [...new Set((last?.refs ?? []).filter(Boolean))]; return fromLast.length ? fromLast : [...new Set(passages.map((p) => p?.ref).filter(Boolean))]; };
 
 /** quoteBytes(question, { transcript, passages, chunksByRef }) → the words at the addresses the last answer cited, verbatim. */
 export function quoteBytes(question, { transcript = [], passages = [], chunksByRef = null } = {}) {

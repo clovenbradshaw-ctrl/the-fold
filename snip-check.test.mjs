@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { snipsFor, snipBlock, atomsOf, checkSentence, checkSection, reviseAsk, applyRewrite, ABSENCE_RE } from "./snip-check.js";
+import { snipsFor, snipBlock, atomsOf, checkSentence, checkSection, reviseAsk, applyRewrite, ABSENCE_RE, falseAbsenceOf } from "./snip-check.js";
 
 const passages = [
   { ref: "web:en.wikipedia.org-0#100-400", text: "The X-Files is an American science fiction drama television series created by Chris Carter. The original television series aired from September 10, 1993, to May 19, 2002, on Fox. The show was a hit for the network. Unrelated filler sentence about weather patterns in the region here." },
@@ -147,4 +147,66 @@ test("reviseAsk states the TRUE reason for each flag, and never claims an absenc
   const ask = reviseAsk(check.flagged ?? [{ sentence: draft, ...check }], [snip]);
   assert.match(ask, /the sources do use the name "Prince Andrew", but never together with what this says about it/);
   assert.doesNotMatch(ask, /the sources do not use the name "Prince Andrew"/, "never the false claim — the snip block right below names it");
+});
+
+// THE OPPOSITE FAILURE (task_298dbc5b's Bug 2, 2026-09-15): a correctly-
+// retrieved, correctly-cited source's own real numbers flatly denied.
+// Reproduced live in shape: a source stating "1,842 ... up from 1,110"
+// answered "doesn't mention the number of seed packets lent" — and
+// ABSENCE_RE's own blanket exemption (the fix directly above this one)
+// gave that denial zero checking at all, because every existing reader of
+// ABSENCE_RE treats the shape as sacrosanct once matched, never true or
+// false. `falseAbsenceOf` is the mirror check: does a snip actually carry
+// a NUMBER or YEAR beside the very topic the sentence denies covering?
+test("falseAbsenceOf / checkSentence: a stated absence is no longer a free pass when the material actually carries a number about the exact topic denied (task_298dbc5b Bug 2)", () => {
+  const snip = { ref: "report.txt#0-90", start: 0, end: 90, text: "The library reported that 1,842 seed packets were lent this year, up from 1,110 last year." };
+  const denial = "The material doesn't mention the number of seed packets lent.";
+  assert.ok(ABSENCE_RE.test(denial), "control: this really is the stated-absence shape");
+  const flag = falseAbsenceOf(denial, [snip]);
+  assert.ok(flag, "the denial is contradicted by the snip's own number");
+  assert.equal(flag.reason, "false_absence");
+  assert.equal(flag.kind, "year", "atomsOf's own classification — a 4-digit figure in the year range, unchanged by this fix");
+  assert.equal(flag.value, "1842");
+  const check = checkSentence(denial, [snip]);
+  assert.equal(check.flags.length, 1, "checkSentence itself now flags it, not just the standalone helper");
+  assert.equal(check.flags[0].reason, "false_absence");
+  const sec = checkSection([denial], [snip]);
+  assert.equal(sec.flagged.length, 1, "the rewrite pipeline is actually offered this sentence");
+  const ask = reviseAsk(sec.flagged, [snip]);
+  assert.match(ask, /the sources actually DO state the year "1842" here — this sentence wrongly says they do not/);
+  assert.match(ask, /1,842 seed packets/, "the snip itself rides along, so the model can correct from it");
+});
+
+test("falseAbsenceOf: NEVER on a genuine reported silence — the file's own Prince Andrew specimen, re-run through the new check specifically (control against the obvious false-positive: a shared NAME is not evidence, only a shared NUMBER is)", () => {
+  const snip = { ref: "andrei-excerpt.txt#143-214", start: 0, end: 71, text: "The adjutant, having obeyed this instruction, approached Prince Andrew." };
+  const draft = "The passage doesn't say whether or not Prince Andrew's wound was fatal.";
+  assert.equal(falseAbsenceOf(draft, [snip]), null, "the snip only carries the NAME Prince Andrew, never a number — a real absence, correctly left alone");
+  // A second control: the topic word appears in a snip, but that snip
+  // carries no number/year AT ALL — company with no atom is not evidence either.
+  const noNumberSnip = { ref: "x#0-50", start: 0, end: 50, text: "The library keeps careful records of every seed packet lent." };
+  assert.equal(falseAbsenceOf("The material doesn't mention the number of seed packets lent.", [noNumberSnip]), null);
+  // And the plain not-an-absence-at-all control: falseAbsenceOf declines outright.
+  assert.equal(falseAbsenceOf("The library reported 1,842 seed packets lent.", [snip]), null, "not a stated absence in the first place — ABSENCE_RE does not match");
+});
+
+// A SEPARATE, independent bug found investigating the same report: a
+// comma-grouped number ("1,842") extracted from a SENTENCE by `numberSet`
+// (grounding.js) is comma-stripped to "1842", but `fold()` never strips
+// punctuation — so a raw substring check against the SNIP's own literal
+// "1,842" could never match, and a sentence stating a source's own figure
+// VERBATIM, correctly, still read as "absent". This is upstream of the
+// false-absence fix above: a rewrite that correctly restates a cited
+// number would have been refused by `applyRewrite` for "still carrying an
+// unsupported atom" without it (see correction.test.mjs's end-to-end case).
+test("a comma-formatted number is recognized by VALUE, not by substring — '1,842' in the sentence matches '1,842' in the snip even though fold() never strips the comma (task_298dbc5b Bug 2, a second independent cause)", () => {
+  const snip = { ref: "report.txt#0-90", start: 0, end: 90, text: "The library reported that 1,842 seed packets were lent this year, up from 1,110 last year." };
+  const correct = "The library reported 1,842 seed packets lent, up from 1,110 last year.";
+  const check = checkSentence(correct, [snip]);
+  assert.deepEqual(check.flags, [], "both comma-grouped figures are recognized as present, not flagged absent");
+  assert.equal(check.supported.length, 2);
+  assert.deepEqual(check.supported.map((s) => s.value).sort(), ["1110", "1842"]);
+  // Control: a number the source genuinely does NOT carry is still flagged, comma or not.
+  const wrong = checkSentence("The library reported 9,999 seed packets lent.", [snip]);
+  assert.equal(wrong.flags.length, 1);
+  assert.equal(wrong.flags[0].reason, "absent");
 });

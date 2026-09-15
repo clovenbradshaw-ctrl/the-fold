@@ -115,6 +115,37 @@ export function asPassage(t) {
 export const isTranscriptPassage = (p) => String(p?.ref ?? "").startsWith("turn:") || p?.kind === "transcript";
 
 /**
+ * lastOwnTurn(transcript) → the most recent turn belonging to THIS
+ * conversation — never a row tagged `chat` (this file's own convention: a
+ * turn recalled from another conversation in the workspace always carries
+ * one, `asPassage` above). Every caller that means "the last thing THIS
+ * conversation said" (dialogue.js::bindAnaphora's pronoun fallback,
+ * answerable.js's "quote it"/"did the book include those passages" doors,
+ * resolutions.js's atmosphere/lens blocks) used to take `transcript`'s own
+ * last array element instead — safe only while a workspace held one
+ * conversation. `transcriptNow()` (app.js) appends every OTHER
+ * conversation's rows after this one's own (oldest to newest within each),
+ * so the array's last element is a FOREIGN conversation's last turn the
+ * moment the workspace holds a second, non-empty one — which in ordinary
+ * use is close to always, not an edge case. Measured live across many
+ * batches (2026-09-15): a single word from a correction turn in one
+ * conversation was traced leaking, as the anaphora fallback's bound
+ * referent, into a wholly different conversation's own system prompt.
+ * Cross-conversation reach is real and intended here (P178) but every
+ * place that offers it deliberately — `recallTurns`, `priorAnswer` —
+ * DISCLOSES it, in words, to whoever reads the result; a bare "last turn"
+ * fallback has no disclosure at all, so it may only ever mean the
+ * conversation the person is actually in.
+ */
+export function lastOwnTurn(transcript = []) {
+  for (let i = (transcript?.length ?? 0) - 1; i >= 0; i--) {
+    const t = transcript[i];
+    if (t && !Number.isFinite(t?.chat)) return t;
+  }
+  return null;
+}
+
+/**
  * The line that says what these passages are, so the mouth reads them as the
  * record of what was said and not as material about the world.
  */

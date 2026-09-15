@@ -130,10 +130,40 @@ const PASSAGE_ANAPHOR_RE = /\b(those|these|that|the)\s+(passages?|quotes?|lines?
 // purpose: a bare "them"/"he"/"it" with no quantifier still binds exactly as
 // before (the "why did he do it?" case this file's own test already pins).
 const QUANTIFIED_SOURCE_RE = /\b(?:either|any|both|neither|none|some|each|one)\s+of\s+(?:them|those|these|it)\b/gi;
+
+// A LOCAL ANTECEDENT — a determined noun phrase in the SAME SENTENCE as the
+// pronoun, appearing BEFORE it — is a VETO on the cross-turn fallback below,
+// never a binding of its own (P31's shape, reused: a string can refuse a
+// claim, it cannot make one). "The co-op keeps a shared beehive out back;
+// who tends it?" names its own antecedent in the same breath the pronoun is
+// asked in — the fallback exists for exactly the OPPOSITE case, a question
+// with nothing of its own to go on. Deliberately text-only, no referent
+// index lookup: an ordinary common noun ("beehive") the index has never
+// established as a referent (cast.js only knows people/places/things the
+// material's own text establishes, not every noun a question introduces) is
+// still real evidence that THIS SENTENCE, not the last answer — let alone
+// another conversation's last answer — is what the pronoun points at.
+// Measured live across many batches (2026-09-15): "who tends it" kept
+// falling back to a previous, unrelated answer's referent even with a plain
+// local antecedent sitting in the very same sentence, because `own` only
+// ever looks for names the referent index resolves.
+const LOCAL_ANTECEDENT_NP_RE = /\b(?:the|this|that|these|those|a|an|my|your|his|her|its|our|their)\s+\p{L}[\p{L}'’-]*(?:\s+\p{L}[\p{L}'’-]*){0,3}/iu;
+const SENTENCE_SPLIT_RE = /(?<=[.!?])\s+/;
+function hasLocalAntecedent(text) {
+  for (const sent of String(text ?? "").split(SENTENCE_SPLIT_RE)) {
+    for (const pm of sent.matchAll(PRONOUN_RE)) {
+      if (LOCAL_ANTECEDENT_NP_RE.test(sent.slice(0, pm.index))) return true;
+    }
+  }
+  return false;
+}
 /**
- * bindAnaphora(question, last, index) → { ids, refs, pronouns, own }. The
- * question's own referents (`own`) come first; an anaphor binds to the last
- * answer's referent ids in mention order only when the question names none.
+ * bindAnaphora(question, last, index) → { ids, refs, pronouns, own, local }.
+ * The question's own referents (`own`) come first; an anaphor binds to the
+ * last answer's referent ids in mention order only when the question names
+ * none of its own AND carries no local antecedent (`local`) — a same-
+ * sentence noun phrase the pronoun can already be read against, which the
+ * cross-turn fallback below must never override.
  */
 export function bindAnaphora(question, last, index) {
   const q = String(question ?? "");
@@ -141,9 +171,10 @@ export function bindAnaphora(question, last, index) {
   const qForPronouns = q.replace(QUANTIFIED_SOURCE_RE, " ");
   const pronouns = [...new Set((qForPronouns.match(PRONOUN_RE) ?? []).map((p) => p.toLowerCase()))];
   const passageAnaphor = PASSAGE_ANAPHOR_RE.test(q);
-  if (!last || (!pronouns.length && !passageAnaphor)) return { ids: [], refs: [], pronouns: [], own };
-  const bound = own.ids.size ? [] : [...referentsOf(last.answer ?? "", index).ids];
-  return { ids: bound, refs: passageAnaphor ? [...(last.refs ?? [])] : [], pronouns, own };
+  if (!last || (!pronouns.length && !passageAnaphor)) return { ids: [], refs: [], pronouns: [], own, local: false };
+  const local = pronouns.length > 0 && hasLocalAntecedent(qForPronouns);
+  const bound = (own.ids.size || local) ? [] : [...referentsOf(last.answer ?? "", index).ids];
+  return { ids: bound, refs: passageAnaphor ? [...(last.refs ?? [])] : [], pronouns, own, local };
 }
 
 /** addressedBy(answer, qRefs, index) → which of the question's referents the answer names — by identity. */

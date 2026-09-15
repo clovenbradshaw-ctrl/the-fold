@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isAboutConversation, quotedAsk, recallTurns, asPassage, isTranscriptPassage, transcriptLine, turnRef, RECALL_TURNS } from "./transcript.js";
+import { isAboutConversation, quotedAsk, recallTurns, asPassage, isTranscriptPassage, transcriptLine, turnRef, RECALL_TURNS, lastOwnTurn } from "./transcript.js";
 
 const transcript = [
   { turn: 1, question: "What does the file say about Ada Rowe?", answer: "The harbor light was built in 1841 by Ada Rowe." },
@@ -73,6 +73,24 @@ test("the line naming the passages names each conversation it reached, and an un
   // The single-conversation phrasing is untouched: a workspace of one reads
   // exactly as it read before there were workspaces.
   assert.match(transcriptLine([asPassage(transcript[0])]), /^Turn 1 of this conversation, quoted from the record\./);
+});
+
+test("lastOwnTurn (task_298dbc5b, P178): a workspace-spanning transcript's own trailing element is a FOREIGN conversation's turn the moment a second one has a later row — never THIS conversation's own", () => {
+  // app.js::transcriptNow's own shape: this conversation's rows first,
+  // every OTHER conversation's rows appended AFTER — so a caller meaning
+  // "the last thing THIS conversation said" cannot use the array's bare
+  // last element the moment the workspace holds a second conversation.
+  const foreign = { turn: 7, chat: 2, chatTitle: "The harbor survey", question: "Who signed off?", answer: "Ada Rowe signed the harbor light survey." };
+  const workspace = [...transcript, foreign];
+  assert.equal(workspace[workspace.length - 1], foreign, "the naive array tail IS the foreign row — the bug, pinned");
+  assert.equal(lastOwnTurn(workspace), transcript[transcript.length - 1], "lastOwnTurn is not fooled by array position");
+  assert.equal(lastOwnTurn(workspace).turn, 3, "this conversation's own last turn, never the workspace's");
+  // Unchanged for a workspace of one: the array's own last element already was this conversation's own.
+  assert.equal(lastOwnTurn(transcript), transcript[transcript.length - 1]);
+  // Every row foreign: nothing of this conversation's own to fall back to.
+  assert.equal(lastOwnTurn([{ turn: 1, chat: 2, chatTitle: "x", question: "q", answer: "a" }]), null);
+  assert.equal(lastOwnTurn([]), null);
+  assert.equal(lastOwnTurn(undefined), null);
 });
 
 test("recall is unchanged by where a turn came from: relevance decides, and the cap still caps", () => {

@@ -50,7 +50,7 @@ import { resolutionBlocks } from "./resolutions.js";
 import { mouthFacing } from "./firewall.js";
 import { ownedRows, ownedLine, referentsOf, bindAnaphora, addressedBy, absenceOf, surfacesOf, selfContradictions, contradictionLine, positionOn, expectationFrom, expectationFacts, errorOf, fold as dfold } from "./dialogue.js";
 import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
-import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine } from "./transcript.js";
+import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine, lastOwnTurn } from "./transcript.js";
 import { refKey } from "./dialogue.js";
 import { checkComparison } from "./arithmetic.js";
 import { answerBeforeTheModel } from "./answerable.js";
@@ -3357,7 +3357,16 @@ export async function runPart({
   // addresses — never an instruction about what not to say. It sits before
   // the snip checks, the guards, the correction round and the inadmissible
   // gate, so a re-asked draft passes every wall the first draft did.
-  const lastTurn = transcript.length ? transcript[transcript.length - 1] : null;
+  // P178/transcript.js::lastOwnTurn — NEVER the array's bare last element:
+  // `transcript` can be workspace-spanning (app.js::transcriptNow appends
+  // every OTHER conversation's own rows after this one's), and the anaphora
+  // fallback below has no relevance gate and no disclosure the way
+  // `recallTurns` does, so it may only ever read THIS conversation's own
+  // last turn. Measured live: a bare `transcript[transcript.length - 1]`
+  // here handed a totally different conversation's last answer to
+  // `bindAnaphora` as "the last answer" the moment the workspace held a
+  // second, non-empty conversation.
+  const lastTurn = lastOwnTurn(transcript);
   // IDENTITY IS THE READING'S. When the turn is handed the conversation's
   // own index (the constitutional reader's log projected — reading-log.js),
   // every decision about who is meant resolves through it; the part's own

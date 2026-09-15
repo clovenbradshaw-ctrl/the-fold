@@ -120,6 +120,34 @@ test("a wrong answer is corrected at a plain turn: the flagged year is rewritten
   assert.equal(bad.check.after.flagged, 1);
 });
 
+test("THE OPPOSITE FAILURE, end to end (task_298dbc5b Bug 2): a correctly-cited source's own real numbers get flatly denied, and correctTurn now catches it and lands the correction — a false absence is not exempt from the answer check the way a TRUE one still is", async () => {
+  const seedPassages = [{ ref: "report.txt#0-90", text: "The library reported that 1,842 seed packets were lent this year, up from 1,110 last year." }];
+  const denial = "The material doesn't mention the number of seed packets lent.";
+  const fixed = await correctTurn({
+    text: denial, passages: seedPassages, question: "How many seed packets were lent this year?", splitSentences, rounds: 1,
+    call: async (messages) => {
+      // A real reader would draft this from the facts block reviseAsk sends —
+      // assert the model is actually TOLD the sources contradict the denial,
+      // not just handed the same silence back.
+      assert.match(messages.at(-1).content, /the sources actually DO state the year "1842" here — this sentence wrongly says they do not/);
+      return "The library reported 1,842 seed packets lent this year, up from 1,110 last year.";
+    },
+  });
+  assert.equal(fixed.asked, 1, "a false absence is asked about, unlike a genuine one");
+  assert.deepEqual(fixed.outcomes.map((o) => o.outcome), ["rewritten"]);
+  assert.match(fixed.text, /1,842/);
+  assert.doesNotMatch(fixed.text, /doesn't mention/);
+  assert.equal(fixed.check.after.flagged, 0, "the rewrite's own comma-formatted numbers are recognized as supported, not re-flagged");
+
+  // CONTROL: a genuine reported silence still asks for nothing — the fix
+  // above must not turn every stated absence into a round-trip.
+  const genuine = "The passage doesn't say whether or not Prince Andrew's wound was fatal.";
+  const andrewPassages = [{ ref: "andrei-excerpt.txt#0-71", text: "The adjutant, having obeyed this instruction, approached Prince Andrew." }];
+  const untouched = await correctTurn({ text: genuine, passages: andrewPassages, question: "Was Prince Andrew's wound fatal?", splitSentences, rounds: 1, call: async () => { throw new Error("must not be asked — a true absence needs no correction"); } });
+  assert.equal(untouched.asked, 0);
+  assert.equal(untouched.text, genuine);
+});
+
 test("no passages, no snips or no call is a no-op — every caller without material is byte-identical (control)", async () => {
   const t = "The constant was declared in 1847.";
   assert.equal((await correctTurn({ text: t, passages: [], splitSentences })).text, t);

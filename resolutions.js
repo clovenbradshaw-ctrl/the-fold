@@ -35,6 +35,7 @@
 // count and no such confound.
 import { referentsOf, fold } from "./dialogue.js";
 import { strikeAddresses } from "./firewall.js";
+import { lastOwnTurn } from "./transcript.js";
 
 const DEPTHS = Object.freeze([1, 2, 3, 4, 6, 8, 12, 16, 24]); // a ladder, structural; the shallowest depth that reproduces the reach wins
 export const DECLARED_LINES = 5; // giver: the ledger block's own HYPERLEXICON_LEDGER_LINES (holon.js), reused as the declared fallback when no measurement organ is injected
@@ -100,7 +101,10 @@ export function dmdCut(rows, active, { dmdWindow = null, declared = DECLARED_LIN
 export function activeReferents(question, transcript = [], index) {
   const own = idsOfText(question, index);
   if (own.size) return { ids: own, basis: "the question's own referents" };
-  const last = transcript.length ? transcript[transcript.length - 1] : null;
+  // lastOwnTurn (transcript.js), not the bare array tail — `transcript` can
+  // be workspace-spanning, and this fallback has no cross-conversation
+  // disclosure at all (see transcript.js::lastOwnTurn's own header).
+  const last = lastOwnTurn(transcript);
   const bound = last ? idsOfText(last.answer ?? "", index) : new Set();
   return { ids: bound, basis: bound.size ? "the last answer's referents (the question names none)" : "none" };
 }
@@ -180,7 +184,7 @@ const noteLine = (n) => `${n.subject ?? n.end1} — ${n.verb ?? n.label}→ ${n.
  */
 export function lensCut({ active, index, notes = [], dmdWindow = null, question = "", transcript = [] }) {
   if (!active?.size) return { rows: [], window: 0, basis: "no active referent", acts: new Set(), ceiling: false };
-  const last = transcript?.length ? transcript[transcript.length - 1] : null;
+  const last = lastOwnTurn(transcript);
   const co = new Set([...idsOfText(question, index), ...idsOfText(last?.answer ?? "", index)].filter((id) => !active.has(id)));
   const rows = (notes ?? []).map((n) => ({ n, ids: noteIds(n, index), sources: Number.isFinite(n.sources) ? n.sources : 0, seen: (n.witnesses ?? []).length }))
     .filter((r) => r.ids.size)

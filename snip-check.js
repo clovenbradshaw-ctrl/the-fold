@@ -48,6 +48,65 @@ const YEAR_RE = /\b(1[5-9]\d\d|20\d\d)\b/g;
  * a name with nothing else behind it.
  */
 export const ABSENCE_RE = /\b(?:do(?:es)?n['’]t|do(?:es)? not|cannot|can['’]t|no|none|nothing|not)\b[^.]{0,60}\b(?:contain|mention|say|state|include|provide|appear|find|specify|indicate|give|exist)/i;
+
+// THE OPPOSITE FAILURE (found live 2026-09-15, task_298dbc5b's Bug 2):
+// ABSENCE_RE above exists to stop a TRUE stated absence ("the passage
+// doesn't say whether the wound was fatal") from being flagged for having
+// no company — a real fix for a real false positive. But every reader of
+// ABSENCE_RE in this codebase (this file, correction.js's `cutProcessTalk`)
+// treats the shape as sacrosanct ONCE MATCHED — an absence sentence is
+// EXEMPTED, never CHECKED. Nothing anywhere asks whether the denial is
+// actually true. Reproduced live: retrieval correctly attached a source
+// whose own text read "1,842 ... up from 1,110" and the mouth answered
+// "doesn't offer information about the number of seed packets lent" — a
+// flat, false denial of a number sitting right in the cited snip — and the
+// AnswerRecord's `absences`/`absenceTally` (answer-record.js, gated on the
+// WITNESS refusing a sentence) never even saw it, because a denial isn't a
+// claim the witness is asked to ground in the first place.
+const ABSENCE_META_WORDS = new Set(["contain", "contains", "mention", "mentions", "mentioned", "say", "says", "said", "state", "states", "stated", "include", "includes", "included", "provide", "provides", "provided", "appear", "appears", "find", "finds", "specify", "specifies", "indicate", "indicates", "give", "gives", "given", "exist", "exists", "offer", "offers", "offered", "information", "details", "this", "that", "material", "passage", "source", "text"]);
+/**
+ * falseAbsenceOf(sentence, snips) → a flag, or null. The mirror of
+ * `checkSentence`'s own atom/company check, run the other way: a stated
+ * absence (ABSENCE_RE) names its own TOPIC in plain words ("the number of
+ * seed packets lent"); if some snip actually carries a NUMBER or YEAR beside
+ * company from that topic (P31's same floor, reused rather than invented),
+ * the denial is contradicted by the very material it is supposedly reporting
+ * silence about. Text-only, no model: this can only ever flag a CANDIDATE
+ * for the rewrite ask below to look at — the mouth is not censored (P186),
+ * so nothing here deletes or rewrites the sentence on its own authority,
+ * exactly like every other flag this file computes.
+ *
+ * NUMBER/YEAR ONLY, DELIBERATELY — a NAME atom was tried and measured false
+ * on this file's own founding specimen: "The passage doesn't say whether or
+ * not Prince Andrew's wound was fatal" against a snip that only mentions
+ * Prince Andrew being present, never the wound's outcome — a real absence,
+ * correctly reported. `atomsOf`'s NAME extraction there just re-finds the
+ * denial's own SUBJECT sitting in the snip, which this file's own header on
+ * `ABSENCE_RE` already names as not evidence of anything ("the name is the
+ * SUBJECT of that silence, not an assertion resting on it") — a name is
+ * company for a claim, never itself the claim. A number or year carries no
+ * such ambiguity: it is never the mere subject of a sentence, always a
+ * substantive fact, so its presence beside the denial's own topic words is
+ * real contradicting evidence in a way a shared name is not.
+ */
+export function falseAbsenceOf(sentence, snips = []) {
+  if (!ABSENCE_RE.test(sentence)) return null;
+  const topic = contentWords(sentence).filter((w) => !ABSENCE_META_WORDS.has(w) && !/^\d+$/.test(w));
+  if (!topic.length) return null;
+  for (const s of snips) {
+    const f = fold(s.text);
+    const company = topic.filter((w) => f.includes(w));
+    if (!company.length) continue;
+    const snipAtoms = atomsOf(s.text).filter((a) => a.kind === "number" || a.kind === "year");
+    if (!snipAtoms.length) continue;
+    const named = snipAtoms.slice(0, 3).map((a) => `"${a.value}"`).join(", ");
+    // `value` stays the single FIRST atom (article()/reviseAsk's own
+    // singular phrasing, matching every other flag this file produces);
+    // `detail` keeps every atom found, up to 3, for the fuller disclosure.
+    return { kind: snipAtoms[0].kind, value: snipAtoms[0].value, reason: "false_absence", ref: s.ref, start: s.start, end: s.end, detail: `the sources DO carry ${named} together with "${company.join(", ")}" — this sentence wrongly denies it` };
+  }
+  return null;
+}
 /** This module's own vocabulary, and the asks built from it. A candidate
  * carrying any of it is describing the checking rather than the material. */
 // Two concurrent sessions independently caught the same 2026-09-08 bug
@@ -114,24 +173,43 @@ export function atomsOf(sentence) {
  * looked for and where — UNLESS the sentence itself is a STATED ABSENCE
  * (`ABSENCE_RE`, above), in which case the company check does not apply at
  * all: the sentence is reporting silence, not resting a claim on the atom,
- * and asking it to prove company is a category error, not a check. A
+ * and asking it to prove company is a category error, not a check. A stated
+ * absence is not exempt from EVERY check, though — `falseAbsenceOf` (above)
+ * runs the identical company logic the OTHER direction: does a snip actually
+ * carry an atom beside the very topic this sentence denies covering? A
  * contradiction: a snip that shares ≥ 2 content words with the sentence and
  * carries a year the sentence does not, while the sentence carries a year
  * the snip does not.
  */
 export function checkSentence(sentence, snips = []) {
   const atoms = atomsOf(sentence);
-  if (ABSENCE_RE.test(sentence)) return { atoms, flags: [], supported: [], contradiction: null };
+  if (ABSENCE_RE.test(sentence)) {
+    const denial = falseAbsenceOf(sentence, snips);
+    return { atoms, flags: denial ? [denial] : [], supported: [], contradiction: null };
+  }
   const cw = contentWords(sentence);
   const flags = [];
   const supported = [];
   for (const a of atoms) {
+    const isNum = a.kind === "number" || a.kind === "year";
     const needle = fold(a.value);
     const atomWords = new Set(contentWords(a.value));
     const company = cw.filter((w) => !atomWords.has(w));
-    const hit = snips.find((s) => { const f = fold(s.text); return f.includes(needle) && (company.length === 0 || company.some((w) => f.includes(w))); });
+    // A NUMBER/YEAR atom is checked by VALUE, not by substring — a name is
+    // a name is a byte sequence, but "1,842" and "1842" are the identical
+    // number differently punctuated. `numberSet`'s own extraction already
+    // strips the thousands comma (grounding.js); `fold()` does not, so a
+    // raw substring check against a comma-formatted source (`f.includes`)
+    // could never find "1842" inside its own snip's literal "1,842" — a
+    // real, severe false negative found live investigating Bug 2
+    // (task_298dbc5b): a correctly-drafted sentence stating a source's own
+    // comma-grouped figure, verbatim, still read as UNSUPPORTED, which is
+    // exactly the shape that could push a rewrite round toward denying the
+    // number altogether rather than restating it.
+    const carries = (s) => (isNum ? numberSet(s.text).has(a.value) : fold(s.text).includes(needle));
+    const hit = snips.find((s) => carries(s) && (company.length === 0 || company.some((w) => fold(s.text).includes(w))));
     if (hit) supported.push({ ...a, ref: hit.ref, start: hit.start, end: hit.end });
-    else flags.push({ ...a, reason: snips.some((s) => fold(s.text).includes(needle)) ? "no_company" : "absent", detail: `${a.kind} "${a.value}" ${snips.some((s) => fold(s.text).includes(needle)) ? "appears in a snip but beside none of this sentence's own words" : "appears in no snip this section stood on"}` });
+    else flags.push({ ...a, reason: snips.some((s) => carries(s)) ? "no_company" : "absent", detail: `${a.kind} "${a.value}" ${snips.some((s) => carries(s)) ? "appears in a snip but beside none of this sentence's own words" : "appears in no snip this section stood on"}` });
   }
   const sentenceYears = new Set([...String(sentence).matchAll(YEAR_RE)].map((m) => m[1]));
   let contradiction = null;
@@ -194,6 +272,8 @@ export function reviseAsk(flagged, snips, { words = null } = {}) {
     const why = [
       ...r.flags.map((f) => f.reason === "no_company"
         ? `the sources do use ${article(f)} "${f.value}", but never together with what this says about it`
+        : f.reason === "false_absence"
+        ? `the sources actually DO state ${article(f)} "${f.value}" here — this sentence wrongly says they do not`
         : `the sources do not use ${article(f)} "${f.value}" here`),
       ...(r.contradiction ? [`they say ${r.contradiction.snipYears.join(" and ")} where this says ${r.contradiction.sentenceYears.join(" and ")}: "${r.contradiction.text.replace(/\s+/g, " ").slice(0, 160)}"`] : []),
     ];

@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { referentsOf, bindAnaphora, addressedBy, absenceLine, absenceOf, ownedRows, ownedLine, restatementOf, positionOn, selfContradictions, contradictionLine, historyWindow, expectationFrom, errorOf, expectationFacts, refKey } from "./dialogue.js";
 import { premisesOf, checkPremises } from "./correction.js";
 import { answerBeforeTheModel, quoteBytes, recordCheck } from "./answerable.js";
+import { lastOwnTurn } from "./transcript.js";
 import { makeReferentIndex } from "./cast.js";
 import { dmdWindow } from "../eoreader7/native/kernel/activation.js";
 import { splitSentences } from "../eoreader7/native/adapters/text/spans.js";
@@ -60,6 +61,61 @@ test("a partitive quantifier over the sources ('either of them') is not a person
   // this only strips the pronoun the quantifier itself governs.
   const mixed = bindAnaphora("Did either of them mention him?", LAST, index);
   assert.ok(mixed.ids.length >= 2, "a genuine pronoun elsewhere in the sentence still binds");
+});
+
+test("THE LOCAL-ANTECEDENT BUG (task_298dbc5b, P178): a pronoun with a same-sentence antecedent never falls back to the last answer's referents — even when that antecedent is an ordinary common noun the referent index has never established", () => {
+  // "the beehive" is not a person, place or thing this fixture's cast
+  // establishes at all — cast.js only ever indexes what the MATERIAL'S OWN
+  // text establishes (dialogue.js's own header), never every noun a
+  // question happens to introduce. The fallback below exists for exactly
+  // the OPPOSITE shape — a question with nothing of its own to go on — and
+  // this question plainly does: the antecedent is stated in the same
+  // breath the pronoun is asked in.
+  const b = bindAnaphora("The co-op keeps a shared beehive out back; who tends it?", LAST, index);
+  assert.equal(b.local, true, "the same-sentence noun phrase is recognised as a local antecedent");
+  assert.deepEqual(b.ids, [], "never falls back to the last answer's referents, even though 'beehive' resolves to nothing in the index");
+  assert.equal(b.own.ids.size, 0, "still no IDENTITY is claimed for 'the beehive' — this is a veto, never a binding of its own (P31's shape)");
+  // Control, unchanged: the identical pronoun with truly nothing local to
+  // go on still falls back exactly as it always has — the veto must not
+  // swallow the whole mechanism, only the case it names.
+  const control = bindAnaphora("Why did he do it?", LAST, index);
+  assert.equal(control.local, false);
+  assert.ok(control.ids.length >= 2, "the existing fallback is untouched when there is nothing local to go on");
+  // The veto is text-only and sentence-scoped: an antecedent in an EARLIER
+  // sentence (not the pronoun's own) does not count — that is exactly the
+  // cross-turn case the fallback exists to cover, not a local one.
+  const earlierSentence = bindAnaphora("The beehive belongs to the co-op. Why did he do it?", LAST, index);
+  assert.equal(earlierSentence.local, false, "an antecedent in a DIFFERENT sentence is not a local antecedent");
+  assert.ok(earlierSentence.ids.length >= 2, "so the fallback still fires");
+});
+
+test("THE SCOPING BUG (task_298dbc5b, P178): two conversations in one workspace — the cross-turn fallback never leaks a FOREIGN conversation's referent, only ever THIS conversation's own last turn", () => {
+  // Conversation A's own last turn (what "the last answer" should mean).
+  const ownLast = { turn: 5, question: "Who is Raskolnikov?", answer: "Raskolnikov is a former student who murdered the old pawnbroker.", refs: [PASSAGES[0].ref] };
+  // Conversation B — a DIFFERENT conversation in the same workspace — whose
+  // own last turn happens to sit LAST in a workspace-spanning transcript
+  // array (app.js::transcriptNow appends every other conversation's rows
+  // after this one's own), tagged `chat`/`chatTitle` exactly as
+  // transcript.js's own convention requires.
+  const foreignLast = { turn: 9, chat: 2, chatTitle: "A different conversation entirely", question: "Who questioned him?", answer: "Porfiry Petrovich questioned Raskolnikov, and Porfiry smiled." };
+  const workspace = [ownLast, foreignLast];
+  const porfiryId = [...index.resolve("Porfiry Petrovich")][0];
+  const raskolnikovId = [...index.resolve("Raskolnikov")][0];
+  // The bug, demonstrated and pinned: naive array-tail indexing hands the
+  // FOREIGN conversation's own turn to bindAnaphora as "the last answer".
+  const buggy = bindAnaphora("Why did he do it?", workspace[workspace.length - 1], index);
+  assert.ok(buggy.ids.includes(porfiryId), "the naive array tail leaks the OTHER conversation's own referent — this is the bug this test pins so it cannot silently return");
+  // The fix: hand bindAnaphora lastOwnTurn(workspace), never the array's bare tail.
+  assert.equal(lastOwnTurn(workspace), ownLast, "never fooled by array position");
+  const fixed = bindAnaphora("Why did he do it?", lastOwnTurn(workspace), index);
+  assert.ok(!fixed.ids.includes(porfiryId), "never the foreign conversation's own referent");
+  assert.equal(fixed.ids[0], raskolnikovId, "bound to THIS conversation's own last turn instead");
+  // Isolated is stricter still: a conversation marked isolated should never
+  // even build a workspace-spanning transcript in the first place
+  // (app.js::transcriptNow's own `if (state.isolated) return mine;`) — out
+  // of scope for this pure module, named here so the two layers of defence
+  // (never build it; and if built anyway, never read its tail blindly) are
+  // both on the record.
 });
 
 test("addressed BY IDENTITY: an answer that says 'Rodion' has named Raskolnikov; one that never names the asked-about has not — and an unestablished name is a typed absence the record states", () => {

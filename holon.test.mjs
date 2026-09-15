@@ -3181,6 +3181,34 @@ test("P135/P136 end to end: the cited passage's own cast decides, and a rendered
   assert.equal(r.output, "The Kutúzov region was protected by the grant Lincoln signed.", "the model's own sentence ships unedited");
 });
 
+test("THE SCOPING BUG, wired end to end (task_298dbc5b, P178): a workspace-spanning transcript never lets a FOREIGN conversation's last turn stand in for 'the last answer' in a real turn", async () => {
+  const { makeReferentIndex } = await import("../eoreader7/native/organs/cast.js");
+  const { splitSentences: split } = await import("../eoreader7/native/adapters/text/spans.js");
+  const { extractSurfaces, discoverReferents, namesCorefer, diaNorm } = await import("../eoreader7/native/adapters/text/surfaces.js");
+  const referentIndexFor = makeReferentIndex({ splitSentences: split, extractSurfaces, discoverReferents, namesCorefer, diaNorm });
+  const chunks = chunkSource("harbor.txt", "The county's own report on the harbor survey was late again this year. Everyone on the board agreed that Ada Rowe signed it off only after inspecting the light twice herself, and that John Adams reviewed the very same report a second time before it went to the county for filing.");
+  // THIS conversation's own last turn — what "the last answer" must mean.
+  const ownTurn = { turn: 1, question: "Who signed off the harbor survey?", answer: "Ada Rowe signed off the harbor survey report." };
+  // A DIFFERENT conversation in the same workspace, appended AFTER this
+  // one's own row exactly the way app.js::transcriptNow builds it.
+  const foreignTurn = { turn: 9, chat: 2, chatTitle: "A different conversation entirely", question: "Who reviewed the report a second time?", answer: "John Adams reviewed the report a second time for the county." };
+  const r = await runHolonicTask({
+    task: "Why did she do it, given what the harbor survey found?", // a bare pronoun, no local antecedent, no referent of its own — exactly the shape that falls back; "harbor survey" only makes the passage retrievable, it names no one
+    chunks, planMode: "flat",
+    transcript: [ownTurn, foreignTurn],
+    makeReferentIndexFor: referentIndexFor,
+    call: async () => "Ada Rowe did it because the survey report was overdue and she wanted it closed out before spring.",
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+  });
+  const bound = r.addressed?.[0]?.bound ?? [];
+  const index = referentIndexFor(chunks);
+  const adaId = [...index.resolve("Ada Rowe")][0];
+  const johnId = [...index.resolve("John Adams")][0];
+  assert.ok(bound.length, "the pronoun fallback bound to something");
+  assert.ok(bound.includes(adaId), "bound to THIS conversation's own last turn (Ada Rowe)");
+  assert.ok(!bound.includes(johnId), "never the other conversation's own last turn (John Adams) — even though it sits last in the workspace-spanning transcript array");
+});
+
 test("P137: a finding leaves the part and binds the later cells — the section heading and the piece's revision (the audit's two piece-path leaks)", async () => {
   const chunks = chunkSource("pg2600.txt", '"Both true and untrue," Pierre began; but Prince Andrew interrupted him. Pierre spoke again later, and Prince Andrew listened.');
   const sent = [];

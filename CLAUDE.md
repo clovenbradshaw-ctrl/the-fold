@@ -4601,6 +4601,18 @@ re-verified WITH a preamble in front of it, not just reasoned about.
 `arithmetic.test.mjs`: 30 → 44 cases. Full suite 2407/2407, zero
 regressions.
 
+**Amended 2026-09-15 (same day) — comma joins the terminator class.** Found
+outside the browser, `node -e` against `arithmetic.js` directly: a preamble
+clause ending in a comma ("quick one, what is 144 divided by 12?") defeated
+the door identically — the terminator class had dash/colon but not comma,
+even though comma was already allowed CONTENT inside the clause. Widened
+`PREAMBLE_RE`'s terminator class by one character; a digit still blocks the
+content class outright, so a thousands-separator comma inside a real number
+("1,024 divided by 8") can never be reached by the match, checked both bare
+and behind a genuine preamble. `arithmetic.test.mjs`: 44 → 47 cases. Full
+suite 2445/2446, the one failure (`tf-worker-test.mjs`, a live-CDN
+model-download driver, zero relation by grep) unaffected either way.
+
 ## The void loop — answering as DEF/EVA/REC (added 2026-08-27)
 
 P53 in POLICIES.md is the law; this is the map. User direction, verbatim:

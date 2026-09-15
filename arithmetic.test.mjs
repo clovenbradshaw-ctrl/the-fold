@@ -478,3 +478,35 @@ test("stripCasualPreamble: the same class of bug is closed at the shaped-questio
   // Unaffected — a real question about the world still bails, preamble or not.
   assert.equal(detectShaped("quick one -- who is the mayor of Nashville?", { math }), null);
 });
+
+// ── P207's own amendment, same day: comma joins the terminator class ──────
+//
+// Live specimen this closes: "quick one, what is 144 divided by 12?" fell
+// through identically to the dash case above — PREAMBLE_RE's terminator
+// class had dash/colon/en-dash/em-dash but not comma, even though comma was
+// already an allowed CONTENT character inside the casual clause. A preamble
+// ending its clause with a comma is at least as natural as one ending with
+// "--", and was silently unreached.
+
+test("stripCasualPreamble: a comma-terminated preamble reaches the mechanical door — the exact live specimen", () => {
+  const out = checkArithmetic("quick one, what is 144 divided by 12?", { math });
+  assert.ok(out, "the mechanical door must claim this question at all");
+  assert.equal(out.value, 12);
+  assert.equal(out.display, "12");
+});
+
+test("stripCasualPreamble: a chained comma-then-dash preamble clears in full, both separators stripped", () => {
+  assert.equal(checkArithmetic("Quick one, hold on -- what's 6 times 7?", { math }).value, 42);
+});
+
+test("stripCasualPreamble: a thousands-separator comma inside a real number is never mistaken for a preamble terminator", () => {
+  // "1,024" starts with a digit, and PREAMBLE_RE's content class never
+  // admits a digit — so the lazy match cannot even begin to consume past
+  // "1", let alone reach the comma sitting inside the number. This holds
+  // whether or not a genuine casual preamble comes first: the first comma
+  // stripCasualPreamble ever reaches is the one ending "quick one", never
+  // the one inside "1,024".
+  assert.equal(checkArithmetic("1,024 divided by 8", { math }).value, 128);
+  assert.equal(checkArithmetic("quick one, 1,024 divided by 8", { math }).value, 128);
+  assert.equal(stripCasualPreamble("quick one, 1,024 divided by 8"), "1,024 divided by 8");
+});

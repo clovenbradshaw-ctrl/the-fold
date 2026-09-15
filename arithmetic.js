@@ -124,13 +124,25 @@ const WRAPPER_RE = /^\s*(?:what'?s|what\s+is|calculate|compute|solve|evaluate|fi
  * ("quick one", "wait", "let me redo that" — the exact list a NEW specimen
  * would defeat again next week) but the structural rule the phrasings share:
  * a preamble clause is letters, apostrophes, commas and periods ONLY, ending
- * at a dash/colon-like separator. No digit and no paren is ever in that
+ * at a dash/colon/comma-like separator. No digit and no paren is ever in that
  * class, so a real expression's own leading `-` ("5 - 3") can never be
  * mistaken for one — the separator can only be reached by a run of nothing
  * but casual words, and `sqrt(144)`'s own letters stop the match cold at the
  * `(` exactly the way WRAPPER_RE's own whitelist above already protects
  * `sqrt`. Applied in a small bounded loop so a chained preamble ("OK --
  * quick one: what's...") clears in full, not just its first clause.
+ *
+ * Amended same day (P207's own amendment) — comma joins the terminator
+ * class alongside dash/colon/en-dash/em-dash. Measured live: "quick one,
+ * what is 144 divided by 12?" defeated the door identically to the dash
+ * case above, one separator character short of full coverage. A bare
+ * digit blocks the content class outright (digits are never in
+ * `[A-Za-z'\s,.]`), so a legitimate thousands comma inside a number
+ * ("1,024 divided by 8") can never be reached by this match in the first
+ * place — the digit "1" stops the lazy content expansion before any
+ * internal comma is ever considered, pinned as a regression alongside a
+ * chained comma-then-dash preamble ("Quick one, hold on -- what's...") in
+ * arithmetic.test.mjs.
  *
  * This is the SAME property P52 already relies on for its own safety net:
  * "Is" is never inside the strippable set (WRAPPER_RE's alternation still
@@ -139,7 +151,7 @@ const WRAPPER_RE = /^\s*(?:what'?s|what\s+is|calculate|compute|solve|evaluate|fi
  * word and fails PURE_EXPRESSION_RE regardless of what the reversal computed
  * underneath it (pinned in arithmetic.test.mjs, preamble variants included).
  */
-const PREAMBLE_RE = /^\s*[A-Za-z][A-Za-z'\s,.]*?[-:–—]{1,2}\s*/;
+const PREAMBLE_RE = /^\s*[A-Za-z][A-Za-z'\s,.]*?[-:–—,]{1,2}\s*/;
 const PREAMBLE_MAX_STRIPS = 3;
 export function stripCasualPreamble(s) {
   let out = String(s ?? "");

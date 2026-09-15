@@ -7,7 +7,7 @@
 // different answers, and the tests want the referent's.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { referentsOf, bindAnaphora, addressedBy, absenceLine, absenceOf, ownedRows, ownedLine, restatementOf, positionOn, selfContradictions, contradictionLine, historyWindow, expectationFrom, errorOf, expectationFacts, refKey } from "./dialogue.js";
+import { referentsOf, bindAnaphora, addressedBy, absenceLine, absenceOf, ownedRows, ownedLine, restatementOf, positionOn, selfContradictions, contradictionLine, historyWindow, expectationFrom, errorOf, expectationFacts, refKey, fold } from "./dialogue.js";
 import { premisesOf, checkPremises } from "./correction.js";
 import { answerBeforeTheModel, quoteBytes, recordCheck } from "./answerable.js";
 import { lastOwnTurn } from "./transcript.js";
@@ -38,6 +38,55 @@ test("referentsOf: candidate names go through the index; the unresolved are name
   assert.ok(r.ids.size >= 2, "Raskolnikov and Razumihin resolve");
   assert.deepEqual(r.unresolved, ["Sonia"]);
   assert.equal(referentsOf("nothing capitalised here", index).ids.size, 0);
+});
+
+// THE GENERIC-NOUN BUG (task, 2026-09-15): live, "Who was the director of
+// Northgate Observatory?" (a made-up institution, never fetched) drew on a
+// preflight web search that found only an unrelated real one, Vanderbilt's
+// Dyer Observatory. `candidatesIn`'s own sub-run decomposition — by design,
+// for legitimate cases like "Razumihin" from "Later Razumihin" — offered
+// the bare single word "Observatory" as its own candidate, and namesCorefer's
+// unconditional subset/containment rule let it corefer with "Dyer
+// Observatory" (a real token of it), corrupting what the question was read
+// as being about. The address check then re-asked the model with "the
+// question asks about ... Dyer Observatory," and the model's own correct
+// first answer ("Not mentioned in the provided sources") was overridden
+// into a description of the wrong, unasked-about institution — an answer
+// the apparatus then marked with a citation, dressed as checked.
+const DYER_PASSAGES = [{ ref: "web:dyer.vanderbilt.edu-0#616-683", text: "The Dyer Observatory, also known as the Arthur J. Dyer Observatory, is an astronomical observatory owned and operated by Vanderbilt University." }];
+// A minimal stand-in for the real UD-treebank prior app.js's own
+// `isCommonNoun` reads (wordclass.js) — this fixture needs no network fetch
+// and no vendored treebank to prove the gate's own shape holds.
+const namesCoreferGated = (a, b) => namesCorefer(a, b, { commonNoun: (w) => w === "observatory" });
+const indexForGated = makeReferentIndex({ splitSentences, extractSurfaces, discoverReferents, namesCorefer: namesCoreferGated, diaNorm });
+
+test("THE GENERIC-NOUN BUG, reproduced: the unfixed index resolves an unrelated question's bare 'Observatory' sub-run to a real, differently-named institution's referent", () => {
+  const idx = indexFor(DYER_PASSAGES); // bare namesCorefer — no commonNoun gate
+  const own = referentsOf("Who was the director of Northgate Observatory?", idx);
+  assert.ok(own.ids.size > 0, "reproduces the bug live: 'Observatory' alone corefers with 'Dyer Observatory'");
+});
+
+test("...and the fix: with commonNoun injected, the same question correctly resolves to nothing — a real proper name ('Pierre'-shaped) is untouched", () => {
+  const idx = indexForGated(DYER_PASSAGES);
+  const own = referentsOf("Who was the director of Northgate Observatory?", idx);
+  assert.equal(own.ids.size, 0, "the bare common-noun sub-run no longer corefers with an unrelated institution");
+  assert.ok(own.unresolved.includes("Northgate Observatory"), "the question's own real candidate is named as unresolved, never silently dropped");
+  // The gate never touches a genuine proper name: Raskolnikov still resolves
+  // through the SAME gated index, over the ORIGINAL fixture.
+  const rask = referentsOf("What did Rodion Raskolnikov say to Razumihin?", indexForGated(PASSAGES));
+  assert.ok(rask.ids.size >= 2, "the commonNoun gate narrows a false positive; it removes no real affordance");
+});
+
+test("fold() does not corrupt Cyrillic й — NFD decomposes it into и + COMBINING BREVE (U+0306), a different letter of the alphabet, never a decorated и, unlike a genuine Latin accent (found live, 2026-09-15, cross-lingual testing of identitySwapped/P221: fold('мой') === fold('мои') before this fix)", () => {
+  assert.notEqual(fold("мой"), fold("мои"), "two distinct real Russian words ('my' vs 'mine[pl]') must not fold to the same string");
+  assert.notEqual(fold("чай"), fold("чаи"), "'tea' vs 'teas' must stay distinct too");
+  // Every other diacritic keeps folding exactly as before — this fix
+  // excludes ONLY U+0306 (combining breve), not the whole combining-marks
+  // block.
+  assert.equal(fold("Natásha"), "natasha");
+  assert.equal(fold("Bezúkhov"), "bezukhov");
+  assert.equal(fold("Peñasco"), "penasco");
+  assert.equal(fold("über"), "uber");
 });
 
 test("anaphora across turns: a pronoun binds to the last answer's REFERENT IDS in mention order; 'those passages' to its addresses; a question naming its own referents binds nothing", () => {

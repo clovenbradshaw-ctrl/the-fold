@@ -197,7 +197,7 @@ import { readOnArrival, unreadExtent } from "./read-on-arrival.js";
 // THE-HOLOGRAPH §7's disclosed, owed step). Runs beside readOnArrival's own
 // relation-reading loop, over the same chunks; conversationIndexNow() below
 // prefers its index once a source's read has produced one.
-import { readConstitutionally, constitutionalIndexFor, covers as constitutionalCovers, manifest as readingManifest } from "./reading-client.js";
+import { readConstitutionally, constitutionalIndexFor, covers as constitutionalCovers, manifest as readingManifest, setNamesCorefer as setReadingNamesCorefer } from "./reading-client.js";
 // The AnswerRecord (Pass 19, P100): one per turn, persisted append-only,
 // shown first in the thinking panel — what was handed, what was said, what
 // nothing backs, and the reader's identity.
@@ -695,6 +695,27 @@ import { buildAsk, archetypeOf, parseIngestCommand, INGEST_EXTS } from "./seed.j
 // module has finished loading.
 const widgetRouter = makeWidgetRouter(enginePriors, { classifyWord, dominantClass, posPrior: () => posPriorCache });
 
+// namesCorefer's own `commonNoun` gate (surfaces.js, 2026-09-15): a bare
+// SINGLE token offered as a subset-containment match ("Observatory" against
+// an unrelated "Dyer Observatory") is refused when the SAME real UD-
+// treebank prior classifyWord/dominantClass already use elsewhere in this
+// file reads it as an ordinary common NOUN — never a hand-typed list of
+// institution words, and never touching a genuine bare personal name
+// ("Pierre"), which is OOV in the treebank and so leaves the gate open.
+// Falls fully open (byte-identical containment) while posPriorCache is
+// still null, exactly like every other consumer of this same prior fetch.
+const isCommonNoun = (word) => {
+  if (!posPriorCache) return false;
+  const d = dominantClass(classifyWord(word, { posPrior: posPriorCache }), { minShare: 0.5 });
+  return Boolean(d && d.upos === "NOUN");
+};
+const namesCoreferGated = (a, b) => namesCorefer(a, b, { commonNoun: isCommonNoun });
+// The constitutional reading's own referent index (reading-client.js) is a
+// SEPARATE projection from the presence index built just below — it needs
+// the identical gate or the same bug survives through the one path this
+// file does not itself wire (see reading-client.js's own header).
+setReadingNamesCorefer(namesCoreferGated);
+
 // The languages a seed scrub or an ingest can keep as folds — seed.js's own
 // technical vocabulary (extension map), read as a token set. Not a word
 // list: these are fence-tag/extension names, the same closed set the
@@ -724,7 +745,7 @@ const castFor = makeCastResolver({
   splitSentences: engineSentences,
   extractSurfaces,
   discoverReferents,
-  namesCorefer,
+  namesCorefer: namesCoreferGated,
   diaNorm,
   blankFurniture: castBlankFurniture,
 });
@@ -737,7 +758,7 @@ const referentIndexFor = makeReferentIndex({
   splitSentences: engineSentences,
   extractSurfaces,
   discoverReferents,
-  namesCorefer,
+  namesCorefer: namesCoreferGated,
   diaNorm,
   blankFurniture: castBlankFurniture,
 });
@@ -879,7 +900,7 @@ const RELATION_READER_OPTIONS = {
   splitSentences: engineSentences,
   extractSurfaces,
   discoverReferents,
-  namesCorefer,
+  namesCorefer: namesCoreferGated,
   diaNorm,
   discoverRelationVocab,
   extractRelations,
@@ -1350,7 +1371,7 @@ function holographIndex(turns) {
         const parts = diaNorm(name).split(/\s+/).filter((t) => t.length > 2);
         if (!parts.length) return ids;
         for (const e of events) {
-          if (!namesCorefer(name, e.surface)) continue;
+          if (!namesCoreferGated(name, e.surface)) continue;
           const st = diaNorm(e.surface).split(/\s+/);
           if (parts.every((p) => st.some((x) => covers(x, p)))) ids.add(e.referent_id);
         }
@@ -11592,6 +11613,11 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       mentionBook: conversationIndexCache.book,
       dmdWindow,
       conversationIndex: conversationIndexNow(),
+      // strain.js::identitySwapped's own gate (P219's residual): the SAME
+      // POS-prior predicate namesCorefer's gate already uses, above — a
+      // bare generic head noun never counts as honestly naming what a
+      // question asked about.
+      commonNoun: isCommonNoun,
       records: state.summary?.records ?? [],
       transcript: transcriptNow(),
       searchedVoid,

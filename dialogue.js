@@ -58,7 +58,16 @@ export const triggerGap = (language) => (language && language !== TRIGGER_LANGUA
 // fails the check that should confirm it). resolutions.js, activation-
 // retrieval.js and holon.js's act-key fold all import this rather than
 // redefining it; a fourth copy is exactly the shape P7.1 was written for.
-export const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+// Diacritics are stripped for matching (Natásha/Natasha, Bezúkhov/Bezukhov,
+// Peñasco/Penasco), but NFD decomposes Cyrillic й/Й into и/И plus COMBINING
+// BREVE (U+0306) — а different letter of the alphabet, never a decorated и,
+// unlike a genuine accent mark on a Latin vowel — so stripping it the same
+// way collapsed мой/мои (two distinct real words) to one string. Found live,
+// 2026-09-15, cross-lingual testing of identitySwapped (P221): fold('мой')
+// === fold('мои'). U+0306 is excluded from the stripped range; every other
+// combining mark (acute, grave, tilde, diaeresis, cedilla, ring, …) folds
+// exactly as before — confirmed against Natásha/Bezúkhov/Peñasco/über/naïve.
+export const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-̅̇-ͯ]/g, "").toLowerCase();
 const ids = (index, name) => { try { const r = index?.resolve?.(name); return r instanceof Set ? r : new Set(r ?? []); } catch { return new Set(); } };
 const represent = (index, id) => { try { return index?.represent?.(id) ?? id; } catch { return id; } };
 

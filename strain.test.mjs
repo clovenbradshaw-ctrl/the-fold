@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { strainOf, recruit, substituted, THIN_PASSAGES, COVERAGE_FLOOR } from "./strain.js";
+import { strainOf, recruit, substituted, identitySwapped, THIN_PASSAGES, COVERAGE_FLOOR } from "./strain.js";
+import { makeReferentIndex } from "./cast.js";
+import { splitSentences } from "../eoreader7/native/adapters/text/spans.js";
+import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "../eoreader7/native/adapters/text/surfaces.js";
 
 const P = (t) => ({ text: t });
 
@@ -55,6 +58,87 @@ test("attribute substitution: an answer that shares almost nothing with the ques
   assert.equal(substituted("hi", "Hello there, how can I help you today with anything at all?"), null, "a question with no content words is not judged");
   assert.equal(typeof THIN_PASSAGES, "number");
   assert.equal(typeof COVERAGE_FLOOR, "number");
+});
+
+// ── P219's own residual: entity substitution, checked without a model ───────
+
+const DYER_PASSAGES = [{ ref: "web:dyer.vanderbilt.edu-0#616-683", text: "The Dyer Observatory, also known as the Arthur J. Dyer Observatory, is an astronomical observatory owned and operated by Vanderbilt University. Jessica Ingram is the Observatory's Director." }];
+const indexFor = makeReferentIndex({ splitSentences, extractSurfaces, discoverReferents, namesCorefer, diaNorm });
+const observatoryIndex = indexFor(DYER_PASSAGES);
+// A minimal stand-in for the real UD-treebank prior app.js's own
+// isCommonNoun reads (wordclass.js) — this fixture needs no network fetch.
+const commonNoun = (w) => w === "observatory";
+
+test("THE LIVE SPECIMEN, reproduced without a model: a draft that never says 'Northgate' but confidently names Dyer Observatory's real director is an entity swap", () => {
+  const r = identitySwapped(["Northgate Observatory"], observatoryIndex, "The sources say that the director of Arthur J. Dyer Observatory is Jessica Ingram.", { commonNoun });
+  assert.ok(r?.swapped, JSON.stringify(r));
+  assert.deepEqual(r.absent, ["Northgate Observatory"]);
+  assert.ok(r.claimed.length > 0, "names what the draft claimed instead");
+});
+
+test("an honest draft that names the absent thing is never flagged, whatever it goes on to say", () => {
+  const r = identitySwapped(["Northgate Observatory"], observatoryIndex, "Northgate Observatory is not mentioned in the sources. They do discuss a different one, Dyer Observatory, whose director is Jessica Ingram.", { commonNoun });
+  assert.equal(r.swapped, false);
+});
+
+test("the generic head noun alone does not count as an echo — 'Observatory' is common to both names by construction, only 'Northgate' tells them apart — and this needs no commonNoun prior at all", () => {
+  // Found live, 2026-09-15, chasing this exact specimen against the real
+  // running app: "observatory" is OOV in the UD-treebank prior isCommonNoun
+  // reads (found: false), so commonNoun("observatory") is ALWAYS false in
+  // production — the prior's own designed fall-open ("never refuse a bare
+  // name like 'Pierre', which is OOV too") silently defeated a commonNoun-
+  // only filter for exactly the word this check exists to catch. Fixed by
+  // checking what the draft actually CLAIMED first: a word shared with the
+  // claimed referent's own surface ("Arthur J. Dyer Observatory") is never
+  // distinctive of the absent name, whatever any external prior says about
+  // it — no vocabulary coverage required. So this now holds with NO
+  // commonNoun supplied at all, not only once the prior is wired in.
+  const bare = identitySwapped(["Northgate Observatory"], observatoryIndex, "The sources say that the director of Arthur J. Dyer Observatory is Jessica Ingram.");
+  assert.ok(bare?.swapped, JSON.stringify(bare));
+});
+
+test("the SAME specimen, with a commonNoun that (like the real UD-treebank prior) never classifies 'observatory' at all — the claimed-referent check alone still catches it", () => {
+  const alwaysOov = () => false; // the real isCommonNoun's own behavior for this word: found: false, so never NOUN
+  const r = identitySwapped(["Northgate Observatory"], observatoryIndex, "The sources say that the director of Arthur J. Dyer Observatory is Jessica Ingram.", { commonNoun: alwaysOov });
+  assert.ok(r?.swapped, JSON.stringify(r));
+});
+
+test("a wrong answer that only refers to the real institution GENERICALLY — never restating its own name — is still caught, distinctiveness is checked against the whole material's established surfaces, not only what one sentence happens to claim", () => {
+  // Found by cross-lingual testing (2026-09-15, six languages, Workflow):
+  // the first cut of this gate filtered a word's distinctiveness only
+  // against the referents THIS sentence's own referentsOf() resolved —
+  // "The director of the observatory is Jessica Ingram" never restates
+  // "Dyer" or "Arthur J Dyer" by name, so claimedWords never contained
+  // "observatory" and the shared generic word slipped through as if it
+  // told the two institutions apart. Reproduces in plain English with no
+  // exotic construction — a model narrating anaphorically ("the
+  // observatory", "the institute", "there") rather than by full name is
+  // an entirely ordinary thing for a small model to do.
+  const r = identitySwapped(["Northgate Observatory"], observatoryIndex, "The director of the observatory is Jessica Ingram.", { commonNoun });
+  assert.ok(r?.swapped, JSON.stringify(r));
+  assert.deepEqual(r.absent, ["Northgate Observatory"]);
+});
+
+test("a plain, honest refusal that claims nothing real is never flagged — there is nothing to substitute", () => {
+  const r = identitySwapped(["Northgate Observatory"], observatoryIndex, "The sources do not say who the director was.", { commonNoun });
+  assert.equal(r, null, "no real referent claimed, so this is ordinary hedging, not a swap");
+});
+
+test("a genuinely caseless-script answer returns a TYPED GAP, not an ambiguous null — found cross-lingual testing, 2026-09-15 (Workflow, three languages): claimed.size===0 for a caseless draft is bytewise identical to ordinary hedging, so a dangerous entity substitution in Hebrew/Arabic/Chinese/… looked exactly like an honest 'nothing to substitute' refusal", () => {
+  const r = identitySwapped(["Northgate Observatory"], observatoryIndex, "מצפה הכוכבים הרודיון הוא מפעל מחקר גדול.");
+  assert.equal(r.swapped, null);
+  assert.equal(r.gap?.reason, "script_without_case");
+});
+
+test("...but an ordinary short, honest, CASED sentence with no mid-sentence capital must NOT trip the same gap — scriptCoverage's other two boundaries are calibrated for a whole document's worth of sentences, not one answer, and were found live to fire on plain English hedging with no proper noun in it", () => {
+  const r = identitySwapped(["Northgate Observatory"], observatoryIndex, "There is nothing here about that.");
+  assert.equal(r, null, "an ordinary cased sentence with no capitalised evidence is ordinary hedging, not a caseless script");
+});
+
+test("no absent names, or no index, or an empty draft — refuses to judge rather than guessing", () => {
+  assert.equal(identitySwapped([], observatoryIndex, "anything"), null);
+  assert.equal(identitySwapped(["Northgate Observatory"], null, "anything"), null);
+  assert.equal(identitySwapped(["Northgate Observatory"], observatoryIndex, ""), null);
 });
 
 // ── P145: the stream's own belief decides, where there is one ───────────────

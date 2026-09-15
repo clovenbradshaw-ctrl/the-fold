@@ -28,8 +28,9 @@
 // A signal that cannot be read is absent, never a zero: an unmeasurable
 // difficulty is not an easy one (the same line the grounding ladder holds).
 import { CLAIM_STOPWORDS } from "./grounding.js";
+import { referentsOf, fold } from "./dialogue.js";
+import { scriptCoverage } from "../eoreader7/native/adapters/text/surfaces.js";
 
-const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const words = (t) => new Set(fold(t).split(/[^\p{L}\p{N}_]+/u).filter((w) => w.length > 3 && !CLAIM_STOPWORDS.has(w)));
 
 /** How thin retrieval has to be to count as strain: fewer than this many passages carrying the question's own words. */
@@ -224,4 +225,134 @@ export function substituted(question, answer, { floor = 0.2, minWords = 12 } = {
   const shared = [...qw].filter((w) => aw.has(w));
   const share = shared.length / qw.size;
   return { substituted: share < floor, share, shared, asked: [...qw], answered: aw.size };
+}
+
+/**
+ * identitySwapped(absentNames, index, answer, { commonNoun }) →
+ * { swapped, absent, claimed } | null
+ *
+ * ENTITY SUBSTITUTION — substituted()'s sibling at the REFERENT layer, not
+ * the word layer: the question named something the material never
+ * establishes (P105's own declared absence, P219's own fixed identity
+ * resolution behind it), and the draft confidently claims something about
+ * a DIFFERENT, REAL referent the material DOES establish, without ever
+ * saying the asked-about name is missing. `substituted()` cannot see this
+ * shape at all — a swapped-in near-neighbour typically shares PLENTY of
+ * the question's own words (P219's own specimen: "director"/"observatory"
+ * both survive the swap), so the topic-level check reads it as on-topic.
+ *
+ * Read without a model, the same way substituted() reads a topic swap:
+ * does the draft's own bytes echo the absent name's DISTINCTIVE word(s) —
+ * never its bare generic head noun, which is exactly the word a swapped-in
+ * near-neighbour shares by construction (P219: "Observatory" is common to
+ * both "Northgate Observatory" and "Dyer Observatory"; only "Northgate"
+ * tells them apart). `commonNoun` is the SAME caller-injected POS-prior
+ * predicate namesCorefer's own gate uses (surfaces.js) — never a second
+ * guessed rule — and this falls open (every word counts) when it is
+ * absent, matching every optional organ in this codebase. An honest "X is
+ * not mentioned, but Y is" passes cleanly, whatever else it goes on to
+ * say. Silent (null) when the draft claims nothing real (referentsOf
+ * finds no referent at all — there is nothing to substitute, only
+ * ordinary hedging) or when every absent name's own distinctive word is
+ * echoed somewhere in the draft. On a script `referentsOf`'s candidate scan
+ * cannot read at all (Hebrew, Arabic, CJK, Devanagari, …), "nothing real
+ * claimed" is returned as a TYPED GAP (`{swapped: null, gap}`, via
+ * `scriptCoverage`) rather than bare `null`, since on a caseless script the
+ * two are otherwise indistinguishable — every caller checking `.swapped`
+ * truthiness is unaffected either way.
+ *
+ * Found live, 2026-09-15: asked about "Northgate Observatory" (a declared
+ * absence) over material about "Dyer Observatory," gemma2:2b's own draft
+ * — "The sources say that the director of Arthur J. Dyer Observatory is
+ * Jessica Ingram." — never once wrote "Northgate," named a real referent
+ * with full confidence, and shipped with a citation. The void HAD been
+ * correctly declared and fed (P219's own fix); text alone did not stop
+ * the mouth from quietly answering about the wrong place — L5's own
+ * standing finding, a third time, which is why this checks mechanically
+ * rather than asking the prompt to try harder.
+ */
+export function identitySwapped(absentNames, index, answer, { commonNoun = null } = {}) {
+  const names = [...new Set((absentNames ?? []).filter(Boolean))];
+  if (!names.length || !index || typeof index.resolve !== "function") return null;
+  const a = String(answer ?? "").trim();
+  if (!a) return null;
+  const af = fold(a);
+  // Claimed FIRST: a word's distinctiveness is checked against what the
+  // material ESTABLISHES, not against an external classifier alone, and
+  // not only against what one sentence happens to restate by name.
+  // Found live, 2026-09-15: `commonNoun` (the UD-treebank POS prior) has
+  // "observatory" as OOV — `found: false` — so the prior falls open (every
+  // OOV word left unfiltered, the SAME safe default that protects a bare
+  // name like "Pierre" elsewhere) and `distinctiveWords` kept "Observatory"
+  // as if it told Northgate and Dyer Observatory apart, when it is exactly
+  // the word the two share. A word shared with a REAL referent's own
+  // established surface is never distinctive of the absent name regardless
+  // of what any prior classifies it as — this needs no vocabulary coverage
+  // at all, only what the material already established.
+  //
+  // Cross-lingual testing (2026-09-15, six languages) found a narrower
+  // first cut of this idea — filtering only against THIS sentence's own
+  // claimed referents — has a real gap, reproduced in English too: "The
+  // director of the observatory is Jessica Ingram" never restates "Dyer"
+  // or "Arthur J Dyer" by name, so nothing was claimed to filter "observ-
+  // atory" against, and the shared generic word passed as an echo though
+  // it names nobody real. `establishedWords` reads every surface the
+  // INDEX itself has established (the whole material's own referents),
+  // not only the ones this one sentence happens to spell out — a word
+  // shared with ANY real, established referent is structurally incapable
+  // of distinguishing the absent name from what is actually there.
+  let claimed;
+  try { claimed = referentsOf(a, index).ids; } catch { claimed = new Set(); }
+  if (!claimed || !claimed.size) {
+    // Silent (null) genuinely means "nothing real claimed, ordinary
+    // hedging" ONLY when the mechanism that would have found a claim could
+    // have seen one. `referentsOf`'s candidate scan (surfaces.js/dialogue.js)
+    // reads capitalisation, so a caseless script (Hebrew, Arabic, CJK,
+    // Devanagari, …) always produces claimed.size===0 regardless of what
+    // the draft actually says — found cross-lingual testing, 2026-09-15
+    // (Workflow, three independent languages, same finding each time):
+    // this made a dangerous entity substitution and an honest disclosure
+    // of absence come back byte-identical (both silent null) on a caseless
+    // draft — the gate could not tell "checked, nothing found" from
+    // "structurally unable to check at all." `scriptCoverage` is the SAME
+    // organ this exact boundary is already typed and tested against
+    // elsewhere in this codebase; a real, disclosed gap replaces the
+    // ambiguous null rather than a second guessed check being invented
+    // here. Every existing caller reads `entitySwap?.swapped`, which stays
+    // falsy either way — this is additive, never a behavior change for
+    // any cased-script caller.
+    //
+    // ONLY `script_without_case` (zero cased letters, period) is a safe
+    // signal at this single-sentence scale. `scriptCoverage`'s OTHER two
+    // boundaries — majority-caseless, and "cased but capitalisation is
+    // never actually used as evidence" — are calibrated for a whole
+    // document's worth of sentences (its own header: "tested not by a
+    // percentage but by... does ANY candidate surface appear in more than
+    // zero sentences" across the corpus). Found running the real test
+    // suite: an ordinary honest English answer with no proper noun in it
+    // ("The sources do not say who the director was.") is exactly ONE
+    // sentence with no mid-sentence capital, so it trips the
+    // `script_case_unused` boundary every time — a real answer in a
+    // perfectly readable script, not a caseless one. Surfacing that
+    // boundary here would call ordinary hedging a script the gate cannot
+    // read.
+    let gap = null;
+    try { gap = scriptCoverage([{ text: a }]).gap; } catch { gap = null; }
+    return gap?.reason === "script_without_case" ? { swapped: null, absent: names, claimed: [], gap } : null;
+  }
+  const claimedNames = [...claimed].map((id) => { try { return index.represent(id); } catch { return id; } }).filter(Boolean);
+  const establishedWords = new Set();
+  for (const e of (index.events ?? [])) for (const w of words(e?.surface ?? "")) establishedWords.add(w);
+  const distinctiveWords = (n) => {
+    const ws = [...words(n)];
+    const kept = ws.filter((w) => !establishedWords.has(w) && !(typeof commonNoun === "function" && commonNoun(w)));
+    return kept.length ? kept : ws; // never refuse to check a name built entirely of shared/common words
+  };
+  const echoed = names.filter((n) => {
+    const ws = distinctiveWords(n);
+    return ws.length ? ws.some((w) => af.includes(w)) : af.includes(fold(n));
+  });
+  const missing = names.filter((n) => !echoed.includes(n));
+  if (!missing.length) return { swapped: false, absent: names, claimed: [] };
+  return { swapped: true, absent: missing, claimed: claimedNames };
 }

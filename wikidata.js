@@ -113,6 +113,78 @@ export function parseEntity(json) {
 export const HUMAN = "Q5";
 export const isHuman = (entity) => (entity?.instanceOf ?? []).includes(HUMAN);
 
+// ── cross-source referents, by qid — never by name string ───────────────────
+//
+// Found chasing "make cross source referents" (2026-09-15): asked whether
+// the-fold's EXISTING cross-document identity primitives — `bridges.js`'s
+// exact-(subject,verb,object)-triple crossing, and `reality-kind.js`'s
+// `namesCorefer`-based cross-document NAME correspondence — can recognize
+// that an English and a Russian Wikipedia article both describe the SAME
+// real institution. Neither can, and reality-kind.js's own header already
+// says why for the first ("a paraphrase never matches the triple"); the
+// second was measured to do something WORSE than simply failing closed.
+//
+// THE MEASURED FALSE POSITIVE. `namesCorefer("Harvard University", "Uni-
+// versity")` returns true even with the real production `commonNoun`
+// (`isCommonNoun`, the UD-treebank prior) wired in — not because
+// "university" is out-of-vocabulary the way "observatory" was (P219): it IS
+// in the treebank, 29 occurrences, but its DOMINANT tag is PROPN at 79% share
+// (institution names like "Harvard University" outnumber bare uses like "the
+// university" in the training text), so `dominantClass(..., {upos:"NOUN"})`
+// never fires and the single-token subset-containment gate never engages.
+// A real Russian Wikipedia article for Harvard embeds the English gloss
+// "(англ. Harvard University)" — ordinary Wikipedia style for a foreign-
+// language name — and `extractSurfaces` reads the bare Latin word
+// "University" out of it as its own surface. The two together make
+// `namesCorefer` "bridge" the English and Russian Harvard articles — but
+// for the WRONG reason: verified live that the identical mechanism ALSO
+// "bridges" the English Harvard article to a wholly UNRELATED Russian
+// Stanford specimen carrying the same embedded gloss shape. A mechanism
+// that cannot tell two different universities apart is not a bridge, it is
+// the P219 bug wearing a cross-source costume — disclosed here as a REAL,
+// UNFIXED gap in the commonNoun gate (P219/P221/P222 close it only for
+// OOV words; a PROPN-dominant common noun like "university"/"college"/
+// "institute" is a second, different failure shape the same gate cannot
+// see), never used to justify a "successful" cross-lingual bridge.
+//
+// THE SOUND SIGNAL, receivable rather than derived from the text at all:
+// Wikidata assigns one QID per real-world entity, and every Wikipedia
+// article in every language that describes that entity carries the SAME
+// qid in its own `pageprops.wikibase_item` (confirmed live: Harvard's
+// English, German, Spanish and Russian articles all resolve to Q13371;
+// Stanford's own English article resolves to the DIFFERENT Q41506). Two
+// sources correspond when their OWN declared qids are equal — nothing
+// compared, nothing guessed, the same "identity from a giver, not from
+// spelling" rule this file's own header already states for
+// `chainAgreesByIdentity`. The pure half lives here; the crossing (reading
+// each source's own qid) is the caller's, exactly like `entityUrl` above.
+export const pagePropsUrl = (lang, title) =>
+  `https://${encodeURIComponent(String(lang ?? "en"))}.wikipedia.org/w/api.php?action=query&prop=pageprops&ppprop=wikibase_item&titles=${encodeURIComponent(String(title ?? ""))}&format=json`;
+
+/** The qid a fetched `pagePropsUrl` response names for its page, or null — never guessed when the property is absent (a page with no linked Wikidata item, a redirect MediaWiki did not resolve, a typo'd title). */
+export function parsePageProps(json) {
+  const pages = json?.query?.pages;
+  if (!pages || typeof pages !== "object") return null;
+  const page = Object.values(pages)[0];
+  const qid = page?.pageprops?.wikibase_item;
+  return isQid(qid) ? qid : null;
+}
+
+/**
+ * qidBridge(sourceA, sourceB) — do two sources (`{qid, ref}`-shaped, ref
+ * optional and carried through only for the caller's own address) describe
+ * the SAME real-world referent? Equal, present qids bridge; anything else
+ * refuses BY NAME rather than defaulting to "no" the same way an ordinary
+ * mismatch would — a source with no known qid at all is a different fact
+ * (this mechanism was never consulted) from two sources whose qids were
+ * both read and genuinely differ (this mechanism was consulted and said no).
+ */
+export function qidBridge(sourceA, sourceB) {
+  const a = sourceA?.qid, b = sourceB?.qid;
+  if (!isQid(a) || !isQid(b)) return { bridged: false, reason: "missing_qid", a: sourceA?.ref ?? null, b: sourceB?.ref ?? null };
+  return { bridged: a === b, reason: a === b ? null : "different_qid", a: sourceA?.ref ?? null, b: sourceB?.ref ?? null, qid: a === b ? a : null };
+}
+
 /**
  * holdersOfPosition(entities, positionQid) — every parsed entity that holds
  * the named position, as `chains.js`-shaped records: `{id, prev, next, seq,

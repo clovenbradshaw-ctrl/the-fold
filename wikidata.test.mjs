@@ -14,7 +14,10 @@ import {
   HUMAN,
   isHuman,
   isQid,
+  pagePropsUrl,
   parseEntity,
+  parsePageProps,
+  qidBridge,
 } from "./wikidata.js";
 import { chainFillers } from "./chains.js";
 import * as wdMod from "./wikidata.js";
@@ -24,6 +27,7 @@ const fixture = (qid) => parseEntity(JSON.parse(readFileSync(`../eoreader7/nativ
 const HAMLIN = fixture("Q273546");
 const JOHNSON = fixture("Q8612");
 const OFFICE = fixture("Q11699");
+const pageprops = (name) => JSON.parse(readFileSync(`../eoreader7/native/eval/the-fold/fixtures/wikidata/pageprops/${name}.json`, "utf8"));
 
 test("a real entity parses to label, typed instance-of, and positions", () => {
   assert.equal(HAMLIN.qid, "Q273546");
@@ -509,4 +513,80 @@ test("a declined read stays a refusal through the adapter, never an empty result
   assert.equal(await source.resolve("anything"), null);
   assert.equal(await source.entities(["Q1"]), null);
   assert.equal(await source.membersOf("P39", "Q11699"), null);
+});
+
+// ── cross-source referents, by qid (found chasing "make cross source
+// referents", 2026-09-15) — against REAL captured pageprops responses,
+// eval/fixtures/wikidata/pageprops/, never a hand-typed stand-in ──────────
+
+test("parsePageProps reads the real qid a fetched Wikipedia page carries, whatever language it's written in", () => {
+  assert.equal(parsePageProps(pageprops("harvard-en")), "Q13371");
+  assert.equal(parsePageProps(pageprops("harvard-ru")), "Q13371", "Russian, Cyrillic title, same real entity");
+  assert.equal(parsePageProps(pageprops("harvard-he")), "Q13371", "Hebrew, caseless script, same real entity");
+  assert.equal(parsePageProps(pageprops("harvard-zh")), "Q13371", "Chinese, no word boundaries, same real entity");
+  assert.equal(parsePageProps(pageprops("stanford-en")), "Q41506", "a genuinely different real institution has its own, different qid");
+});
+
+test("parsePageProps refuses rather than guesses when the property is absent or the shape is wrong", () => {
+  assert.equal(parsePageProps({}), null);
+  assert.equal(parsePageProps({ query: { pages: { 1: { title: "X" } } } }), null, "a real page with no linked Wikidata item at all");
+  assert.equal(parsePageProps(null), null);
+});
+
+test("qidBridge: four real Wikipedia articles in four different scripts (Latin, Cyrillic, Hebrew, Han) all correctly bridge to the SAME real entity, by qid, never by name-string", () => {
+  const en = { qid: parsePageProps(pageprops("harvard-en")), ref: "wiki:en#0-1" };
+  const ru = { qid: parsePageProps(pageprops("harvard-ru")), ref: "wiki:ru#0-1" };
+  const he = { qid: parsePageProps(pageprops("harvard-he")), ref: "wiki:he#0-1" };
+  const zh = { qid: parsePageProps(pageprops("harvard-zh")), ref: "wiki:zh#0-1" };
+  for (const [a, b] of [[en, ru], [en, he], [en, zh], [ru, he], [ru, zh], [he, zh]]) {
+    const r = qidBridge(a, b);
+    assert.ok(r.bridged, JSON.stringify(r));
+    assert.equal(r.qid, "Q13371");
+  }
+});
+
+test("qidBridge refuses to bridge two genuinely different real institutions, even in the same language", () => {
+  const harvardEn = { qid: parsePageProps(pageprops("harvard-en")), ref: "wiki:en-harvard#0-1" };
+  const stanfordEn = { qid: parsePageProps(pageprops("stanford-en")), ref: "wiki:en-stanford#0-1" };
+  const r = qidBridge(harvardEn, stanfordEn);
+  assert.equal(r.bridged, false);
+  assert.equal(r.reason, "different_qid");
+});
+
+test("qidBridge refuses BY NAME when a qid is missing, never silently reads that as 'different' the same way a genuine mismatch would", () => {
+  const known = { qid: "Q13371", ref: "a" };
+  assert.deepEqual(qidBridge({ ref: "b" }, known), { bridged: false, reason: "missing_qid", a: "b", b: "a" });
+  assert.deepEqual(qidBridge(known, { qid: "not-a-real-qid", ref: "c" }), { bridged: false, reason: "missing_qid", a: "a", b: "c" });
+  assert.equal(qidBridge({}, {}).reason, "missing_qid");
+});
+
+test("pagePropsUrl builds the address a caller's own fetch should read, non-ASCII titles included", () => {
+  const url = pagePropsUrl("ru", "Гарвардский университет");
+  assert.match(url, /^https:\/\/ru\.wikipedia\.org\/w\/api\.php\?/);
+  assert.match(url, /prop=pageprops/);
+  assert.match(url, /ppprop=wikibase_item/);
+  assert.doesNotMatch(url, /Гарвардский/, "the raw Cyrillic must be percent-encoded, never embedded literally in a URL");
+});
+
+test("THE MEASURED FALSE POSITIVE this organ exists to replace: namesCorefer's cross-document name check 'bridges' Harvard to an UNRELATED Stanford specimen sharing only the shape of an embedded foreign-language gloss — reproduced against the real engine organs, never assumed from the header alone", async () => {
+  const { makeReferentIndex } = await import("../eoreader7/native/organs/cast.js");
+  const { extractSurfaces, discoverReferents, namesCorefer, diaNorm } = await import("../eoreader7/native/adapters/text/surfaces.js");
+  const { splitSentences } = await import("../eoreader7/native/adapters/text/spans.js");
+  const { classifyWord, dominantClass } = await import("../eoreader7/native/adapters/text/wordclass.js");
+  const posPrior = JSON.parse(readFileSync("./priors-data/pos-prior-eng.json", "utf8"));
+  const isCommonNoun = (w) => { const d = dominantClass(classifyWord(w, { posPrior }), { minShare: 0.5 }); return Boolean(d && d.upos === "NOUN"); };
+  assert.equal(isCommonNoun("university"), false, "PROPN-dominant (79% share) in the real treebank, not OOV like 'observatory' was — a second, different shape of the same class of gap");
+  const indexFor = makeReferentIndex({ splitSentences, extractSurfaces, discoverReferents, namesCorefer: (a, b) => namesCorefer(a, b, { commonNoun: isCommonNoun }), diaNorm });
+  // The real fetched English Wikipedia lead extract — a single isolated
+  // sentence never even admits "Harvard University" as a referent at all
+  // (the Born gate's own conservative admission, P79), so this needs
+  // genuine multi-mention prose, not a hand-typed stand-in either.
+  const EN_EXTRACT = readFileSync("../eoreader7/native/eval/the-fold/fixtures/wikidata/pageprops/harvard-en-extract.txt", "utf8");
+  const harvardEn = indexFor([{ text: EN_EXTRACT, ref: "en#0-1" }]);
+  const unrelatedStanfordRu = indexFor([{ text: "Стэнфордский университет (англ. Stanford University) — университет в США.", ref: "ru#0-1" }]);
+  const enSurfaces = [...new Set(harvardEn.events.map((e) => e.surface))];
+  const ruSurfaces = [...new Set(unrelatedStanfordRu.events.map((e) => e.surface))];
+  let falsePositive = false;
+  for (const es of enSurfaces) for (const rs of ruSurfaces) { try { if (namesCorefer(es, rs, { commonNoun: isCommonNoun }) || namesCorefer(rs, es, { commonNoun: isCommonNoun })) falsePositive = true; } catch {} }
+  assert.ok(falsePositive, "if this ever starts failing, the namesCorefer-level gap has been closed and this test (and its header's own warning) should be revisited, not deleted silently");
 });

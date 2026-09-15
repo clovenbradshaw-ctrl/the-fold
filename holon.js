@@ -54,7 +54,7 @@ import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine, 
 import { refKey } from "./dialogue.js";
 import { checkComparison } from "./arithmetic.js";
 import { answerBeforeTheModel } from "./answerable.js";
-import { recruit, strainOf, substituted } from "./strain.js";
+import { recruit, strainOf, substituted, identitySwapped } from "./strain.js";
 import { placeCoverage } from "./calibration.js";
 import { citedSource, findMisquote, misquoteFacts, misquoteGuard } from "./misquote.js";
 import { admissible, finding } from "./turn-order.js";
@@ -1231,6 +1231,13 @@ export async function runPart({
   resolutions = 0, // resolutions.js — the discourse at three resolutions: 0 none, 1 atmosphere, 2 + lens, 3 + paradigm
   dmdWindow = null, // the measurement organ the cuts spend (kernel/activation.js), injected
   conversationIndex = null, // a referent index over the CONVERSATION's material (the part's index knows only its own passages)
+  // strain.js::identitySwapped's own gate (P219's residual): the SAME
+  // POS-prior predicate namesCorefer's gate already uses (surfaces.js),
+  // so a bare generic head noun ("Observatory") never counts as honestly
+  // naming what the question asked about. null falls fully open (every
+  // word of an absent name counts, including a shared generic one) —
+  // the entity-substitution check still runs, just less precisely.
+  commonNoun = null,
   records = [], // the checked turns (fold.js's record store) — the Figure-level conversation record
   mentionBook = null, // activation-retrieval.js's address book, when the caller built one: prominence for naming a ground, nothing else
   material = "auto", // what the mouth is handed as material: "auto" = the passages leave at level ≥ 2 (the blocks replace them; snips stay); "passages" forces them in (the additive control); "snips" forces them out
@@ -3419,6 +3426,34 @@ export async function runPart({
     }
   } else if (qRefs && !qRefs.ids.size && qRefs.unresolved.length) addressed = { named: [], missing: [], all: null, unresolved: qRefs.unresolved, absent: absence.absent, unestablished: absence.unestablished, reasked: false, resolvedOn: absence.absent.length ? "absence" : "unestablished" };
   if (addressed && !addressed.gap) addressed = { ...addressed, absent: absence.absent, unestablished: absence.unestablished };
+  // ENTITY SUBSTITUTION (P219's own residual, strain.js::identitySwapped):
+  // the block above catches a question whose referents ARE established but
+  // go unnamed; this catches the opposite and rarer shape — a question
+  // naming something the material never establishes (a real declared
+  // absence, above), where the draft confidently claims something about a
+  // DIFFERENT, REAL referent instead, without ever saying the asked-about
+  // name is missing. `substituted()` cannot see this (the swapped-in
+  // neighbour shares plenty of the question's own words by construction —
+  // measured live: "director"/"observatory" both survive the swap). ONE
+  // re-ask, the identical shape the block above already uses: a whole new
+  // draft, adopted only if it is now honest about the gap — never a
+  // splice into the old text (P186), and the original stands, with the
+  // finding still on the record, whenever the re-ask does not clear it —
+  // a visibly-wrong answer is preferred over a silently withheld one.
+  let entitySwap = identityIndex && absence.absent.length && String(text ?? "").trim()
+    ? identitySwapped(absence.absent, identityIndex, text, { commonNoun })
+    : null;
+  if (entitySwap?.swapped && passages.length && !mechanical) {
+    const who = entitySwap.absent.join(", ");
+    const instead = entitySwap.claimed.join(", ");
+    const facts = `${who} ${entitySwap.absent.length === 1 ? "is" : "are"} not mentioned in the sources. The sources do discuss something else: ${instead}. Say plainly that ${who} ${entitySwap.absent.length === 1 ? "is" : "are"} not mentioned — never present ${instead}'s own facts as though they answer a question about ${who}.`;
+    let again = "";
+    try { again = String(await call([...executeMessages, { role: "assistant", content: text }, { role: "user", content: facts }], { effort: "low", maxTokens: executeMaxTokens }) ?? ""); } catch { again = ""; }
+    const trimmed = again.trim();
+    const stillSwapped = trimmed ? identitySwapped(entitySwap.absent, identityIndex, trimmed, { commonNoun }) : null;
+    if (trimmed && !stillSwapped?.swapped) { text = trimmed; check = inspect(text); entitySwap = { ...entitySwap, reasked: true, resolvedOn: "re-ask" }; }
+    else entitySwap = { ...entitySwap, reasked: true, resolvedOn: null };
+  }
   const swap = passages.length ? substituted(task || question, text) : null;
   const coverage = piece ? coverageOf(text, piece.obligations ?? []) : null;
   // THE ATOMS AGAINST THE SNIPS (P122), no model: every number, date and
@@ -3718,6 +3753,7 @@ export async function runPart({
     ...(misquote?.misquoted ? { misquote: { said: misquote.said, shouldBe: misquote.shouldBe, ref: misquote.ref, matched: Number(misquote.matched.toFixed(2)) } } : {}),
     strain: { level: strain.level, reasons: strain.reasons, coverage: strain.coverage, recruited: recruited.depth, why: recruited.why, cut: strain.cut, ...(strain.expect ? { expect: strain.expect } : {}), ...(placement ? { placement: { strained: placement.strained, why: placement.why } } : {}) },
     ...(swap?.substituted ? { substituted: { share: Number(swap.share.toFixed(2)), asked: swap.asked.slice(0, 12), shared: swap.shared } } : {}),
+    ...(entitySwap?.swapped ? { entitySwap: { absent: entitySwap.absent, claimed: entitySwap.claimed, reasked: entitySwap.reasked ?? false, resolvedOn: entitySwap.resolvedOn ?? null } } : {}),
     ...(learnedNow.length ? { learned: learnedNow } : {}),
     ...check,
     quoteCorrections,
@@ -3805,6 +3841,13 @@ export async function runHolonicTask({
   resolutions = 0, // resolutions.js — the discourse at three resolutions: 0 none, 1 atmosphere, 2 + lens, 3 + paradigm
   dmdWindow = null, // the measurement organ the cuts spend (kernel/activation.js), injected
   conversationIndex = null, // a referent index over the CONVERSATION's material (the part's index knows only its own passages)
+  // strain.js::identitySwapped's own gate (P219's residual): the SAME
+  // POS-prior predicate namesCorefer's gate already uses (surfaces.js),
+  // so a bare generic head noun ("Observatory") never counts as honestly
+  // naming what the question asked about. null falls fully open (every
+  // word of an absent name counts, including a shared generic one) —
+  // the entity-substitution check still runs, just less precisely.
+  commonNoun = null,
   records = [], // the checked turns (fold.js's record store) — the Figure-level conversation record
   mentionBook = null, // activation-retrieval.js's address book, when the caller built one: prominence for naming a ground, nothing else
   material = "auto", // what the mouth is handed as material: "auto" = the passages leave at level ≥ 2 (the blocks replace them; snips stay); "passages" forces them in (the additive control); "snips" forces them out
@@ -4058,7 +4101,7 @@ export async function runHolonicTask({
       maxCorrections,
       learnedStore, learnedSince, language,
       transcript,
-      resolutions, dmdWindow, conversationIndex, records, material, mentionBook,
+      resolutions, dmdWindow, conversationIndex, commonNoun, records, material, mentionBook,
       math,
       makeReferentIndexFor,
       askedDepth: depth,

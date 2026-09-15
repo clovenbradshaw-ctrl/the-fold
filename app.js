@@ -1721,10 +1721,18 @@ import { makeAletheia } from "./aletheia.js";
 // correction almost always reads "there's no X"/"no X here," and that is
 // the single most common English sentential negator missing from the
 // received set for exactly this shape of sentence.
+// Shared by admission.js's own denial check (below) and arithmetic.js's
+// dispute door (P210's amendment to P209) — both ask a narrower question
+// than the received class alone answers ("is this word negating something
+// in the person's own message"), and both independently confirmed "no" is
+// genuinely absent from the received set for that reason, not on purpose.
+// One local addition, reused rather than typed twice.
+const NEGATION_WORDS_WITH_NO = new Set([...enginePriors.NEGATION_WORDS, "no"]);
+
 const admissionGate = makeAdmission({
   tokenize,
   splitSentences: engineSentences,
-  negationWords: new Set([...enginePriors.NEGATION_WORDS, "no"]),
+  negationWords: NEGATION_WORDS_WITH_NO,
 });
 
 // Aletheia (aletheia.js) — the archon of SATISFACTION, Problem 1's second,
@@ -2519,6 +2527,16 @@ function newConvo() {
     // last value anyone set anywhere, same as before this was per-convo —
     // and diverges from there if its own switch is ever touched.
     grounded: localStorage.getItem("fold-marks") !== "off",
+    // The composer's own unsent text belongs to whichever conversation it
+    // was typed into — found live, 2026-09-15: the textarea is one shared
+    // DOM element, and switching or creating a conversation never touched
+    // it, so an abandoned draft in one conversation silently followed a
+    // reader into a brand-new one and could concatenate with whatever they
+    // typed next. Kept OUT of PER_CONVO on purpose: those fields mirror
+    // `state`, which would need a live oninput listener to stay current;
+    // simpler and just as correct to read/write the DOM value directly at
+    // the three points a conversation stops being active (below).
+    draft: "",
   };
 }
 
@@ -2538,12 +2556,14 @@ function switchConvo(index) {
   const from = state.convos[state.active];
   if (from) {
     for (const k of PER_CONVO) from[k] = state[k];
+    from.draft = $("input").value;
     from.el.classList.remove("on");
   }
   state.active = index;
   const to = state.convos[index];
   for (const k of PER_CONVO) state[k] = to[k];
   to.el.classList.add("on");
+  $("input").value = to.draft || "";
   syncGroundedUI();
   renderThreads();
   renderBuilds();
@@ -2555,7 +2575,10 @@ function addConvo() {
   if (state.busy) return; // same reasoning as switchConvo
   // Write the current one back before the new element steals the pointer.
   const from = state.convos[state.active];
-  if (from) for (const k of PER_CONVO) from[k] = state[k];
+  if (from) {
+    for (const k of PER_CONVO) from[k] = state[k];
+    from.draft = $("input").value;
+  }
   state.convos.push(newConvo());
   switchConvo(state.convos.length - 1);
 }
@@ -2575,6 +2598,7 @@ function closeConvo(index) {
     const to = state.convos[state.active];
     for (const k of PER_CONVO) state[k] = to[k];
     to.el.classList.add("on");
+    $("input").value = to.draft || "";
     syncGroundedUI();
     renderBuilds();
     showView("chat");
@@ -8294,8 +8318,18 @@ async function send(question) {
   // MODEL's own claim stays exactly as legitimate as it always was; this
   // door only ever intercepts a dispute of a number this app itself
   // computed, never generated.
+  // P210's own amendment to P209: the six-phrase DISPUTE_CUE_RE alone missed
+  // ordinary hedged disagreement ("hmm no, I'm pretty sure that's 14", "I
+  // don't think that's right, I make it 95" — task_33f8807d, two fresh
+  // live specimens, neither containing any of the six words). The organs
+  // here are the SAME received closed classes P41/P43 already inject
+  // elsewhere in this file — never a second word list typed in
+  // arithmetic.js itself.
   if (state.lastArithmetic && state.lastArithmetic.historyLen === state.history.length) {
-    const dispute = disputesQuantity(question, state.lastArithmetic.found);
+    const dispute = disputesQuantity(question, state.lastArithmetic.found, {
+      negationWords: NEGATION_WORDS_WITH_NO,
+      anaphoricPronouns: enginePriors.ANAPHORIC_PRONOUNS,
+    });
     if (dispute) return arithmeticDisputeTurn(question, state.lastArithmetic.found, dispute);
   }
 

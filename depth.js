@@ -49,12 +49,27 @@ export function budgetsFor(level, base) {
   };
 }
 
-/** The rung in plain words, for the picker's legend, the prompt trace and the export — what is done more, never the apparatus. */
+/**
+ * The rung in plain words, for the picker's legend, the prompt trace and the
+ * export — what is done more, never the apparatus.
+ *
+ * "Up to N sentences are put to the witness" understated its own true worst
+ * case (Bug-2 investigation, 2026-09-15): `witnessNote`'s own armed-select
+ * protocol can spend a SECOND model call per ask (a sibling-swap arm check,
+ * or a generate-then-swapped-generate fallback pair — corroboration.js's
+ * own header, "the arm"), so a budget of N asks is really up to 2N model
+ * calls, not N — and at depth 3 (deep), N is already 24. Measured live: an
+ * ordinary "tell me everything about this" question against one attached,
+ * fact-dense source cost 33 separate model calls at depth 3 against 3 at
+ * depth 1 for the same question, on the same material. The line now says
+ * so, so a person reading the depth explainer is not left to discover the
+ * true cost by counting network requests.
+ */
 export function depthLine(budgets, { piece = false } = {}) {
   const b = budgets;
   if (!b || b.level === 0) return `Thinking depth 0 of ${DEPTH_MAX} (quick): the answer is drafted once, read against the sources once, and nothing is asked again.`;
   const parts = piece
-    ? [`each section is read against its sources and rewritten up to ${b.snipRounds} time${b.snipRounds === 1 ? "" : "s"} where a number, date or name is not in them`, `up to ${b.pieceWitnessAsks} sentences per section are put to the witness`, `a sentence a later reading denies is rewritten up to ${b.revisionRounds} time${b.revisionRounds === 1 ? "" : "s"}`, `a short section is continued up to ${b.continuations} time${b.continuations === 1 ? "" : "s"}`, `a thin retrieval is hunted up to ${b.hunts} time${b.hunts === 1 ? "" : "s"}`]
-    : [`the draft is corrected up to ${b.corrections} time${b.corrections === 1 ? "" : "s"}`, `up to ${b.witnessAsks} sentences are put to the witness`, `up to ${b.linkChecks} cited links are opened`];
-  return `Thinking depth ${b.level} of ${DEPTH_MAX} (${b.name}): ${parts.join("; ")}. The model's context is the same at every depth; only the number of passes changes.`;
+    ? [`each section is read against its sources and rewritten up to ${b.snipRounds} time${b.snipRounds === 1 ? "" : "s"} where a number, date or name is not in them`, `up to ${b.pieceWitnessAsks} sentences per section are put to the witness (each ask up to two model calls)`, `a sentence a later reading denies is rewritten up to ${b.revisionRounds} time${b.revisionRounds === 1 ? "" : "s"}`, `a short section is continued up to ${b.continuations} time${b.continuations === 1 ? "" : "s"}`, `a thin retrieval is hunted up to ${b.hunts} time${b.hunts === 1 ? "" : "s"}`]
+    : [`the draft is corrected up to ${b.corrections} time${b.corrections === 1 ? "" : "s"}`, `up to ${b.witnessAsks} sentences are put to the witness (each ask up to two model calls)`, `up to ${b.linkChecks} cited links are opened`];
+  return `Thinking depth ${b.level} of ${DEPTH_MAX} (${b.name}): ${parts.join("; ")}. The model's context is the same at every depth; only the number of passes changes — a witness ask's own two-call worst case means the real spend can run well past the sentence count named above.`;
 }

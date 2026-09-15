@@ -24,7 +24,17 @@ test("every budget is non-decreasing up the slider; 0 spends nothing on recursio
 
 test("the legend says what is done more, in plain words, with the rung's own numbers", () => {
   assert.match(depthLine(budgetsFor(2, base), { piece: true }), /^Thinking depth 2 of 3 \(careful\): each section is read against its sources and rewritten up to 2 times/);
-  assert.match(depthLine(budgetsFor(3, base)), /corrected up to 3 times; up to 24 sentences are put to the witness; up to 8 cited links are opened/);
+  assert.match(depthLine(budgetsFor(3, base)), /corrected up to 3 times; up to 24 sentences are put to the witness \(each ask up to two model calls\); up to 8 cited links are opened/);
   assert.match(depthLine(budgetsFor(0, base)), /depth 0 of 3 \(quick\)/);
   assert.doesNotMatch(depthLine(budgetsFor(2, base)), /SEG|EVA|REC|cube|organ/, "canon stays backstage");
+});
+
+// The Bug-2 investigation's own finding (POLICIES.md P213): a "budget of N
+// asks" is really up to 2N model calls, and that was nowhere disclosed to a
+// reader of the depth legend before this. Pinned so the disclosure survives
+// future wording passes over this file.
+test("the legend discloses the witness tier's own up-to-two-calls-per-ask cost, at both piece and flat shape", () => {
+  assert.match(depthLine(budgetsFor(3, base)), /witness \(each ask up to two model calls\)/);
+  assert.match(depthLine(budgetsFor(3, base), { piece: true }), /witness \(each ask up to two model calls\)/);
+  assert.match(depthLine(budgetsFor(3, base)), /the real spend can run well past the sentence count named above/);
 });

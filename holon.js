@@ -166,6 +166,34 @@ function isFramedSingleQuestion(q) {
  * True when the question itself has the shape of several dependent parts.
  * Cheap-bails on the first check — a greeting or single-sentence ask never
  * reaches the anchor scan.
+ *
+ * DISCLOSED, NOT FIXED (2026-09-15, live-testing pass — CLAUDE.md's own
+ * pointer for the session names this, no POLICIES.md number since nothing
+ * below was changed): pasting a plain, fact-bearing paragraph with no
+ * request attached — under source-door.js's own SOURCE_AUTO_MIN_CHARS
+ * floor, so it never becomes a source either — can clear this function's
+ * clause/anchor gate and get torn into invented sub-sections instead of
+ * answered as ordinary chat. Live specimen: "The Golden Gate Bridge opened
+ * to traffic on May 27, 1937, and was the longest suspension bridge span in
+ * the world at the time, measuring 4,200 feet. It was designed by engineer
+ * Joseph Strauss..." (4 more purely declarative sentences) decomposed into
+ * six invented sections, one of which FABRICATED "The Golden Gate Bridge is
+ * 1,280 feet long" — flatly contradicting the pasted text's own "4,200
+ * feet" — because a decomposed part retrieves from state.sources/
+ * liveChunks() (holonicTurn, app.js), never from the raw text it is
+ * decomposing, so an unattached paste leaves every part with nothing to
+ * draw from but the model's own (wrong) recall. Checked for a safe fix and
+ * found none: the shape that should NOT decompose here (third-person
+ * declarative prose) is grammatically indistinguishable from this file's
+ * own pinned genuine-work specimen two screens down ("Our budget is $2000,
+ * we need wifi at the venue, everyone eats vegetarian, and our CFO cannot
+ * attend on the 14th") — ALSO subject-first declarative, no imperative
+ * verb, no question mark, no second-person address, and it must keep
+ * decomposing. A directive-verb/question-mark/second-person gate was tried
+ * against both specimens and breaks the pinned one. This is P4's own
+ * "decompose only on a counted property" asked to do semantic work no
+ * counted property here can do — left open rather than force-fixed with an
+ * invented threshold.
  */
 export function needsDecomposition(question) {
   let q = String(question || "").trim();

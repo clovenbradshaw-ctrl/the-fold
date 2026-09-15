@@ -2401,7 +2401,16 @@
         align-items: center;
         flex-wrap: nowrap;
       }
-      .composer-bar .spacer { flex: 1; min-width: 0; }
+      /* #attach-strip is already the row's one growing/scrolling region
+         (flex: 1, above) — a second flex:1 spacer between memory and Send
+         split the leftover space in two, leaving the memory pill floating
+         with a gap on both sides instead of sitting flush beside Send
+         (2026-09-14, user-observed: "weird with the memory thing dangling
+         there"). Zeroed here so memory and Send read as one group at the
+         row's end; the mobile media query below still needs its own
+         growing spacer for its different (icon-left / Send-right / pills
+         wrap below) shape and re-declares flex there. */
+      .composer-bar .spacer { flex: 0 0 0; min-width: 0; }
       /* What is answering, on the composer. Quiet by default — it is a label
          far more often than it is a control — and it carries the working dot
          because "is it thinking" is a fact about the model. */
@@ -3959,6 +3968,17 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
         <label for="depth"><strong>Thinking depth</strong> · <span id="depth-name">plain</span></label>
         <input type="range" id="depth" min="0" max="3" step="1" value="1" aria-label="Thinking depth" style="width:100%">
         <p class="sub" id="depth-line"></p>
+      </div>
+      <!-- Overridable so a page not served from this machine's own
+           localhost — the deployed static home (P118) included — can still
+           reach a real Ollama: point it at a tunnel or a reverse proxy that
+           terminates https, instead of the fixed default this app used to
+           hardcode. Empty reverts to the default, shown as the placeholder. -->
+      <div class="sheet-body" id="ollama-sheet">
+        <label class="field" style="margin:0"><strong>Ollama address</strong>
+          <input id="ollama-base" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="http://localhost:11434">
+        </label>
+        <p class="sub" id="ollama-base-line"></p>
       </div>
     </dialog>
 

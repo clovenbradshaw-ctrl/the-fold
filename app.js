@@ -1700,7 +1700,29 @@ const CONSTITUTION_SHA = (async () => {
 let ANSWER_CURSOR = 0;
 import { parseHandbookIndex, findChapter } from "./handbook.js";
 
-const OLLAMA = "http://localhost:11434";
+const OLLAMA_DEFAULT = "http://localhost:11434";
+// Overridable per-browser (localStorage, never synced through the room or
+// the record) so a page served over https — the deployed static home P118
+// builds — can still be pointed at wherever Ollama actually answers: a
+// tunnel, a reverse proxy, anything reachable from this browser. Read fresh
+// on every call, never cached, since the model menu can change it while the
+// page is open and the next fetch must see the new address immediately.
+function ollamaBase() {
+  try {
+    const v = (localStorage.getItem("fold-ollama-base") || "").trim();
+    return v && /^https?:\/\/\S+$/i.test(v) ? v.replace(/\/+$/, "") : OLLAMA_DEFAULT;
+  } catch { return OLLAMA_DEFAULT; }
+}
+// A page loaded over https cannot fetch a plain http address at all — the
+// browser refuses it as mixed content before a single byte crosses the
+// network, so "Ollama isn't reachable" and "the browser won't even try" are
+// different facts, and the second needs a different fix (point this at an
+// https address, or open the app from http://localhost instead) than the
+// first (start Ollama). Named rather than left for the generic catch to
+// blur the two together.
+function ollamaMixedContentRisk() {
+  try { return location.protocol === "https:" && /^http:\/\//i.test(ollamaBase()); } catch { return false; }
+}
 // ── the room (P119) ────────────────────────────────────────────────────────
 // One FoldMatrix for the page: its session, this browser's identity pair and
 // each room's chat key live in localStorage (the person's own browser, like
@@ -2561,7 +2583,7 @@ async function fillModels() {
   const sel = $("model");
   sel.textContent = "";
   try {
-    const res = await fetch(`${OLLAMA}/api/tags`);
+    const res = await fetch(`${ollamaBase()}/api/tags`);
     const { models } = await res.json();
     const byName = new Map(models.map((m) => [m.name, m]));
     // The full raw set, unfiltered — S1_MODEL/S2_MODEL are specialists,
@@ -2586,7 +2608,9 @@ async function fillModels() {
   } catch {
     state.availableModels = state.availableModels ?? new Set();
     state.offeredModels = [];
-    $("status").textContent = "ollama not reachable on :11434";
+    $("status").textContent = ollamaMixedContentRisk()
+      ? "ollama not reachable — this page is https and browsers refuse a plain http fetch to it"
+      : `ollama not reachable on ${ollamaBase()}`;
   }
   // The in-tab rungs, appended LAST (mergeOffered's own order: a native rung
   // is the faster summary rung where Ollama answers; where it does not, the
@@ -2723,7 +2747,7 @@ async function connect() {
     return;
   }
   try {
-    const res = await fetch(`${OLLAMA}/api/show`, {
+    const res = await fetch(`${ollamaBase()}/api/show`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ model: state.model }),
@@ -2946,7 +2970,7 @@ async function completeLocal(messages, { onDelta, onThinking, maxTokens, json, m
   // RESPONSE is not: the model answered, badly, and that is the caller's.
   let res;
   try {
-    res = await fetch(`${OLLAMA}/api/chat`, {
+    res = await fetch(`${ollamaBase()}/api/chat`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -2972,7 +2996,11 @@ async function completeLocal(messages, { onDelta, onThinking, maxTokens, json, m
       }),
     });
   } catch (e) {
-    const m = new Error(`ollama is not answering on :11434 (${e?.message ?? e})`);
+    const m = new Error(
+      ollamaMixedContentRisk()
+        ? `ollama is not reachable — this page is https and browsers refuse a plain http fetch to ${ollamaBase()} (${e?.message ?? e})`
+        : `ollama is not answering on ${ollamaBase()} (${e?.message ?? e})`,
+    );
     m.machineFailure = true;
     throw m;
   }
@@ -4097,7 +4125,7 @@ function resourceRows() {
     state: seen(probes?.ollama),
     detail: probes == null ? "not probed yet — press re-probe"
       : probes.ollama?.ok ? `on this machine · ${local.join(", ") || "no picker rung"}`
-        : (probes.ollama?.detail ?? "no answer on :11434"),
+        : (probes.ollama?.detail ?? `no answer on ${ollamaBase()}`),
     metric: probes?.ollama?.ok ? `${local.length} model${local.length === 1 ? "" : "s"}` : null,
   });
   // webgpuBlocker returns the blocker as a STRING, or null when there is
@@ -18416,8 +18444,32 @@ editorRunShortcut(runFromEditor);
 
 const settingsDialog = $("model-menu");
 
+/** The Ollama-address field: empty shows the default as a placeholder, a
+ * custom value fills it. Read only at open (never inside renderModelMenu,
+ * which also re-runs on every keystroke in the model search box — resetting
+ * this field on that re-render would clobber someone mid-edit of it). */
+function syncOllamaAddressField() {
+  const input = $("ollama-base");
+  if (!input) return;
+  const base = ollamaBase();
+  input.value = base === OLLAMA_DEFAULT ? "" : base;
+  updateOllamaAddressLine();
+}
+function updateOllamaAddressLine() {
+  const line = $("ollama-base-line");
+  if (!line) return;
+  const base = ollamaBase();
+  const custom = base !== OLLAMA_DEFAULT;
+  line.textContent = ollamaMixedContentRisk()
+    ? `${custom ? base : "The default address"} is plain http, and this page is https — the browser blocks the request outright. Point this at an https address that reaches Ollama, or open the app from http://localhost instead.`
+    : custom
+      ? `Using ${base} instead of the default.`
+      : "";
+}
+
 function openSettings(open) {
   if (!open) return settingsDialog.close();
+  syncOllamaAddressField();
   renderModelMenu();
   settingsDialog.showModal();
   // The room's offers are re-read each time the menu opens, so a mouth that
@@ -18445,7 +18497,9 @@ function renderModelMenu() {
     p.textContent =
       $("status").textContent === "ollama has no models pulled"
         ? "Ollama is running but has no models pulled. `ollama pull qwen2.5:14b-instruct-q4_K_M` gives this one something to answer with."
-        : "Ollama isn’t answering on :11434. Start it, then reopen this.";
+        : ollamaMixedContentRisk()
+          ? "This page is served over https, so the browser refuses a direct request to a plain http address — Ollama would never even be asked. Open the app from http://localhost instead (see `./fold`), or point “Ollama address” below at an https address that reaches it (a tunnel or a reverse proxy)."
+          : `Ollama isn’t answering on ${ollamaBase()}. Start it, then reopen this — or point “Ollama address” below at wherever it actually is.`;
     rowsHost.append(p);
     return;
   }
@@ -18517,6 +18571,27 @@ function renderModelMenu() {
   }
 }
 $("model-search").oninput = () => renderModelMenu();
+// Committed on change (blur or Enter), not on every keystroke — a partial
+// URL mid-edit should not thrash fillModels()'s network call. An invalid
+// value is rejected back to whatever was already in force, never left
+// silently unsaved.
+$("ollama-base").addEventListener("change", async () => {
+  const input = $("ollama-base");
+  const raw = input.value.trim();
+  if (!raw) {
+    try { localStorage.removeItem("fold-ollama-base"); } catch {}
+  } else if (/^https?:\/\/\S+$/i.test(raw)) {
+    try { localStorage.setItem("fold-ollama-base", raw.replace(/\/+$/, "")); } catch {}
+  } else {
+    syncOllamaAddressField();
+    return;
+  }
+  syncOllamaAddressField();
+  $("status").textContent = "checking…";
+  await fillModels();
+  renderModelMenu();
+  syncModelPick();
+});
 
 /** The composer's model button: the name, or the reason there isn't one. */
 function chipLabel(name) {
@@ -18780,7 +18855,9 @@ state.routes = null;
 async function probeRoutes() {
   const where = whereAmI(location.href);
   const probes = {};
-  probes.ollama = state.availableModels?.size ? { ok: true, models: state.availableModels.size - WEBLLM_MODELS.filter((m) => state.availableModels.has(m.id)).length } : { ok: false, detail: "no answer on :11434" };
+  probes.ollama = state.availableModels?.size
+    ? { ok: true, models: state.availableModels.size - WEBLLM_MODELS.filter((m) => state.availableModels.has(m.id)).length }
+    : { ok: false, detail: ollamaMixedContentRisk() ? `blocked — this page is https, ${ollamaBase()} is plain http` : `no answer on ${ollamaBase()}` };
   probes.webgpu = webgpuBlocker({ gpu: navigator.gpu, secureContext: window.isSecureContext });
   try {
     const r = await fetch(`${EXPLORE_BASE}/api/skills`, { cache: "no-store" });

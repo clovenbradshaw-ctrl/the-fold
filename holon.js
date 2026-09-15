@@ -609,6 +609,23 @@ export const SEARCHED_VOID_PREFIX = "Nothing could be found on this. The emptine
 // retrieval step.
 export const UNRETRIEVED_MATERIAL_PREFIX = "Something is attached to this conversation, but none of it came up for this question. Anything below is from separate, earlier reading — not the attachment — so say plainly that what's attached doesn't answer this, rather than answering from that instead.";
 
+// A THIRD VOID, ONE DOOR EARLIER STILL: the two above both describe an
+// egress that RAN (a search that found nothing; a retrieval that drew
+// nothing) — this describes one that never ran at all, because the
+// person's own web switch is off. Found live (2026-09-15): "what's today's
+// date, and can you check the web for one real current headline?" with
+// nothing attached and web checking off answered with a specific, bold,
+// plausible-reading headline ("Hurricane Otis Disrupts US East Coast…") —
+// invented whole, with nothing behind it, formatted exactly like a real
+// result. `shouldPreflight` (proof.js) already answers the mechanical
+// question "would this turn have searched" — app.js's own call site now
+// asks it a second time with standing consent forced on, and when THAT
+// answer is yes while the real toggle is off, this is the fact handed
+// over instead: information, not an instruction — the honesty framing
+// already in CHAT_SYSTEM_PROMPT covers what to DO with it, same posture as
+// SEARCHED_VOID_PREFIX and UNRETRIEVED_MATERIAL_PREFIX just above.
+export const WEB_OFF_PREFIX = "Web checking is off for this conversation right now. Nothing has been checked online, so a live or current fact — today's headlines, this week's data, anything that would need a real web search — is not something this answer can actually confirm. Say so plainly rather than answering as if it had been checked.";
+
 // The System 1 / System 2 pass: first-person framing so S2 understands it's
 // following up on its OWN initial reaction, not investigating someone else's.
 // Measured against gemma2:2b: "A faster, unchecked first pass already answered
@@ -725,16 +742,43 @@ export function cutMetaTalk(text, { instructionText, materialText, splitSentence
   return { text: cut.length ? kept.join(" ") : text, cut };
 }
 
-export function buildExecutePrompt(part, sourceBlock, discourse = "", piece = null) {
+export function buildExecutePrompt(part, sourceBlock, piece = null) {
   const head = `Write this part: ${part.label}. ${part.description}${piece ? `\n${pieceLine(piece)}` : ""}`;
-  // The discourse slice is ONE line — topic, flow, entities — never the
-  // records block. A part that needs an established fact retrieves it;
-  // recall is retrieval, and a small prompt is the point of running as
-  // parts at all.
-  const context = discourse ? `\nThe conversation so far, in one line: ${discourse}` : "";
   return sourceBlock
-    ? `${head}${context}\n\n${sourceBlock}`
-    : `${head}${context}\n\nNo material matched this part. Say what the part would need and stop; do not invent content.`;
+    ? `${head}\n\n${sourceBlock}`
+    : `${head}\n\nNo material matched this part. Say what the part would need and stop; do not invent content.`;
+}
+/**
+ * task_03d3a119 — the discourse slice used to be embedded INSIDE this
+ * function's returned string, in the SAME `user` message as the writing
+ * instructions and the source material — structurally indistinguishable
+ * from either. Measured live: by the third section of a piece build, the
+ * model was visibly quoting its own injected "The conversation so far, in
+ * one line: …" line, and the person's own prior chat message it carried,
+ * directly into the fiction it was writing. `cutMetaTalk`'s apparatus
+ * vocabulary is derived from `INSTRUCTION_TEMPLATE`, a FIXED string — it has
+ * no way to recognize a model echoing back a RUNTIME-generated string back
+ * at it, so it could never have caught this even if this repo allowed
+ * editing the model's own sentences after the fact, which P186 (the mouth
+ * is not censored) says it may not: "remove any editing of what the model
+ * says, we just need to get the talking model to respond well." The fix has
+ * to be upstream, in what gets INJECTED, never downstream in what gets cut.
+ *
+ * The flat chat path (runPart's own `chatContext`, a few hundred lines
+ * below) already keeps its one-line discourse summary OUT of the `user`
+ * content and appends it to the SYSTEM message instead — the channel a
+ * model is trained to read as instruction/context, never as material to
+ * draw quotable prose from. The piece-part path was the one place that
+ * convention was not followed; this is that same convention, reused rather
+ * than invented, so the fix is "be consistent with the working half of this
+ * file," not a new mechanism. `runPart` now appends this suffix to
+ * `EXECUTE_SYSTEM_PROMPT` at both call sites that used to fold `discourse`
+ * into `buildExecutePrompt`'s own string; the `user` message a piece
+ * section receives never carries the discourse line, or a name for it, at
+ * all — nothing to look like content, nothing to quote.
+ */
+export function discourseSuffix(discourse) {
+  return discourse ? `\n\nThe conversation so far: ${discourse}` : "";
 }
 
 /**
@@ -2562,8 +2606,12 @@ export async function runPart({
             { role: "user", content: `${task}${modelLoopTuned.chatContext}` },
           ]
     : [
-        { role: "system", content: EXECUTE_SYSTEM_PROMPT + resolutionSuffix },
-        { role: "user", content: buildExecutePrompt(part, draftMaterial, discourse, piece) },
+        // task_03d3a119: discourse rides in the SYSTEM message, same as the
+        // flat chat path's own chatContext a few branches up — never folded
+        // into the `user` content buildExecutePrompt returns, which is
+        // exactly what a piece section drew quoted prose from live.
+        { role: "system", content: EXECUTE_SYSTEM_PROMPT + resolutionSuffix + discourseSuffix(discourse) },
+        { role: "user", content: buildExecutePrompt(part, draftMaterial, piece) },
       ];
   // Pipeline-stage snapshot (v2): what actually ran this part, read off
   // runPart's own bindings — never a second computation of it. `depth`
@@ -3020,15 +3068,36 @@ export async function runPart({
     // write-this-part task) rather than buildCorrectionPrompt (which frames
     // every OTHER mode correctly, because those really are mistakes in a
     // prior draft to point at and fix).
+    //
+    // MEASURED LIVE, 2026-09-15 — the material handed to BOTH branches was
+    // raw `sourceBlock` (line 1510's `buildSourceBlock(passages)`), never
+    // the mechanically-computed `draftMaterial` (line 2493) the INITIAL
+    // draft call above is built from. That is exactly the gap the comment
+    // above `spanBlock` (a few hundred lines up) names and defers — "the
+    // correction prompts below stay exactly as they were, Phase 3's own
+    // 'measure before touching the correction loop' scope" — now measured:
+    // a real Panama Canal turn's first draft (rich context: `factBlock`'s
+    // own extracted notes, the void's open gaps, "what the sources state")
+    // triggered this exact "incomplete" correction, and the rewrite —
+    // handed only bare, undeduped passage text — answered from training
+    // knowledge instead ("Suez Canal" / conflated dates), because the one
+    // thing this instrument had ALREADY mechanically worked out for it was
+    // silently dropped on the one call that most needed it. `draftMaterial`
+    // is the same object the initial call already sends (`executeMessages`
+    // above); handing the correction loop anything narrower is asking the
+    // model the same question again with LESS help than the first time —
+    // never more.
     const correctionMessages =
       mode === "incomplete"
         ? [
-            { role: "system", content: EXECUTE_SYSTEM_PROMPT },
-            { role: "user", content: buildExecutePrompt(buildRedefinedPart(part, correctionFailures), sourceBlock, discourse) },
+            // task_03d3a119: same fix as the initial draft call above — discourse
+            // in the system message, never folded into buildExecutePrompt's user content.
+            { role: "system", content: EXECUTE_SYSTEM_PROMPT + discourseSuffix(discourse) },
+            { role: "user", content: buildExecutePrompt(buildRedefinedPart(part, correctionFailures), draftMaterial) },
           ]
         : [
             { role: "system", content: EXECUTE_SYSTEM_PROMPT },
-            { role: "user", content: buildCorrectionPrompt(part, sourceBlock, draft, correctionFailures, mode) },
+            { role: "user", content: buildCorrectionPrompt(part, draftMaterial, draft, correctionFailures, mode) },
           ];
     onProgress?.("correct", part, {
       failures: correctionFailures,

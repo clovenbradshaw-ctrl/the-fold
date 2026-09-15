@@ -1643,6 +1643,42 @@ test("a slot with competing SUBJECTS (not objects) trips the completeness gate t
   );
 });
 
+// ── the correction loop must hand a rewrite the SAME mechanically-computed
+// material the first draft already had, not a narrower one (live failure,
+// 2026-09-15). A real Panama Canal turn's "incomplete" correction was
+// handed bare, undeduped `sourceBlock` — dropping the fact-block notes
+// (buildFactBlock's own "My notes so far" line) the FIRST draft call
+// already carried — and answered from training knowledge instead ("Suez
+// Canal", a conflated completion year). The fix threads `draftMaterial`
+// (the same object the initial call sends) into both correction branches;
+// this pins it so it cannot silently regress back to `sourceBlock`.
+test("the 'incomplete' correction rewrite carries the same fact-block notes the first draft had, not bare undeduped passages", async () => {
+  const relationsFor = makeRelationReader(await relationOrgans());
+  let correctionPrompt = null;
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const user = messages[1]?.content ?? "";
+    if (user.includes("the material confirms exactly")) {
+      correctionPrompt = user;
+      return "Hannibal Hamlin was Lincoln's vice president. Andrew Johnson was Lincoln's vice president too.";
+    }
+    return "Hannibal Hamlin was Lincoln's vice president in 1861.";
+  };
+  await runHolonicTask({
+    task: "who was Lincoln's vice president?",
+    chunks: chunkSource("lincoln-vp-material.txt", COMPETING_SUBJECT_TEXT),
+    call,
+    planMode: "flat",
+    makeRelationReader: relationsFor,
+  });
+  assert.ok(correctionPrompt, "the incomplete correction must have fired");
+  assert.match(
+    correctionPrompt,
+    /My notes so far/,
+    "the correction rewrite must carry the same mechanically-extracted fact-block notes the first draft call already had, not bare undeduped passage text",
+  );
+});
+
 // ── the relation tier read a correction retry's RAW draft, before the
 // ship-time framing cut (which only ran once, after the whole loop settled)
 // ever saw it (2026-08-20, found live: eval/results/material-dialogue-
@@ -2455,7 +2491,7 @@ test("P108: a piece's section is told its place, the outline, the previous tail 
   const line = pieceLine({ topic: "the harbor", pages: 30, words: 650, index: 3, count: 5, outline: ["Origins", "Tides", "Trade", "Storms", "Legacy"], previousTail: "and the tide turned." });
   assert.match(line, /^This is section 3 of 5 of a 30-page piece on the harbor\. The sections, in order: Origins; Tides; Trade; Storms; Legacy\. The previous section ended: "and the tide turned\." Write about 650 words/);
   assert.equal(pieceLine(null), "");
-  assert.match(buildExecutePrompt({ label: "Tides", description: "what the tide does." }, "x", "", { words: 100 }), /Write this part: Tides\. what the tide does\.\nThis is one section of a longer piece\. Write about 100 words/);
+  assert.match(buildExecutePrompt({ label: "Tides", description: "what the tide does." }, "x", { words: 100 }), /Write this part: Tides\. what the tide does\.\nThis is one section of a longer piece\. Write about 100 words/);
   const { apparatusMentions } = await import("./firewall.js");
   assert.deepEqual(apparatusMentions(line), [], "firewall-clean");
   const chunks = chunkSource("h.txt", "The harbor tide turns twice a day. The harbor lies on the coast.");
@@ -2477,6 +2513,43 @@ test("P108: a piece's section is told its place, the outline, the previous tail 
   assert.ok(r.sections[0].continued && r.sections[0].continued.from < r.sections[0].continued.to);
   const sentTwice = sent.filter((m) => /Continue this section/.test(m.at(-1)?.content ?? "")).length;
   assert.equal(sentTwice, 1);
+});
+
+test("task_03d3a119: a piece section's discourse summary rides in the SYSTEM message, never inside the `user` content a section is asked to WRITE — the shape that let a live turn quote its own injected context back into the fiction", async () => {
+  // Reproduces the live specimen's shape: a discourse line distinctive
+  // enough that if it leaked into the user content, it would be trivially
+  // greppable there. Before this fix, buildExecutePrompt folded `discourse`
+  // straight into the returned string that becomes the `user` message —
+  // structurally indistinguishable from the source material sitting right
+  // below it. The fix moves it to the system message, matching the flat
+  // chat path's own chatContext convention (a few hundred lines up in
+  // holon.js) instead of inventing a new one.
+  const discourse = "the reader keeps circling back to the lighthouse keeper's own daily routine";
+  const chunks = chunkSource("h.txt", "The harbor tide turns twice a day. The harbor lies on the coast.");
+  const sent = [];
+  const short = "The harbor tide turns twice a day.";
+  await runHolonicTask({
+    task: "write about the harbor",
+    chunks,
+    discourse,
+    call: async (messages) => {
+      sent.push(messages);
+      const u = messages.at(-1)?.content ?? "";
+      if (/parts/.test(u) && /Task:/.test(u)) return JSON.stringify({ parts: [{ label: "Tides", description: "what the tide does." }] });
+      return short;
+    },
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+    planMode: "model",
+    piece: { topic: "the harbor", pages: 1, words: 40 },
+  });
+  // The draft call: system carries the whole system prompt + discourse suffix; user is buildExecutePrompt's own output.
+  const draftCall = sent.find((m) => m.some((x) => x.role === "user" && /Write this part: Tides/.test(x.content ?? "")));
+  assert.ok(draftCall, "the section's draft call was sent");
+  const sys = draftCall.find((m) => m.role === "system")?.content ?? "";
+  const usr = draftCall.find((m) => m.role === "user")?.content ?? "";
+  assert.match(sys, /The conversation so far: the reader keeps circling back to the lighthouse keeper's own daily routine/, "discourse lands in the system message");
+  assert.doesNotMatch(usr, /conversation so far/i, "the user content — what the model is asked to WRITE from — never carries the discourse line or its own label");
+  assert.doesNotMatch(usr, /lighthouse keeper/, "nor the discourse's own words, anywhere in the content a section drafts from");
 });
 
 test("P110: the piece's own checks — obligations from the cast, the duplicate veto, the coverage ask, the meta-talk cut, the per-section hunt, the conclusion's facts", async () => {

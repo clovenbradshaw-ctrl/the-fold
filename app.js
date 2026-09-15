@@ -5762,7 +5762,11 @@ async function codePieceTurn(cp, typed, { onEvent = null } = {}) {
         r = await runAndWitness();
         continue;
       }
-      if (failingFunction(cp.lang, stderr, [...sk.names, ...filledNames]) !== name) break;
+      // attributedFailure falls back to `name` (the function just landed —
+      // the only code that changed) when the run failed with a bare
+      // SyntaxError and no frame exists to name anyone else; any other
+      // unattributed failure still breaks, exactly as before (task_434c33fd).
+      if (attributedFailure(cp.lang, stderr, [...sk.names, ...filledNames], name) !== name) break;
       const last = stderr.trim().split("\n").filter(Boolean).pop() ?? "it failed";
       const f = await fillOne(name, clauseOf.get(name), { note: `\n\nWhen run, it failed with: ${last.slice(0, 160)}` });
       if (f.refused) break;
@@ -6009,6 +6013,12 @@ function concedeTurn(argstr, typed, { perform = false } = {}) {
   if (!id) return usageTurn(typed, "/concede <note id> shows what would fall if that claim were withdrawn; /concede! <note id> withdraws it, and every derived fact resting on it, on the record — never deleted, always recorded with its reason. Note ids are the ones /derive prints as premises.");
   if (!log) return usageTurn(typed, "the hyperlexicon is empty — nothing to concede.");
   const exposure = derivationFor.exposure(log, id);
+  // exposure()'s own `known` flag (added live this batch — a real,
+  // reproduced bug): the dry run used to compute an empty cascade for ANY
+  // string, valid or not, and print "would withdraw 0 ... to do it:
+  // /concede! <id>" as if that were a safe, working next step — which
+  // /concede! <id> then refused with unknown_note. The two doors now agree.
+  if (!exposure.known) return usageTurn(typed, `no note or derived fact named "${id}" is on the record — nothing to concede. Note ids are the ones /derive prints as premises.`);
   if (!perform) {
     const lines = [`conceding ${id} would withdraw ${exposure.withdrawn.length} derived fact(s)${exposure.depth ? ` (cascade depth ${exposure.depth})` : ""}:`];
     for (const w of exposure.withdrawn) lines.push(`  ${w.subject} —${w.verb}→ ${w.object} (via ${w.cascadedFrom}, depth ${w.cascadeDepth})`);

@@ -264,7 +264,17 @@ export const HELP = {
     name: "The obligation ledger",
     summary: "admits an enumerated instruction set as clauses each owed a visit, and reports coverage as enumeration.",
     syntax: "/must <instruction set>\n/must  (bare — coverage: what is unvisited, what stands violated)",
-    example: "/must 1. check every date in section 2. 2. confirm each name against the source.",
+    // Two REAL lines, not one — obligation.js::admitObligations (the
+    // organ this door calls) splits clauses only on a line's own leading
+    // enumeration mark (MARK_RE is anchored at `^`, checked per line of
+    // `text.split("\n")`), by design: "this ledger tracks DECLARED
+    // obligations, it does not invent clause boundaries inside prose."
+    // Found live, 2026-09-15: this example, typed exactly as it read
+    // (one line, no newline before the second "2."), admits as a single
+    // clause — "obligations: 1 clause(s)" — because the mid-sentence "2."
+    // after "section 2." never starts a line. The example must actually
+    // demonstrate two clauses, the way the tutorial above it promises.
+    example: "/must 1. check every date in section 2.\n2. confirm each name against the source.",
     tutorial: "A long instruction set is admitted as declared clauses, each owed a visit. Coverage is reported as enumeration — the unvisited NAMED, complete only when nothing is unvisited and nothing stands violated. 'done', 'broke', and 'waive … by <who>' move standings append-only, each with its because.",
     needs: "nothing",
   },

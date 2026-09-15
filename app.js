@@ -242,6 +242,11 @@ import { makeApertureMeter, presentWindow, regimeAfter } from "./aperture.js";
 import { kairosSign, SIGN as KAIROS_SIGN } from "./kairos.js";
 import { createRetrievalIndex, encodeRecord as encodeRecallRecord, recallCandidates, recordCitation } from "./retrieval.js";
 import { muninnRecall } from "./muninn.js";
+// KONDO (the register's tidy-prompt archon) and the Way he asks about
+// sameness: a line carried twice is Parmenides's verdict, never a string
+// comparison of Kondo's own (II.7).
+import { makeKondo, kondoDecision, wordsOf as kondoWords } from "./kondo.js";
+import { makeParmenides } from "./parmenides.js";
 import { tokens as memoryTokens, codeOf as memoryCodeOf, recall as memoryRecall, encodeFrame as memoryEncodeFrame } from "/engine-v7/memory/activation.js";
 
 // The reading engine's own segment organ, served from /engine (see serve.mjs).
@@ -1609,6 +1614,42 @@ function ollamaBase() {
     return v && /^https?:\/\/\S+$/i.test(v) ? v.replace(/\/+$/, "") : OLLAMA_DEFAULT;
   } catch { return OLLAMA_DEFAULT; }
 }
+// ONE DECLARED WINDOW PER MODEL (2026-09-15). This page used to send no
+// `num_ctx` at all, and the measured consequence is not what the comments
+// elsewhere assumed: Ollama's "default" is ADAPTIVE to free memory, not the
+// configured OLLAMA_CONTEXT_LENGTH. Measured live against the running server,
+// same model, back to back — `num_ctx: 8192` loads at 8192 (1,217ms, a real
+// reload), NO num_ctx loads the same model at 4096 (1,138ms, another reload),
+// `num_ctx: 4096` twice runs with no reload at all (117ms, 129ms). So a caller
+// that declares nothing gets a window that moves with whatever else is
+// resident, and every move is a full reload that also throws away the prompt
+// cache — which is why a model this page shares with another local caller was
+// reloaded 82 times in one 4.5-hour window, 67 of them at a changed window.
+//
+// The fix is not a bigger number, it is ONE number per model: its own trained
+// window, capped at a declared ceiling, sent on every call. The model's window
+// is already read from `/api/show` at connect (`state.contextTokens`); this
+// keeps the same reading per model so the witness rung and the mouth each
+// declare their own. An unknown window declares NOTHING — the pre-existing
+// behaviour, a gap rather than a guess — and fills the cache for next time.
+const WINDOW_CEILING = 8192;
+const modelWindows = new Map();
+function declaredWindowFor(model) {
+  if (!model) return null;
+  const known = modelWindows.get(model);
+  if (Number.isFinite(known)) return Math.min(known, WINDOW_CEILING);
+  if (known === undefined) {
+    modelWindows.set(model, null); // in flight: ask once, never on every call
+    fetch(`${ollamaBase()}/api/show`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ model }) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((info) => {
+        for (const [k, v] of Object.entries(info?.model_info ?? {})) if (k.endsWith(".context_length") && Number.isFinite(v)) modelWindows.set(model, v);
+      })
+      .catch(() => {});
+  }
+  return null;
+}
+
 // A page loaded over https cannot fetch a plain http address at all — the
 // browser refuses it as mixed content before a single byte crosses the
 // network, so "Ollama isn't reachable" and "the browser won't even try" are
@@ -2949,7 +2990,10 @@ async function completeLocal(messages, { onDelta, onThinking, maxTokens, json, m
         // yes/no answer between two runs with no code change, purely from
         // sampling — a fact-check whose verdict depends on the dice is not a
         // check. temperature is the argmax knob, not a behavior instruction.
-        options: { num_predict: maxTokens ?? MAX_TOKENS, ...(temperature !== undefined ? { temperature } : {}) },
+        // `num_ctx`: one declared window per model (declaredWindowFor, above) —
+        // never left to Ollama's memory-adaptive default, which moves under
+        // this page and reloads the model every time it does.
+        options: { num_predict: maxTokens ?? MAX_TOKENS, ...(temperature !== undefined ? { temperature } : {}), ...(declaredWindowFor(modelName) ? { num_ctx: declaredWindowFor(modelName) } : {}) },
       }),
     });
   } catch (e) {
@@ -5198,6 +5242,40 @@ function mirrorTermRecord(event, fields) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ event, ...fields }),
   }).catch(() => {});
+}
+
+/**
+ * KONDO (kondo.js) — the tidy-prompt archon, over what this turn actually
+ * sent: a line carried twice, a block resent where the KV cache cannot reuse
+ * it, address residue no writer wrote, and whether the whole fits the window
+ * the model is really loaded at. The review lands on the record as counts and
+ * OWNERS — never the prompt's own text — and cuts nothing: a prompt belongs
+ * to its builder (P186, the mouth is not censored), so a finding names who
+ * must let the thing go.
+ *
+ * She checks in rather than deciding alone: Parmenides says whether two lines
+ * are the SAME (a refusal is kept as a gap), and the window comes from
+ * Ollama's own /api/ps — the same face heimdall reads server-side
+ * (`loadedWindowOf`), so "does this fit" is answered against the window in
+ * force and never against a guess. A read that fails leaves a typed gap.
+ *
+ * DISCLOSED REACH: `sentCalls` is what holon.js's own `call` seam carried —
+ * the draft, its corrections, the plan, the summary. The witness asks go
+ * through `complete()` directly and are not in it yet.
+ */
+async function kondoReview(sent = [], model = null, where = "chat") {
+  if (!Array.isArray(sent) || !sent.length) return null;
+  const windows = new Map();
+  try {
+    const res = await fetch(`${ollamaBase()}/api/ps`);
+    if (res.ok) for (const m of (await res.json())?.models ?? []) if (m?.name && Number.isFinite(m.context_length)) windows.set(m.name, m.context_length);
+  } catch { /* unknown window is a gap in the review, never a guess */ }
+  const parmenides = makeParmenides({ fold: (s) => kondoWords(s).join(" ") });
+  const kondo = makeKondo({ same: parmenides.same, windowOf: (name) => windows.get(name) ?? null });
+  const review = kondo.reviewTurn(sent.map((c) => ({ model, kind: c.phase ?? null, maxTokens: c.maxTokens ?? null, messages: c.messages ?? [] })));
+  const entry = kondoDecision({ where, review });
+  mirrorTermRecord(entry.act, { ...entry, via: "chat" });
+  return review;
 }
 
 /**
@@ -12067,6 +12145,9 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     appendRecord("answers", [JSON.stringify(answerRec)]).catch(() => {});
   } catch (e) { console.warn("answer record:", e?.message ?? e); }
   renderFold(node, { sent: sentCalls, record: answerRec });
+  // The turn's own prompts, reviewed once and landed (kondo.js). Never awaited
+  // and never fatal: a tidiness review may not hold up an answer.
+  kondoReview(sentCalls, turnModel).catch(() => {});
   drawLoops();
   if (opts.longForm) {
     const bodyText = node.querySelector(".body")?.innerText ?? "";

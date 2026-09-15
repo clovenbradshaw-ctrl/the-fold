@@ -34,6 +34,12 @@
 //   clippy      the clip — what is IN THE PRESENT (born + DMD + activation + discourse), under heimdall
 //   parmenides the Way — SAME vs OTHER, identity by the equivalence organs,
 //              never by appearance (II.7, P11, P79). Under kelsen.
+//   kondo      the tidy prompt — what the mouth is handed, once: a line
+//              carried twice, a block resent where the cache cannot reuse
+//              it, address residue no writer wrote, and whether the whole
+//              fits the window heimdall says the model is loaded at. Names
+//              the OWNER of every finding and never cuts a prompt herself
+//              (P186). Under heimdall. (live)
 //
 // Amendment: an archon is added or removed by proposal — ratified by the
 // person, checked by the chorus — never by a session alone.

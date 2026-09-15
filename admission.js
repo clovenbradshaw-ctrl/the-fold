@@ -61,6 +61,10 @@
 // PURE. `tokenize` is the one organ, injected (cast.js pattern) so this
 // stays testable without importing the engine shim.
 
+// Derived, not hand-picked: the same structural minimum clippy.js's own DMD
+// gate (`n >= 2`) and binding.js's arrivals floor already use for "how much
+// recurrence makes a pattern rather than noise" — reused here by construction,
+// never re-derived. See this file's own header, above, for the full reasoning.
 export const ADMISSION_FLOOR = 2;
 
 export function makeAdmission({ tokenize } = {}) {

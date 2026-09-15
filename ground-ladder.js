@@ -105,6 +105,30 @@ function passageHolding(needle, passages) {
 }
 
 /**
+ * FED, NOT BOUND — the shared half of P187's fix (2026-09-10), pulled out so
+ * every rung that ends without placing the sentence can disclose it, not
+ * only the "self" rung it first shipped on. What was actually retrieved and
+ * handed to the mouth this turn, distinct by source, one reopenable ref
+ * each — a real per-page fetch preferred over the ephemeral search-results
+ * digest the same way `passageHolding` already ranks it (see that
+ * function's own header for the live bug this ranking fixed). NEVER a claim
+ * of support: presence only, the caller's own phrase must say so.
+ */
+function fedFrom(passages) {
+  const fedSources = passages.length ? [...new Set(passages.map((p) => String(p.ref ?? "").split("#")[0]).filter(Boolean))] : [];
+  const fedRefs = passages.length
+    ? [...new Map(passages.map((p) => [String(p.ref ?? "").split("#")[0], p.ref]).filter(([s]) => s)).values()]
+      .sort((a, b) => Number(String(a).startsWith("web:search-results")) - Number(String(b).startsWith("web:search-results")))
+    : [];
+  return { fedSources, fedRefs };
+}
+
+/** The plain-English clause naming what was fed, appended to a rung's own detail — empty string when nothing was retrieved (byte-identical silence to before this existed). */
+function fedDetail(fedSources) {
+  return fedSources.length ? ` ${fedSources.length} page${fedSources.length === 1 ? "" : "s"} ${fedSources.length === 1 ? "was" : "were"} given to the model this turn (${fedSources.join(", ")}) — none was confirmed to state this, but here it is.` : "";
+}
+
+/**
  * groundOf(sentence, ctx) → { tier, cell, addresses, phrase, detail, reached }
  * ctx: { claims, witness, notes, derived, disputes, passages, resolveName, model }
  */
@@ -222,7 +246,25 @@ export function groundOf(sentence, ctx = {}) {
       // only completes the fragment when an address actually follows; with
       // none, "claim not placed" stands alone rather than trailing on a
       // bare preposition.
-      return { tier: "named", cell: CELL_OF.named, addresses, phrase: addresses.length ? "names established, claim not placed at" : "names established, claim not placed", detail: `${established.map((e) => e.name).join(", ")} resolve to referents the material establishes; the claim itself was not placed`, names: established.map((e) => e.name), reached };
+      // FED, NOT BOUND, extended to this rung (2026-09-14): `addresses`
+      // here — when non-empty — vouches only for the NAMES the sentence
+      // uses, never for the claim itself (that is exactly what "claim not
+      // placed" already says); and it is frequently empty outright (a name
+      // resolves but no given passage states it, the `namedNoAddress` case
+      // this file's own test pins). Either way the reader is one click from
+      // a chip that names referents and says nothing about what the mouth
+      // actually had in front of it — the identical gap P187 closed for the
+      // "self" rung below, unclosed here because this rung can be reached
+      // with the witness never having been asked at all (see this rung's
+      // own header: null/skipped witness falls through to here, not just
+      // "self"). Same helper, same honest caveat, never claimed as support.
+      const { fedSources, fedRefs } = fedFrom(passages);
+      return {
+        tier: "named", cell: CELL_OF.named, addresses, fedSources, fedRefs,
+        phrase: addresses.length ? "names established, claim not placed at" : "names established, claim not placed",
+        detail: `${established.map((e) => e.name).join(", ")} resolve to referents the material establishes; the claim itself was not placed.${fedDetail(fedSources)}`,
+        names: established.map((e) => e.name), reached,
+      };
     }
   }
   // 7. self
@@ -234,21 +276,10 @@ export function groundOf(sentence, ctx = {}) {
   // SUPPORTS it. What this discloses is narrower and still real: whether
   // the mouth had ANYTHING in front of it when it wrote this, and where
   // that material actually is, so "the model's own voice" never reads as
-  // "nothing was given" when something plainly was. `fedRefs` carries one
-  // real ref per distinct source so a reader can still open the bytes,
-  // even though no rung is claiming they back this particular sentence.
-  const fedSources = passages.length ? [...new Set(passages.map((p) => String(p.ref ?? "").split("#")[0]).filter(Boolean))] : [];
-  // Ranked the same way `passageHolding` now is (found live, same
-  // afternoon: `fedRefs[0]` picked the search-results digest purely
-  // because it sits first in `passages`, ahead of a real fetched page
-  // that was ALSO given this turn — "See original source" then always
-  // opened the one ref type that can never be reopened). A real per-page
-  // ref outranks the digest whenever both were fed; the digest still
-  // shows when it is genuinely the only thing that was.
-  const fedRefs = passages.length
-    ? [...new Map(passages.map((p) => [String(p.ref ?? "").split("#")[0], p.ref]).filter(([s]) => s)).values()]
-      .sort((a, b) => Number(String(a).startsWith("web:search-results")) - Number(String(b).startsWith("web:search-results")))
-    : [];
+  // "nothing was given" when something plainly was. `fedFrom`/`fedDetail`
+  // (this file, above) are the shared half — 2026-09-14 pulled them out of
+  // this rung so the "named" rung above can disclose the identical thing.
+  const { fedSources, fedRefs } = fedFrom(passages);
   // Trailing periods matter here: app.js's mark detail appends its own
   // sentence directly after this one with a bare space (found live,
   // 2026-09-09: "...this is the model's own testimony There is nothing to
@@ -256,7 +287,7 @@ export function groundOf(sentence, ctx = {}) {
   return {
     tier: "self", cell: CELL_OF.self, addresses: [], fedSources, fedRefs,
     phrase: model ? `${model}` : "the model",
-    detail: `${refused ? "the witness was asked and no passage states it; this is the model's own testimony." : reached.witness ? "no rung placed it; the model's own testimony." : "no rung placed it and the witness was not asked (budget); the model's own testimony, unexamined."}${fedSources.length ? ` ${fedSources.length} page${fedSources.length === 1 ? "" : "s"} ${fedSources.length === 1 ? "was" : "were"} given to the model this turn (${fedSources.join(", ")}) — none was confirmed to state this, but here it is.` : ""}`,
+    detail: `${refused ? "the witness was asked and no passage states it; this is the model's own testimony." : reached.witness ? "no rung placed it; the model's own testimony." : "no rung placed it and the witness was not asked (budget); the model's own testimony, unexamined."}${fedDetail(fedSources)}`,
     refused, reached,
   };
 }

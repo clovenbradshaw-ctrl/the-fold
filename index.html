@@ -749,6 +749,45 @@
       @media (prefers-reduced-motion: reduce) {
         .thinking-live.live .thinking-dot { animation: none; }
       }
+      /* THE PACE GAUGE (Problem 2, 2026-09-15): a visual read of how the
+         call actually in flight is doing against pace.js's own measured
+         expectation — the same number `paintTicker()` already prints as
+         "~Ns expected", now also drawn. Found live: a call running 4x its
+         own expected time read exactly like a hang with only text to look
+         at. Width is elapsed / expected, CLAMPED at 100% on purpose — a
+         fill past the edge of its own track reads as broken, not slow, so
+         a call that legitimately runs long keeps a full bar rather than an
+         overflowing one. `.pace-over` (elapsed already past what was
+         expected) recolors toward --warn and adds a slow pulse, so "taking
+         longer than usual" and "a hang" stay two different things to look
+         at, not one bar that just stops. No measurement, no gauge: an
+         unmeasured pace draws nothing (`hidden`) rather than a guessed
+         width — pace.js's own predictCall() holds the identical rule for
+         the number beside it. */
+      .pace-gauge {
+        width: 60px;
+        height: 4px;
+        border-radius: 999px;
+        background: var(--line);
+        overflow: hidden;
+        flex: none;
+      }
+      .pace-gauge[hidden] { display: none; }
+      .pace-gauge-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: var(--accent);
+        width: 0%;
+        transition: width 0.6s linear, background-color 0.3s ease;
+      }
+      .pace-gauge.pace-over .pace-gauge-fill {
+        background: var(--warn);
+        animation: pace-over-pulse 1.6s ease-in-out infinite;
+      }
+      @keyframes pace-over-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) {
+        .pace-gauge.pace-over .pace-gauge-fill { animation: none; }
+      }
       /* THE LOOPS (loops.js, 2026-09-08): the turn's face — one card per loop
          the answer owes, in the chain's order, above the body so the
          answer's own rendering never clears them, behind ONE line that says

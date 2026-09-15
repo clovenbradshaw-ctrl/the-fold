@@ -204,7 +204,7 @@ import { editLine } from "./piece-edit.js";
 import { revisionLine } from "./piece-revise.js";
 import { exportPiece } from "./piece-export.js";
 import { groundOf, groundLine, tierWord } from "./ground-ladder.js";
-import { answerRecord, answerRecordLine, answerRecordProse, voidInScope } from "./answer-record.js";
+import { answerRecord, answerRecordLine, answerRecordProse, answerRecordForReading, voidInScope } from "./answer-record.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
 // ledger, and its measured surprise — held apart from the material at the
@@ -5686,6 +5686,87 @@ function exportTurn(typed) {
   return Promise.resolve();
 }
 
+// publishPiece — a PIECE'S OWN BUILD LOG. piece-edit.js's cuts (SEG) and
+// merges (SYN) and piece-revise.js's rewrites are already real, typed
+// deltas, computed on every longform turn (holon.js's `edits`/`revisions`)
+// — they were narrated to the ticker (`show(editLine(e))` etc., just above
+// this call site) and then thrown away. This lands them instead, in
+// build-log.js's own append-only PROPOSE (the drafted piece, before either
+// mechanical pass) / SUPERSEDE (after the unconscious edits; after the
+// revisions) shape — the SAME shape a code build already has. `seg.lang`
+// is "markdown", the exact seg shape /facts's own build already publishes
+// (compose.js, P87) — so this needs no new rendering: artifactNode's
+// existing markdown branch already reads it as prose, `foldRow`/`buildCard`
+// already read `entry.log` generically, and `persistBuilds`/`restoreBuilds`
+// already replay any build's log through the engine's own `append` with no
+// per-kind branch. A caption-scoped find-and-revise (the way /facts reuses
+// ONE build across separate `/facts` calls) is deliberately not done here:
+// unlike /facts, a piece's whole revision history belongs to ONE turn, so
+// every checkpoint (drafted → edited → revised) lands on the SAME new
+// build within that one call.
+//
+// Deliberately NOT the database fold's separate `entry.kind` (CLAUDE.md's
+// own "database fold" section is the precedent this weighed against): a
+// database's reality is many small row-level operations a version count
+// can only summarize, never a single whole a cursor could show. A piece's
+// mechanical passes ARE whole-document edits — cut a sentence, merge a
+// section, rewrite a sentence — the identical shape a code revision
+// already is, so a piece is a build like any other, not a new top-level
+// kind.
+function publishPiece(lf, result, typed) {
+  const drafted = result?.pieceLog?.drafted ?? result?.output;
+  if (typeof drafted !== "string" || !drafted) return null;
+  const n = state.builds.length + 1;
+  const turn = state.summary.turnCount + 1;
+  const caption = `${lf.topic} — ${lf.pages}-page ${lf.kind ?? "piece"}`;
+  const entry = {
+    n,
+    turn,
+    log: buildLog.proposeBuild({ n, turn, seg: { type: "code", lang: "markdown", code: drafted }, caption, instruction: typed }),
+    cursor: null,
+    draft: null,
+  };
+  state.builds.push(entry);
+
+  const edits = result.edits ?? [];
+  if (result.pieceLog?.edited && result.pieceLog.edited !== drafted) {
+    const counted = (kind) => edits.filter((e) => e.kind === kind).length;
+    const bits = [];
+    const cut = counted("restated-sentence");
+    if (cut) bits.push(`${cut} sentence${cut === 1 ? "" : "s"} cut for restating an earlier section`);
+    const dropped = counted("empty-section");
+    if (dropped) bits.push(`${dropped} section${dropped === 1 ? "" : "s"} dropped, empty after cuts`);
+    const merged = counted("merged-section");
+    if (merged) bits.push(`${merged} section${merged === 1 ? "" : "s"} merged away, already said`);
+    entry.log = buildLog.reviseBuild(entry.log, { code: result.pieceLog.edited, reason: `unconscious edit — ${bits.join("; ") || `${edits.length} edit(s)`}` });
+  }
+
+  // A refused revision is evidence, not a silent non-event — the SAME
+  // posture build-log.js's own refuseBuild already holds for a candidate
+  // patch that would regress a code build (P14: "tried and refused is
+  // evidence").
+  const revisions = result.revisions ?? [];
+  for (const r of revisions) {
+    if (r.kind === "rewrite-refused") {
+      entry.log = buildLog.refuseBuild(entry.log, { gap: { kind: "revision-refused", find: r.sentence, reason: r.because }, reason: "revision" });
+    }
+  }
+  const rewritten = revisions.filter((r) => r.kind === "rewrite").length;
+  const afterEdit = result.pieceLog?.edited ?? drafted;
+  if (rewritten && typeof result.output === "string" && result.output !== afterEdit) {
+    const recited = revisions.filter((r) => r.kind === "re-cite").length;
+    const bits = [`${rewritten} sentence${rewritten === 1 ? "" : "s"} rewritten against later reading`];
+    if (recited) bits.push(`${recited} re-cited`);
+    entry.log = buildLog.reviseBuild(entry.log, { code: result.output, reason: `revised — ${bits.join("; ")}` });
+  }
+
+  entry.cursor = null;
+  mirrorBuild(entry, 0);
+  persistBuilds();
+  renderBuilds(entry.n);
+  return entry;
+}
+
 // longFormTurn — the same holonic turn every checked answer runs (plan,
 // then one part at a time, each part retrieving over the material and
 // checked by the same ladder), with the numbers a PIECE needs declared:
@@ -9937,7 +10018,17 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   const traceVerb = document.createElement("span");
   traceVerb.className = "thinking-verb";
   traceVerb.textContent = "thinking…";
-  traceSummary.append(traceDot, traceVerb);
+  // THE PACE GAUGE (Problem 2): a real visual read of occupancy, beside the
+  // text ticker — see index.html's own comment on `.pace-gauge` for why.
+  // Hidden until `paintTicker()` (below) has a measured expectation to draw
+  // against; never invented from nothing.
+  const traceGauge = document.createElement("div");
+  traceGauge.className = "pace-gauge";
+  traceGauge.hidden = true;
+  const traceGaugeFill = document.createElement("div");
+  traceGaugeFill.className = "pace-gauge-fill";
+  traceGauge.append(traceGaugeFill);
+  traceSummary.append(traceDot, traceVerb, traceGauge);
   traceDetails.append(traceSummary, traceEl);
   body.replaceChildren(traceDetails);
 
@@ -10268,19 +10359,35 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // second later — the summary is now the one thing a reader sees without
   // clicking, and a blank line for the first second reads as not-yet-working.
   const paintTicker = () => {
-    const secs = Math.round((performance.now() - phaseStart) / 1000);
+    const elapsedMs = performance.now() - phaseStart;
+    const secs = Math.round(elapsedMs / 1000);
     const pace = foldPace(state.paceLog, turnModel);
     // Expected duration from the measured pace: prefill for what this call
     // carries, decode for what this conversation's calls have averaged.
     // Unmeasured pace says so instead of inventing a number.
     let expect = "";
+    let predictedMs = null;
     if (phasePromptChars && pace.calls) {
       const p = predictCall(pace, phasePromptChars, pace.meanOutTokens ?? 0);
-      if (p.ms) expect = ` / ~${Math.round(p.ms / 1000)}s expected (${p.basis})`;
+      if (p.ms) { expect = ` / ~${Math.round(p.ms / 1000)}s expected (${p.basis})`; predictedMs = p.ms; }
     }
     traceVerb.textContent =
       `${phaseLabel} · ${secs}s${expect}` +
       (pace.decodeTps ? ` · ${Math.round(pace.decodeTps)} tok/s` : " · pace unmeasured");
+    // THE PACE GAUGE: the same `predictedMs` the text line just printed as
+    // "~Ns expected", drawn — occupancy relative to what is NORMAL for this
+    // call, not a raw percentage of nothing. Clamped at 100% so a call that
+    // genuinely runs long keeps a full, steady bar (`.pace-over`, a colour
+    // and a slow pulse) rather than an impossible overflowing one, which is
+    // what would read as broken. No prediction, no bar — see index.html.
+    if (predictedMs) {
+      traceGauge.hidden = false;
+      const pct = Math.max(0, Math.min(1, elapsedMs / predictedMs));
+      traceGaugeFill.style.width = `${Math.round(pct * 100)}%`;
+      traceGauge.classList.toggle("pace-over", elapsedMs > predictedMs);
+    } else {
+      traceGauge.hidden = true;
+    }
   };
   paintTicker();
   const ticker = setInterval(paintTicker, 1000);
@@ -11469,6 +11576,12 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       Object.assign(urls, state.huntUrls ?? {});
       state.lastPiece = { title: `${opts.longForm.topic} — ${opts.longForm.pages}-page ${opts.longForm.kind ?? "piece"} asked of The Fold`, ask: typed, model: turnModel, sections: result.sections ?? [], urls, prompts, ground: state.lastGround, depth: result.depth ?? state.depth, depthLine: result.depthLine ?? null, generatedAt: new Date().toISOString() };
       exportLastPiece(node).catch((e) => console.warn("piece export:", e?.message ?? e));
+      // Versioned in the Folds panel too (this pass): the drafted piece,
+      // then a checkpoint per mechanical pass that actually changed it —
+      // see publishPiece's own header for why this is a build like any
+      // other, not a second document-export mechanism.
+      const pieceEntry = publishPiece(opts.longForm, result, typed);
+      if (pieceEntry) node.querySelector(".body")?.append(buildChip(pieceEntry, buildFold(pieceEntry, null)?.caption ?? "piece"));
     } catch (e) { console.warn("piece keep:", e?.message ?? e); }
     mirrorTermRecord("longform-done", {
       depth: result.depth ?? state.depth,
@@ -15784,10 +15897,13 @@ function callTreeFor(sent, modelName) {
  * meaningless or alarming to an ordinary reader. What changes here is the
  * DEFAULT VIEW, not the data: `answerRecordProse`/`describeSentCall` read the
  * identical `record`/`sent` this function always took and say what they mean
- * in plain sentences, and the raw JSON — every field, unedited — sits one
- * click deeper under a nested "view raw" disclosure (this repo's own
- * standing rule elsewhere: hide by default, one more click for detail, never
- * delete). A turn that spent no model call still says so honestly.
+ * in plain sentences, and the wire payloads and record sit one click deeper
+ * under a plainly-labelled "more" disclosure (renamed from "view raw",
+ * 2026-09-15 — see that block's own comment for why; this repo's own
+ * standing rule elsewhere still holds: hide by default, one more click for
+ * detail, never delete — the record shown under "more" is trimmed of the
+ * instrument's own internal plumbing only, never of a finding). A turn that
+ * spent no model call still says so honestly.
  */
 function renderFold(node, { sent, record = null } = {}) {
   // Scoped to the turn-meta: the body can contain anything an answer wants,
@@ -15865,20 +15981,33 @@ function renderFold(node, { sent, record = null } = {}) {
     out.append(callTreeFor(sent, modelName));
   }
 
-  // THE DEVELOPER'S VIEW, one click deeper — nothing deleted: the exact
-  // AnswerRecord and the exact wire payloads, verbatim `JSON.stringify`, are
-  // still every one of them here, nested rather than removed.
+  // "MORE" — one click deeper, nothing deleted (renamed from "view raw",
+  // 2026-09-15: live user feedback on this exact box — a reader had gone
+  // looking for the verbatim prompt JSON and could not find it, because a
+  // COLLAPSED disclosure nested inside another collapsed disclosure and
+  // labelled with a developer's own term for itself is easy to miss
+  // entirely, not merely one click further. The fix is not another click:
+  // it is that everything a curious reader actually recognizes — the
+  // claims, what's unbacked, the sources, Aletheia's satisfaction read —
+  // is ALREADY in the plain-language prose and the call tree above,
+  // outside any further click. What is genuinely rare to want (the exact
+  // wire bytes sent to the model, and the instrument's own internal
+  // bookkeeping — a schema tag, a recipe hash, the reader's organ/lever
+  // names) stays one click away under a plainly-named "more", trimmed of
+  // that plumbing (`answerRecordForReading`, answer-record.js) — never
+  // deleted: the untrimmed record still lands whole on the durable log
+  // (records/answers.jsonl) and the model-swap diff reads it directly.
   if (record || sent?.length) {
     const raw = document.createElement("details");
     raw.className = "fold";
-    raw.innerHTML = "<summary>view raw</summary>";
+    raw.innerHTML = "<summary>more</summary>";
     if (record) {
       const pre = document.createElement("pre");
       pre.className = "block";
       const role = document.createElement("span");
       role.className = "role";
       role.textContent = answerRecordLine(record);
-      pre.append(role, document.createTextNode("\n" + JSON.stringify(record, null, 2)));
+      pre.append(role, document.createTextNode("\n" + JSON.stringify(answerRecordForReading(record), null, 2)));
       raw.append(pre);
     }
     // Rendered as raw JSON.stringify, not this app's own pretty-printed

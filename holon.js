@@ -4018,6 +4018,26 @@ export async function runHolonicTask({
   // the revision pass are later cells and are bound by all of them.
   const allFindings = sections.flatMap((x) => x.findings ?? []);
 
+  // A PIECE'S OWN BUILD LOG: piece-edit.js's cuts/merges and
+  // piece-revise.js's rewrites are already real, typed deltas — landed
+  // model-free, on the record. What was missing was the whole-piece TEXT
+  // at each checkpoint, so a caller (app.js) can land them as build-log.js's
+  // own PROPOSE (drafted) / SUPERSEDE (edited, revised) entries, the same
+  // append-only shape a code build already has, rather than narrating the
+  // deltas to the ticker and throwing them away. `joinPiece` mirrors
+  // `output`'s own heading-join below, without its bound-label safety
+  // substitution (a few lines further down) — that guard exists for what
+  // SHIPS; an intermediate checkpoint is an honest record of what a
+  // section held at that point, heading included.
+  const joinPiece = (secs) =>
+    secs
+      .map((s) => {
+        const text = s.text || "(this part produced no text — left open)";
+        return plan.parts.length > 1 ? `## ${s.part.label}\n\n${text}` : text;
+      })
+      .join("\n\n");
+  const draftedText = piece ? joinPiece(sections) : null;
+
   // THE UNCONSCIOUS EDITS THE MOUTH (P111): a finished piece is edited
   // model-free — restated sentences cut, emptied sections dropped, sections
   // whose claims were all already said merged away — every edit an act
@@ -4030,6 +4050,7 @@ export async function runHolonicTask({
     edits = edited.edits;
     sections = edited.sections.map((e) => ({ ...e._section, text: e.text, edited: true }));
   }
+  const editedText = piece && edits.length ? joinPiece(sections) : null;
 
   // THE PIECE REVISES ITSELF (P116): once every section is written, edited
   // and checked, each sentence is read again against the WHOLE piece's
@@ -4099,7 +4120,7 @@ export async function runHolonicTask({
   const channels = [...new Set(sections.flatMap((s) => s.channels))];
 
   return {
-    ...(piece ? { edits, revisions } : {}), depth: sections.find((x) => x.strain)?.strain?.recruited ?? budgets.level, budgets, depthLine: depthLine(budgets, { piece: Boolean(piece) }),
+    ...(piece ? { edits, revisions, pieceLog: { drafted: draftedText, edited: editedText } } : {}), depth: sections.find((x) => x.strain)?.strain?.recruited ?? budgets.level, budgets, depthLine: depthLine(budgets, { piece: Boolean(piece) }),
     // What this whole turn learned (P126), deduped by content identity across
     // its parts — the caller appends these to its durable store, and the room
     // makes them permanent (matrix.js seals them into the same hash-linked

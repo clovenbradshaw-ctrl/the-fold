@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { answerRecord, claimKey, claimSets, diffRecords, answerRecordLine, answerRecordProse, ANSWER_RECORD_SCHEMA, voidInScope, absencesOf } from "./answer-record.js";
+import { answerRecord, claimKey, claimSets, diffRecords, answerRecordLine, answerRecordProse, answerRecordForReading, ANSWER_RECORD_SCHEMA, voidInScope, absencesOf } from "./answer-record.js";
 
 const section = (claims, refs = ["a.txt#0-10"]) => ({ passages: refs.map((ref) => ({ ref, text: "x" })), relations: { claims } });
 
@@ -146,6 +146,32 @@ test("answerRecordProse leads with Aletheia's ADDRESSED caveat when the answer s
 test("answerRecordProse does NOT caveat a FILLED-only failure (a short, correct, closely-echoing answer must not be flagged)", () => {
   const r = answerRecord({ question: "q", satisfaction: { satisfied: false, at: "filled", reason: "vacuous echo" } });
   assert.doesNotMatch(answerRecordProse(r), /may not actually address/);
+});
+
+test("answerRecordForReading drops the instrument's own plumbing (schema/cursor/recipe/frame/constitution) and keeps every verdict field, byte for byte", () => {
+  const r = answerRecord({
+    question: "q", answer: "a", model: "m", recipe: "r1", frame: { organs: { blankFurniture: "blankFurniture" } }, cursor: 3,
+    constitution: { sha256: "abc" },
+    unbacked: ["x"], sources: [{ name: "a.txt", bytes: 10 }],
+    satisfaction: { satisfied: true, via: "filled" },
+  });
+  const view = answerRecordForReading(r);
+  assert.equal("schema" in view, false);
+  assert.equal("cursor" in view, false);
+  assert.equal("recipe" in view, false);
+  assert.equal("frame" in view, false);
+  assert.equal("constitution" in view, false);
+  assert.equal(view.question, "q");
+  assert.equal(view.model, "m");
+  assert.deepEqual(view.unbacked, ["x"]);
+  assert.deepEqual(view.sources, [{ name: "a.txt", sha256: null, bytes: 10 }]);
+  assert.deepEqual(view.satisfaction, { satisfied: true, via: "filled" });
+  // the real record is untouched — this is a view, never a mutation
+  assert.equal(r.schema, ANSWER_RECORD_SCHEMA);
+});
+
+test("answerRecordForReading is null-safe", () => {
+  assert.equal(answerRecordForReading(null), null);
 });
 
 test("answerRecordProse: absences and open voids are put in words, not counted alone", () => {

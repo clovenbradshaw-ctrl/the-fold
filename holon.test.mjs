@@ -2543,6 +2543,47 @@ test("P111: the unconscious edits the mouth — a section that restates an earli
   assert.equal(r.output.split("where the coast begins").length - 1, 1, "the restated section's prose appears once in the shipped piece");
 });
 
+test("a piece's own build log: pieceLog carries the drafted (pre-edit) whole-piece text and the edited (post-unconscious-edit) text, so a caller can land both as real build-log checkpoints", async () => {
+  const chunks = chunkSource("h.txt", "The harbor tide turns twice a day. The harbor lies on the coast.");
+  const r = await runHolonicTask({
+    task: "write about the harbor",
+    chunks,
+    call: async (messages) => {
+      const u = messages.at(-1)?.content ?? "";
+      if (/parts/.test(u) && /Task:/.test(u)) return JSON.stringify({ parts: [{ label: "Tides", description: "the tide." }, { label: "Again", description: "the tide again." }] });
+      if (/Every claim here was made in an earlier section/.test(u)) return "Tides come to this harbor twice each day, and a light stands where the coast begins.";
+      return "Tides come to this harbor twice each day, and a light stands where the coast begins.";
+    },
+    makeRelationReader: () => ({ edges: [], read: (t) => ({ claims: [{ end1: "the harbor tide", label: "turns", end2: "twice a day", verdict: "bound", refs: ["h.txt#0-30"], spans: [] }] }) }),
+    planMode: "model",
+    piece: { topic: "the harbor", pages: 1, words: 10 },
+  });
+  assert.ok(r.pieceLog, "a piece carries a pieceLog");
+  assert.equal(typeof r.pieceLog.drafted, "string");
+  // Before the unconscious edit ran, both sections' identical draft stood —
+  // the restated prose appears TWICE, exactly what editPiece went on to cut.
+  assert.equal(r.pieceLog.drafted.split("where the coast begins").length - 1, 2, "the pre-edit draft still carries the restated section");
+  assert.match(r.pieceLog.drafted, /## Again/, "the pre-edit draft still carries the section piece-edit.js went on to drop or merge away");
+  // After the edit pass, the checkpoint matches what actually shipped.
+  assert.equal(typeof r.pieceLog.edited, "string");
+  assert.notEqual(r.pieceLog.edited, r.pieceLog.drafted, "a real edit happened, so the checkpoint moved");
+  assert.equal(r.pieceLog.edited.split("where the coast begins").length - 1, 1, "the edited checkpoint already reflects the cut");
+  assert.equal(r.pieceLog.edited, r.output, "nothing more changed the text after the edit pass on this fixture (no revision landed)");
+});
+
+test("a single-section piece (no edit pass ever runs) still carries a drafted pieceLog and no edited checkpoint", async () => {
+  const chunks = chunkSource("h.txt", "The harbor tide turns twice a day.");
+  const r = await runHolonicTask({
+    task: "write about the harbor",
+    chunks,
+    call: async () => "Tides come to this harbor twice each day.",
+    makeRelationReader: () => ({ edges: [], read: () => ({ claims: [] }) }),
+    piece: { topic: "the harbor", pages: 1, words: 10 },
+  });
+  assert.equal(typeof r.pieceLog.drafted, "string");
+  assert.equal(r.pieceLog.edited, null, "no edit pass ran (a single-section piece), so there is no second checkpoint");
+});
+
 test("P116: a piece returns its revisions — an array, empty when nothing later changed anything", async () => {
   const chunks = chunkSource("h.txt", "The harbor tide turns twice a day. The harbor lies on the coast.");
   const r = await runHolonicTask({

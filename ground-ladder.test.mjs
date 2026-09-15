@@ -160,6 +160,47 @@ test("self tier discloses what was fed even though nothing bound (2026-09-10, us
   assert.equal(digestFirst.fedRefs[0], "web:en.wikipedia.org-0#0-200", "a real, reopenable page outranks the digest for the action button, even though the digest was fed first");
 });
 
+test("named tier discloses what was fed too, not only 'self' (2026-09-14: P187 shipped fedSources/fedRefs on the self rung alone; the named rung reaches the bottom of the ladder just as often — the witness null/skipped, not specifically refused — and left a reader with a name-match chip that said nothing about what the mouth actually had in front of it)", () => {
+  const fedPassages = [
+    { ref: "web:example.com-0#0-200", text: "Some unrelated sentence about weather." },
+    { ref: "web:another.org-0#0-90", text: "A second unrelated sentence." },
+  ];
+  // The exact live gap: a name resolves (established.length > 0) but no
+  // given passage states the CLAIM (addresses stays empty) — this file's
+  // own pre-existing `namedNoAddress` case, now with real fed passages so
+  // the disclosure has something to name.
+  const namedNoAddress = groundOf("The Hartley Prize honors astronomers.", { passages: fedPassages, model: "gemma2:2b", resolveName: (n) => (/hartley/i.test(n) ? new Set(["r1"]) : new Set()) });
+  assert.equal(namedNoAddress.tier, "named");
+  assert.deepEqual(namedNoAddress.addresses, [], "still no passage states the claim itself");
+  assert.deepEqual(namedNoAddress.fedSources, ["web:example.com-0", "web:another.org-0"], "what was retrieved this turn is named even though nothing bound");
+  assert.deepEqual(namedNoAddress.fedRefs, ["web:example.com-0#0-200", "web:another.org-0#0-90"], "one real, reopenable ref per source");
+  assert.match(namedNoAddress.detail, /2 pages were given to the model this turn \(web:example\.com-0, web:another\.org-0\)/);
+  assert.match(namedNoAddress.detail, /none was confirmed to state this/, "never dressed up as a confirmed citation");
+  assert.equal(groundLine(namedNoAddress), "names established, claim not placed", "the short chip label is unchanged — the disclosure lives in the detail, same convention as the self rung");
+
+  // The other half of the live gap: a name resolves AND passageHolding
+  // finds a passage for the NAME itself (addresses non-empty) — that
+  // address vouches for the referent existing, never for the claim, so the
+  // fuller fed disclosure still belongs here too.
+  const withNameAddress = groundOf("Amelia Hartley loved comets.", { passages: [{ ref: "a.txt#0-60", text: "Amelia Hartley founded the Northgate Observatory in 1887." }, ...fedPassages], model: "gemma2:2b", resolveName: (n) => (/hartley/i.test(n) ? new Set(["r1"]) : new Set()) });
+  assert.equal(withNameAddress.tier, "named");
+  assert.deepEqual(withNameAddress.addresses, ["a.txt#0-60"]);
+  assert.ok(withNameAddress.fedSources.includes("web:example.com-0") && withNameAddress.fedSources.includes("web:another.org-0"), "fed sources are named even when the entity's own address is known — that address is not the claim's");
+
+  // No passages retrieved at all — byte-identical silence, same as the self
+  // rung's own "nothing fed" case.
+  const nothingFed = groundOf("The Hartley Prize honors astronomers.", { model: "gemma2:2b", resolveName: (n) => (/hartley/i.test(n) ? new Set(["r1"]) : new Set()) });
+  assert.equal(nothingFed.tier, "named");
+  assert.deepEqual(nothingFed.fedSources, []);
+  assert.doesNotMatch(nothingFed.detail, /given to the model/);
+
+  // The action button in app.js falls back to `g.addresses?.[0] ?? g.fedRefs?.[0]`
+  // — this only does something useful if fedRefs is actually populated at
+  // this rung; pinning it here so a future refactor of app.js's fallback
+  // chain has something to break against.
+  assert.equal(namedNoAddress.fedRefs[0], "web:example.com-0#0-200");
+});
+
 test("names in a sentence are capitalised runs, never sentence-initial function words", () => {
   assert.deepEqual(namesIn("The X-Files was created by Chris Carter and aired on Fox."), ["X-Files", "Chris Carter", "Fox"]);
   assert.deepEqual(namesIn("Some viewers loved \"I Want to Believe\" and its tagline Trust No One, said Chris Carter."), ["Trust No One", "Chris Carter"], "a lone capitalised word at the sentence's start or inside a quoted title is capitalisation, not a name; a multi-word run still counts");

@@ -159,6 +159,29 @@ export function diffRecords(a, b) {
   };
 }
 
+// THE FIELDS A READER RECOGNIZES, VS. THE INSTRUMENT'S OWN PLUMBING
+// (Problem 3's "more" view). `record` is the full, honest truth — nothing
+// here deletes a field, and the untrimmed record is still one call to
+// `answerRecord()` away for anything that needs it (the model-swap diff,
+// the durable `records/answers.jsonl` log). This is a VIEW: what a curious
+// reader asking "show me the detail" actually recognizes as detail about
+// THIS ANSWER (the claims, what's unbacked, the sources, the satisfaction
+// read) versus what reads as the instrument's own internal bookkeeping
+// (a schema/version tag, an internal recipe hash, the reader's organ
+// names and lever settings, a hash of the system prompt) — a real person
+// does not have a mental model for `"blankFurniture": "blankFurniture"`
+// the way they do for `"unbacked": [...]`. Live user feedback, watching
+// this exact box, drew the line here twice: keep the verdict fields
+// (claims/tally/unsupported/unbacked/sources/absences/satisfaction),
+// drop the plumbing (schema/cursor/recipe/frame/constitution).
+const PLUMBING_FIELDS = new Set(["schema", "cursor", "recipe", "frame", "constitution"]);
+export function answerRecordForReading(record) {
+  if (!record) return record;
+  const out = {};
+  for (const [k, v] of Object.entries(record)) if (!PLUMBING_FIELDS.has(k)) out[k] = v;
+  return out;
+}
+
 /** One line for the thinking panel. */
 export function answerRecordLine(r) {
   const t = r?.tally ?? {};

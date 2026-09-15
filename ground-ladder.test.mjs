@@ -201,6 +201,50 @@ test("named tier discloses what was fed too, not only 'self' (2026-09-14: P187 s
   assert.equal(namedNoAddress.fedRefs[0], "web:example.com-0#0-200");
 });
 
+test("the named tier may not promote a name checkGrounding already found unsupported IN THIS SENTENCE — the referent index resolving a name elsewhere in the material is a real, but different, fact (live specimen: a sentence claiming a false second vice president resolved 'named, not placed' because the name was a real referent from an unrelated part of the material, while checkGrounding had already flagged this exact sentence's use of it as unsupported; groundOf never saw that finding)", () => {
+  const sentence = "His vice president after Hamlin was Breckinridge.";
+  const base = {
+    passages: [{ ref: "lincoln.txt#0-400", text: "Hannibal Hamlin served as vice president from 1861 to 1865. John C. Breckinridge ran against Lincoln in 1860." }],
+    model: "gemma2:2b",
+    resolveName: (n) => (/hamlin|breckinridge/i.test(n) ? new Set(["r1"]) : new Set()),
+  };
+  // Without the finding: byte-identical to before this fix — both names
+  // resolve, so the sentence still reads "named, not placed" (a real,
+  // if weak, tier — never claim more coverage than was actually added).
+  const before = groundOf(sentence, base);
+  assert.equal(before.tier, "named");
+  assert.deepEqual(before.names.sort(), ["Breckinridge", "Hamlin"]);
+
+  // With checkGrounding's own finding (grounding.js's real shape: kind,
+  // atomKind, text, sentence, absent) naming THIS sentence's own use of
+  // "Breckinridge" as unsupported: the ladder must not call it established.
+  const finding = { kind: "unsupported_claim", atomKind: "name", text: "Breckinridge", sentence: `${sentence} who was lincoln's vice president?`, absent: ["Breckinridge"], start: 0, end: 12 };
+  const after = groundOf(sentence, { ...base, groundingFindings: [finding] });
+  assert.equal(after.tier, "named", "Hamlin alone still establishes — a partial contradiction narrows, it does not blank, the rung");
+  assert.deepEqual(after.names, ["Hamlin"], "Breckinridge dropped; Hamlin, never contradicted, stands");
+
+  // The flagship case: the ONLY name in the sentence is the contradicted
+  // one — with nothing left to establish, the ladder must fall all the way
+  // through to "self" (the model's own unbacked testimony), never stop at
+  // "named, not placed" the way it did live.
+  const onlyBad = "Breckinridge was his vice president.";
+  const onlyBadFinding = { ...finding, sentence: `${onlyBad} who was lincoln's vice president?` };
+  const fallenThrough = groundOf(onlyBad, { ...base, groundingFindings: [onlyBadFinding] });
+  assert.equal(fallenThrough.tier, "self", "no rung placed it once the only name was dropped — the model's own voice, not a false 'named'");
+
+  // A finding whose own flagged text never appears in this sentence must
+  // never reach across and drop an unrelated name — the match is
+  // deliberately scoped to the atom's OWN text (never `finding.sentence`,
+  // which carries the question appended and is not guaranteed to equal
+  // groundOf's own `sentence` argument byte-for-byte — a different splitter
+  // reaching the same sentence must still match on what the atom itself
+  // says, not on a second sentence-identity check that could silently fail
+  // to line up).
+  const unrelated = groundOf(sentence, { ...base, groundingFindings: [{ ...finding, text: "Seward", absent: ["Seward"] }] });
+  assert.equal(unrelated.tier, "named");
+  assert.deepEqual(unrelated.names.sort(), ["Breckinridge", "Hamlin"], "unaffected — 'Seward' never appears in this sentence, so nothing here is dropped");
+});
+
 test("names in a sentence are capitalised runs, never sentence-initial function words", () => {
   assert.deepEqual(namesIn("The X-Files was created by Chris Carter and aired on Fox."), ["X-Files", "Chris Carter", "Fox"]);
   assert.deepEqual(namesIn("Some viewers loved \"I Want to Believe\" and its tagline Trust No One, said Chris Carter."), ["Trust No One", "Chris Carter"], "a lone capitalised word at the sentence's start or inside a quoted title is capitalisation, not a name; a multi-word run still counts");

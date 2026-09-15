@@ -319,12 +319,38 @@ export function expectationFrom(passages = [], question = "", read, index = null
   // The diff (errorOf) filters the answer's claims by the SAME touch test, so both sides are claims about the asked-about.
   return { claims, basis, ids: [...qRefs.ids], words: qw, touches, voids: voidRows, why: claims.length ? `${claims.length} claim(s) the material states about what was asked (by ${basis})` : `the retrieved passages state nothing about what was asked (by ${basis})` };
 }
+/**
+ * A void's `scope` is the structured object every declarer on the record
+ * already builds it as — `{sources, read, total}` (notes.js::declareVoid,
+ * `scope: { ...scope }`) — a caller that already has its own plain-English
+ * phrase may still pass a string (this file's own tests do, and nothing
+ * says a future caller won't), so both are honored: a string rides verbatim,
+ * an object is phrased. Four other places already know the object shape and
+ * phrase it in words (app.js's `/void` rendering, its loop-note, and the
+ * ∅-mark detail: "looked for in N source(s), R of T parts read"). This is
+ * the fifth reader of the same shape, and it had been interpolating the raw
+ * object directly (`` `(searched ${v.scope})` ``) — which stringifies an
+ * object as the literal text "[object Object]", found live in a real turn's
+ * own system prompt (P190's own class of defect, one level in: not a wrong
+ * fact, a formatting bug that ships a token no giver ever wrote).
+ */
+function scopePhrase(scope) {
+  if (!scope) return null;
+  if (typeof scope === "string") return scope;
+  if (typeof scope !== "object") return null;
+  const sources = scope.sources?.length ?? scope.sources ?? null;
+  const read = scope.read ?? null;
+  const total = scope.total ?? null;
+  if (sources == null && read == null && total == null) return null;
+  return `looked for in ${sources ?? "?"} source(s), ${read ?? "?"} of ${total ?? "?"} parts read`;
+}
+
 /** The expectation as facts for the mouth — positive, addressed, never an instruction. */
 // No address reaches the mouth (the rule since 2026-08-18); the claims keep theirs on the record.
 // The voids ride beside as the declared absence — "looked for and not found so far," with the scope.
 export const expectationFacts = (exp) => [
   exp?.claims?.length ? `What the sources state about this:\n${exp.claims.slice(0, 12).map((c) => `- ${[c.end1, c.label, c.end2].filter(Boolean).join(" ")}${c.polarity === "-" ? " (denied)" : ""}`).join("\n")}` : "",
-  exp?.voids?.length ? `Looked for and not found so far:\n${exp.voids.slice(0, 6).map((v) => `- ${v.text}${v.scope ? ` (searched ${v.scope})` : ""}`).join("\n")}` : "",
+  exp?.voids?.length ? `Looked for and not found so far:\n${exp.voids.slice(0, 6).map((v) => `- ${v.text}${scopePhrase(v.scope) ? ` (${scopePhrase(v.scope)})` : ""}`).join("\n")}` : "",
 ].filter(Boolean).join("\n\n");
 /**
  * errorOf(expectation, answerClaims, index) → matched / novel / missing /

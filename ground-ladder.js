@@ -130,12 +130,30 @@ function fedDetail(fedSources) {
 
 /**
  * groundOf(sentence, ctx) → { tier, cell, addresses, phrase, detail, reached }
- * ctx: { claims, witness, notes, derived, disputes, passages, resolveName, model }
+ * ctx: { claims, witness, notes, derived, disputes, passages, resolveName, model, groundingFindings }
  */
 export function groundOf(sentence, ctx = {}) {
-  const { claims = [], witness = null, notes = [], derived = [], disputes = null, passages = [], resolveName = null, model = null } = ctx;
+  const { claims = [], witness = null, notes = [], derived = [], disputes = null, passages = [], resolveName = null, model = null, groundingFindings = [] } = ctx;
   const mine = claims.filter((c) => c.sentence === sentence);
   const reached = { relation: mine.length > 0, witness: Boolean(witness && witness.witness !== "skipped"), ledger: notes.length > 0, index: typeof resolveName === "function" };
+  // A name checkGrounding (grounding.js) already flagged as an
+  // unsupported_claim IN THIS SENTENCE — the atom's own bytes are not in
+  // the material at all, the lowest, most literal check this instrument
+  // has. Read once, used below at rung 6, which is the one rung whose
+  // whole verdict is "a name here resolves to a referent" — the exact
+  // claim this check can directly contradict. THE LOW SETS THE
+  // POSSIBILITY FOR THE HIGH (this file's own header, above): checkGrounding
+  // sits below the referent index in that ordering (byte presence is more
+  // basic than referent resolution), so its finding is a floor rung 6 may
+  // not promote past. Folded once here rather than per-rung because only
+  // rung 6 currently reads it, but the set is cheap and the sentence is
+  // fixed for the whole call.
+  const foldName = (t) => fold(String(t ?? "")).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const contradictedNames = new Set(
+    (groundingFindings ?? [])
+      .filter((f) => f?.atomKind === "name" && typeof f.text === "string" && sentence.includes(f.text))
+      .map((f) => foldName(f.text)),
+  );
   // 1. bound
   const bound = mine.filter((c) => c.verdict === "bound");
   if (bound.length) {
@@ -236,7 +254,17 @@ export function groundOf(sentence, ctx = {}) {
   if (witness?.witness !== "refused" && typeof resolveName === "function") {
     const names = namesIn(sentence);
     const established = [];
-    for (const nm of names) { let ids; try { ids = resolveName(nm); } catch { ids = null; } if (ids && (ids.size ?? ids.length ?? 0) > 0) { const ref = passageHolding(nm, passages); established.push({ name: nm, ref }); } }
+    // checkGrounding-contradicted names are dropped BEFORE resolution is
+    // even consulted (never "resolved, then vetoed" — a name this
+    // sentence uses that checkGrounding already found unsupported has no
+    // business entering `established` at all: the referent index can
+    // legitimately know the name from somewhere else entirely in the
+    // material, and that fact is real but answers a different question
+    // than "does this sentence's use of the name stand on anything").
+    for (const nm of names) {
+      if (contradictedNames.has(foldName(nm))) continue;
+      let ids; try { ids = resolveName(nm); } catch { ids = null; } if (ids && (ids.size ?? ids.length ?? 0) > 0) { const ref = passageHolding(nm, passages); established.push({ name: nm, ref }); }
+    }
     if (established.length) {
       const addresses = [...new Set(established.map((e) => e.ref).filter(Boolean))];
       // `phrase` is a fragment meant to read naturally once groundLine()

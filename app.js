@@ -93,7 +93,7 @@ import { attribute, attributedRefs, coverage, stripSelfCitations } from "./cite.
 // on every model it might route to carrying its own Modelfile `stop` list.
 import { stripPastTurnBoundary, turnBoundaryIndex } from "./turn-boundary.js";
 
-import { MAX_CORRECTIONS, needsDecomposition, PASSAGES_PER_PART, runHolonicTask, SEARCHED_VOID_PREFIX, S1_SYSTEM_PROMPT, buildPlanPrompt, parsePlan, PLAN_SCHEMA, PLAN_MAX_TOKENS, PLAN_SYSTEM_PROMPT, depthBudgets, todayLine } from "./holon.js";
+import { MAX_CORRECTIONS, needsDecomposition, PASSAGES_PER_PART, runHolonicTask, SEARCHED_VOID_PREFIX, WEB_OFF_PREFIX, S1_SYSTEM_PROMPT, buildPlanPrompt, parsePlan, PLAN_SCHEMA, PLAN_MAX_TOKENS, PLAN_SYSTEM_PROMPT, depthBudgets, todayLine } from "./holon.js";
 
 import { MODEL_PICKER, ROUTE_KINDS, routeModel, isPinnedModel, resolveNamedModel, WITNESS_MODEL } from "./model-routing.js";
 
@@ -1697,7 +1697,12 @@ import { makeAletheia } from "./aletheia.js";
 // own header for the live specimen this closes and why the floor is 2,
 // reused from this codebase's own structural minimum (clippy.js's DMD
 // gate, binding.js's arrivals floor), never a fresh hand-picked number.
-const admissionGate = makeAdmission({ tokenize });
+// `splitSentences: engineSentences` (added 2026-09-15) turns on admission's
+// own COMPANY check — a second live specimen showed the bare word-count
+// floor alone still admits a source whose two shared words never appear
+// TOGETHER in it (P31's "company, not bare occurrence," one level up); see
+// admission.js's own header for the full account.
+const admissionGate = makeAdmission({ tokenize, splitSentences: engineSentences });
 
 // Aletheia (aletheia.js) — the archon of SATISFACTION, Problem 1's second,
 // complementary fix: did the final answer address the question at ALL,
@@ -10745,6 +10750,19 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
         // model, identical to a turn where no search was ever attempted.
         searchedVoid = `${SEARCHED_VOID_PREFIX} (${voidDetail}.)`;
       }
+    } else if (!longFormHunt && !opts.longForm && !webPreflightOn && shouldPreflight({ live, grounded: state.grounded, webProof: true, planMode })) {
+      // The identical mechanical gate above, asked a second time with
+      // standing web consent forced ON: would THIS turn have searched, if
+      // the person's own web switch were on? When the answer is yes and
+      // the real switch is off, nothing ran at all — fed forward as a fact
+      // (WEB_OFF_PREFIX, holon.js), the same posture searchedVoid already
+      // holds a few lines up for "ran and found nothing." Never a guess
+      // about which questions "need" the web (the same standing argument
+      // shouldPreflight's own header already makes) — this asks nothing
+      // new, it only asks the existing question under the toggle's other
+      // setting.
+      show("web checking is off — answering without it");
+      searchedVoid = WEB_OFF_PREFIX;
     }
 
     // MOMENT 2: the material is in hand and the model has not drafted a
@@ -11601,7 +11619,17 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       const notes = state.hyperlexiconLog && hyperlexiconFor.foldWithStanding ? hyperlexiconFor.foldWithStanding(state.hyperlexiconLog) : [];
       const disputes = state.hyperlexiconLog && hyperlexiconFor.disputesOf ? hyperlexiconFor.disputesOf(state.hyperlexiconLog) : null;
       const index = passages.length ? referentIndexFor(passages) : null;
-      return { claims, passages, notes, derived: derivedNow(), disputes, resolveName: index ? (n) => index.resolve(n) : null, model: modelLabel(turnModel), turnSeq };
+      // groundingFindings: checkGrounding's own atom-level findings
+      // (grounding.js — the same `findings` classifySentences already
+      // reads a few lines below, for the OLDER underline/title disclosure)
+      // — threaded through so the ladder's "named" rung can never call a
+      // name "established" when this lower, more literal check already
+      // found the sentence's own use of it unsupported by the material
+      // (found live: "Breckinridge" resolving as a real referent from
+      // elsewhere in the source while THIS sentence's claim about him was
+      // checkGrounding-flagged, and the ladder had no way to know — the
+      // two checks ran, but only one of them ever reached the chip).
+      return { claims, passages, notes, derived: derivedNow(), disputes, resolveName: index ? (n) => index.resolve(n) : null, model: modelLabel(turnModel), turnSeq, groundingFindings: findings };
     } catch (e) { console.warn("ground ladder:", e?.message ?? e); return null; }
   })();
   // The instruction is the model's own plan — task + plan parts, mechanically

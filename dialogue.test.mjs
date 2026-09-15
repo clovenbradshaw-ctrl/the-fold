@@ -166,7 +166,7 @@ test("GFP Pass 40: the voids contribute what is ABSENT to the expectation, with 
   const facts = expectationFacts(exp);
   assert.match(facts, /Razumihin brought soup/, "what the material states reaches the mouth");
   assert.match(facts, /Looked for and not found so far/, "the declared absence rides beside");
-  assert.match(facts, /searched read 4 of 7 passages/, "with its scope — a fact about the reader, never a verdict");
+  assert.match(facts, /\(read 4 of 7 passages\)/, "with its scope — a fact about the reader, never a verdict");
   // no voids, nothing rendered
   const plain = expectationFacts(expectationFrom(PASSAGES, "What does the book say about Razumihin?", read, index, []));
   assert.ok(!/Looked for/.test(plain), "no voids, no absence line");
@@ -174,6 +174,16 @@ test("GFP Pass 40: the voids contribute what is ABSENT to the expectation, with 
   const none = expectationFrom(PASSAGES, "x", () => ({ claims: [] }), index, [{ end1: "Y", label: "is", end2: "Z", scope: null }]);
   assert.equal(none.claims.length, 0);
   assert.equal(none.voids.length, 1);
+});
+
+test("a void's real scope is an object, not a string — declareVoid's own shape (notes.js: scope: { ...scope }), and it must be PHRASED, never stringified raw (found live, 2026-09-15: a real turn's own system prompt read '(searched [object Object])' because this file's only prior test of the scope-rendering path used an unrealistic string fixture and never exercised the shape production code actually sends)", () => {
+  const read = (text) => ({ claims: text.includes("soup") ? [{ end1: "Razumihin", label: "brought", end2: "soup", verdict: "bound" }] : [] });
+  const exp = expectationFrom(PASSAGES, "What does the book say about Razumihin?", read, index, [
+    { end1: "Razumihin", label: "visited", end2: "Sonia", scope: { sources: ["a.txt", "b.txt"], read: 4, total: 7 } },
+  ]);
+  const facts = expectationFacts(exp);
+  assert.ok(!/\[object Object\]/.test(facts), "never the bare stringified object");
+  assert.match(facts, /looked for in 2 source\(s\), 4 of 7 parts read/, "the object is phrased in words, the same way app.js's own void renderers already phrase it");
 });
 
 test("THE TWO DOORS: 'quote it for me' returns the bytes at the last answer's addresses; 'did the book include those passages' checks the record — no model in either", () => {

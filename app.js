@@ -170,6 +170,12 @@ import { passagesFromSegments, citeAudio, AUDIO_STANDING } from "./audio-address
 import { logTranscriptionLayer } from "./transcribe-log.js";
 
 import { openInExplore, refContext } from "./explore-bridge.js";
+// THE THIN CLIENT (ONE-ENGINE-PLAN): the ONE place the fold's chat talks to
+// eoreader7's proxy engine. When the engine is reachable, a flat chat turn
+// routes through it (the TUI and this page share that engine); when it is
+// not, the fold's own in-browser engine answers exactly as before — the
+// fold's chat must never get worse in the meantime.
+import { er7Reachable, er7ChatCompletion, stripEr7Prefix } from "./er7-client.js";
 
 import { classifySentences, sentenceSpans } from "./provenance.js";
 
@@ -8799,7 +8805,90 @@ async function send(question) {
   }
 
   if (needsDecomposition(question)) return holonicTurn(question, question, "model");
-  return twoPassTurn(question);
+  // THE THIN CLIENT PATH (ONE-ENGINE-PLAN): when eoreader7's proxy engine is
+  // reachable, the flat chat turn goes through IT — the same engine the TUI
+  // uses — carrying the fold's own attached material as body attachments (no
+  // disk path). The engine returns the full reading (per-sentence surface,
+  // answer record, charter, archons); the fold renders it with its own
+  // surface, unchanged. When the engine is unreachable or the turn fails,
+  // fall back to the fold's own in-browser engine — the fold's chat must
+  // never get worse in the meantime.
+  return er7Turn(question) ?? twoPassTurn(question);
+}
+
+/** The flat-chat turn routed through eoreader7's proxy engine, or null to
+ *  fall back to the in-browser engine. Guarded: any reachability failure or
+ *  turn error falls through, never half-answers. */
+async function er7Turn(question) {
+  let up = false;
+  try { up = await er7Reachable(); } catch { up = false; }
+  if (!up) return null;
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  $("status").textContent = "writing: through eoreader7…";
+  const history = state.history.filter((m) => m?.role === "user" || m?.role === "assistant").slice(-8);
+  const attachments = liveSources().map((s) => ({ name: s.name, text: s.text }));
+  let out;
+  try {
+    out = await er7ChatCompletion({
+      model: stripEr7Prefix(state.model),
+      history,
+      task: question,
+      sessionId: `fold:${convoNow()}`,
+      attachments,
+      discloseThinking: true,
+      onRetry: (info) => { $("status").textContent = `eoreader7 busy (${info.type}) — retrying in ${info.retryAfterS}s…`; },
+    });
+  } catch (err) {
+    node.remove();
+    console.warn("[er7] engine turn failed, falling back to the in-browser engine:", err?.message ?? err);
+    return null;
+  }
+  const answer = out.text;
+  state.history.push({ role: "user", content: question }, { role: "assistant", content: stripComputedCaption(answer) });
+  const turn = state.summary.turnCount + 1;
+  logAct("asked", { text: question });
+  logAct("answered-from-engine", { engine: "er7", chars: answer.length });
+  observeExchange(turn, question, answer);
+  state.turnFolds.push(mechanicalFoldLine(question, answer));
+  state.summary = advanceSummaryFold(state.summary, mechanicalFoldLine(question, answer));
+  // The engine's own reading, drawn with the fold's surface: the answer, the
+  // per-sentence claims (classifySentences reads exactly this shape), the
+  // answer record (the thinking panel's prose). `lastGround`/`lastWitness`
+  // are built from the engine's surface so the ground ladder's chips render
+  // from engine data, never the fold's own.
+  const rd = out.reading?.reading ?? null;
+  const claims = rd?.claims ?? [];
+  const record = rd?.answerRecord ?? null;
+  state.lastAsked = question;
+  state.lastWitness = [];
+  state.lastGround = (() => {
+    try {
+      const sentences = rd?.sentences ?? [];
+      return {
+        claims,
+        passages: sentences.map((s) => ({ ref: s.addresses?.[0] ?? "", text: s.sentence })),
+        notes: rd?.notes ?? [],
+        derived: [],
+        disputes: null,
+        resolveName: null,
+        model: `er7:${stripEr7Prefix(state.model)}`,
+        turnSeq,
+        groundingFindings: [],
+      };
+    } catch { return null; }
+  })();
+  if (state.grounded) {
+    renderAnswer(body, answer, [], [], [], claims, question, question);
+    renderGrounding(node, { answer, offered: [], findings: [], relations: [{ claims }], quotes: [], quoteCorrections: [], question });
+  } else {
+    renderAnswer(body, answer, [], [], [], [], question, question);
+  }
+  renderFold(node, { sent: [], record: record ?? null });
+  renderThreads();
+  $("status").textContent = readyLine();
+  releaseBusy();
+  return true;
 }
 
 /** Every door the composer routes, read off the dispatch above — kept as one

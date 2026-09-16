@@ -10,7 +10,7 @@
 
 import {
   vaultExists, readVaultBytes, writeVaultBytes, deleteVault, resetVault,
-  readPendingQueue, writePendingQueue,
+  readPendingQueue, writePendingQueue, readAutoKey, writeAutoKey, deleteAutoKey,
 } from "./vault-client.js";
 
 self.onmessage = async (ev) => {
@@ -24,6 +24,9 @@ self.onmessage = async (ev) => {
     else if (type === "reset") await resetVault();
     else if (type === "readQueue") value = await readPendingQueue();
     else if (type === "writeQueue") await writePendingQueue(queue);
+    else if (type === "readAutoKey") value = await readAutoKey();
+    else if (type === "writeAutoKey") await writeAutoKey(bytes);
+    else if (type === "deleteAutoKey") await deleteAutoKey();
     else throw new Error(`vault-worker: unknown message type "${type}"`);
     self.postMessage({ id, ok: true, value });
   } catch (e) {

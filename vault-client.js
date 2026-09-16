@@ -17,6 +17,7 @@
 const VAULT_DIR = "fold-vault";
 const VAULT_FILE = "vault.bin";
 const PENDING_FILE = "pending.json";
+const AUTO_KEY_FILE = "auto.key";
 
 async function vaultDirHandle({ create = true } = {}) {
   const root = await navigator.storage.getDirectory();
@@ -110,6 +111,26 @@ export async function readPendingQueue() {
   } catch {
     return { v: 1, entries: [] };
   }
+}
+
+// ── the automatic key: stored plainly, on purpose (vault.js's own header
+// says why — this is what "auto" means) ─────────────────────────────────────
+export async function writeAutoKey(bytes) {
+  await writeVaultBytes(bytes, { name: AUTO_KEY_FILE });
+}
+export async function readAutoKey() {
+  return readVaultBytes({ name: AUTO_KEY_FILE });
+}
+export async function hasAutoKey() {
+  return (await readAutoKey()) !== null;
+}
+/** Called on upgrade (setting a passphrase/passkey after "auto" mode) so a
+ * stale auto key never sits on disk after the vault it once opened has been
+ * resealed under something else — not a security hole either way (a stale
+ * key can't open a vault sealed under a different one), just clutter this
+ * keeps out. */
+export async function deleteAutoKey() {
+  await deleteVault({ name: AUTO_KEY_FILE });
 }
 
 /** Whether this runtime can even attempt OPFS sync access — checked once by

@@ -467,6 +467,12 @@
          third thing to say in an icon. */
       #matrix-toggle, #github-toggle { color: var(--muted); position: relative; }
       #matrix-toggle[data-state="in"], #github-toggle[data-state="in"] { color: var(--accent); }
+      /* #vault-toggle (P242): the colour IS the state, same convention as
+         matrix-toggle/github-toggle above — unlocked reads accent (sealed
+         and open right now), locked/none/skipped stay muted (nothing is
+         actively protecting a write this second). */
+      #vault-toggle { color: var(--muted); }
+      #vault-toggle[data-state="unlocked"] { color: var(--accent); }
       /* Answering for the room is live work, so it gets the same pulsing dot
          the model chip uses — one vocabulary for "this is happening now". */
       #matrix-toggle[data-serving="yes"]::after {
@@ -3569,7 +3575,14 @@
       #vault [class*="vault-mode-"] { display: none; }
       #vault[data-vault-mode="setup"] .vault-mode-setup,
       #vault[data-vault-mode="unlock"] .vault-mode-unlock,
-      #vault[data-vault-mode="reset"] .vault-mode-reset { display: revert; }
+      #vault[data-vault-mode="reset"] .vault-mode-reset,
+      #vault[data-vault-mode="manage"] .vault-mode-manage,
+      #vault[data-vault-mode="auto"] .vault-mode-auto { display: revert; }
+      /* #vault-passkey-go's own display is set directly by app.js (flex when
+         supported, none when not) — a JS-decided fact, not a CSS mode, so it
+         is deliberately NOT part of the [data-vault-mode] rule above. */
+      #vault-passkey-go { align-items: center; gap: 8px; width: 100%; cursor: pointer; }
+      #vault-status-icon.locked { color: var(--accent); }
       dialog h3 { margin: 0 0 4px; font-size: 14px; font-family: var(--mono); }
       dialog p.sub { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
       /* Icons are Phosphor (regular), vendored under node_modules and inlined
@@ -4485,6 +4498,15 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
       <button id="github-toggle" type="button" data-state="out" title="GitHub">
         <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208.31,75.68A59.78,59.78,0,0,0,202.93,28,8,8,0,0,0,196,24a59.75,59.75,0,0,0-48,24H124A59.75,59.75,0,0,0,76,24a8,8,0,0,0-6.93,4,59.78,59.78,0,0,0-5.38,47.68A58.14,58.14,0,0,0,56,104v8a56.06,56.06,0,0,0,48.44,55.47A39.8,39.8,0,0,0,96,192v8H72a24,24,0,0,1-24-24A40,40,0,0,0,8,136a8,8,0,0,0,0,16,24,24,0,0,1,24,24,40,40,0,0,0,40,40H96v16a8,8,0,0,0,16,0V192a24,24,0,0,1,48,0v40a8,8,0,0,0,16,0V192a39.8,39.8,0,0,0-8.44-24.53A56.06,56.06,0,0,0,216,112v-8A58.14,58.14,0,0,0,208.31,75.68ZM200,112a40,40,0,0,1-40,40H112a40,40,0,0,1-40-40v-8a41.74,41.74,0,0,1,6.9-22.48A8,8,0,0,0,80,73.83a43.81,43.81,0,0,1,.79-33.58,43.88,43.88,0,0,1,32.32,20.06A8,8,0,0,0,119.82,64h32.35a8,8,0,0,0,6.74-3.69,43.87,43.87,0,0,1,32.32-20.06A43.81,43.81,0,0,1,192,73.83a8.09,8.09,0,0,0,1,7.65A41.72,41.72,0,0,1,200,104Z"/></svg>
       </button>
+      <!-- The local vault's own status (P242): same "colour is the whole
+           state" convention as matrix-toggle/github-toggle just above, one
+           icon rather than a second account chip — a vault isn't an account
+           to connect, it's a standing fact about this device. app.js sets
+           [data-state] to none|skipped|locked|unlocked|unavailable and the
+           title to match; click opens whichever door state calls for. -->
+      <button id="vault-toggle" type="button" data-state="none" title="Local vault: not set up">
+        <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Zm-68-56a12,12,0,1,1-12-12A12,12,0,0,1,140,152Z"/></svg>
+      </button>
         <!-- ONE control for the two screens (user, 2026-09-15): ⇄ puts
              whichever pane you are reading on the other side, which is what
              › was mostly used for too. #panel-collapse stays in the DOM,
@@ -5259,17 +5281,24 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
       </div>
       <div class="sheet-body">
         <p class="sub" id="vault-disclosure"></p>
-        <label class="field vault-mode-setup vault-mode-unlock" for="vault-passphrase">passphrase<input id="vault-passphrase" type="password" autocomplete="new-password" spellcheck="false" /></label>
-        <label class="field vault-mode-setup" for="vault-passphrase-confirm">confirm<input id="vault-passphrase-confirm" type="password" autocomplete="new-password" spellcheck="false" /></label>
+        <label class="field vault-mode-setup vault-mode-unlock vault-mode-auto" for="vault-passphrase">passphrase<input id="vault-passphrase" type="password" autocomplete="new-password" spellcheck="false" /></label>
+        <label class="field vault-mode-setup vault-mode-auto" for="vault-passphrase-confirm">confirm<input id="vault-passphrase-confirm" type="password" autocomplete="new-password" spellcheck="false" /></label>
+        <button type="button" id="vault-passkey-go" class="vault-mode-setup vault-mode-unlock vault-mode-auto sheet-row" style="margin:0 0 10px">
+          <svg class="ph" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M180,32a52.06,52.06,0,0,0-52,52,51.4,51.4,0,0,0,3.4,18.3L35.51,198.17A15.91,15.91,0,0,0,32,208v28a8,8,0,0,0,8,8H80a8,8,0,0,0,8-8V220h16a8,8,0,0,0,8-8V196h16a8,8,0,0,0,5.66-2.34l16-16A51.4,51.4,0,0,0,180,180a52,52,0,0,0,0-104Zm0,88a35.6,35.6,0,0,1-14.86-3.23,8,8,0,0,0-8.83,1.66l-16,16H136a8,8,0,0,0-8,8v16H112a8,8,0,0,0-8,8v16H48V208l97.14-97.14a8,8,0,0,0,1.65-8.83A36,36,0,1,1,180,120Zm-8-52a12,12,0,1,1,12,12A12,12,0,0,1,172,68Z"/></svg>
+          <span id="vault-passkey-label">Use a passkey instead</span>
+        </button>
+        <p class="sub" id="vault-status-line"></p>
         <p class="sub" id="vault-error" hidden></p>
       </div>
       <form method="dialog" class="sheet-foot">
         <button type="button" id="vault-skip" class="vault-mode-setup">Skip for now</button>
         <button type="button" id="vault-forgot" class="vault-mode-unlock">Forgot it?</button>
         <button type="button" id="vault-reset-cancel" class="vault-mode-reset">Cancel</button>
+        <button type="button" id="vault-download" class="vault-mode-manage vault-mode-auto">Download a backup</button>
         <span class="spacer"></span>
-        <button id="vault-go" class="primary vault-mode-setup vault-mode-unlock">Set passphrase</button>
+        <button id="vault-go" class="primary vault-mode-setup vault-mode-unlock vault-mode-auto">Set passphrase</button>
         <button type="button" id="vault-reset-go" class="vault-mode-reset">Reset vault</button>
+        <button type="button" id="vault-manage-close" class="primary vault-mode-manage vault-mode-auto">Done</button>
       </form>
     </dialog>
 

@@ -25,6 +25,7 @@ import {
   pendingCount,
   VAULT_SETUP_DISCLOSURE,
   VAULT_RESET_WARNING,
+  VAULT_AUTO_DISCLOSURE,
 } from "./vault.js";
 import { generateIdentity, exportPublicKey } from "./matrix.js";
 
@@ -69,10 +70,11 @@ test("a wrong passphrase refuses to open — never silently returns garbage", as
   await assert.rejects(() => openVaultBlobWithPassphrase("the wrong words", blob));
 });
 
-test("keySourceFor: matrix beats passphrase, passphrase beats none", () => {
-  assert.equal(keySourceFor({ matrixLoggedIn: true, passphraseVaultExists: true }), KEY_SOURCE.matrix);
-  assert.equal(keySourceFor({ matrixLoggedIn: false, passphraseVaultExists: true }), KEY_SOURCE.passphrase);
-  assert.equal(keySourceFor({ matrixLoggedIn: false, passphraseVaultExists: false }), KEY_SOURCE.none);
+test("keySourceFor: matrix beats passphrase beats auto beats none", () => {
+  assert.equal(keySourceFor({ matrixLoggedIn: true, passphraseVaultExists: true, autoKeyExists: true }), KEY_SOURCE.matrix);
+  assert.equal(keySourceFor({ matrixLoggedIn: false, passphraseVaultExists: true, autoKeyExists: true }), KEY_SOURCE.passphrase);
+  assert.equal(keySourceFor({ matrixLoggedIn: false, passphraseVaultExists: false, autoKeyExists: true }), KEY_SOURCE.auto);
+  assert.equal(keySourceFor({ matrixLoggedIn: false, passphraseVaultExists: false, autoKeyExists: false }), KEY_SOURCE.none);
   assert.equal(keySourceFor(), KEY_SOURCE.none);
 });
 
@@ -144,4 +146,10 @@ test("VAULT_RESET_WARNING says the old vault is gone and starting over is easy",
   assert.match(VAULT_RESET_WARNING, /gone/i);
   assert.match(VAULT_RESET_WARNING, /new passphrase/i);
   assert.doesNotMatch(VAULT_RESET_WARNING, /forget/i, "the reset door speaks to someone who already forgot — no need to re-warn them of the fact that got them here");
+});
+
+test("VAULT_AUTO_DISCLOSURE names the honest limit — the whole profile, not just the file", () => {
+  assert.match(VAULT_AUTO_DISCLOSURE, /no passphrase needed/i);
+  assert.match(VAULT_AUTO_DISCLOSURE, /whole browser profile/i);
+  assert.doesNotMatch(VAULT_AUTO_DISCLOSURE, /forget/i, "there is nothing to forget in auto mode — nobody typed anything");
 });

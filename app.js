@@ -128,8 +128,9 @@ import { JOB_KINDS, CANDIDATE_KINDS, candidateOf, roomCandidateOf, roomCandidate
 
 // The local vault (P242): what's encrypted at rest — same posture as the
 // Matrix import above, one cipher (matrix.js's) reused, never restated.
-import { sealVaultBlobWithPassphrase, openVaultBlobWithPassphrase, VAULT_SETUP_DISCLOSURE, VAULT_RESET_WARNING } from "./vault.js";
-import { vaultExists, readVaultBytes, writeVaultBytes, resetVault as workerResetVault } from "./vault-worker-client.js";
+import { sealVaultBlob, sealVaultBlobWithPassphrase, openVaultBlobWithKey, openVaultBlobWithPassphrase, generateVaultKey, VAULT_SETUP_DISCLOSURE, VAULT_RESET_WARNING, VAULT_AUTO_DISCLOSURE } from "./vault.js";
+import { readVaultBytes, writeVaultBytes, resetVault as workerResetVault, readAutoKey, writeAutoKey, deleteAutoKey } from "./vault-worker-client.js";
+import { passkeySupported, registerPasskeyKey, unlockWithPasskey, storedPasskeyId, clearStoredPasskeyId } from "./vault-passkey.js";
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
@@ -14811,7 +14812,12 @@ initTerminal({
   vaultUnlock: (passphrase) => vaultCoreUnlock(passphrase),
   vaultReset: () => vaultCoreReset(),
   vaultSetupDisclosure: () => VAULT_SETUP_DISCLOSURE,
+  vaultAutoDisclosure: () => VAULT_AUTO_DISCLOSURE,
   vaultResetWarning: () => VAULT_RESET_WARNING,
+  vaultPasskeySupported: () => passkeySupported(),
+  vaultPasskeySetup: () => vaultCorePasskeySetup(),
+  vaultPasskeyUnlock: () => vaultCorePasskeyUnlock(),
+  vaultDownload: () => vaultDoDownload(),
 });
 
 // ── builds persist across reloads ───────────────────────────────────────────
@@ -19114,14 +19120,46 @@ $("paste").addEventListener("close", () => {
 // fields/buttons. No mode here reads or writes a passphrase to disk or to
 // localStorage — vault.js derives a key in memory, vault-worker-client.js
 // only ever moves the sealed BLOB that key produces.
+// The header icon's whole state, matrix-toggle/github-toggle's own
+// convention: [data-state] carries the fact, the title says it in words,
+// color alone is never the only signal. Called on boot and after every
+// status change — one function, so the icon can never read stale.
+function vaultRenderIcon() {
+  const btn = $("vault-toggle");
+  if (!btn) return;
+  const status = state.vault.status;
+  btn.dataset.state = status;
+  const TITLES = {
+    checking: "Local vault: checking…",
+    unavailable: "Local vault: not available in this browser",
+    none: "Local vault: not set up — click to set a passphrase or passkey",
+    skipped: "Local vault: skipped — click to set one up",
+    auto: "Local vault: encrypted automatically — click to add a passphrase or passkey",
+    locked: "Local vault: locked — click to unlock",
+    unlocked: "Local vault: unlocked — click to manage",
+  };
+  btn.title = TITLES[status] ?? "Local vault";
+}
 function vaultSetMode(mode, { title, disclosure } = {}) {
   const dlg = $("vault");
   dlg.dataset.vaultMode = mode;
   if (title) $("vault-title").textContent = title;
   $("vault-disclosure").textContent = disclosure ?? "";
+  $("vault-status-line").textContent = "";
   $("vault-error").hidden = true;
   $("vault-passphrase").value = "";
   if ($("vault-passphrase-confirm")) $("vault-passphrase-confirm").value = "";
+  if ($("vault-go")) $("vault-go").textContent = mode === "unlock" ? "Unlock" : "Set passphrase";
+  // Passkey is offered in setup/unlock modes only, and only when both the
+  // browser supports it AND (for unlock) a passkey was actually registered
+  // — a JS-decided fact, so it is set here directly rather than through the
+  // [data-vault-mode] CSS rule (see index.html's own comment on this id).
+  const passkeyBtn = $("vault-passkey-go");
+  if (passkeyBtn) {
+    const offerPasskey = mode === "setup" || mode === "auto" ? passkeySupported() : mode === "unlock" ? passkeySupported() && !!storedPasskeyId() : false;
+    passkeyBtn.style.display = offerPasskey ? "flex" : "none";
+    $("vault-passkey-label").textContent = mode === "unlock" ? "Unlock with passkey" : "Use a passkey instead";
+  }
 }
 function vaultError(msg) {
   $("vault-error").textContent = msg;
@@ -19139,44 +19177,86 @@ function vaultOpenReset() {
   vaultSetMode("reset", { title: "Reset the vault", disclosure: VAULT_RESET_WARNING });
   $("vault").showModal();
 }
-/** Boot-time check: does a vault file exist, was setup already declined,
- * or is this a genuinely fresh origin? Runs once; a "skipped" choice is
- * remembered in localStorage so the dialog doesn't reopen every reload —
- * `vault reset`/the forgot-passphrase door can always bring it back. */
+function vaultOpenManage() {
+  vaultSetMode("manage", { title: "Vault unlocked", disclosure: "everything saved from here on is sealed under your key. downloading a backup gives you a copy of the sealed file — still unreadable without the passphrase or passkey that opened it." });
+  $("vault").showModal();
+}
+function vaultOpenAuto() {
+  vaultSetMode("auto", { title: "Vault: encrypted automatically", disclosure: VAULT_AUTO_DISCLOSURE });
+  $("vault").showModal();
+}
+/** Boot-time: get to "unlocked" with NO required step, by direct instruction
+ * — a passphrase/passkey/Matrix login is an upgrade someone can add any
+ * time (the vault-toggle icon, always visible), never a gate on starting to
+ * work. Priority, checked in this order: (1) an auto key already on this
+ * device — unlock silently with it; (2) a vault sealed under something else
+ * (passphrase/passkey/Matrix) — the one case that still asks, since only
+ * the person holds that key; (3) neither — a genuinely fresh origin, so
+ * generate a fresh auto key, seal, store, and start working immediately. */
 async function vaultBoot() {
   if (typeof Worker === "undefined" || !navigator.storage?.getDirectory) {
     state.vault.status = "unavailable";
+    vaultRenderIcon();
     return;
   }
-  let exists;
+  let autoKeyBytes, vaultBytes;
   try {
-    exists = await vaultExists();
+    [autoKeyBytes, vaultBytes] = await Promise.all([readAutoKey(), readVaultBytes()]);
   } catch {
     state.vault.status = "unavailable"; // OPFS sync access refused in this runtime — checked live, not assumed from the capability flags alone
+    vaultRenderIcon();
     return;
   }
-  if (exists) {
+  if (autoKeyBytes) {
+    try {
+      const key = autoKeyBytes;
+      if (vaultBytes) await openVaultBlobWithKey(key, vaultBytes); // proves this IS the key that sealed it, never assumed from the file's mere presence
+      else await writeVaultBytes(await sealVaultBlob(key, { setUpAt: Date.now(), via: "auto" }));
+      state.vault = { status: "auto", key };
+      vaultRenderIcon();
+      return;
+    } catch {
+      /* the stored auto key doesn't open the vault it sits beside — an
+       * inconsistent profile (partial clear, a bug elsewhere). Fall through
+       * to the "locked" case below rather than silently discarding data. */
+    }
+  }
+  if (vaultBytes) {
     state.vault.status = "locked";
+    vaultRenderIcon();
     vaultOpenUnlock();
     return;
   }
-  if (localStorage.getItem("fold-vault-skipped") === "1") {
-    state.vault.status = "skipped";
-    return;
+  // Genuinely fresh: no auto key, no sealed vault. Auto-provision — this is
+  // the zero-friction default path every new origin takes.
+  try {
+    const key = generateVaultKey();
+    await writeAutoKey(key);
+    await writeVaultBytes(await sealVaultBlob(key, { setUpAt: Date.now(), via: "auto" }));
+    state.vault = { status: "auto", key };
+    vaultRenderIcon();
+    $("status").textContent = "encrypted automatically — click the lock icon (top right) to add a passphrase or passkey.";
+  } catch {
+    // OPFS writes refused for some reason not caught by the capability check
+    // above — fall back to the explicit setup dialog rather than leaving
+    // the person stuck with no way to get a vault at all.
+    state.vault.status = "none";
+    vaultRenderIcon();
+    vaultOpenSetup();
   }
-  state.vault.status = "none";
-  vaultOpenSetup();
 }
-// The three DOM-free cores — the dialog above and the terminal's `vault`
-// command (initTerminal's bridge, below) both call these, never their own
-// copy. Each returns { ok, message } rather than touching $() itself, so
-// neither caller has to fake a passphrase into a hidden input to reuse it.
+// The DOM-free cores — the dialog above and the terminal's `vault` command
+// (initTerminal's bridge, below) both call these, never their own copy.
+// Each returns { ok, message } rather than touching $() itself, so neither
+// caller has to fake a passphrase into a hidden input to reuse it.
 async function vaultCoreSetup(p1, p2 = p1) {
   if (!p1) return { ok: false, message: "a passphrase is required" };
   if (p1 !== p2) return { ok: false, message: "the two entries don't match" };
   const { blob, key } = await sealVaultBlobWithPassphrase(p1, { setUpAt: Date.now() });
   await writeVaultBytes(blob);
+  await deleteAutoKey(); // an upgrade off "auto" — the old device-bound key can no longer open anything, so it shouldn't linger on disk
   state.vault = { status: "unlocked", key };
+  vaultRenderIcon();
   return { ok: true, message: "vault set — everything saved from here on is sealed under your passphrase." };
 }
 async function vaultCoreUnlock(passphrase) {
@@ -19185,6 +19265,7 @@ async function vaultCoreUnlock(passphrase) {
   try {
     const { key } = await openVaultBlobWithPassphrase(passphrase, blob);
     state.vault = { status: "unlocked", key };
+    vaultRenderIcon();
     return { ok: true, message: "vault unlocked." };
   } catch {
     return { ok: false, message: "that passphrase doesn't open this vault." };
@@ -19192,9 +19273,48 @@ async function vaultCoreUnlock(passphrase) {
 }
 async function vaultCoreReset() {
   await workerResetVault();
-  state.vault = { status: "none", key: null };
+  await deleteAutoKey();
+  clearStoredPasskeyId();
   localStorage.removeItem("fold-vault-skipped");
-  return { ok: true, message: "vault reset — set a new passphrase whenever you're ready." };
+  // Land back on the zero-friction default (a fresh auto key) rather than
+  // demanding another dialog right after the last one — "make it easy to
+  // refresh" means resuming work immediately, with the passphrase/passkey/
+  // Matrix upgrade still one click away on the vault icon, same as any
+  // other session.
+  const key = generateVaultKey();
+  await writeAutoKey(key);
+  await writeVaultBytes(await sealVaultBlob(key, { setUpAt: Date.now(), via: "auto" }));
+  state.vault = { status: "auto", key };
+  vaultRenderIcon();
+  return { ok: true, message: "vault reset — encrypted automatically again. add a new passphrase or passkey any time." };
+}
+// The passkey cores mirror the passphrase ones exactly (same { ok, message }
+// shape, same state.vault landing), so the terminal gets a `vault passkey`
+// door too with no second implementation — see initTerminal's bridge below.
+async function vaultCorePasskeySetup() {
+  try {
+    const { key } = await registerPasskeyKey();
+    const blob = await sealVaultBlob(key, { setUpAt: Date.now(), via: "passkey" });
+    await writeVaultBytes(blob);
+    await deleteAutoKey(); // same upgrade-off-"auto" cleanup vaultCoreSetup does
+    state.vault = { status: "unlocked", key };
+    vaultRenderIcon();
+    return { ok: true, message: "vault set with a passkey — everything saved from here on is sealed under it." };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "the passkey could not be set up" };
+  }
+}
+async function vaultCorePasskeyUnlock() {
+  try {
+    const { key } = await unlockWithPasskey();
+    const blob = await readVaultBytes();
+    await openVaultBlobWithKey(key, blob); // throws if this key doesn't open THIS vault — checked, never assumed from a stored credential id alone
+    state.vault = { status: "unlocked", key };
+    vaultRenderIcon();
+    return { ok: true, message: "vault unlocked with your passkey." };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "the passkey didn't open this vault" };
+  }
 }
 async function vaultDoSetup() {
   const { ok, message } = await vaultCoreSetup($("vault-passphrase").value, $("vault-passphrase-confirm").value);
@@ -19210,23 +19330,58 @@ async function vaultDoUnlock() {
 }
 async function vaultDoReset() {
   const { message } = await vaultCoreReset();
+  $("vault").close();
   $("status").textContent = message;
-  vaultOpenSetup();
+}
+async function vaultDoPasskey() {
+  const mode = $("vault").dataset.vaultMode;
+  $("vault-status-line").textContent = "waiting for your device…";
+  const { ok, message } = mode === "unlock" ? await vaultCorePasskeyUnlock() : await vaultCorePasskeySetup();
+  $("vault-status-line").textContent = "";
+  if (!ok) return vaultError(message);
+  $("vault").close();
+  $("status").textContent = message;
+}
+/** Download the sealed vault file as-is — still ciphertext, still unreadable
+ * without the key that opened it this session. A real client-side download,
+ * no server round trip (the server never held the bytes to begin with). */
+async function vaultDoDownload() {
+  const bytes = await readVaultBytes();
+  if (!bytes) return vaultError("nothing to download yet");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
+  a.download = `fold-vault-${new Date().toISOString().slice(0, 10)}.bin`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  $("status").textContent = "vault backup downloaded — still sealed, still needs your passphrase or passkey to open.";
 }
 $("vault-go").addEventListener("click", () => {
   const mode = $("vault").dataset.vaultMode;
-  if (mode === "setup") vaultDoSetup();
+  if (mode === "setup" || mode === "auto") vaultDoSetup();
   else if (mode === "unlock") vaultDoUnlock();
 });
+$("vault-passkey-go").addEventListener("click", vaultDoPasskey);
 $("vault-skip").addEventListener("click", () => {
   localStorage.setItem("fold-vault-skipped", "1");
   state.vault.status = "skipped";
+  vaultRenderIcon();
   $("vault").close();
 });
 $("vault-forgot").addEventListener("click", vaultOpenReset);
 $("vault-reset-cancel").addEventListener("click", () => vaultOpenUnlock());
 $("vault-reset-go").addEventListener("click", vaultDoReset);
+$("vault-download").addEventListener("click", vaultDoDownload);
+$("vault-manage-close").addEventListener("click", () => $("vault").close());
 $("vault-x").addEventListener("click", () => $("vault").close());
+$("vault-toggle").addEventListener("click", () => {
+  const status = state.vault.status;
+  if (status === "unlocked") return vaultOpenManage();
+  if (status === "auto") return vaultOpenAuto();
+  if (status === "locked") return vaultOpenUnlock();
+  if (status === "unavailable") { $("status").textContent = "the local vault needs a browser with OPFS and Worker support — not available here."; return; }
+  vaultOpenSetup();
+});
+vaultRenderIcon();
 vaultBoot();
 
 // ── what the next question is asked with ─────────────────────────────────────

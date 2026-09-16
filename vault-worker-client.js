@@ -36,3 +36,6 @@ export const deleteVault = () => call("delete");
 export const resetVault = () => call("reset");
 export const readPendingQueue = () => call("readQueue");
 export const writePendingQueue = (queue) => call("writeQueue", { queue });
+export const readAutoKey = () => call("readAutoKey");
+export const writeAutoKey = (bytes) => call("writeAutoKey", { bytes });
+export const deleteAutoKey = () => call("deleteAutoKey");

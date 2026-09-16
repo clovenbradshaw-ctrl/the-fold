@@ -98,6 +98,7 @@ export async function openVaultBlobWithPassphrase(passphrase, blob) {
 export const KEY_SOURCE = Object.freeze({
   matrix: "matrix",
   passphrase: "passphrase",
+  auto: "auto",
   none: "none",
 });
 
@@ -108,9 +109,10 @@ export const KEY_SOURCE = Object.freeze({
  * decision table — no fetch, no DOM — so the crossing layer's job is only to
  * supply true/false answers to these three questions.
  */
-export function keySourceFor({ matrixLoggedIn = false, passphraseVaultExists = false } = {}) {
+export function keySourceFor({ matrixLoggedIn = false, passphraseVaultExists = false, autoKeyExists = false } = {}) {
   if (matrixLoggedIn) return KEY_SOURCE.matrix;
   if (passphraseVaultExists) return KEY_SOURCE.passphrase;
+  if (autoKeyExists) return KEY_SOURCE.auto;
   return KEY_SOURCE.none;
 }
 
@@ -194,13 +196,36 @@ export const pendingCount = (queue) => queue.entries.length;
 // copy of it to reset. The only honest options are remembering it or
 // starting over. Said once, in matrix.js's own MAGIC_KEY_WARNING register,
 // so every surface that asks for a passphrase can show the identical words.
-export const VAULT_SETUP_DISCLOSURE = "set a passphrase to encrypt what's saved on this device — if you forget it, whatever it protected cannot be recovered by anyone, including us. write it down somewhere safe, or skip this and connect a Matrix account instead so your key can follow you across devices.";
+export const VAULT_SETUP_DISCLOSURE = "set a passphrase to encrypt what's saved on this device — if you forget it, whatever it protected cannot be recovered by anyone, including us. write it down somewhere safe, use a passkey instead (your device remembers it for you), or skip this and connect a Matrix account instead so your key can follow you across devices.";
+
+// The WebAuthn PRF extension's fixed evaluation input for this vault: the
+// SAME salt every time, so asking the SAME passkey for it always derives the
+// SAME 32 bytes (a passkey has no "passphrase" to re-type — the deterministic
+// PRF output stands in for one). Public, not a secret — the secret is what
+// the authenticator does with it, never this string. Kept in vault.js
+// (never vault-passkey.js) so it is named once, in the module that also
+// names VAULT_SETUP_DISCLOSURE/VAULT_RESET_WARNING, not buried in the
+// WebAuthn crossing itself.
+export const VAULT_PASSKEY_PRF_INFO = encoder.encode("fold-vault-prf-v1");
 
 // Shown at the "forgot your passphrase?" door, not the setup door: the same
 // fact, plus the one thing that actually helps once it's already too late —
 // starting fresh costs nothing but the old data, and nothing here makes that
 // harder than it needs to be. resetVault (vault-client.js) is the one call.
 export const VAULT_RESET_WARNING = "resetting clears this vault so you can set a new passphrase. everything sealed under the old one is gone — there is no way to open it afterward, even with the right words. anything still queued and not yet sealed is unaffected and will save under the new passphrase.";
+
+// ── automatic key: encrypted from the first second, with no setup step ─────
+// A random 32-byte key (generateVaultKey), stored in the vault directory
+// itself rather than derived from anything you typed. Sealing still happens
+// — the server never sees plaintext, exactly as with a passphrase — but the
+// key sits right beside what it protects. Say this plainly wherever "auto"
+// is surfaced: it is real encryption at rest against anyone who reads LESS
+// than this whole browser profile (a copied ledger file, a partial backup),
+// and it is NOT protection against anyone who reads the WHOLE profile — a
+// passphrase or passkey is never written to disk anywhere, so it survives
+// that case where an auto key cannot. Upgrading changes who/what the key
+// depends on; it does not seal anything new that wasn't already sealed.
+export const VAULT_AUTO_DISCLOSURE = "encrypted automatically — no passphrase needed to start. the key lives on this device, so it protects your files if just those files leak, but not if this whole browser profile does. add a passphrase, a passkey, or a Matrix login any time to make the key something only you hold.";
 
 // ── b64 passthrough, for callers that need to show/store a key as text ─────
 export { b64, unb64 };

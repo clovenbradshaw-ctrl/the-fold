@@ -1076,7 +1076,8 @@ export function initTerminal(bridge) {
       if (!sub) {
         line(`vault: ${status}`, "term-mute");
         if (status === "none") line(bridge.vaultSetupDisclosure(), "term-mute");
-        line("`vault set <passphrase>` · `vault unlock <passphrase>` · `vault reset!` — typed here, unmasked, visible in this scrollback", "term-mute");
+        if (status === "auto" && typeof bridge.vaultAutoDisclosure === "function") line(bridge.vaultAutoDisclosure(), "term-mute");
+        line("`vault set <passphrase>` · `vault unlock <passphrase>` · `vault reset!` · `vault passkey` · `vault download` — typed passphrases stay unmasked in this scrollback", "term-mute");
         return;
       }
       if (sub === "set") {
@@ -1097,6 +1098,17 @@ export function initTerminal(bridge) {
       if (sub === "reset!") {
         const { message } = await bridge.vaultReset();
         return line(message, "term-mute");
+      }
+      if (sub === "passkey") {
+        if (typeof bridge.vaultPasskeySupported !== "function" || !bridge.vaultPasskeySupported()) return line("no passkey support in this browser", "term-exit bad");
+        line("waiting for your device…", "term-mute");
+        const { ok, message } = status === "locked" ? await bridge.vaultPasskeyUnlock() : await bridge.vaultPasskeySetup();
+        return line(message, ok ? undefined : "term-exit bad");
+      }
+      if (sub === "download") {
+        if (status !== "unlocked" && status !== "auto") return line("unlock the vault first — a locked or unset vault has nothing readable to download anyway", "term-mute");
+        await bridge.vaultDownload();
+        return line("download started — still sealed ciphertext, unreadable without your key", "term-mute");
       }
       line(`unknown vault command "${sub}" — \`vault\` alone lists what's here`, "term-exit bad");
     },

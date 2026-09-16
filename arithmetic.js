@@ -465,6 +465,16 @@ const TIME_NOW_RE = /^(?:what(?:'s|\s+is)\s+the\s+(?:current\s+|local\s+)?time(?
 const WEEKDAY_NOW_RE = /^what\s+(?:day(?:\s+of\s+the\s+week)?|weekday)\s+is\s+it(?:\s+today)?\s*\??$/i;
 const DATE_NOW_RE = /^what(?:'s|\s+is)\s+(?:today'?s\s+date|the\s+date(?:\s+today)?)\s*\??$|^today'?s\s+date\s*\??$/i;
 const YEAR_NOW_RE = /^what\s+year\s+is\s+it\s*\??$/i;
+// "Tomorrow's date" (and "yesterday's") is today's date plus or minus one
+// day — a fact this instrument already computes for "today's date" and for
+// an explicit N-days offset from a stated date (checkCalendar's own `op:
+// "offset"`, above). Left out of DATE_NOW_RE, it fell through past this
+// whole door to the model, which has no wall clock and answered from stale
+// training data (measured live, eoreader7's TUI: "Wednesday, September 16,
+// 2026" for today, "July 26, 2024" for tomorrow, in the same conversation).
+// This is that same math, at offset ±1 instead of a caller-declared N.
+const RELATIVE_DATE_RE = /^what(?:'s|\s+is)\s+(tomorrow|yesterday)'?s\s+date\s*\??$|^(tomorrow|yesterday)'?s\s+date\s*\??$/i;
+const RELATIVE_WEEKDAY_RE = /^what\s+(?:day(?:\s+of\s+the\s+week)?|weekday)\s+(?:is|was)\s+it\s+(tomorrow|yesterday)\s*\??$/i;
 
 export function detectClock(question) {
   const q = String(question ?? "").trim();
@@ -473,6 +483,15 @@ export function detectClock(question) {
   if (WEEKDAY_NOW_RE.test(q)) return { kind: "clock", op: "weekday" };
   if (DATE_NOW_RE.test(q)) return { kind: "clock", op: "date" };
   if (YEAR_NOW_RE.test(q)) return { kind: "clock", op: "year" };
+  let m;
+  if ((m = RELATIVE_DATE_RE.exec(q))) {
+    const word = (m[1] ?? m[2]).toLowerCase();
+    return { kind: "clock", op: "date", offsetDays: word === "tomorrow" ? 1 : -1, relative: word };
+  }
+  if ((m = RELATIVE_WEEKDAY_RE.exec(q))) {
+    const word = m[1].toLowerCase();
+    return { kind: "clock", op: "weekday", offsetDays: word === "tomorrow" ? 1 : -1, relative: word };
+  }
   return null;
 }
 
@@ -485,14 +504,19 @@ export function checkClock(question, { now } = {}) {
   if (!found) return null;
   if (!(now instanceof Date) || Number.isNaN(now.getTime()))
     return { ...found, expression: "now", gap: "the system clock is not available" };
+  const at = found.offsetDays
+    ? new Date(now.getFullYear(), now.getMonth(), now.getDate() + found.offsetDays)
+    : now;
   if (found.op === "weekday") {
-    const value = WEEKDAYS[now.getDay()];
-    return { ...found, expression: "day of the week", value, display: value, tex: null };
+    const value = WEEKDAYS[at.getDay()];
+    const expression = found.relative ? `day of the week, ${found.relative}` : "day of the week";
+    return { ...found, expression, value, display: value, tex: null };
   }
   if (found.op === "date") {
-    const value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    const display = now.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-    return { ...found, expression: "today's date", value, display, tex: null };
+    const value = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}`;
+    const display = at.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+    const expression = found.relative ? `${found.relative}'s date` : "today's date";
+    return { ...found, expression, value, display, tex: null };
   }
   if (found.op === "year") {
     const value = now.getFullYear();

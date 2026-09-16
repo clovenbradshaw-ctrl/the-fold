@@ -246,6 +246,37 @@ test("detectClock/checkClock: computed from the injected wall clock, never gener
   assert.equal(checkClock("what is the capital of France?", { now }), null);
 });
 
+// "Tomorrow's date"/"yesterday's date" is today's date ± one day — the exact
+// live gap: eoreader7's TUI retried heimdall's admission gate four times on
+// "what is tomorrow's date?" and the model, with no wall clock of its own,
+// answered "July 26, 2024" from stale training data in the same conversation
+// where "today's date" had just been answered correctly by this module.
+test("detectClock/checkClock: tomorrow/yesterday's date is computed, not asked of the model", () => {
+  const now = new Date(2026, 8, 16, 12, 0, 0); // local: Wed Sep 16 2026
+  assert.equal(detectClock("what is tomorrow's date?").op, "date");
+  assert.equal(detectClock("what's tomorrow's date").op, "date");
+  assert.equal(detectClock("tomorrow's date?").op, "date");
+  assert.equal(detectClock("what is yesterday's date?").op, "date");
+  assert.equal(detectClock("what day of the week is it tomorrow?").op, "weekday");
+  assert.equal(detectClock("what day is it yesterday?").op, "weekday");
+
+  const tomorrow = checkClock("what is tomorrow's date?", { now });
+  assert.equal(tomorrow.value, "2026-09-17");
+  assert.match(tomorrow.display, /Thursday, September 17, 2026/);
+
+  const yesterday = checkClock("what's yesterday's date?", { now });
+  assert.equal(yesterday.value, "2026-09-15");
+  assert.match(yesterday.display, /Tuesday, September 15, 2026/);
+
+  const tomorrowWeekday = checkClock("what day of the week is it tomorrow?", { now });
+  assert.equal(tomorrowWeekday.display, "Thursday");
+
+  // Still computed, never fabricated, with no injected clock.
+  assert.match(checkClock("what is tomorrow's date?", {}).gap, /system clock is not available/);
+  // A real question about a NAMED date stays out of scope.
+  assert.equal(detectClock("what day was tomorrow last year?"), null);
+});
+
 test("checkQuantity: the clock joins the ladder after the calendar, before comparison", () => {
   const now = new Date(2026, 8, 9, 15, 45, 12);
   const found = checkQuantity("what time is it?", { math, now });

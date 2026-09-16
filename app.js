@@ -1632,6 +1632,18 @@ function ollamaBase() {
 // keeps the same reading per model so the witness rung and the mouth each
 // declare their own. An unknown window declares NOTHING — the pre-existing
 // behaviour, a gap rather than a guess — and fills the cache for next time.
+// The window a model is ACTUALLY loaded at, from Ollama's own /api/ps — the
+// same face heimdall reads server-side (loadedWindowOf). Gary reads it at the
+// door to say whether a prompt will fit; an empty map is a typed gap there,
+// never a guess. Refreshed per turn, best-effort, never awaited.
+const loadedWindows = new Map();
+function refreshLoadedWindows() {
+  fetch(`${ollamaBase()}/api/ps`)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => { for (const m of j?.models ?? []) if (m?.name && Number.isFinite(m.context_length)) loadedWindows.set(m.name, m.context_length); })
+    .catch(() => {});
+}
+
 const WINDOW_CEILING = 8192;
 const modelWindows = new Map();
 function declaredWindowFor(model) {
@@ -11627,7 +11639,11 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       });
     }
 
+    // Gary reads the mouth and its window at the door (gary.js).
+    refreshLoadedWindows();
     result = await runHolonicTask({
+      mouthModel: turnModel,
+      mouthWindowOf: (name) => loadedWindows.get(name) ?? null,
       // null when the person has not moved the slider off its default, so
       // strain decides the rung (P174); a deliberate setting is honoured.
       depth: state.depthSet ? state.depth : null,
@@ -11827,7 +11843,12 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
           landTurnLoops(loopsFromProgress(phase, part, info, { scope: loopScope, turn: turnNo, convo: convoNo, planned: planMode, parts: plannedParts, hasMaterial: live.length > 0, groundState, about: loopAbout }));
         }
         catch (e) { console.warn("loops (progress):", e?.message ?? e); }
-        if (phase === "plan") {
+        if (phase === "prompt") {
+          // GARY AT THE DOOR (gary.js): what he found in what this turn handed
+          // the mouth — rules and counts, never the prompt's own text — landed
+          // on the record beside every other act of the turn.
+          mirrorTermRecord(info.act, { ...info, via: "chat" });
+        } else if (phase === "plan") {
           setPhase("planning");
           show("planning…");
         } else if (phase === "planned") {

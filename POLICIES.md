@@ -13685,6 +13685,24 @@ User direction, in two parts: "where can we trim fat and make it all way more ef
 
 **Generality:** universal for the mechanism (declared pairs, structural rules, no size constant); specimen-scoped for the numbers (one fixture, three questions, one model, ten trials an arm).
 
+## P233 — Gary: the archon in charge of prompting, and the door he keeps (added 2026-09-15)
+
+User direction, verbatim: "we need an archon in charge of prompting, call it Gary (as in gary from veep) and have gary know these rules and enforce them."
+
+**The handle.** Gary Walsh, the body man: he carries the bag and hands the principal exactly what she needs at the moment she needs it — the name of the person about to shake her hand, whispered half a second before it matters. He carries everything and produces only the one thing, and he never speaks for her. That is the job: `gary.js` owns what goes into a prompt, hands it over at the door, and never edits a word the mouth says back (P186).
+
+**Where he stands.** `holon.js`'s call seam — the line that was a bare `mouthFacing(messages)` — is now Gary's door. He strikes every address with the same firewall organ that line always used (so the striking is byte-identical to before), then reads his rules over what remains and discloses what he finds on the turn's own progress as `gary-hand`, which `app.js` lands on the record beside every other act. `app.js` hands him the mouth's name and the window it is actually loaded at (`/api/ps`, the same face heimdall reads server-side). KONDO is his: she counts what a prompt carries twice; he holds the rules about what may be carried at all.
+
+**The rules he knows, each already law or already measured** — `no-address` (P55, STRUCK at the door), `no-apparatus` (P55, flagged), `no-json-ask` (a schema goes in `format`; asking a small model for JSON in prose teaches it that JSON is a way to talk — REFUSED), `information-not-prohibition` (a fact to reason from, never an instruction about what not to say — flagged with the clause), `nothing-twice` (P232, via Kondo, with the owner named), `notes-are-not-cut-for-a-snip` (P232's amendment — REFUSED outside the declared arm, carrying the 3-4-in-10 measurement in the refusal itself), `fits-the-window` (a prompt over the loaded window is truncated in the middle, silently; an unknown window is a GAP, never a verdict), `question-last` (P199).
+
+**Refusals are returned, never thrown.** A REFUSE finding comes back on the bag and lands on the record; the caller decides whether to ship it. Gary's teeth at BUILD time are `assertPromptsBuildable`, the shape `firewall.js::assertModelFacing` already holds — a prompt constant that asks for JSON or names the apparatus fails a test run rather than shipping.
+
+**What his own rules already say about the prompts this repo ships**, recorded rather than quietly fixed: every shipped constant is firewall-clean and none asks for JSON, and `EXECUTE_SYSTEM_PROMPT` carries prohibitions aimed at the mouth ("do not copy sentences out of it", "do not restate the question back"). That is a FLAG with the clause, not a refusal: each prohibition is its own decision, and the void prefixes show the posture that replaces them — state the fact, never the prohibition.
+
+**Disclosed, not implied done.** The window is unknown until the first `/api/ps` read of a session, so the fit is a typed gap on the first turn. Gary stands at holon's call seam, so the witness asks — which go through `complete()` directly — are not at his door yet. And he reads; he does not rewrite a builder's words.
+
+**Generality:** universal (every rule is structural and medium-blind — any messages array, any model; no English-specific list and no size constant in any of them).
+
 ## P233 — the power check that turned P231's "inconclusive" into a sharper answer (added 2026-09-15) — pointer
 
 eoreader7's `native/READING-SPEC.md`'s same-day amendment to S117 is the full account; `eval/results/phasepost-dmd-frankenstein-RESULTS.md` the numbers. Asked directly "how could we prove this or not" about P231's own leftover question, the recommended positive control was built and run, and the answer is more decisive than "still unsettled."

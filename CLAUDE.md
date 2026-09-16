@@ -8102,3 +8102,7 @@ still excludes it — a real, deeper, un-attempted limit of paraphrase-
 tolerant retrieval this fix's own scope does not reach. The vocabulary-
 overlapping case (the more dangerous one — a wrong, confidently-cited answer
 from unrelated material) is fully closed and verified live end to end.
+
+## Gary keeps the mouth's door (added 2026-09-15) — pointer
+
+POLICIES.md **P233** is the law. `gary.js` is the archon in charge of PROMPTING — the body man who carries the bag: he owns what goes into a prompt, hands it over at `holon.js`'s call seam (the line that was a bare `mouthFacing`), and never edits a word of what comes back (P186). Seven rules, each already law or already measured: no address (struck), no apparatus vocabulary, no JSON asked for in prose (refused), a fact rather than a prohibition, nothing carried twice (Kondo, who is his), a prompt that fits the window it will actually run in, the person's own message last. Findings land on the record as `gary-hand`; `app.js` hands him the mouth's name and its loaded window from `/api/ps`. His own rules already flag the prohibitions inside `EXECUTE_SYSTEM_PROMPT` — recorded, not quietly fixed.

@@ -34,6 +34,13 @@
 //   clippy      the clip — what is IN THE PRESENT (born + DMD + activation + discourse), under heimdall
 //   parmenides the Way — SAME vs OTHER, identity by the equivalence organs,
 //              never by appearance (II.7, P11, P79). Under kelsen.
+//   gary       the prompt — what the mouth is handed, in what order, and
+//              what never goes in: no address, no apparatus vocabulary, no
+//              JSON asked for in prose, a fact rather than a prohibition, a
+//              prompt that fits the window it will run in, the person's own
+//              message last. Keeps the mouth's door; changes only the input
+//              and never a word of what comes back (P186). KONDO is his.
+//              (live)
 //   kondo      the tidy prompt — what the mouth is handed, once: a line
 //              carried twice, a block resent where the cache cannot reuse
 //              it, address residue no writer wrote, and whether the whole

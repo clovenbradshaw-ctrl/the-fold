@@ -47,7 +47,7 @@ import { budgetsFor, depthLine } from "./depth.js";
 import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard, repeatsAbsentPremise, stripLeadingFraming, turnSnipBlock } from "./correction.js";
 // The conversation's own loops (dialogue.js, 2026-09-07): anaphora across turns, the reader's restatement graded, the address check with one re-ask on facts, self-consistency against this conversation's own record, the expectation before the draft and its diff.
 import { resolutionBlocks } from "./resolutions.js";
-import { mouthFacing } from "./firewall.js";
+import { strikeAddresses, apparatusMentions } from "./firewall.js";
 import { ownedRows, ownedLine, referentsOf, bindAnaphora, addressedBy, absenceOf, surfacesOf, selfContradictions, contradictionLine, positionOn, expectationFrom, expectationFacts, errorOf, fold as dfold } from "./dialogue.js";
 import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
 import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine, lastOwnTurn } from "./transcript.js";
@@ -71,7 +71,11 @@ import { buildFactBlock, dedupeSourceText } from "./fact-block.js";
 // KONDO'S CUT (P232): the duplication she reports, removed by this builder
 // before the prompt is sent. She names owners and never cuts; the cut is the
 // builder's own.
-import { tidyMaterial, TIDY_PAIRS, TIDY_NOTES_PAIR } from "./kondo.js";
+import { tidyMaterial, makeKondo, TIDY_PAIRS, TIDY_NOTES_PAIR } from "./kondo.js";
+// GARY (gary.js) keeps the door: the archon in charge of what the mouth is
+// handed. Kondo counts what a prompt carries twice; Gary holds every rule
+// about what may be carried at all, and hands the bag over.
+import { makeGary, garyDecision } from "./gary.js";
 import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
 import { LINK_CHECKS_PER_PART, extractLinkAtoms, linkFindings, stripDeadLinks, urlInMaterial, verifyLinks } from "./links.js";
 import { parseSegments } from "./artifact.js";
@@ -4017,9 +4021,30 @@ export async function runHolonicTask({
   // as "false", never as the mouth's own finding.
   hyperlexiconVoids = [],
   classifyConnector = null,
+  // What the mouth actually is, and the window it is loaded at — Gary reads
+  // both at the door (a prompt that will not fit is truncated in the middle,
+  // silently). Absent, the fit is a typed gap and everything else still runs.
+  mouthModel = null,
+  mouthWindowOf = null,
 }) {
-  // THE MOUTH'S DOOR: no address reaches the model, whatever any renderer wrote (firewall.js::mouthFacing) — the record keeps every address, cite.js attaches them after the draft.
-  if (typeof call === "function") { const rawCall = call; call = (messages, opts) => rawCall(mouthFacing(messages), opts); }
+  // THE MOUTH'S DOOR, KEPT BY GARY (gary.js). He strikes every address before
+  // the model sees it — the same firewall organ this line always used, so the
+  // striking is byte-identical to what mouthFacing did — and then reads his
+  // rules over what remains: naming this instrument's own parts, asking for
+  // JSON, a line the prompt already carries, a prohibition aimed at the mouth,
+  // a prompt that will not fit the loaded window, a question that is not the
+  // last turn. What he finds is DISCLOSED on the turn's own progress (rules
+  // and counts, never the prompt's text). He changes only the input, and never
+  // a word of what comes back (P186).
+  const gary = makeGary({ strikeAddresses, apparatusMentions, kondo: makeKondo(), windowOf: mouthWindowOf });
+  if (typeof call === "function") {
+    const rawCall = call;
+    call = (messages, opts) => {
+      const bag = gary.hand(messages, { model: mouthModel, options: opts ?? {} });
+      if (bag.findings.length) onProgress?.("prompt", null, garyDecision({ model: mouthModel, read: bag }));
+      return rawCall(bag.messages, opts);
+    };
+  }
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
   if (typeof call !== "function") throw new TypeError("runHolonicTask requires a call function");
   // ── ANSWERED BEFORE THE MODEL (P173) ──────────────────────────────────

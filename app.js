@@ -76,6 +76,12 @@ import { NOTHING, buildTable, chartOf, detectChart, detectTable, toMarkdown } fr
 // questions (units, choose, statistics, derivative, an equation) and the
 // calendar — each computed by the engine's own operation, never restated.
 import { checkQuantity, disputesQuantity } from "./arithmetic.js";
+// Knights-and-knaves: exhaustively solved, never narrated (P2). Checked
+// alongside arithmetic — see logic-puzzle.js's own header for the exact
+// live failure this closes (needsDecomposition fragmenting one riddle into
+// disconnected, half-invented "sections"; a model's own free-text deduction
+// applying Knight/Knave polarity backwards mid-puzzle).
+import { checkLogicPuzzle } from "./logic-puzzle.js";
 import { asksAboutMaterial, materialView, aboutBlock, abbreviate } from "./about.js";
 
 // KaTeX, vendored per P1 (index.html links its CSS), renders arithmetic's
@@ -8168,6 +8174,50 @@ async function arithmeticTurn(question, found) {
 }
 
 /**
+ * A knights-and-knaves puzzle, solved by exhaustive check (logic-puzzle.js)
+ * and rendered exactly the way `arithmeticTurn` renders a computed number —
+ * the same box, the same "computed, not generated" mark — because it is
+ * the identical posture at a different shape: a brute-forced result, never
+ * a model's narrated deduction.
+ */
+async function logicPuzzleTurn(question, found) {
+  addMessage("user", question);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  body.textContent = "";
+
+  const wrap = document.createElement("div");
+  wrap.className = "arithmetic-result";
+  wrap.style.whiteSpace = "pre-wrap"; // the display carries its own line breaks
+  wrap.textContent = found.display;
+  const note = document.createElement("p");
+  note.className = "note";
+  note.textContent = "computed by exhaustive check, not generated";
+  body.append(wrap, note);
+
+  state.history.push(
+    { role: "user", content: question },
+    { role: "assistant", content: found.display },
+  );
+  const turn = state.summary.turnCount + 1;
+  logAct("answered-from-state", {
+    what: "logic-puzzle",
+    speakers: found.speakers,
+    validCount: found.valid.length,
+    externalCount: found.external.length,
+  });
+  observeExchange(turn, question, found.display);
+  const fold = mechanicalFoldLine(question, found.display);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+
+  renderFold(node, { fold });
+  renderThreads();
+  $("status").textContent = readyLine();
+  releaseBusy();
+}
+
+/**
  * The turn AFTER a computed answer, when the person disputes it
  * (disputesQuantity, arithmetic.js). Re-verifies MECHANICALLY — the exact
  * same door, the exact same expression, the exact same engine — rather than
@@ -8568,6 +8618,14 @@ async function send(question) {
   // the world (or the material) always falls through untouched.
   const arithmetic = checkQuantity(question, { math: window.math, now: new Date() });
   if (arithmetic) return arithmeticTurn(question, arithmetic);
+
+  // Knights-and-knaves: a closed, enumerable boolean-consistency puzzle —
+  // computed by exhaustive check, never planned/decomposed/narrated. Checked
+  // here, ahead of needsDecomposition and any model call, for the identical
+  // reason arithmetic is: this door either claims the whole question or
+  // returns null and changes nothing.
+  const logicPuzzle = checkLogicPuzzle(question);
+  if (logicPuzzle) return logicPuzzleTurn(question, logicPuzzle);
 
   // A DISPUTE OF SOMETHING THIS APP COMPUTED IS NOT A CORRECTION — IT IS A
   // RE-ASK (arithmetic.js's own header carries the full incident: "6 + 8 =

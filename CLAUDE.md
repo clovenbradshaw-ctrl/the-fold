@@ -8191,3 +8191,21 @@ protects a vault blob at rest — on disk, in a backup, or read cross-origin
 — from anyone without the key. Does NOT protect against a compromised
 browser process or a malicious extension running inside the same page,
 which can read the vault the moment a person unlocks it.
+
+**Amended 2026-09-16 — forgetting the passphrase, disclosed and made easy
+to walk away from.** Direct instruction: disclose the loss plainly, and
+make it easy to refresh. There is no recovery path to build — nothing
+here holds a copy of the key to reset, by the design's own point — so the
+two things that can actually be built are honest words up front and a
+fast, unambiguous way to abandon a vault nobody can open anymore.
+`VAULT_SETUP_DISCLOSURE` (shown wherever a passphrase is first set) and
+`VAULT_RESET_WARNING` (shown at the "forgot your passphrase?" door) are
+the two canonical strings — one register, matrix.js's own
+`MAGIC_KEY_WARNING`, so no surface writes its own version and drifts.
+`vault-client.js::resetVault()` is the one call: deletes the sealed vault
+file only. The pending-write queue (plaintext, keyed to no passphrase) is
+deliberately untouched — a reset costs the old vault's contents, never
+work still waiting to be sealed under whatever passphrase comes next.
+Still not built: the actual "forgot passphrase?" button/dialog in the UI —
+the same deferred first-run-UI gap this section already named, now with
+its copy and its primitive both ready rather than either.

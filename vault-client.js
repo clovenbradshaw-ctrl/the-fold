@@ -79,6 +79,17 @@ export async function deleteVault({ name = VAULT_FILE } = {}) {
   } catch { /* nothing to delete */ }
 }
 
+/** The "forgot your passphrase" door: delete the sealed vault so a fresh
+ * passphrase can be set. Deliberately touches ONLY the vault file — the
+ * pending queue (vault.js's makePendingQueue) is plaintext, keyed to
+ * nothing, and unaffected by which passphrase eventually seals it, so a
+ * reset never loses work still waiting for a key. There is no other half
+ * to this: the old vault's bytes are gone, by design (vault.js's own
+ * VAULT_RESET_WARNING is the words a caller shows before calling this). */
+export async function resetVault() {
+  await deleteVault({ name: VAULT_FILE });
+}
+
 // ── the pending-write queue: persisted as JSON on purpose ──────────────────
 // The queue holds plaintext by construction (vault.js's own header: it is
 // what "no key yet" means) — nothing in it is more sensitive at rest than an

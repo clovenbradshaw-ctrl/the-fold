@@ -188,5 +188,19 @@ export async function drainQueue(queue, key) {
 
 export const pendingCount = (queue) => queue.entries.length;
 
+// ── forgetting the passphrase: disclosed plainly, made easy to walk away from
+// A vault sealed under a passphrase has no recovery path — there is no
+// "reset my password" here, because there is no server holding the key or a
+// copy of it to reset. The only honest options are remembering it or
+// starting over. Said once, in matrix.js's own MAGIC_KEY_WARNING register,
+// so every surface that asks for a passphrase can show the identical words.
+export const VAULT_SETUP_DISCLOSURE = "set a passphrase to encrypt what's saved on this device — if you forget it, whatever it protected cannot be recovered by anyone, including us. write it down somewhere safe, or skip this and connect a Matrix account instead so your key can follow you across devices.";
+
+// Shown at the "forgot your passphrase?" door, not the setup door: the same
+// fact, plus the one thing that actually helps once it's already too late —
+// starting fresh costs nothing but the old data, and nothing here makes that
+// harder than it needs to be. resetVault (vault-client.js) is the one call.
+export const VAULT_RESET_WARNING = "resetting clears this vault so you can set a new passphrase. everything sealed under the old one is gone — there is no way to open it afterward, even with the right words. anything still queued and not yet sealed is unaffected and will save under the new passphrase.";
+
 // ── b64 passthrough, for callers that need to show/store a key as text ─────
 export { b64, unb64 };

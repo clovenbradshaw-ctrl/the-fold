@@ -23,6 +23,8 @@ import {
   queueWrite,
   drainQueue,
   pendingCount,
+  VAULT_SETUP_DISCLOSURE,
+  VAULT_RESET_WARNING,
 } from "./vault.js";
 import { generateIdentity, exportPublicKey } from "./matrix.js";
 
@@ -131,4 +133,15 @@ test("pending queue: queue, drain, and the drained queue is empty", async () => 
 
 test("queueWrite refuses an entry with no declared kind", () => {
   assert.throws(() => queueWrite(makePendingQueue(), { payload: {} }));
+});
+
+test("VAULT_SETUP_DISCLOSURE names forgetting as unrecoverable, up front", () => {
+  assert.match(VAULT_SETUP_DISCLOSURE, /forget/i);
+  assert.match(VAULT_SETUP_DISCLOSURE, /cannot be recovered/i);
+});
+
+test("VAULT_RESET_WARNING says the old vault is gone and starting over is easy", () => {
+  assert.match(VAULT_RESET_WARNING, /gone/i);
+  assert.match(VAULT_RESET_WARNING, /new passphrase/i);
+  assert.doesNotMatch(VAULT_RESET_WARNING, /forget/i, "the reset door speaks to someone who already forgot — no need to re-warn them of the fact that got them here");
 });

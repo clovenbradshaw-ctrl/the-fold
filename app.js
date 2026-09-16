@@ -3900,6 +3900,20 @@ async function shareTurn(arg, question) {
     return usageTurn(question, "/share @who:server (bound to that account) · /share open (the magic key) · /share words <words> · /share grant @who:server · /share pending", { what: "share" });
   } catch (e) { return usageTurn(question, `/share: ${matrixGap(e)}`, { what: "share" }); }
 }
+// Terminal doors onto the SAME /matrix and /share chat commands — not a
+// second implementation. matrixTurn/shareTurn already do the real work
+// (via usageTurn, which posts the reply into the visible conversation and
+// returns nothing); this wrapper reads that reply back off state.history
+// rather than threading a return value through fifteen branches, so a
+// `matrix ...`/`share ...` typed at the terminal is provably the same
+// action as typing `/matrix .../ /share ...` in chat — it just ALSO shows
+// up in the conversation, disclosed in term.js's own help text for this.
+async function terminalChatCommand(turnFn, arg, doorName) {
+  const before = state.history.length;
+  await turnFn(arg ?? "", arg ? `/${doorName} ${arg}` : `/${doorName}`);
+  const reply = state.history.slice(before).find((h) => h.role === "assistant");
+  return reply?.content ?? "(no reply)";
+}
 /** While this page is open and holds outstanding bound invites for the
  *  room, grant every proof that verifies, and say so. */
 function startInviteWatch(room) {
@@ -14818,6 +14832,22 @@ initTerminal({
   vaultPasskeySetup: () => vaultCorePasskeySetup(),
   vaultPasskeyUnlock: () => vaultCorePasskeyUnlock(),
   vaultDownload: () => vaultDoDownload(),
+  // Cross-surface auth (user direction: login to Matrix/GitHub from any
+  // interaction surface, not the chat composer alone). Reuses the EXISTING
+  // /matrix and /share chat doors verbatim — see terminalChatCommand above.
+  matrixCommand: (arg) => terminalChatCommand(matrixTurn, arg, "matrix"),
+  shareCommand: (arg) => terminalChatCommand(shareTurn, arg, "share"),
+  // GitHub has no DOM-free core to call the way foldMatrix does (github-pane.js
+  // is a standalone-pane module, CLAUDE.md's own "owns its own pane" pattern)
+  // — login opens the SAME pane the header's github-toggle icon opens,
+  // exactly as /matrix login opens the SAME sheet openMatrixLogin already
+  // builds, rather than a second inline flow.
+  githubOpen: () => showView("github"),
+  githubStatus: () => {
+    let gh = {};
+    try { gh = JSON.parse(localStorage.getItem("fold-github") ?? "{}"); } catch { /* treat as disconnected */ }
+    return { connected: !!gh.token, owner: gh.owner ?? null, repo: gh.repo ?? null };
+  },
 });
 
 // ── builds persist across reloads ───────────────────────────────────────────

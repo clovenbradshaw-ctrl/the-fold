@@ -930,6 +930,9 @@ export function initTerminal(bridge) {
           "  record [words]       the append-only record's tail (needs a fold server)",
           "  priors [on|off <p>]  live_priors' toggle state · flip a document, folder, or the whole corpus",
           "  vault [set|unlock|reset!] <passphrase>  the local vault (P242) — status, or set/unlock/confirm-reset",
+          "  matrix [login|logout|rooms|members|...]  the /matrix chat door, reachable here too — also posts to chat",
+          "  share [open|grant|words|pending] ...     the /share chat door, reachable here too — also posts to chat",
+          "  github [login]       connection status, or opens the GitHub pane to connect",
           "  handbook [n]         the eoreaderhandbook, vendored whole — chapter list, or one chapter's text",
           "  pip install <name>   fetch a wheel from pyodide's own ~350-package build (P21) — never arbitrary PyPI",
           "  ytdlp info|audio|download <url>  yt-dlp via the fold server — metadata, audio extraction, or file download",
@@ -1061,6 +1064,34 @@ export function initTerminal(bridge) {
       line(`live_priors: ${data.files.toLocaleString()} documents · ${data.enabledCount.toLocaleString()} in play — every document starts off`, "term-mute");
       for (const c of data.categories) line(`  ${c.name.padEnd(28)} ${String(c.enabled).padStart(5)}/${c.files} in play`);
       line("`priors on <path>` / `priors off <path>` — a document, a folder, or the whole corpus (\"\", or just `priors on`). Path is corpus-relative, e.g. `02-encyclopedic`.", "term-mute");
+    },
+    // Matrix/GitHub from the terminal too (user direction: any interaction
+    // surface can log in and reach the content) — not a second
+    // implementation: bridge.matrixCommand/shareCommand run the SAME
+    // /matrix and /share chat doors app.js already has, so the result also
+    // lands in the visible chat conversation, not only here. Said plainly
+    // in each command's own reply rather than left as a surprise.
+    async matrix(arg) {
+      if (typeof bridge.matrixCommand !== "function") return line("matrix isn't wired into this page yet", "term-exit bad");
+      line(await bridge.matrixCommand(arg ?? ""));
+      line("(this also posted to the chat conversation — /matrix in chat is the identical door)", "term-mute");
+    },
+    async share(arg) {
+      if (typeof bridge.shareCommand !== "function") return line("share isn't wired into this page yet", "term-exit bad");
+      line(await bridge.shareCommand(arg ?? ""));
+      line("(this also posted to the chat conversation — /share in chat is the identical door)", "term-mute");
+    },
+    github(arg) {
+      if (typeof bridge.githubStatus !== "function") return line("github isn't wired into this page yet", "term-exit bad");
+      const sub = (arg ?? "").trim();
+      const st = bridge.githubStatus();
+      if (sub === "login" || sub === "connect") {
+        bridge.githubOpen();
+        return line("opened the GitHub pane — connect there (device-flow sign-in; nothing typed here)", "term-mute");
+      }
+      if (!st.connected) return line("github: not connected · `github login` opens the connect pane", "term-mute");
+      line(`github: connected${st.owner ? ` · ${st.owner}${st.repo ? `/${st.repo}` : ""}` : ""}`, "term-mute");
+      line("`github login` reopens the pane to change repos or reconnect", "term-mute");
     },
     // The local vault (P242), from here too — not a second implementation:
     // bridge.vaultSetup/vaultUnlock/vaultReset are the SAME cores the

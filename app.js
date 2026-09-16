@@ -1988,6 +1988,17 @@ const state = {
   /** name → full text. A ref is only re-openable while its source is here. */
   sources: {},
   /**
+   * name → the conversation key (`convoNow()`) that attached this source,
+   * recorded once at `addSource()` time and never at boot (P220's own
+   * "which conversation" question, one level up). This is what lets the
+   * admission gate (P190) tell "material THIS conversation was just handed"
+   * from "whatever else happens to be sitting in the workspace's shared
+   * pool" — a distinction admission.js cannot make on its own, since it
+   * only ever sees a source's TEXT. See the admission call site's own
+   * comment (holonicTurn) for why this matters and what it does not change.
+   */
+  sourceOrigin: {},
+  /**
    * name → full text, for TURN-SCOPED material the instrument cited and then
    * unloaded (preflight-fetched pages). Never an attachment: no pill, and
    * retrieval never reads it (liveChunks walks state.chunks alone). It
@@ -2244,6 +2255,7 @@ const PER_WORKSPACE = [
   "active",
   // The material, and everything addressed into it.
   "sources",
+  "sourceOrigin",
   "citedMaterial",
   "provenance",
   "muted",
@@ -2269,6 +2281,7 @@ function newWorkspace(name) {
     convos: [],
     active: 0,
     sources: {},
+    sourceOrigin: {},
     citedMaterial: {},
     provenance: {},
     muted: new Set(),
@@ -10416,7 +10429,24 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   if (live.length) {
     const bySource = new Map();
     for (const c of live) if (!bySource.has(c.source)) bySource.set(c.source, state.sources[c.source] ?? c.text ?? "");
-    const { refused } = admissionGate.admitSources(task, [...bySource.entries()].map(([name, text]) => ({ name, text })));
+    // A source THIS CONVERSATION attached is exempt from the vocabulary
+    // floor below, never one merely sitting in the workspace's shared pool
+    // (state.sourceOrigin, set at addSource() time). Reproduced live
+    // (2026-09-15): fresh, obviously-on-topic notes pasted moments earlier
+    // in this same conversation were refused by the SAME floor an unrelated
+    // years-old legacy source elsewhere in the workspace cleared by
+    // coincidence, because the follow-up question ("pull out the action
+    // items and who owns each one") never repeated the notes' own words —
+    // the just-pasted material lost to accumulated noise. admission.js's
+    // own header names the problem it exists to solve as STALE,
+    // cross-conversation material ("stayed attached from an earlier demo");
+    // it was never meant to filter out what THIS conversation was just
+    // handed. retrieve()'s own zero-relevance floor (P4) still runs after
+    // this, so exempting a source from admission never forces an
+    // irrelevant PASSAGE of it into the prompt — it only lets retrieve()
+    // take a fair, per-passage look at material the person just gave us.
+    const ownNames = new Set([...bySource.keys()].filter((name) => state.sourceOrigin[name] === convoNo));
+    const { refused } = admissionGate.admitSources(task, [...bySource.entries()].map(([name, text]) => ({ name, text })), { exempt: ownNames });
     if (refused.length) {
       const refusedNames = new Set(refused.map((r) => r.name));
       live = live.filter((c) => !refusedNames.has(c.source));
@@ -17155,6 +17185,12 @@ function addSource(name, text, { fromBoot = false, passages = null, kind = null,
     return;
   }
   state.sources[name] = text;
+  // Which conversation asked for this, so the admission gate (P190, and
+  // the call site below) can tell "this conversation's own attachment"
+  // from "whatever else is sitting in the workspace's shared pool" — never
+  // recorded at boot (`fromBoot`), since a restored source was not handed
+  // to any conversation just now, it was already there.
+  if (!fromBoot) state.sourceOrigin[name] = convoNow();
   // WHAT KIND OF THING this is, computed once and carried on every chunk —
   // the ONE choke-point every attachment/paste/upload/library pull already
   // passes through, so this needs no per-caller change to reach any of
@@ -17235,6 +17271,7 @@ function removeSource(name) {
   // and re-opening one now says so rather than quietly returning nothing —
   // which is the honest failure for an address whose material is gone.
   delete state.sources[name];
+  delete state.sourceOrigin[name];
   delete state.provenance[name];
   state.muted.delete(name);
   state.chunks = state.chunks.filter((c) => c.source !== name);

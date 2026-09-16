@@ -8070,3 +8070,35 @@ POLICIES.md **P234** is the law; this is the map. P204 left one gap open by name
 **What shipped:** a search-aware permutation null (`admission.js`'s `coincidenceRate`/`unitsCompany`), reusing `signal.js`'s own "trying more raises the bar" rule. Once floor+COMPANY finds `need` shared words together in exactly ONE sentence (or paragraph) of a source, that hit is checked against `NULL_DRAWS` (= 200, reused, not invented — this repo's own standing null-arm draw count) redeals of the source's own real occurrence pattern, every shared word redealt at once; a redeal rate at or above `NULL_ALPHA` (= 0.05, reused from `network-standing.js`'s convention) means the hit is not distinguishable from a chance collision this source's own length would produce anyway, and admission is refused. Company recurring in two or more independent units skips the null and is trusted outright (the same `>= 2` structural minimum the base floor already reuses); a source with fewer than two units at the grain in question is exempt by construction (there is nowhere else the company could have been), which is what keeps every one of this file's own single-paragraph fixtures — cider, observatory, garden, coffee shop — admitted exactly as before.
 
 Verified against a reconstructed, directly-tokenization-checked specimen (the pre-fix mechanism pinned as still admitting it), a corroboration positive control (real recurrence across two paragraphs bypasses the null), and a P71 cross-domain replay (an astronomy-club newsletter / school chess-club message, sharing five coincidental words in one paragraph) with its own positive control. `NULL_DRAWS`/`NULL_ALPHA` are exported and pinned exactly as `ADMISSION_FLOOR` already is. Disclosed, not silently claimed complete: a minimal, exactly-two-word coincidence in a long enough source can still, rarely, escape this null — the same honest limit any two-word floor carries. Full suite 2478/2467/11 before, 2492/2481/11 after (the same 11 pre-existing failures by name, confirmed via `git stash`), zero regressions.
+
+## Admission by provenance, not vocabulary alone (added 2026-09-15) — pointer
+
+POLICIES.md **P235** is the law; this is the short map. A retrieval-selection
+bug reported from live testing: a freshly pasted, obviously-on-topic source
+was excluded from a turn in FAVOR of unrelated legacy sources sitting
+elsewhere in the workspace's shared pool (P178) — one turn a generic
+instruction sharing no literal words with the fresh notes' own prose, one
+turn a plain factual question that still somehow answered from a totally
+unrelated coffee-shop CSV. Root cause: `admission.js`'s discourse-admission
+gate (P190) compares a source and a question purely as TEXT, with no notion
+of WHO attached the source or WHEN — the identical floor a years-old legacy
+document must clear also gates material the SAME conversation was handed
+seconds ago.
+
+**The fix is provenance, threaded through one new field.** `app.js`'s
+`state.sourceOrigin` (PER_WORKSPACE, set at `addSource()` time, never at
+boot) records which conversation attached each source; `admission.js`'s
+`admitSources` gained an optional, additive `exempt` set — a source
+attached to the CURRENT conversation is never run through the vocabulary
+floor at all, while a source attached to a DIFFERENT conversation in the
+same workspace still faces it exactly as before. `retrieve()`'s own
+zero-relevance floor (P4) is untouched and still runs after admission, so
+exempting a source never forces an irrelevant passage into the prompt.
+
+**Disclosed, not silently complete:** when a question shares LITERALLY ZERO
+tokens with the exempt source's own words (a generic instruction paraphrased
+away from the source's own prose), `retrieve()`'s separate `hits > 0` filter
+still excludes it — a real, deeper, un-attempted limit of paraphrase-
+tolerant retrieval this fix's own scope does not reach. The vocabulary-
+overlapping case (the more dangerous one — a wrong, confidently-cited answer
+from unrelated material) is fully closed and verified live end to end.

@@ -3563,6 +3563,13 @@
         background: var(--bg);
       }
       .sheet-foot .spacer { flex: 1; }
+      /* #vault (P242): one dialog, three modes — only the elements tagged
+         for the dialog's own [data-vault-mode] show; app.js sets that
+         attribute, never a class per element per mode. */
+      #vault [class*="vault-mode-"] { display: none; }
+      #vault[data-vault-mode="setup"] .vault-mode-setup,
+      #vault[data-vault-mode="unlock"] .vault-mode-unlock,
+      #vault[data-vault-mode="reset"] .vault-mode-reset { display: revert; }
       dialog h3 { margin: 0 0 4px; font-size: 14px; font-family: var(--mono); }
       dialog p.sub { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
       /* Icons are Phosphor (regular), vendored under node_modules and inlined
@@ -5234,6 +5241,35 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
       <form method="dialog" class="sheet-foot">
         <button>Cancel</button>
         <button id="paste-add" value="add" class="primary">Attach</button>
+      </form>
+    </dialog>
+
+    <!-- The local vault (P242): one dialog, three modes (setup / unlock /
+         reset), the active one toggled by app.js via [data-vault-mode] on
+         this element — CSS below shows only the matching .vault-mode-*
+         block, the same conditional-section shape the depth/ollama sheets
+         inside #model-menu already use (only one of two sheet-bodies shown
+         at once, decided in JS not HTML). -->
+    <dialog id="vault">
+      <div class="sheet-head">
+        <h3 id="vault-title">Set a passphrase</h3>
+        <button type="button" class="sheet-close" id="vault-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="sheet-body">
+        <p class="sub" id="vault-disclosure"></p>
+        <label class="field vault-mode-setup vault-mode-unlock" for="vault-passphrase">passphrase<input id="vault-passphrase" type="password" autocomplete="new-password" spellcheck="false" /></label>
+        <label class="field vault-mode-setup" for="vault-passphrase-confirm">confirm<input id="vault-passphrase-confirm" type="password" autocomplete="new-password" spellcheck="false" /></label>
+        <p class="sub" id="vault-error" hidden></p>
+      </div>
+      <form method="dialog" class="sheet-foot">
+        <button type="button" id="vault-skip" class="vault-mode-setup">Skip for now</button>
+        <button type="button" id="vault-forgot" class="vault-mode-unlock">Forgot it?</button>
+        <button type="button" id="vault-reset-cancel" class="vault-mode-reset">Cancel</button>
+        <span class="spacer"></span>
+        <button id="vault-go" class="primary vault-mode-setup vault-mode-unlock">Set passphrase</button>
+        <button type="button" id="vault-reset-go" class="vault-mode-reset">Reset vault</button>
       </form>
     </dialog>
 

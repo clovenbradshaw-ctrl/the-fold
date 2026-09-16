@@ -929,6 +929,7 @@ export function initTerminal(bridge) {
           "  folds                the folds pane's logs (n · turn · entries)",
           "  record [words]       the append-only record's tail (needs a fold server)",
           "  priors [on|off <p>]  live_priors' toggle state · flip a document, folder, or the whole corpus",
+          "  vault [set|unlock|reset!] <passphrase>  the local vault (P242) — status, or set/unlock/confirm-reset",
           "  handbook [n]         the eoreaderhandbook, vendored whole — chapter list, or one chapter's text",
           "  pip install <name>   fetch a wheel from pyodide's own ~350-package build (P21) — never arbitrary PyPI",
           "  ytdlp info|audio|download <url>  yt-dlp via the fold server — metadata, audio extraction, or file download",
@@ -1060,6 +1061,44 @@ export function initTerminal(bridge) {
       line(`live_priors: ${data.files.toLocaleString()} documents · ${data.enabledCount.toLocaleString()} in play — every document starts off`, "term-mute");
       for (const c of data.categories) line(`  ${c.name.padEnd(28)} ${String(c.enabled).padStart(5)}/${c.files} in play`);
       line("`priors on <path>` / `priors off <path>` — a document, a folder, or the whole corpus (\"\", or just `priors on`). Path is corpus-relative, e.g. `02-encyclopedic`.", "term-mute");
+    },
+    // The local vault (P242), from here too — not a second implementation:
+    // bridge.vaultSetup/vaultUnlock/vaultReset are the SAME cores the
+    // browser's own setup/unlock/reset dialog calls (app.js), so a
+    // passphrase typed here seals the identical vault. What's genuinely
+    // different about typing it here rather than in the dialog: this line
+    // is plain, unmasked text in the terminal's own scrollback — said
+    // before asking for one, never assumed obvious.
+    async vault(arg) {
+      if (typeof bridge.vaultStatus !== "function") return line("the vault isn't wired into this page yet", "term-exit bad");
+      const [sub, ...rest] = (arg ?? "").trim().split(/\s+/).filter(Boolean);
+      const status = bridge.vaultStatus();
+      if (!sub) {
+        line(`vault: ${status}`, "term-mute");
+        if (status === "none") line(bridge.vaultSetupDisclosure(), "term-mute");
+        line("`vault set <passphrase>` · `vault unlock <passphrase>` · `vault reset!` — typed here, unmasked, visible in this scrollback", "term-mute");
+        return;
+      }
+      if (sub === "set") {
+        const p = rest.join(" ");
+        if (!p) return line("vault set <passphrase> — this line stays in your terminal scrollback, unmasked", "term-mute");
+        const { ok, message } = await bridge.vaultSetup(p);
+        return line(message, ok ? undefined : "term-exit bad");
+      }
+      if (sub === "unlock") {
+        const p = rest.join(" ");
+        if (!p) return line("vault unlock <passphrase>", "term-mute");
+        const { ok, message } = await bridge.vaultUnlock(p);
+        return line(message, ok ? undefined : "term-exit bad");
+      }
+      if (sub === "reset") {
+        return line(`${bridge.vaultResetWarning()} — type \`vault reset!\` to confirm`, "term-mute");
+      }
+      if (sub === "reset!") {
+        const { message } = await bridge.vaultReset();
+        return line(message, "term-mute");
+      }
+      line(`unknown vault command "${sub}" — \`vault\` alone lists what's here`, "term-exit bad");
     },
     async handbook(arg) {
       // The whole handbook is vendored under handbook/ (P1: local, same

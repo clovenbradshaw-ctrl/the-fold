@@ -126,6 +126,11 @@ import { parseShareLink, stripShareFragment, SERVER_SEES, MAGIC_KEY_WARNING, dev
 import { createWatch } from "./heimdall-client.js";
 import { JOB_KINDS, CANDIDATE_KINDS, candidateOf, roomCandidateOf, roomCandidatesFrom, emptyEvidence, huginnObserve, huginnPrioritize, huginnHopAfter, huginnDecision } from "./huginn.js";
 
+// The local vault (P242): what's encrypted at rest — same posture as the
+// Matrix import above, one cipher (matrix.js's) reused, never restated.
+import { sealVaultBlobWithPassphrase, openVaultBlobWithPassphrase, VAULT_SETUP_DISCLOSURE, VAULT_RESET_WARNING } from "./vault.js";
+import { vaultExists, readVaultBytes, writeVaultBytes, resetVault as workerResetVault } from "./vault-worker-client.js";
+
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
 import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony, landContest, makeDerivation } from "../eoreader7/native/organs/index.js";
@@ -1889,6 +1894,15 @@ const state = {
    * authorization.
    */
   webProof: localStorage.getItem("fold-web-proof") !== "off",
+  /**
+   * The local vault (P242): "none" (no vault file on disk yet, and not
+   * skipped), "skipped" (declined at setup — localStorage's own record of
+   * that choice, checked once at boot so the dialog doesn't nag every
+   * reload), "locked" (a vault file exists, not yet opened this session),
+   * "unlocked" (key in memory). `key` never persists anywhere; it lives
+   * only here, for this session, exactly as long as the tab is open.
+   */
+  vault: { status: "checking", key: null },
   /**
    * Priors mode — how live_priors participates once a slice of it is toggled
    * on (priors-toggles.js's own ledger; unrelated to and untouched by this).
@@ -14786,6 +14800,18 @@ initTerminal({
   // gridLog/setGridLog just above already established for the terminal
   // language.
   applyStoreOps,
+  // The local vault (P242): the SAME cores the setup/unlock/reset dialog
+  // calls, never a second implementation — a passphrase typed at `vault
+  // set`/`vault unlock` reaches the identical vaultCoreSetup/vaultCoreUnlock
+  // functions, sealed the same way, landing on the same state.vault. The
+  // terminal's own line is plain, unmasked text (term.js's own composer has
+  // no password-input mode), so `vault`'s own status line says so.
+  vaultStatus: () => state.vault.status,
+  vaultSetup: (passphrase) => vaultCoreSetup(passphrase),
+  vaultUnlock: (passphrase) => vaultCoreUnlock(passphrase),
+  vaultReset: () => vaultCoreReset(),
+  vaultSetupDisclosure: () => VAULT_SETUP_DISCLOSURE,
+  vaultResetWarning: () => VAULT_RESET_WARNING,
 });
 
 // ── builds persist across reloads ───────────────────────────────────────────
@@ -19080,6 +19106,128 @@ $("paste").addEventListener("close", () => {
   if (pasteHandled) return;
   if ($("paste").returnValue === "add") addPasted();
 });
+
+// ── the local vault (P242) ──────────────────────────────────────────────────
+//
+// One dialog, three modes, decided by state.vault.status and set on the
+// element as [data-vault-mode] so the CSS block above shows only the right
+// fields/buttons. No mode here reads or writes a passphrase to disk or to
+// localStorage — vault.js derives a key in memory, vault-worker-client.js
+// only ever moves the sealed BLOB that key produces.
+function vaultSetMode(mode, { title, disclosure } = {}) {
+  const dlg = $("vault");
+  dlg.dataset.vaultMode = mode;
+  if (title) $("vault-title").textContent = title;
+  $("vault-disclosure").textContent = disclosure ?? "";
+  $("vault-error").hidden = true;
+  $("vault-passphrase").value = "";
+  if ($("vault-passphrase-confirm")) $("vault-passphrase-confirm").value = "";
+}
+function vaultError(msg) {
+  $("vault-error").textContent = msg;
+  $("vault-error").hidden = false;
+}
+function vaultOpenSetup() {
+  vaultSetMode("setup", { title: "Set a passphrase", disclosure: VAULT_SETUP_DISCLOSURE });
+  $("vault").showModal();
+}
+function vaultOpenUnlock() {
+  vaultSetMode("unlock", { title: "Unlock the vault", disclosure: "enter the passphrase you set — it never leaves this browser." });
+  $("vault").showModal();
+}
+function vaultOpenReset() {
+  vaultSetMode("reset", { title: "Reset the vault", disclosure: VAULT_RESET_WARNING });
+  $("vault").showModal();
+}
+/** Boot-time check: does a vault file exist, was setup already declined,
+ * or is this a genuinely fresh origin? Runs once; a "skipped" choice is
+ * remembered in localStorage so the dialog doesn't reopen every reload —
+ * `vault reset`/the forgot-passphrase door can always bring it back. */
+async function vaultBoot() {
+  if (typeof Worker === "undefined" || !navigator.storage?.getDirectory) {
+    state.vault.status = "unavailable";
+    return;
+  }
+  let exists;
+  try {
+    exists = await vaultExists();
+  } catch {
+    state.vault.status = "unavailable"; // OPFS sync access refused in this runtime — checked live, not assumed from the capability flags alone
+    return;
+  }
+  if (exists) {
+    state.vault.status = "locked";
+    vaultOpenUnlock();
+    return;
+  }
+  if (localStorage.getItem("fold-vault-skipped") === "1") {
+    state.vault.status = "skipped";
+    return;
+  }
+  state.vault.status = "none";
+  vaultOpenSetup();
+}
+// The three DOM-free cores — the dialog above and the terminal's `vault`
+// command (initTerminal's bridge, below) both call these, never their own
+// copy. Each returns { ok, message } rather than touching $() itself, so
+// neither caller has to fake a passphrase into a hidden input to reuse it.
+async function vaultCoreSetup(p1, p2 = p1) {
+  if (!p1) return { ok: false, message: "a passphrase is required" };
+  if (p1 !== p2) return { ok: false, message: "the two entries don't match" };
+  const { blob, key } = await sealVaultBlobWithPassphrase(p1, { setUpAt: Date.now() });
+  await writeVaultBytes(blob);
+  state.vault = { status: "unlocked", key };
+  return { ok: true, message: "vault set — everything saved from here on is sealed under your passphrase." };
+}
+async function vaultCoreUnlock(passphrase) {
+  if (!passphrase) return { ok: false, message: "enter your passphrase" };
+  const blob = await readVaultBytes();
+  try {
+    const { key } = await openVaultBlobWithPassphrase(passphrase, blob);
+    state.vault = { status: "unlocked", key };
+    return { ok: true, message: "vault unlocked." };
+  } catch {
+    return { ok: false, message: "that passphrase doesn't open this vault." };
+  }
+}
+async function vaultCoreReset() {
+  await workerResetVault();
+  state.vault = { status: "none", key: null };
+  localStorage.removeItem("fold-vault-skipped");
+  return { ok: true, message: "vault reset — set a new passphrase whenever you're ready." };
+}
+async function vaultDoSetup() {
+  const { ok, message } = await vaultCoreSetup($("vault-passphrase").value, $("vault-passphrase-confirm").value);
+  if (!ok) return vaultError(message);
+  $("vault").close();
+  $("status").textContent = message;
+}
+async function vaultDoUnlock() {
+  const { ok, message } = await vaultCoreUnlock($("vault-passphrase").value);
+  if (!ok) return vaultError(message);
+  $("vault").close();
+  $("status").textContent = message;
+}
+async function vaultDoReset() {
+  const { message } = await vaultCoreReset();
+  $("status").textContent = message;
+  vaultOpenSetup();
+}
+$("vault-go").addEventListener("click", () => {
+  const mode = $("vault").dataset.vaultMode;
+  if (mode === "setup") vaultDoSetup();
+  else if (mode === "unlock") vaultDoUnlock();
+});
+$("vault-skip").addEventListener("click", () => {
+  localStorage.setItem("fold-vault-skipped", "1");
+  state.vault.status = "skipped";
+  $("vault").close();
+});
+$("vault-forgot").addEventListener("click", vaultOpenReset);
+$("vault-reset-cancel").addEventListener("click", () => vaultOpenUnlock());
+$("vault-reset-go").addEventListener("click", vaultDoReset);
+$("vault-x").addEventListener("click", () => $("vault").close());
+vaultBoot();
 
 // ── what the next question is asked with ─────────────────────────────────────
 //

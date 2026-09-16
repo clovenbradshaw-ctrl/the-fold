@@ -68,6 +68,10 @@ import { stripNarrationSentences, stripScaffoldNarration } from "./provenance.js
 import { relationFindings } from "./hypergraph.js";
 import { officeHolderGroups, parseSuccessionBoxes, resolveBoxSubjects } from "./succession.js";
 import { buildFactBlock, dedupeSourceText } from "./fact-block.js";
+// KONDO'S CUT (P232): the duplication she reports, removed by this builder
+// before the prompt is sent. She names owners and never cuts; the cut is the
+// builder's own.
+import { tidyMaterial, TIDY_PAIRS, TIDY_NOTES_PAIR } from "./kondo.js";
 import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
 import { LINK_CHECKS_PER_PART, extractLinkAtoms, linkFindings, stripDeadLinks, urlInMaterial, verifyLinks } from "./links.js";
 import { parseSegments } from "./artifact.js";
@@ -2388,8 +2392,13 @@ export async function runPart({
   // read out of it.
   const spanBlock =
     factBlock?.spans?.length
-      ? factBlock.spans.map((sp) => `${sp.ref}:
-"${sp.text}"`).join("\n\n")
+      // NO REF LABEL (2026-09-15, P232). THE MOUTH NEVER SEES AN ADDRESS
+      // (P55), so `strikeAddresses` struck this one at the door anyway — and its
+      // whitespace rule then pulled the orphaned colon onto the line above,
+      // gluing every span to its predecessor and merging two blocks into one
+      // (13 residues in one measured turn). The address is not lost: the record
+      // keeps `factBlock.spans`, and cite.js attaches it after the draft.
+      ? factBlock.spans.map((sp) => `"${sp.text}"`).join("\n\n")
       : null;
   // THE PREMISE THE QUESTION SMUGGLES IN (P125), checked before the mouth
   // sees anything: a claim the question states as already established has its
@@ -2613,7 +2622,24 @@ export async function runPart({
   const rawSource = mechanicallyConfident || (compress && snipPrefix) ? null : (factBlock ? (spanBlock ?? dedupedSourceBlock) : dedupedSourceBlock);
   // THE THREE RESOLUTIONS (resolutions.js): computed from the record, cut by the measurement, templated — never written by a model. The conversation-wide index is the caller's; this part's index stands in only when none was handed over, and the block says so.
   const resolution = resolutions > 0 ? resolutionBlocks({ level: resolutions, question: task || question, transcript, index: conversationIndex ?? referentIndex, notes: foldedNotes, voids: Array.isArray(hyperlexiconVoids) && hyperlexiconVoids.length ? hyperlexiconVoids : (hyperlexicon?.foldVoids && beliefNotes ? (() => { try { return hyperlexicon.foldVoids(beliefNotes); } catch { return []; } })() : []), records, dmdWindow, prominence: mentionBook ? (id) => (mentionBook.byId?.get(id)?.length ?? 0) : null }) : null;
-  const draftMaterial = [comparisonLine, declaredLine, aboutLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, factBlock ? factBlock.text : null, ledgerBlock, rawSource].filter(Boolean).join("\n\n");
+  // KONDO'S CUT (P232, kondo.js::tidyMaterial). This block carried TWO verbatim
+  // carriers of the same sentences (the snips, and the spans the notes rest on)
+  // and TWO structured carriers of the same claims (this turn's notes, the
+  // expectation's restatement of them, the ledger's older ones). Keeping one of
+  // each drops the repetition without removing a LAYER — measured on a real
+  // turn, 486 of 1,285 tokens of one draft prompt were lines it already carried.
+  // Declared pairs only: a void, a premise, a title page, a learned correction
+  // and the discourse line are never touched, and what is dropped is disclosed
+  // on the execute event rather than cut silently.
+  // THE ARM: "off" sends the untidied material, "claims" cuts only the restated
+  // CLAIMS (spans already quoted in the snips, the expectation and the ledger
+  // restating this turn's notes) and leaves every note standing, "full" also
+  // cuts a note the snips already carry word for word. Declared so the cut can
+  // be measured rather than believed.
+  const tidyArm = (typeof process !== "undefined" && process?.env?.KONDO_TIDY) || "claims";
+  const tidyParts = [comparisonLine, declaredLine, aboutLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, factBlock ? factBlock.text : null, ledgerBlock, rawSource];
+  const tidied = tidyArm === "off" ? { parts: tidyParts, dropped: [] } : tidyArm === "full" ? tidyMaterial(tidyParts, { pairs: [...TIDY_PAIRS, TIDY_NOTES_PAIR] }) : tidyMaterial([comparisonLine, declaredLine, aboutLine, recalledLine, snipPrefix, premiseBlock, dialogueBlock, learnedBlock, factBlock ? factBlock.text : null, ledgerBlock, rawSource]);
+  const draftMaterial = tidied.parts.filter(Boolean).join("\n\n");
   // A turn with nothing attached is exactly the turn that should stand on
   // what was read BEFORE — until 2026-09-03 the ledger block reached only
   // the material branches, so a from-memory question never saw the ledger
@@ -2690,6 +2716,12 @@ export async function runPart({
     // What this call will actually carry — the page's pace ledger turns it
     // into an expected duration.
     promptChars: executeMessages.reduce((n, m) => n + m.content.length, 0),
+    tidied: tidied.dropped.length,
+    droppedBy: tidied.dropped.map((d) => d.owner),
+    // The MATERIAL alone, apart from the instruction and whatever the turn
+    // adds around it — so the compression ladder (P179) can be measured on what
+    // it is a claim about, rather than on the whole system message.
+    materialChars: draftMaterial.length,
   });
   // Meta-cognition is not content. A model's brackets mean one thing here —
   // a citation — so any bracketed span that is not one, and that itself

@@ -13666,6 +13666,25 @@ User direction, in two parts: "where can we trim fat and make it all way more ef
 
 **Generality:** universal for the mechanism (every rule is structural and medium-blind — any messages array, any model, no English and no size constant in it); specimen-scoped for the numbers (one box's logs, one fixture, three questions).
 
+**Amended 2026-09-15 — the cut is made, and the experiment named which half of it was safe.** P232 above closed with "the duplication is NOT trimmed — that is its owners' call and needs an A/B". The A/B ran. `kondo.js::tidyMaterial` is now wired into `holon.js`'s one assembly point, applied in declared pairs, in order, with the keys recomputed after each pair so a line is never cut for restating something that was itself just cut.
+
+**What was measured** (gemma2:2b, the same pipeline and material, only the prompt differing; one question whose material does NOT contain the answer, where declining is the correct answer and naming a vice president is the failure, ten trials an arm, hand-read rather than regex-scored; two control questions the material does answer, five trials each):
+
+| arm | prompt | fabrications on the thin question | controls |
+|---|---|---|---|
+| untidied | 2,580 tok | 0/10 | 5/5, 5/5 |
+| **claims — SHIPPED** | **2,105 (−18%)** | **0/10** | 5/5, 5/5 |
+| full (also cuts notes) | 1,956 (−24%) | 3–4/10 | 5/5, 5/5 |
+| full + a stated void | 1,956 | 2/10 | 5/5, 5/5 |
+
+**The finding.** Cutting RESTATED CLAIMS is free: a span already quoted in the snips, the expectation restating this turn's own notes, a ledger line the turn just read. Cutting a NOTE because a snip already carries it word for word is NOT free — it costs honesty exactly where this instrument exists to be careful. The notes layer is what keeps a near-miss sentence ("Lincoln received support to run as vice president", of the 1856 convention) from being read as the answer; without it the mouth returned "John C." as Lincoln's vice president. The controls were untouched in every arm, so the cost is not recall — it is that a digested claim beside the sentence changes how a small model reads the sentence. The notes cut stays reachable as a declared arm (`KONDO_TIDY=off|claims|full`), never as the default, so the finding can be re-measured rather than believed.
+
+**Two of this pass's own measurement errors, recorded because both nearly shipped the losing arm.** An arm loop's last iteration overwrote the capture file, so a "default" size reported here was in fact the full arm's; and the arm fallback was written `|| "full"`, so the DEFAULT was the harmful variant while it was being reported as the safe one. Both were caught by diffing the actual prompt sets instead of trusting the summary numbers, and the shipped default is now verified byte-identical to the arm the A/B measured at zero fabrications. A first regex scorer also over-counted, reading material-derived names inside honest answers as fabrications; the table above is hand-read.
+
+**Also in this pass:** spans stop printing a `ref:` the firewall strikes at the door — its whitespace rule had been pulling the orphaned colon onto the line above, gluing every span to its predecessor and merging two blocks (13 residues in one measured turn, now zero). And `dialogue-turn.test.mjs`'s compression assertion was re-pointed at the MATERIAL the builder now discloses (`materialChars` on the execute event): it had measured the whole system message as a proxy for P179's ladder, and the proxy stopped tracking the claim once the duplication came out of the lower rung. The ladder itself holds either way — measured across four arms, res2 < res0 at 1229<1464, 2658<3518, 1182<1922 tidied and 1367<1913, 3028<4539, 1298<2185 untidied.
+
+**Generality:** universal for the mechanism (declared pairs, structural rules, no size constant); specimen-scoped for the numbers (one fixture, three questions, one model, ten trials an arm).
+
 ## P233 — the power check that turned P231's "inconclusive" into a sharper answer (added 2026-09-15) — pointer
 
 eoreader7's `native/READING-SPEC.md`'s same-day amendment to S117 is the full account; `eval/results/phasepost-dmd-frankenstein-RESULTS.md` the numbers. Asked directly "how could we prove this or not" about P231's own leftover question, the recommended positive control was built and run, and the answer is more decisive than "still unsettled."

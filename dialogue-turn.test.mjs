@@ -126,7 +126,7 @@ test("COMPRESSION: at level 2 the raw passages leave the prompt and the snips st
   const { dmdWindow } = await import("../eoreader7/native/kernel/activation.js");
   const transcript = [{ turn: 1, question: "What does the book say about Porfiry?", answer: "Porfiry questioned Raskolnikov twice.", refs: [refOf("Porfiry questioned")] }];
   const sysOf = (seen) => seen.map((m) => m.find((x) => x.role === "system")?.content ?? "").join("\n");
-  const run = async (opts) => { const seen = []; const r = await runHolonicTask({ task: "What does the book say about Raskolnikov?", chunks, transcript, planMode: "flat", dmdWindow, conversationIndex: indexFor(chunks), call: async (m) => { seen.push(m); return `Raskolnikov murdered the pawnbroker. [${refOf("murdered the pawnbroker")}]`; }, ...organs, ...opts }); return { r, sys: sysOf(seen) }; };
+  const run = async (opts) => { const seen = []; const material = []; const r = await runHolonicTask({ task: "What does the book say about Raskolnikov?", chunks, transcript, planMode: "flat", dmdWindow, conversationIndex: indexFor(chunks), onProgress: (kind, part, info) => { if (kind === "execute") material.push(info.materialChars ?? 0); }, call: async (m) => { seen.push(m); return `Raskolnikov murdered the pawnbroker. [${refOf("murdered the pawnbroker")}]`; }, ...organs, ...opts }); return { r, sys: sysOf(seen), material: material.reduce((a, b) => a + b, 0) }; };
   const raw = "Svidrigailov confessed to Dounia in the street"; // a sentence of the passage that no snip about Raskolnikov carries
   const lvl0 = await run({ resolutions: 0 });
   assert.match(lvl0.sys, new RegExp(raw), "level 0 hands the passages");
@@ -135,7 +135,17 @@ test("COMPRESSION: at level 2 the raw passages leave the prompt and the snips st
   assert.match(lvl2.sys, /What the sources say, verbatim:\n(?:- [^\n]*\n)*- Raskolnikov murdered the pawnbroker\./, "the snips stay, verbatim, without addresses");
   assert.doesNotMatch(lvl2.sys, /novel\.txt#\d+-\d+/, "no address reaches the mouth");
   assert.equal(lvl2.r.resolutions[0].handed, "snips");
-  assert.ok(lvl2.sys.length < lvl0.sys.length, `compression: ${lvl2.sys.length} < ${lvl0.sys.length} chars`);
+  // THE CLAIM IS ABOUT THE MATERIAL, and this used to measure the whole system
+  // message as a proxy for it. The proxy stopped tracking the claim the day the
+  // duplication came out of the LOWER rung (P232's tidy: level 0 carried the
+  // snips AND the spans that restate them, level 2 only the snips), because the
+  // resolutions blocks level 2 adds are not material and now outweigh the raw
+  // passages it drops. Measured across four arms on a second fixture, the
+  // material ladder holds either way — res2 < res0 at 1229<1464, 2658<3518,
+  // 1182<1922 tidied and 1367<1913, 3028<4539, 1298<2185 untidied — so the
+  // assertion now reads the material the builder discloses on its own execute
+  // event, which is the thing P179 is a claim about.
+  assert.ok(lvl2.material < lvl0.material, `compression: ${lvl2.material} < ${lvl0.material} material chars`);
   const forced = await run({ resolutions: 2, material: "passages" });
   assert.match(forced.sys, new RegExp(raw), "the additive control keeps the passages");
   assert.equal(forced.r.resolutions[0].handed, "passages");

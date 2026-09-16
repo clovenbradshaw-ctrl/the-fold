@@ -80,6 +80,10 @@ export const OWNERS = Object.freeze([
   { re: /^The conversation so far:/, owner: "fold.js (discourse line)" },
   { re: /^Sentences:|^Claim: "/, owner: "testimony.js (buildSelectMessages)" },
   { re: /^Passage:|^Sentence: /, owner: "testimony.js (buildWitnessMessages)" },
+  // A block that is nothing but a quoted sentence IS a span the notes rest on
+  // (holon.js spanBlock): it carries no header of its own, so it is known by
+  // shape. Last, so a real header always wins.
+  { re: /^\s*"/, owner: "holon.js (spanBlock)" },
 ]);
 
 const LIST_MARK = /^\s*(?:[-•*]|\d+[.)])\s+/;
@@ -348,4 +352,139 @@ export function kondoLine(review) {
   if (split.length) parts.push(`window split on ${split.map((f) => `${f.model} (${f.windows.join(" vs ")})`).join(", ")}`);
   if (review.models?.switches) parts.push(`${review.models.switches} model switch${review.models.switches === 1 ? "" : "es"}`);
   return `Kondo: ${parts.join("; ")}.`;
+}
+
+// ── THE TIDY: the same duplication, cut by the BUILDER before it is sent ─────
+// Kondo reports and never cuts a prompt herself; this is the cut a BUILDER can
+// make from her findings, and it is deliberately narrow. The draft prompt
+// carries TWO verbatim carriers of the same sentences (the snips, and the spans
+// the notes rest on) and TWO structured carriers of the same claims (this
+// turn's fresh notes, and the expectation's restatement of them, plus the
+// ledger's older ones). Keeping ONE of each drops the repetition without
+// removing a LAYER — the reader still gets the source's own sentences AND the
+// claims read out of them, which is the standing direction ("never give it the
+// raw text alone, we always feed it the hyperlexicon's surf and fold with the
+// minimal raw spans").
+//
+// Measured on a real turn before this existed: 486 of 1,285 tokens of one draft
+// prompt were lines that prompt already carried.
+//
+// THE PAIRS ARE DECLARED, NEVER INFERRED. A block is pruned only against the
+// blocks named here, and only inside the section named here — so a void, a
+// premise, a title page, a learned correction or the discourse line is never
+// touched, and a claim is never dropped because something UNRELATED happens to
+// contain its words. A section that loses every line loses its header with it.
+// APPLIED IN ORDER, and the keys are recomputed after each pair — a rule must
+// prune against what SURVIVES, never against a line an earlier rule already
+// dropped, or a note could be cut for restating a span that is itself gone and
+// the claim would leave the prompt altogether.
+export const TIDY_PAIRS = Object.freeze([
+  // the same bytes twice: a span under the notes, already quoted in the snips
+  { from: /spanBlock/, against: [/snipBlock/], section: null, entry: true },
+  // the same claim twice: the expectation restating a note, or a sentence
+  { from: /expectationFacts/, against: [/buildFactBlock/, /snipBlock/, /spanBlock/], section: /^What the sources state about this:/, entry: false },
+  // the same claim again, older: a ledger note this turn already read
+  { from: /ledgerBlock/, against: [/buildFactBlock/, /snipBlock/, /spanBlock/], section: /^From earlier reading/, entry: false },
+  // LAST, and only against what still stands: a note whose whole claim already
+  // sits, word for word in order, inside a sentence the prompt still carries.
+  // The note was the reading of THAT sentence; with the sentence present the
+  // note is the same thing said twice, and a note the sentences do NOT carry
+  // (a claim read from a passage that did not survive retrieval, a derived one)
+  // stays — which is what makes this a cut and not a deletion of the layer.
+]);
+
+// THE NOTES CUT, MEASURED AND NOT IN THE DEFAULT (2026-09-15). A note whose
+// claim the snips already carry word for word LOOKS like pure duplication, and
+// cutting it is the largest remaining saving — and it makes the mouth worse
+// exactly where this instrument exists to be careful. Measured live, gemma2:2b,
+// one question whose material does NOT contain the answer, ten trials an arm,
+// hand-read rather than regex-scored: untidied 0 fabrications, claims-only 0,
+// notes-cut 3-4 ("John C.", "his vice presidential ticket was John C."). The
+// controls (two questions the material DOES answer) were 5/5 in every arm, so
+// the cost is not recall, it is that the notes layer keeps a near-miss sentence
+// from being read as the answer. Reachable as a declared arm (KONDO_TIDY=full)
+// so the finding can be re-measured, never as the default.
+export const TIDY_NOTES_PAIR = Object.freeze(
+  // AGAINST THE SNIPS ONLY, never the spans — and that is a constraint from
+  // another law, not a taste. The compression ladder (P179) says a higher
+  // resolution hands LESS: level 0 hands the passages/spans AND the snips,
+  // level 2 only the snips. Pruning notes against the spans too prunes the
+  // LOWER rung harder than the upper one and inverts the ladder — measured,
+  // 504 material chars at level 0 against 631 at level 2 on
+  // dialogue-turn.test.mjs's own fixture. Pruned against the snips alone,
+  // level 0 stays a superset of level 2 by construction and the ladder holds.
+  { from: /buildFactBlock/, against: [/snipBlock/], section: /^My notes so far|^I made no notes/, entry: false },
+);
+
+/** A line's identity for the tidy: its words, without a list marker, a trailing
+ *  aside (the standing phrase) or the quotes a span is printed in. */
+const tidyKey = (line) => wordsOf(String(line ?? "").replace(LIST_MARK, "").replace(TRAILING_ASIDE, "").replace(/^\s*"|"\s*$/g, "")).join(" ");
+const carries = (haystack, key) => haystack.has(key) || [...haystack].some((k) => ` ${k} `.includes(` ${key} `));
+
+/**
+ * tidyMaterial(parts) → { parts, dropped } — `parts` is the array a builder is
+ * about to join into one material block, in order. Returns the same array with
+ * the declared duplicates removed, and every dropped line named with its owner
+ * so the cut is disclosed rather than silent.
+ */
+export function tidyMaterial(parts, { owners = OWNERS, pairs = TIDY_PAIRS } = {}) {
+  let list = (parts ?? []).map((p) => (p == null ? "" : String(p)));
+  const ownerOf = list.map((p) => rowOf(p.split("\n")[0].trim(), owners)?.owner ?? "unowned");
+  const dropped = [];
+  const keysNow = () => {
+    const keysBy = new Map();
+    list.forEach((p, i) => {
+      const set = keysBy.get(ownerOf[i]) ?? new Set();
+      for (const line of p.split("\n")) {
+        const k = tidyKey(line);
+        if (k && k.split(" ").length >= UNIT_FLOOR) set.add(k);
+      }
+      keysBy.set(ownerOf[i], set);
+    });
+    return keysBy;
+  };
+  for (const rule of pairs) list = applyPair(list, ownerOf, rule, keysNow(), dropped);
+  return { parts: list, dropped };
+}
+
+function applyPair(list, ownerOf, rule, keysBy, dropped) {
+  return list.map((p, i) => {
+    const owner = ownerOf[i];
+    if (!rule.from.test(owner) || !p.trim()) return p;
+    const against = new Set();
+    for (const [o, keys] of keysBy) if (rule.against.some((re) => re.test(o))) for (const k of keys) against.add(k);
+    if (!against.size) return p;
+
+    // A span block is blank-line separated ENTRIES (a quoted sentence may run
+    // to several lines); every other block is a list of lines under a header.
+    if (rule.entry) {
+      const kept = p.split(/\n{2,}/).filter((entry) => {
+        const k = tidyKey(entry.replace(/\n/g, " "));
+        if (k && k.split(" ").length >= UNIT_FLOOR && carries(against, k)) { dropped.push({ owner, text: entry.slice(0, 120) }); return false; }
+        return true;
+      });
+      return kept.join("\n\n");
+    }
+
+    const lines = p.split("\n");
+    const out2 = [];
+    let header = null;
+    let sectionKept = 0;
+    const closeSection = () => {
+      if (header && sectionKept === 0) { const at = out2.lastIndexOf(header); if (at >= 0) out2.splice(at, 1); }
+      header = null;
+      sectionKept = 0;
+    };
+    for (const line of lines) {
+      const isHeader = /:\s*$/.test(line) && !LIST_MARK.test(line);
+      if (isHeader) { closeSection(); header = line; out2.push(line); continue; }
+      const inSection = !rule.section || (header && rule.section.test(header.trim()));
+      const k = tidyKey(line);
+      if (inSection && k && k.split(" ").length >= UNIT_FLOOR && carries(against, k)) { dropped.push({ owner, text: line.slice(0, 120) }); continue; }
+      out2.push(line);
+      if (line.trim()) sectionKept++;
+    }
+    closeSection();
+    return out2.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  });
 }

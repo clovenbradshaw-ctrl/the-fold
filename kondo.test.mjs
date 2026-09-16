@@ -9,7 +9,7 @@
 // never Kondo's).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { makeKondo, kondoDecision, kondoLine, unitsOf, wordsOf, KINDS, UNIT_FLOOR } from "./kondo.js";
+import { makeKondo, kondoDecision, kondoLine, unitsOf, wordsOf, tidyMaterial, TIDY_PAIRS, TIDY_NOTES_PAIR, KINDS, UNIT_FLOOR } from "./kondo.js";
 import { makeParmenides } from "./parmenides.js";
 import { strikeAddresses } from "../eoreader7/native/organs/firewall.js";
 import { buildSelectMessages } from "../eoreader7/native/organs/testimony.js";
@@ -201,4 +201,124 @@ test("a block's header names its owner, and a quoted span inside the notes belon
   assert.equal(units.length, 2, "the header is not a unit");
   assert.match(units[0].owner, /fact-block\.js/);
   assert.match(units[1].owner, /spanBlock/);
+});
+
+// ── the tidy: the cut a builder can make from her findings ────────────────
+// PLANTED-CONTROL: each case is run BOTH ways — the duplicate is dropped, and
+// the line that only LOOKS similar survives. A tidy that cut everything, or
+// nothing, fails here.
+const SNIPS_B = `What the sources say, verbatim:
+- Born in a one-room log cabin in Kentucky, Lincoln was raised on the frontier.
+- Lincoln won the 1860 presidential election, becoming the first Republican president.`;
+const NOTES_B = `My notes so far — what I made of the sources, which may be wrong; where a note and a source disagree, the source is right:
+- Lincoln — was raised→ on the frontier
+- Lincoln — won→ the 1860 presidential election`;
+const EXPECT_B = `What the sources state about this:
+- Lincoln was raised on the frontier
+- Lincoln won the 1860 presidential election
+
+Looked for and not found so far:
+- whether Lincoln studied law is not stated in what was read`;
+const LEDGER_B = `From earlier reading, stated in more than one place:
+- Lincoln — was raised→ on the frontier (read in 2 places)
+- Hamlin — was→ the 15th vice president (read in 2 places)`;
+const SPANS_B = `"Born in a one-room log cabin in Kentucky, Lincoln was raised on the frontier."
+
+"Lincoln signed the Emancipation Proclamation in 1863."`;
+const PREMISE_B = `What these sources say about it:
+- Lincoln was raised on the frontier [lincoln.txt#0-84]`;
+const TITLE_B = "What this material is, by its own title page: Abraham Lincoln, by Wikipedia.";
+const DISCOURSE_B = "The conversation so far: Lincoln was raised on the frontier and won in 1860.";
+const partsOf = () => [TITLE_B, SNIPS_B, PREMISE_B, EXPECT_B, NOTES_B, LEDGER_B, SPANS_B, DISCOURSE_B];
+
+test("a span already quoted in the snips is dropped; a span the snips do not carry survives", () => {
+  const { parts, dropped } = tidyMaterial(partsOf());
+  const spans = parts[6];
+  assert.ok(!spans.includes("one-room log cabin"), "the sentence the snips already quote is not sent twice");
+  assert.ok(spans.includes("Emancipation Proclamation"), "the span the snips do NOT carry is still sent");
+  assert.ok(dropped.some((d) => /spanBlock/.test(d.owner)));
+});
+
+test("an expectation claim restating a note is dropped, a new one survives, and the voids are never touched", () => {
+  const { parts } = tidyMaterial(partsOf());
+  const expect = parts[3];
+  assert.ok(!expect.includes("What the sources state about this:"), "a section that loses every line loses its header");
+  assert.ok(expect.includes("Looked for and not found so far:"), "the void section is not a duplicate and is left alone");
+  assert.ok(expect.includes("whether Lincoln studied law"), "the void's own line survives");
+
+  const withNew = partsOf();
+  withNew[3] = `What the sources state about this:
+- Lincoln was raised on the frontier
+- Lincoln appointed Hamlin as his first vice president`;
+  const kept = tidyMaterial(withNew).parts[3];
+  assert.ok(kept.includes("appointed Hamlin"), "a claim the notes do NOT carry survives");
+  assert.ok(!kept.includes("was raised on the frontier"), "the one they do carry does not");
+  assert.ok(kept.includes("What the sources state about this:"), "a section that keeps a line keeps its header");
+});
+
+test("a ledger note this turn already read is dropped; one it did not is kept", () => {
+  const { parts } = tidyMaterial(partsOf());
+  const ledger = parts[5];
+  assert.ok(!ledger.includes("was raised"), "the ledger does not restate this turn's own note");
+  assert.ok(ledger.includes("15th vice president"), "the ledger's own separate claim stands");
+  assert.ok(ledger.includes("From earlier reading"), "its header stands with it");
+});
+
+test("blocks no pair names are never touched — premise, title page, discourse, and the snips that are KEPT", () => {
+  const before = partsOf();
+  const { parts } = tidyMaterial(before);
+  assert.equal(parts[0], before[0], "title page");
+  assert.equal(parts[1], before[1], "the snips are the verbatim carrier that is KEPT");
+  assert.equal(parts[2], before[2], "a premise fact that repeats a note is the premise check's, not a duplicate");
+  assert.equal(parts[4], before[4], "and the notes, which the default never cuts");
+  assert.equal(parts[7], before[7], "the discourse line");
+});
+
+test("THE NOTES CUT IS AN ARM, NOT THE DEFAULT: by default a note stays even when the snips carry it; asked for, it goes", () => {
+  const full = { pairs: [...TIDY_PAIRS, TIDY_NOTES_PAIR] };
+  // by default the notes layer is whole — measured worse to cut it (kondo.js's
+  // own header carries the numbers: 3-4 fabrications in 10 against 0)
+  assert.equal(tidyMaterial(partsOf()).parts[4], partsOf()[4], "the default keeps every note");
+
+  assert.equal(tidyMaterial(partsOf(), full).parts[4], "", "the arm cuts notes the snips already carry, header and all");
+
+  const adds = partsOf();
+  adds[4] = [
+    "My notes so far — what I made of the sources, which may be wrong:",
+    "- Lincoln — was raised→ on the frontier",
+    "- Lincoln — delivered→ the Gettysburg Address",
+  ].join("\n");
+  const kept = tidyMaterial(adds, full).parts[4];
+  assert.ok(kept.includes("Gettysburg"), "even under the arm, a note nothing else carries survives");
+  assert.ok(!kept.includes("was raised"), "and the one the snips carry does not");
+  assert.ok(kept.includes("My notes so far"), "and it keeps its framing");
+});
+
+test("NO CLAIM LEAVES THE PROMPT: everything the untidied material stated is still stated by a line that survives", () => {
+  const before = partsOf();
+  const after = tidyMaterial(before).parts.join("\n\n");
+  const keptWords = " " + wordsOf(after).join(" ") + " ";
+  const claims = before.join("\n\n").split("\n").filter((l) => /^\s*-/.test(l)).map((l) => wordsOf(l.replace(/\s*\([^()]*\)\s*$/, "")).join(" "));
+  let checked = 0;
+  for (const c of claims) {
+    if (c.split(" ").length < 2) continue;
+    checked++;
+    assert.ok(keptWords.includes(" " + c + " "), 'a claim vanished from the prompt: "' + c + '"');
+  }
+  assert.ok(checked >= 5, "the invariant actually examined the claims (" + checked + ")");
+});
+
+test("the tidy is idempotent, and closes Kondo's own loop on the pairs it names", () => {
+  const once = tidyMaterial(partsOf()).parts;
+  const twice = tidyMaterial(once).parts;
+  assert.deepEqual(twice, once);
+  const before = kondo.reviewCall({ messages: [sys(partsOf().join("\n\n"))] });
+  const after = kondo.reviewCall({ messages: [sys(once.join("\n\n"))] });
+  const dup = (r) => r.findings.filter((f) => f.kind === KINDS.RESTATED || f.kind === KINDS.CONTAINED).length;
+  assert.ok(dup(after) < dup(before), `duplication falls (${dup(before)} -> ${dup(after)})`);
+});
+
+test("a tidy with nothing to prune against changes nothing", () => {
+  const alone = [NOTES_B, DISCOURSE_B];
+  assert.deepEqual(tidyMaterial(alone).parts, alone);
 });

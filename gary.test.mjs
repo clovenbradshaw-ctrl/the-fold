@@ -9,6 +9,7 @@ import { makeGary, assertPromptsBuildable, garyDecision, RULES, SEVERITY } from 
 import { makeKondo, TIDY_PAIRS, TIDY_NOTES_PAIR, wordsOf } from "./kondo.js";
 import { makeParmenides } from "./parmenides.js";
 import { strikeAddresses, apparatusMentions } from "../eoreader7/native/organs/firewall.js";
+import { buildWitnessMessages, buildSelectMessages } from "../eoreader7/native/organs/testimony.js";
 import { EXECUTE_SYSTEM_PROMPT, FLAT_EXECUTE_SYSTEM_PROMPT, CHAT_SYSTEM_PROMPT, S1_SYSTEM_PROMPT, SEARCHED_VOID_PREFIX } from "./holon.js";
 
 const parmenides = makeParmenides({ fold: (s) => wordsOf(s).join(" ") });
@@ -35,10 +36,36 @@ test("an address is STRUCK at the door, and a prompt with none is handed over un
 test("naming this instrument's own parts is found; the real prompts this repo ships do not", () => {
   const named = gary.check([sys("The passages retrieved for this turn follow. Do not describe the prompt.")]);
   assert.ok(rules(named).includes("no-apparatus"), "apparatus vocabulary is found");
+  // apparatusMentions returns [{term,...}] rows, not strings — a caller that
+  // joins the rows themselves prints "[object Object]" and names nothing.
+  // Found live 2026-09-16, checking the witness's own prompts against Gary
+  // for the first time.
+  const finding = named.findings.find((f) => f.rule === "no-apparatus");
+  assert.match(finding.detail, /passage/, `the finding names the term, not the row: ${finding.detail}`);
+  assert.doesNotMatch(finding.detail, /object Object/);
 
   for (const [name, text] of Object.entries({ FLAT_EXECUTE_SYSTEM_PROMPT, CHAT_SYSTEM_PROMPT, S1_SYSTEM_PROMPT })) {
     assert.ok(!rules(gary.check([sys(text)])).includes("no-apparatus"), `${name} is firewall-clean`);
   }
+});
+
+test("the witness/select mouth's own prompts (testimony.js, Wigmore) are read too — a mouth is a mouth, and no test had ever checked them before this (2026-09-16)", () => {
+  // Live specimen: OLMo-2-1B was asked "You are checking one sentence
+  // against one passage... Passage: ..." — buildWitnessMessages' own
+  // prompt named an apparatus part on every call, unnoticed because
+  // assertPromptsBuildable only ever covered the four DRAFT prompts.
+  // Fixed at the source (testimony.js: "passage" -> "text"); pinned here so
+  // it cannot silently return.
+  const witness = gary.check(buildWitnessMessages("A claim.", "Some source text."), { arm: "generate" });
+  assert.ok(!rules(witness).includes("no-apparatus"), `witness prompt names apparatus: ${JSON.stringify(witness.findings)}`);
+  const select = gary.check(buildSelectMessages("A claim.", ["A candidate sentence."]), { arm: "select" });
+  assert.ok(!rules(select).includes("no-apparatus"), `select prompt names apparatus: ${JSON.stringify(select.findings)}`);
+  // "Do not invent; only choose from the list." still flags — reviewed, not
+  // fixed: it is closed-set index selection under a JSON schema with no
+  // enforced range (SELECT_SCHEMA's own `sentence` is a bare integer), so
+  // the prohibition is doing real, checked work, not free-text priming —
+  // the measured harm this rule guards against (P32) is for open generation.
+  assert.ok(rules(select).includes("information-not-prohibition"), "the reviewed flag still fires, so this decision is re-checked if the prompt ever changes");
 });
 
 test("asking for JSON is REFUSED, and the shipped prompts never ask", () => {

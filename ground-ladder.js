@@ -261,7 +261,7 @@ export function groundOf(sentence, ctx = {}) {
     // (this module's own "precision guard": "every attest is the passage's
     // verbatim sentence, never the model's words").
     const ref = passageHolding(witness.decider, passages);
-    return { tier: "witnessed", cell: CELL_OF.witnessed, addresses: ref ? [ref] : [], label: ref ? labelOf(ref) : null, phrase: "a passage states this", detail: witness.decider ? `the witness pointed at: “${String(witness.decider).slice(0, 120)}”` : "the witness pointed at a passage", reached };
+    return { tier: "witnessed", cell: CELL_OF.witnessed, addresses: ref ? [ref] : [], label: ref ? labelOf(ref) : null, phrase: "a passage states this", detail: `${witness.decider ? `the witness pointed at: “${String(witness.decider).slice(0, 120)}”` : "the witness pointed at a passage"}${witness.secondWitness ? ` (asked again of ${witness.secondWitness}: the first witness ${witness.firstWitness === "incoherent" ? "said no while pointing at a sentence" : witness.firstWitness === "indiscriminate" ? "also said yes to a swapped, false version of the sentence" : "said no"})` : ""}`, reached };
   }
   // 3. recorded / 5. contested — the sentence's claims (any verdict) matched to notes on the ledger
   // A CLAIM THE READER ITSELF CONTRADICTED IS NOT ON THE RECORD (P137). The

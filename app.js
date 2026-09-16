@@ -95,7 +95,7 @@ import { stripPastTurnBoundary, turnBoundaryIndex } from "./turn-boundary.js";
 
 import { MAX_CORRECTIONS, needsDecomposition, PASSAGES_PER_PART, runHolonicTask, SEARCHED_VOID_PREFIX, WEB_OFF_PREFIX, S1_SYSTEM_PROMPT, buildPlanPrompt, parsePlan, PLAN_SCHEMA, PLAN_MAX_TOKENS, PLAN_SYSTEM_PROMPT, depthBudgets, todayLine } from "./holon.js";
 
-import { MODEL_PICKER, ROUTE_KINDS, routeModel, isPinnedModel, resolveNamedModel, WITNESS_MODEL } from "./model-routing.js";
+import { MODEL_PICKER, ROUTE_KINDS, routeModel, isPinnedModel, resolveNamedModel, WITNESS_MODEL, S2_MODEL } from "./model-routing.js";
 
 import { parseBlocks, renderBlocksInto } from "./render.js";
 
@@ -168,7 +168,7 @@ import { persistSource, unpersistSource, loadSources } from "./sources-store.js"
 // paste a large block into the composer and it becomes a source of its own
 // accord once it clears the declared floor; /source names one explicitly.
 // The decisions are pure and tested; this file only wires the act.
-import { isAutoSourceCandidate, parseSourceCommand, nextPastedName, previewSavedText } from "./source-door.js";
+import { isAutoSourceCandidate, parseSourceCommand, nameForPaste, previewSavedText } from "./source-door.js";
 // The /help tutorial (user direction, 2026-09-11): every door, its syntax,
 // an example, and a walkthrough — data, computed and printed, never a model.
 // renderHelp still feeds the plain-text record/history (unchanged); the
@@ -1516,7 +1516,7 @@ import {
 } from "./source.js";
 import { makeAdmission } from "./admission.js";
 import { makeAletheia } from "./aletheia.js";
-import { questionCycle } from "./logos.js";
+import { questionCycle, ledgerLint as lintNotesInLog } from "./logos.js";
 // The discourse-admission gate (admission.js): should a whole ATTACHED
 // SOURCE even be treated as material for THIS question, before retrieve()
 // ever sees it? retrieve() itself keeps its declared no-relevance-floor
@@ -3568,8 +3568,23 @@ function buildHelpUnknown(body, query) {
  * confirmation. Material is never model output, so nothing here ever asks a
  * model what the text is.
  */
+// A pasted source's NAME and WHO GAVE IT (source-door.js::nameForPaste),
+// carried as the source's provenance so it is persisted with the text and
+// restored at boot — the same write every other provenance rides. A title the
+// person typed, or the text's own title page, is also the source's title.
+function pasteNaming(text, { title = null } = {}) {
+  const named = nameForPaste(text, { title, existingNames: Object.keys(state.sources) });
+  const provenance = { line: named.title ?? null, fields: named.title ? { title: named.title } : {}, naming: { name: named.name, giver: named.giver } };
+  return { name: named.name, provenance };
+}
+const namedByLine = (name) => { const g = state.provenance[name]?.naming?.giver; return g ? `named from ${g.phrase}` : null; };
+
 function sourceTurn(name, text, typed) {
-  const saved = name || nextPastedName(Object.keys(state.sources));
+  // `/source <name>`: the name is the person's, kept exactly as typed.
+  const naming = name
+    ? { name, provenance: { line: null, fields: {}, naming: { name, giver: { kind: "person", rule: "person", phrase: "the name you gave it" } } } }
+    : pasteNaming(text);
+  const saved = naming.name;
   // The user bubble shows where the text came from — the door line, or a
   // one-line preview of the pasted block — never a second copy of the whole
   // thing (the full bytes ARE the source, and history must not grow by the
@@ -3582,12 +3597,13 @@ function sourceTurn(name, text, typed) {
   const body = node.querySelector(".body");
   body.textContent = `saving "${saved}" as a source…`;
   logAct("asked", { text: userLine });
-  addSource(saved, text);
+  state.provenance[saved] = naming.provenance;
+  addSource(saved, text, { provenance: naming.provenance });
   const identity = identifyMaterial(saved, text);
   const passages = countFor(saved);
   const kind = identity.kind ?? "prose";
   const note =
-    `saved as a source — "${saved}"\n` +
+    `saved as a source — "${saved}" (${namedByLine(saved) ?? "named"})\n` +
     `${text.length.toLocaleString()} characters · ${kind} · ${passages.toLocaleString()} passage${passages === 1 ? "" : "s"}\n\n` +
     `It is now material: ask questions about it, cite it, check claims against it. ` +
     `/help source explains the door; paste a big block straight into the composer and it saves itself the same way.`;
@@ -5475,17 +5491,32 @@ const witnessTestimony = () => ({ witnessSlice, siblingSwap, foldTestimony, buil
 // availableModels` can grow between two asks of the same turn.
 const witnessModelFor = () => resolveNamedModel(WITNESS_MODEL, { available: state.availableModels, offered: state.offeredModels });
 
-const witnessAskOrgan = async (s, slice) =>
-  readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0, model: witnessModelFor() }));
-const witnessSelectOrgan = async (messages) => {
-  try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0, model: witnessModelFor() })); } catch { return {}; }
+const witnessAskOrganFor = (modelOf) => async (s, slice) =>
+  readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0, model: modelOf() }));
+const witnessSelectOrganFor = (modelOf) => async (messages) => {
+  try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0, model: modelOf() })); } catch { return {}; }
 };
-const witnessSentencesFor = (sentences, claims, passages, { maxAsks }) =>
-  witnessSentences(sentences, claims, passages, {
+const witnessAskOrgan = witnessAskOrganFor(witnessModelFor);
+const witnessSelectOrgan = witnessSelectOrganFor(witnessModelFor);
+// THE SECOND WITNESS (witness-sentences.js): asked only when the first
+// contradicts itself (stated:no while pointing at a sentence), the whole
+// question again, claim and arm, on S2_MODEL — the model every corroboration
+// and witness measurement in this repo was first taken on. Declared only
+// when it resolves to a DIFFERENT model than the first: the same model at
+// temperature 0 would only repeat the answer it just contradicted.
+const secondWitnessModelFor = () => resolveNamedModel(S2_MODEL, { available: state.availableModels, offered: state.offeredModels });
+const witnessSentencesFor = (sentences, claims, passages, { maxAsks }) => {
+  const secondModel = secondWitnessModelFor();
+  const second = secondModel && secondModel !== witnessModelFor()
+    ? { ask: witnessAskOrganFor(secondWitnessModelFor), selectAsk: witnessSelectOrganFor(secondWitnessModelFor), name: secondModel }
+    : null;
+  return witnessSentences(sentences, claims, passages, {
     ask: witnessAskOrgan, selectAsk: witnessSelectOrgan, splitSentences: engineSentences,
     testimony: witnessTestimony(),
     maxAsks,
+    second,
   });
+};
 
 
 /** A fetched page kept as a source: remember its saved faces so Ranke can chase from it (the organ reads the page's own HTML for links; the text face for quotes). */
@@ -5582,7 +5613,7 @@ async function rankeTurn(argstr, typed) {
 
 
 // ── /declare · /derive · /concede — derivation and recourse (Pass 21, P102) ─
-const DECLARE_USAGE = "/declare <relation> transitive — or — /declare <relation> composes <product>: declare, as yourself, what a relation does, so the record may derive what follows. Nothing is derived from an undeclared relation, and every derived fact names its giver. Bare /declare lists the register.";
+const DECLARE_USAGE = "/declare <relation> transitive — or — /declare <relation> composes <product> — or — /declare <relation> functional: declare, as yourself, what a relation does, so the record may derive what follows, or so two notes giving it different values count as a real conflict. Nothing is derived from an undeclared relation, no conflict is convicted on one, and every declaration names its giver. Bare /declare lists the register.";
 function declareTurn(argstr, typed) {
   const arg = (argstr ?? "").trim();
   const fold = foldDeclarations(state.declarations);
@@ -5593,11 +5624,12 @@ function declareTurn(argstr, typed) {
     ];
     return usageTurn(typed, lines.join("\n"));
   }
-  const m = arg.match(/^(\S+)\s+(transitive|composes)(?:\s+(\S+))?$/i);
+  const m = arg.match(/^(\S+)\s+(transitive|composes|functional)(?:\s+(\S+))?$/i);
   if (!m) return usageTurn(typed, DECLARE_USAGE);
   const [, rel, kindRaw, yields] = m;
   const kind = kindRaw.toLowerCase();
   if (kind === "composes" && !yields) return usageTurn(typed, DECLARE_USAGE);
+  if (kind !== "composes" && yields) return usageTurn(typed, DECLARE_USAGE);
   const giver = `person:chat (declared in this conversation, ${new Date().toISOString().slice(0, 10)})`;
   try {
     if (fold.given.some((g) => g.rel === rel && g.declKind === kind)) return usageTurn(typed, `already declared: ${rel} ${kind}.`);
@@ -5607,7 +5639,8 @@ function declareTurn(argstr, typed) {
     state.declarations = promoted.log;
     syncRecords();
     mirrorTermRecord("declare", { rel, kind, yields: yields ?? null, giver, via: "chat" });
-    return usageTurn(typed, `declared: ${rel} is ${kind}${yields ? ` (composing into ${yields})` : ""} — giver: ${giver}. /derive to see what follows.`);
+    const next = kind === "functional" ? `two notes giving "${rel}" different values will now be reported as a conflict when the notes are linted` : "/derive to see what follows";
+    return usageTurn(typed, `declared: ${rel} is ${kind}${yields ? ` (composing into ${yields})` : ""} — giver: ${giver}. ${next}.`);
   } catch (e) { return usageTurn(typed, `refused: ${e?.message ?? e}`); }
 }
 
@@ -12224,6 +12257,20 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // question against its own claims.
     let logos = null;
     try { logos = questionCycle(task, relationsFor); } catch (e) { console.warn("logos:", e?.message ?? e); }
+    // The same linter over the NOTES the reading holds, after this turn's
+    // write-back merged: the whole ledger, and this turn's own fold from
+    // where the ledger stood when the turn began. One-value conflicts convict
+    // only where the declarations register says so (/declare … functional).
+    let ledgerLint = null;
+    try {
+      const decl = foldDeclarations(state.declarations);
+      ledgerLint = lintNotesInLog(state.hyperlexiconLog, {
+        door: hyperlexiconFor,
+        taskLog: { projectTasks: nativeTaskLog.projectTasks },
+        fromSeq: turnStartSeq,
+        functional: { given: decl.given, candidates: decl.candidates },
+      });
+    } catch (e) { console.warn("ledger lint:", e?.message ?? e); }
     answerRec = answerRecord({
       question: task, answer: result.output ?? "", model: turnModel, frame: recFrame, recipe: recRecipe,
       sections: result.sections ?? [], unsupported: result.unsupported ?? [], unbacked: result.unbacked ?? [],
@@ -12236,6 +12283,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       constitution: { prompt: "constitution.js::CONSTITUTION_PROMPT", sha256: await CONSTITUTION_SHA },
       satisfaction,
       logos,
+      ledgerLint,
     });
     appendRecord("answers", [JSON.stringify(answerRec)]).catch(() => {});
   } catch (e) { console.warn("answer record:", e?.message ?? e); }
@@ -17441,7 +17489,7 @@ function openAttachSheet(focus = null) {
     const n = document.createElement("span");
     n.className = "name";
     n.textContent = name;
-    n.title = "peek at the text";
+    n.title = namedByLine(name) ? `${namedByLine(name)} — peek at the text` : "peek at the text";
     const meta = document.createElement("span");
     meta.className = "meta";
     meta.textContent = `${countFor(name).toLocaleString()} passages · ${fmtBytes(state.sources[name].length)}`;
@@ -19010,9 +19058,12 @@ document.addEventListener("drop", (e) => {
 function addPasted() {
   const text = $("material").value;
   if (!text.trim()) return;
-  addSource(nextPastedName(Object.keys(state.sources)), text);
+  const naming = pasteNaming(text, { title: $("paste-title")?.value ?? null });
+  state.provenance[naming.name] = naming.provenance;
+  addSource(naming.name, text, { provenance: naming.provenance });
   $("material").value = "";
-  $("status").textContent = "pasted text attached";
+  if ($("paste-title")) $("paste-title").value = "";
+  $("status").textContent = `pasted text attached as "${naming.name}" — ${namedByLine(naming.name)}`;
 }
 // The paste sheet is handled on its form's SUBMIT as well as the dialog's
 // close: in Chromium 148 (measured in the browser pane, 2026-09-05, P119) a

@@ -36,11 +36,11 @@
 
 import { buildSourceBlock, checkCitations, foldTypography, openQuestions, retrieve, tokenize } from "./source.js";
 import { distinctSources, proposeCandidates, sourceOfWitness, textFeatures } from "./corroboration.js";
-import { checkGrounding, extractCheckableAtoms, unsupportedClaims, CLAIM_STOPWORDS } from "./grounding.js";
+import { checkGrounding, extractCheckableAtoms, unsupportedClaims, CLAIM_STOPWORDS, numberSet } from "./grounding.js";
 import { attribute, attributedRefs, coverage as poolCoverage, splitSentences } from "./cite.js";
 import { editPiece } from "./piece-edit.js";
 import { isCodeSource, topicTerms } from "./longform.js";
-import { snipsFor, snipBlock, checkSection, reviseAsk, applyRewrite } from "./snip-check.js";
+import { snipsFor, snipBlock, checkSection, reviseAsk, applyRewrite, atomsOf } from "./snip-check.js";
 import { traceReading } from "./reading-trace.js";
 import { REVISION_ASKS, REVISION_ROUNDS, revisePiece } from "./piece-revise.js";
 import { budgetsFor, depthLine } from "./depth.js";
@@ -651,7 +651,7 @@ export const SEARCHED_VOID_PREFIX = "Nothing could be found on this. The emptine
 // turn's own retrieval empty, came back answering entirely about a stray
 // single-witness note from a completely unrelated earlier reading ("Ships
 // can stay safe in the harbor during a storm") — the ledger's own honest
-// hedging ("one account's claim, not a settled one") was not enough to stop
+// hedging ("one account's claim, not a settled one", a clause since removed as a verdict the mouth relayed as caution, 2026-09-16) was not enough to stop
 // a small model from treating it as the material, because nothing told it
 // there WAS other material it was missing. Same posture as
 // SEARCHED_VOID_PREFIX just above: information, not an instruction — the
@@ -1196,6 +1196,27 @@ export function parsePlan(raw, task, maxParts = MAX_PARTS) {
  * check runs on every draft, and the provenance reported is the LAST draft's
  * check — a correction that didn't take stays visible as what it is.
  */
+/**
+ * groundedAtomsDropped(before, after, passages) → the atoms (names, numbers,
+ * years — snip-check.js::atomsOf) of `before` that the passages carry and
+ * `after` does not. Numbers compare by value (numberSet, P215), names by the
+ * dialogue fold. An atom the passages do not carry is not counted: dropping
+ * what the material never said is not a loss.
+ */
+function groundedAtomsDropped(before, after, passages = []) {
+  const ground = passages.map((p) => String(p?.text ?? "")).join("\n");
+  const groundNumbers = numberSet(ground), afterNumbers = numberSet(String(after ?? ""));
+  const groundFolded = dfold(ground), afterFolded = dfold(String(after ?? ""));
+  const out = new Set();
+  for (const a of atomsOf(String(before ?? ""))) {
+    const numeric = a.kind === "number" || a.kind === "year";
+    const inGround = numeric ? groundNumbers.has(a.value) : groundFolded.includes(dfold(a.value));
+    const kept = numeric ? afterNumbers.has(a.value) : afterFolded.includes(dfold(a.value));
+    if (inGround && !kept) out.add(a.value);
+  }
+  return [...out];
+}
+
 export async function runPart({
   part,
   task = "",
@@ -1838,7 +1859,14 @@ export async function runPart({
     return [
       readingNote,
       corroborated.length ? `From earlier reading, stated in more than one place:\n${render(corroborated)}` : null,
-      single.length ? `From earlier reading, stated once so far and bearing on this question — one account's claim, not a settled one:\n${render(single)}` : null,
+      // THE STANDING IS THE FACT; "one account's claim, not a settled one" was a
+      // verdict laid over it, and the mouth relays verdicts as caution. Measured
+      // 2026-09-16 (gemma2:2b, 10 seeds, the live Grant re-ask verbatim): with the
+      // clause, 2 of 10 answers added "not definitively settled and should be
+      // treated with caution"; without it, 0 of 10, and the answers attribute the
+      // pamphlet's Georgetown instead. Each line still says "stated once so far,
+      // nowhere else yet" (P84: disclose standing, as a fact, never a judgment).
+      single.length ? `From earlier reading, stated once so far and bearing on this question:\n${render(single)}` : null,
       derived.length ? `From earlier reading, derived — no source states these; each follows from claims already read, and falls with them:\n${derived.map((d) => `- ${line(d)} (${derivedPhrase(d)})`).join("\n")}` : null,
       voids.length ? `Nothing here states these, and that is the answer — say it plainly, it is not yours to fill in:\n${voids.map((v) => `- ${v.verb === "appears" || v.verb === "is" ? `${v.subject} is not stated` : `whether ${v.subject} ${v.verb} is not stated`} in what was read (${voidPhrase(v)})`).join("\n")}` : null,
     ].filter(Boolean).join("\n\n");
@@ -3508,8 +3536,21 @@ export async function runPart({
       let again = "";
       try { again = String(await call([...executeMessages, { role: "assistant", content: text }, { role: "user", content: facts }], { effort: "low", maxTokens: executeMaxTokens }) ?? ""); } catch { again = ""; }
       const a2 = again.trim() ? addressedBy(again, qRefs, identityIndex) : null;
-      if (a2 && a2.named.length > addressed.named.length) { text = again.trim(); check = inspect(text); addressed = { ...addressed, ...a2, reasked: true, resolvedOn: "re-ask" }; }
-      else addressed = { ...addressed, reasked: true, resolvedOn: null };
+      // A RE-ASK MAY ADD, NEVER DROP. Naming the asked-about referent is what
+      // the re-ask is for, but it is not the only thing a draft carries: a
+      // re-asked draft that names the referent and loses a name or a figure
+      // the first draft took from the material is a worse answer that passes
+      // this check. Measured 2026-09-16 (llama3.2, "Where was Ulysses S. Grant
+      // born?"): the first draft said the sources give "Point Pleasant, Ohio,
+      // and Georgetown, Kentucky" without saying "Grant"; the re-ask answered
+      // "Ulysses S. Grant was actually born in Georgetown, Kentucky" — the
+      // pamphlet's claim — and was adopted for naming him. So a re-ask is
+      // adopted only when every atom of the first draft that the passages
+      // carry (atomsOf: names, numbers, years; numbers by value, P215) is
+      // still in it. Otherwise the first draft stands and the drop is recorded.
+      const dropped = a2 && a2.named.length > addressed.named.length ? groundedAtomsDropped(text, again, passages) : [];
+      if (a2 && a2.named.length > addressed.named.length && !dropped.length) { text = again.trim(); check = inspect(text); addressed = { ...addressed, ...a2, reasked: true, resolvedOn: "re-ask" }; }
+      else addressed = { ...addressed, reasked: true, resolvedOn: null, ...(dropped.length ? { reaskDropped: dropped } : {}) };
     }
   } else if (qRefs && !qRefs.ids.size && qRefs.unresolved.length) addressed = { named: [], missing: [], all: null, unresolved: qRefs.unresolved, absent: absence.absent, unestablished: absence.unestablished, reasked: false, resolvedOn: absence.absent.length ? "absence" : "unestablished" };
   if (addressed && !addressed.gap) addressed = { ...addressed, absent: absence.absent, unestablished: absence.unestablished };

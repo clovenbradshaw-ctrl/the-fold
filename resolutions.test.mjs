@@ -88,7 +88,11 @@ test("PARADIGM: an act recurring between the same two referents at binding's flo
   const active = new Set([id("Porfiry"), id("Raskolnikov")]);
   const p = paradigmBlock({ active, index, notes: NOTES, dmdWindow });
   assert.match(p.text, /^What recurs:/);
-  assert.match(p.text, /«questioned» recurs between Porfiry Petrovich and .*Raskolnikov \(3 places\)\./);
+  // REVISED 2026-09-16: was "(3 places)". The fixture's witnesses name one
+  // address twice (#48673-52190) and a second (#90000-91000): two byte ranges,
+  // so two places. Counting the repeated record as a third place is the bug
+  // the places test below pins (one sentence read at two grains "recurred").
+  assert.match(p.text, /«questioned» recurs between Porfiry Petrovich and .*Raskolnikov \(2 places\)\./);
   assert.match(p.text, /Porfiry Petrovich most often stands in «questioned»/);
   assert.doesNotMatch(p.text, /«brought»/, `a single witness is below the floor of ${RECURRENCE_FLOOR}`);
   clean(p.text);
@@ -147,4 +151,33 @@ test("the whole set is never a candidate: 30 notes with 30 distinct acts hand th
   const c3 = lensCut({ active, index, notes: few, dmdWindow });
   assert.equal(c3.window, 4, "a set within the declared lines with no rung below it is handed whole");
   assert.equal(c3.ceiling, false);
+});
+
+test("the asked act keeps every value: two accounts of the act the question names both reach the Lens, while an unasked act's repeats still compress", () => {
+  // Live specimen 2026-09-16: "Where was Ulysses S. Grant born?" — two notes
+  // with the act "was born" and different objects shared the act key, and the
+  // cut dropped Point Pleasant, leaving the Lens to state Georgetown alone.
+  const mk = (i, verb, object) => ({ subject: "Raskolnikov", verb, object, witnesses: [`novel.txt#${i * 10}-${i * 10 + 9}~r`], sources: 1 });
+  const notes = [mk(0, "visited", "the tavern"), mk(1, "visited", "the office"), mk(2, "was born", "in Ryazan"), mk(3, "visited", "the bridge"), mk(4, "was born", "in Moscow"), mk(5, "visited", "the square")];
+  const active = index.resolve("Raskolnikov");
+  const asked = lensCut({ active, index, notes, dmdWindow, question: "Where was Raskolnikov born?" });
+  const objects = asked.rows.filter((r) => r.n.verb === "was born").map((r) => r.n.object).sort();
+  assert.deepEqual(objects, ["in Moscow", "in Ryazan"], `both values of the asked act are kept: ${asked.rows.map((r) => r.n.object).join(", ")}`);
+  assert.equal(asked.rows.filter((r) => r.n.verb === "visited").length, 1, "the unasked act still compresses to one row");
+  // CONTROL: asked about neither act, the cut keeps one row per act — the
+  // behaviour the fix changes only for the act a question names.
+  const unasked = lensCut({ active, index, notes, dmdWindow, question: "What did Raskolnikov do?" });
+  assert.equal(unasked.rows.filter((r) => r.n.verb === "was born").length, 1, "an unasked act's second value is a repeat at act grain, as before");
+  assert.equal(unasked.asked, 0);
+});
+
+test("recurrence counts places, not witness records: one sentence read at paragraph and sentence grain is one place; two sentences are two", () => {
+  // Live specimen 2026-09-16: every note carried the arrival read's paragraph
+  // address and the turn's sentence address for the same bytes, and "What
+  // recurs" stated two places for a birthplace the material states once.
+  const active = index.resolve("Raskolnikov");
+  const once = [{ subject: "Raskolnikov", verb: "visited", object: "Razumihin", witnesses: ["novel.txt#0-115~r", "novel.txt#0-59~r"], sources: 1 }];
+  assert.equal(paradigmBlock({ active, index, notes: once, dmdWindow }).text, "", "a nested re-read of the same bytes does not recur");
+  const twice = [{ subject: "Raskolnikov", verb: "visited", object: "Razumihin", witnesses: ["novel.txt#0-59~r", "novel.txt#60-115~r"], sources: 1 }];
+  assert.match(paradigmBlock({ active, index, notes: twice, dmdWindow }).text, /\(2 places\)/, "two sentences are two places");
 });

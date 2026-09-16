@@ -1,0 +1,28 @@
+{
+  "$comment": "stability.test.mjs's ratchet. A measurement listed here passed and is enforced: it may never regress. Names are only ever added, when a fix makes a BECOMING pass. First run 2026-09-16: 20 pass, 15 fail, 13 unmeasured. 2026-09-16, after the initials fix (eoreader7 spans.js): +3 (truman-once containment L1b->L1c, blastRadius L1b and L1c).",
+  "passing": [
+    "blastRadius:grant-initial:L1b-activation",
+    "blastRadius:grant-initial:L1c-app",
+    "blastRadius:northgate-plain:L1b-activation",
+    "blastRadius:northgate-plain:L1c-app",
+    "blastRadius:truman-once:L1b-activation",
+    "blastRadius:truman-once:L1c-app",
+    "containment:northgate-plain:L1b-activation->L1c-app",
+    "containment:truman-once:L1b-activation->L1c-app",
+    "noVerdictsUp:grant-initial:L0-raw",
+    "noVerdictsUp:grant-initial:L1a-notes",
+    "noVerdictsUp:grant-initial:L1b-activation",
+    "noVerdictsUp:grant-initial:L1c-app",
+    "noVerdictsUp:northgate-plain:L0-raw",
+    "noVerdictsUp:northgate-plain:L1a-notes",
+    "noVerdictsUp:northgate-plain:L1b-activation",
+    "noVerdictsUp:northgate-plain:L1c-app",
+    "noVerdictsUp:truman-once:L0-raw",
+    "noVerdictsUp:truman-once:L1a-notes",
+    "noVerdictsUp:truman-once:L1b-activation",
+    "noVerdictsUp:truman-once:L1c-app",
+    "unrelatedInert:grant-initial:L1c-app",
+    "unrelatedInert:northgate-plain:L1c-app",
+    "unrelatedInert:truman-once:L1c-app"
+  ]
+}

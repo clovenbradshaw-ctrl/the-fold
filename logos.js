@@ -18,13 +18,78 @@
 // already carries (P76's earned-name wipe), so nothing here re-derives
 // what an edge is.
 
-import { findClaimCycle } from "../eoreader7/native/organs/reasoning-lint.js";
+import { findClaimCycle, lintLedger, lintTimeline } from "../eoreader7/native/organs/reasoning-lint.js";
 
 /** nagarjuna.js's own `organs.logos(notes)` contract: an array of found
  * cycles (today, at most one — findClaimCycle stops at the first). */
 export function logos(notes) {
   const cycle = findClaimCycle(notes ?? []);
   return cycle ? [cycle] : [];
+}
+
+/**
+ * ledgerLint(log, { door, taskLog, fromSeq, functional }) — Degrees Kelsen
+ * over the NOTES IN THE LOG, not over what the model said.
+ *
+ * Until this existed the live turn linted only the question's own words for
+ * a cycle; the record a turn actually writes — disputes, cuts, derived facts,
+ * two notes at one address — was never read by the linter at all. This reads
+ * it at the strictest degree, once for the whole ledger and once as the
+ * turn's own fold (`fromSeq`, where the ledger stood when the turn began), so
+ * the record can say what THIS turn's writing introduced apart from what was
+ * already standing.
+ *
+ * `functional` is the declarations register folded (given / candidates):
+ * a disagreement at one address convicts only where a named giver declared
+ * the relation takes one value. Without it the linter's old unconditional
+ * reading convicted hundreds of true facts on real pages (reasoning-lint.js,
+ * oneValueLookup), so this caller always supplies it — an empty register
+ * convicts nobody and counts what it did not judge.
+ *
+ * Disclosure only (P186): the result rides the record; nothing here edits or
+ * withholds the mouth's answer. Findings are trimmed to plain fields and
+ * capped; the counts are never capped.
+ */
+// Strict: the only extra check it adds over the ledger is the support cycle,
+// and on 3,539 real notes (five Wikipedia pages, 2026-09-16) it found none.
+export const LEDGER_LINT_STRICTNESS = "strict";
+// The record's own list convention, reused: answer-record.js already caps
+// `unbacked` and `absences` at 50. The counts are never capped.
+export const LEDGER_LINT_MAX_FINDINGS = 50;
+
+const trimFinding = (f) => ({ kind: f.kind, level: f.level, severity: f.severity, detail: f.detail, ...(f.note ? { note: f.note } : {}) });
+
+export function ledgerLint(log, { door, taskLog, fromSeq = null, functional = { given: [], candidates: [] } } = {}) {
+  if (!log?.entries?.length || !door || typeof taskLog?.projectTasks !== "function") return null;
+  const strictness = LEDGER_LINT_STRICTNESS;
+  const turnFold = Number.isInteger(fromSeq) && fromSeq >= 0 && fromSeq < log.nextSeq;
+  let whole, appeared = null, resolved = null;
+  if (turnFold) {
+    const t = lintTimeline({ log, door, taskLog, cursors: [fromSeq, log.nextSeq], strictness, functional });
+    whole = t.folds.at(-1);
+    appeared = t.transitions[0]?.appeared ?? [];
+    resolved = t.transitions[0]?.resolved ?? [];
+  } else {
+    whole = lintLedger(log, { door, taskLog, strictness, functional });
+  }
+  const notInfo = (f) => f.severity !== "info";
+  return {
+    strictness,
+    ok: whole.ok,
+    read: whole.read,
+    counts: { ...whole.counts },
+    unjudged: whole.unjudged?.addresses ?? 0,
+    findings: whole.findings.filter(notInfo).slice(0, LEDGER_LINT_MAX_FINDINGS).map(trimFinding),
+    ...(appeared ? {
+      thisTurn: {
+        fromSeq,
+        toSeq: log.nextSeq,
+        appeared: appeared.filter(notInfo).slice(0, LEDGER_LINT_MAX_FINDINGS).map(trimFinding),
+        appearedCount: appeared.filter(notInfo).length,
+        resolvedCount: resolved.filter(notInfo).length,
+      },
+    } : {}),
+  };
 }
 
 /**

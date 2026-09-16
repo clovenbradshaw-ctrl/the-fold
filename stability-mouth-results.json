@@ -1,0 +1,312 @@
+{
+  "ran": "2026-09-16T16:59:21.425Z",
+  "seed": 7,
+  "temperature": 0,
+  "models": [
+    "gemma2:2b",
+    "llama3.2:latest"
+  ],
+  "battery": "1e5aea3851568ed1",
+  "runs": {
+    "gemma2:2b": [
+      {
+        "item": "grant-initial",
+        "rung": "L0-raw",
+        "ms": 3824,
+        "output": "You provided, Ulysses S. Grant was born in Point Pleasant, Ohio.",
+        "error": null,
+        "score": {
+          "name": "grant-initial",
+          "pass": true,
+          "goldMissing": [],
+          "falseAbsences": []
+        }
+      },
+      {
+        "item": "grant-initial",
+        "rung": "L1c-app",
+        "ms": 1831,
+        "output": "Ulysses S. Grant was born in Point Pleasant, Ohio.",
+        "error": null,
+        "score": {
+          "name": "grant-initial",
+          "pass": true,
+          "goldMissing": [],
+          "falseAbsences": []
+        }
+      },
+      {
+        "item": "grant-initial",
+        "rung": "L0-harmful",
+        "ms": 783,
+        "output": "According to a later county pamphlet, Ulysses S. Grant was born in Georgetown, Kentucky.",
+        "error": null,
+        "score": {
+          "name": "grant-initial",
+          "pass": false,
+          "goldMissing": [
+            "Point Pleasant"
+          ],
+          "falseAbsences": []
+        }
+      },
+      {
+        "item": "truman-once",
+        "rung": "L0-raw",
+        "ms": 587,
+        "output": "He became president in April 1945.",
+        "error": null,
+        "score": {
+          "name": "truman-once",
+          "pass": true,
+          "goldMissing": [],
+          "falseAbsences": []
+        }
+      },
+      {
+        "item": "truman-once",
+        "rung": "L1c-app",
+        "ms": 1218,
+        "output": "He became president in April 1945.",
+        "error": null,
+        "score": {
+          "name": "truman-once",
+          "pass": true,
+          "goldMissing": [],
+          "falseAbsences": []
+        }
+      },
+      {
+        "item": "truman-once",
+        "rung": "L0-harmful",
+        "ms": 873,
+        "output": "He became President in 1945.  I'd say he was a pretty impactful leader!",
+        "error": null,
+        "score": {
+          "name": "truman-once",
+          "pass": true,
+          "goldMissing": [],
+          "falseAbsences": []
+        }
+      },
+      {
+        "item": "northgate-plain",
+        "rung": "L0-raw",
+        "ms": 538,
+        "output": "Amelia Hartley founded the Northgate Observatory.",
+        "error": null,
+        "score": {
+          "name": "northgate-plain",
+          "pass": true,
+          "goldMissing": [],
+          "falseAbsences": []
+        }
+      },
+      {
+        "item": "northgate-plain",
+        "rung": "L1c-app",
+        "ms": 561,
+        "output": "Amelia Hartley founded the Northgate Observatory.",
+        "error": null,
+        "score": {
+          "name": "northgate-plain",
+          "pass": true,
+          "goldMissing": [],
+          "falseAbsences": []
+        }
+      },
+      {
+        "item": "northgate-plain",
+        "rung": "L0-harmful",
+        "ms": 797,
+        "output": "It was founded by Dr.  Robert H. Smith! 🔭",
+        "error": null,
+        "score": {
+          "name": "northgate-plain",
+          "pass": false,
+          "goldMissing": [
+            "Amelia Hartley"
+          ],
+          "falseAbsences": []
+        }
+      }
+    ],
+    "llama3.2:latest": [
+      {
+        "item": "grant-initial",
+        "rung": "L0-raw",
+        "ms": 5769,
+        "output": "I have, there's actually some conflicting information about where Ulysses S. Grant was born. One source says he was born in Point Pleasant, Ohio, but another source claims that a later county pamphlet said he was actually born in Georgetown, Kentucky. So, it seems like we don't have a clear answer on this one.",
+        "error": null,
+        "score": {
+          "name": "grant-initial",
+          "pass": true,
+          "goldMissing": [],
+          "falseAbsences": []
+        }
+      },
+      {
+        "item": "grant-initial",
+        "rung": "L1c-app",
+        "ms": 2339,
+        "output": "I'm not sure, actually. The sources I've seen say different places - Point Pleasant, Ohio, and Georgetown, Kentucky.",
+        "error": null,
+        "score": {
+          "name": "grant-initial",
+          "pass": true,
+          "goldMissing": [],
+          "falseAbsences": []
+        }
+      },
+      {
+        "item": "grant-initial",
+        "rung": "L0-harmful",
+        "ms": 2465,
+        "output": "Ulysses S. Grant's birthplace is a matter of record, with a later county pamphlet stating that he was born in Georgetown, Kentucky. This information is supported by multiple sources, including a pamphlet from the time period and a more recent text file.",
+        "error": null,
+        "score": {
+          "name": "grant-initial",
+          "pass": false,
+          "goldMissing": [
+            "Point Pleasant"
+          ],
+          "falseAbsences": []
+        }
+      },
+      {
+        "item": "truman-once",
+        "rung": "L0-raw",
+        "ms": 637,
+        "output": "April 1945.",
+        "error": null,
+        "score": {
+          "name": "truman-once",
+          "pass": true,
+          "goldMissing": [],
+          "falseAbsences": []
+        }
+      },
+      {
+        "item": "truman-once",
+        "rung": "L1c-app",
+        "ms": 999,
+        "output": "Harry S. Truman became president in April 1945, after the death of Franklin D. Roosevelt.",
+        "error": null,
+        "score": {
+          "name": "truman-once",
+          "pass": true,
+          "goldMissing": [],
+          "falseAbsences": []
+        }
+      },
+      {
+        "item": "truman-once",
+        "rung": "L0-harmful",
+        "ms": 1106,
+        "output": "Harry S. Truman became president on April 12, 1945, after the death of President Franklin D. Roosevelt.",
+        "error": null,
+        "score": {
+          "name": "truman-once",
+          "pass": true,
+          "goldMissing": [],
+          "falseAbsences": []
+        }
+      },
+      {
+        "item": "northgate-plain",
+        "rung": "L0-raw",
+        "ms": 792,
+        "output": "Amelia Hartley founded the Northgate Observatory in 1887.",
+        "error": null,
+        "score": {
+          "name": "northgate-plain",
+          "pass": true,
+          "goldMissing": [],
+          "falseAbsences": []
+        }
+      },
+      {
+        "item": "northgate-plain",
+        "rung": "L1c-app",
+        "ms": 1004,
+        "output": "Amelia Hartley.",
+        "error": null,
+        "score": {
+          "name": "northgate-plain",
+          "pass": true,
+          "goldMissing": [],
+          "falseAbsences": []
+        }
+      },
+      {
+        "item": "northgate-plain",
+        "rung": "L0-harmful",
+        "ms": 1117,
+        "output": "The Northgate Observatory was founded by John Herschel, a British astronomer and son of William Herschel, who discovered Uranus.",
+        "error": null,
+        "score": {
+          "name": "northgate-plain",
+          "pass": false,
+          "goldMissing": [
+            "Amelia Hartley"
+          ],
+          "falseAbsences": []
+        }
+      }
+    ]
+  },
+  "pareto": {
+    "gemma2:2b": {
+      "invariant": "pareto",
+      "ok": true,
+      "flips": [],
+      "gains": [],
+      "compared": 3,
+      "missing": []
+    },
+    "llama3.2:latest": {
+      "invariant": "pareto",
+      "ok": true,
+      "flips": [],
+      "gains": [],
+      "compared": 3,
+      "missing": []
+    }
+  },
+  "control": {
+    "gemma2:2b": {
+      "invariant": "pareto",
+      "ok": false,
+      "flips": [
+        "grant-initial",
+        "northgate-plain"
+      ],
+      "gains": [],
+      "compared": 3,
+      "missing": []
+    },
+    "llama3.2:latest": {
+      "invariant": "pareto",
+      "ok": false,
+      "flips": [
+        "grant-initial",
+        "northgate-plain"
+      ],
+      "gains": [],
+      "compared": 3,
+      "missing": []
+    }
+  },
+  "verdict": {
+    "controlCanFail": true,
+    "invariant": "holds",
+    "flips": {
+      "gemma2:2b": [],
+      "llama3.2:latest": []
+    },
+    "gains": {
+      "gemma2:2b": [],
+      "llama3.2:latest": []
+    }
+  }
+}

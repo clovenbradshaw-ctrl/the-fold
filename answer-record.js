@@ -78,7 +78,7 @@ export const claimKey = (c) => `${String(c.end1 ?? c.subject ?? "").toLowerCase(
  * @param {object} turn — { question, answer, model, frame, recipe, sections, unsupported, unbacked, unread, sources, constitution, cursor }
  * @returns {object} the record
  */
-export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [], sameForm = null, satisfaction = null, logos = null } = {}) {
+export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [], sameForm = null, satisfaction = null, logos = null, ledgerLint = null } = {}) {
   const claims = [];
   const retrieved = [];
   for (const s of sections ?? []) {
@@ -142,7 +142,35 @@ export function answerRecord({ question, answer = "", model = null, frame = null
     // answer (P186). `null` when the caller never ran the check or none
     // was found; every pre-existing turn is byte-identical without it.
     ...(logos ? { logos } : {}),
+    // DEGREES KELSEN OVER THE LOG (logos.js::ledgerLint): the reasoning
+    // linter read over the notes this instrument holds — not over the
+    // mouth's words — with what this turn's own writing introduced kept
+    // apart from what was already standing. Disclosure only (P186); `null`
+    // when nothing has been read yet.
+    ...(ledgerLint ? { ledgerLint } : {}),
   };
+}
+
+// Plain words for what the linter found in the notes, for the prose view.
+// Kinds the linter marks info-only (a note on one voice, an unresolved cell)
+// are standing facts about a reading, not problems, and are not phrased.
+const LINT_PHRASES = Object.freeze({
+  standing_contradiction: "two notes give different answers where only one answer is allowed",
+  expired_in_conflict: "a note is out of the time it holds for and conflicts with a current one",
+  candidate_conflict: "two notes give different answers where one answer is only suspected",
+  contested_open: "a note is disputed and unsettled",
+  contested_disagreement: "two notes disagree and one of them is disputed",
+  expired_out_of_scope: "a note is being held outside the time it holds for",
+  unrouted_cut: "a denial was heard but never recorded as a dispute",
+  expired_premise: "a derived note rests on one that is out of its time",
+  contested_premise: "a derived note rests on a disputed one without saying so",
+  circular: "some notes support each other in a circle",
+});
+
+function lintKinds(findings) {
+  const by = new Map();
+  for (const f of findings ?? []) if (LINT_PHRASES[f.kind]) by.set(f.kind, (by.get(f.kind) ?? 0) + 1);
+  return [...by.entries()].map(([kind, n]) => `${LINT_PHRASES[kind]}${n > 1 ? ` (${n})` : ""}`);
 }
 
 /** The record-backed claim set and the count of claims nothing backs — what a model swap compares. */
@@ -194,7 +222,8 @@ export function answerRecordLine(r) {
   const t = r?.tally ?? {};
   const bits = Object.entries(t).map(([v, n]) => `${n} ${v}`);
   const abs = r.absenceTally ? ` · absences ${r.absenceTally.citingVoid + r.absenceTally.citingNone} (${r.absenceTally.citingVoid} cite a declared gap, ${r.absenceTally.citingNone} cite none)` : "";
-  const cyc = r.logos ? ` · LOGOS: cycle in the question's own claims` : "";
+  const lintErrors = (r.ledgerLint?.findings ?? []).filter((f) => f.severity === "error").length;
+  const cyc = `${r.logos ? ` · LOGOS: cycle in the question's own claims` : ""}${r.ledgerLint ? ` · notes linted ${r.ledgerLint.read}: ${lintErrors} error(s)${r.ledgerLint.thisTurn ? `, ${r.ledgerLint.thisTurn.appearedCount} new this turn` : ""}` : ""}`;
   return `answer record · ${r.claims.length} claim(s)${bits.length ? ` (${bits.join(", ")})` : ""} · ${r.unsupported.length} unsupported · ${r.unbacked.length} unbacked${abs} · retrieved ${r.retrieved.length} · recipe ${String(r.recipe ?? "none").slice(0, 12)}${r.unread?.length ? ` · still reading ${r.unread.map((u) => `${u.name} ${u.read}/${u.total}`).join(", ")}` : ""}${cyc}`;
 }
 
@@ -231,6 +260,12 @@ export function answerRecordProse(r) {
   // question whose own claims contradict themselves is worth knowing before
   // reading anything else, whether or not the mouth happened to notice.
   if (r.logos?.detail) sentences.push(r.logos.detail);
+
+  // What the reasoning linter found in the NOTES this turn wrote — phrased
+  // only for problems this turn introduced, so a long-standing reading does
+  // not repeat itself under every answer.
+  const newProblems = lintKinds(r.ledgerLint?.thisTurn?.appeared);
+  if (newProblems.length) sentences.push(`Reading its own notes back, this turn left ${newProblems.join("; ")}.`);
 
   const claims = r.claims?.length ?? 0;
   const bound = r.tally?.bound ?? 0;
@@ -305,6 +340,15 @@ export function bareLogic(r) {
   if (!q && !ret.length && !claims.length && !unbacked.length && !unsupported.length && !(abs.citingVoid + abs.citingNone) && !answerChars) return [];
   if (q) L.push(`input     ${q}`);
   if (r.logos?.cycle?.length) L.push(`logos     CYCLE — ${r.logos.cycle.join(" → ")}`);
+  if (r.ledgerLint) {
+    const ll = r.ledgerLint;
+    const counts = Object.entries(ll.counts ?? {}).map(([k, n]) => `${n} ${k}`).join(", ");
+    L.push(`notes     linted ${ll.read} @${ll.strictness} — ${ll.ok ? "coherent" : "incoherent"}${counts ? ` · ${counts}` : ""}${ll.unjudged ? ` · ${ll.unjudged} address(es) with several values, no one-value declaration, not judged` : ""}`);
+    if (ll.thisTurn) {
+      L.push(`          this turn (seq ${ll.thisTurn.fromSeq}→${ll.thisTurn.toSeq}): ${ll.thisTurn.appearedCount} appeared · ${ll.thisTurn.resolvedCount} resolved`);
+      for (const f of ll.thisTurn.appeared) L.push(`  + [${f.severity}] ${f.kind}: ${f.detail}`);
+    }
+  }
   const retSrc = (r.retrievedSources ?? []).join(", ");
   L.push(`handed    ${ret.length} passage(s)${retSrc ? ` · sources ${retSrc}` : ""}`);
   for (const ref of ret) L.push(`            ${ref}`);

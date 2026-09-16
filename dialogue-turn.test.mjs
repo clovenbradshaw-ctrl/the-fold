@@ -77,6 +77,21 @@ test("the address check BY REFERENT: a draft that never names the asked-about re
   assert.equal(absent.addressed[0].reasked, false, "no re-ask on a name the material never mentions");
 });
 
+test("a re-ask may add, never drop: a re-asked draft that names the asked-about referent but loses a name the first draft took from the material is NOT adopted — the first draft stands and the drop is recorded", async () => {
+  // Live specimen 2026-09-16 (llama3.2): the first draft named both birthplaces
+  // the material gives without naming Grant; the re-ask named Grant and kept
+  // only the pamphlet's Georgetown, and was adopted for naming him.
+  const first = "Raskolnikov confessed in her room, and Svidrigailov confessed to Dounia in the street.";
+  const r = await runHolonicTask({ task: "What does the book say about Sonia?", chunks, call: mouth({ first, second: "Sonia heard a confession." }), ...organs });
+  const a = r.addressed?.[0];
+  assert.equal(a.reasked, true, "the draft never named Sonia, so the re-ask fired");
+  assert.equal(a.resolvedOn, null, "the re-ask was not adopted");
+  // "Raskolnikov" opens the sentence, and a sentence-initial capital is never evidence of a name (L2), so the drop names the other two.
+  assert.deepEqual(a.reaskDropped, ["Svidrigailov", "Dounia"], "the drop is on the record");
+  assert.match(r.output, /Svidrigailov confessed to Dounia/, "the first draft ships");
+  assert.doesNotMatch(r.output, /Sonia heard a confession/);
+});
+
 test("the expectation before the draft: what the passages state about the asked-about is composed first and the answer is diffed against it — and a fabrication is CUT by the walls before the diff, so what ships is fully authored by the material", async () => {
   const r = await runHolonicTask({ task: "What does the book say about Razumihin?", chunks, call: mouth({ first: `Razumihin brought soup to Raskolnikov. [${refOf("Razumihin brought soup")}] Razumihin brought wine to Porfiry.`, second: "" }), ...organs });
   const e = r.expectation;

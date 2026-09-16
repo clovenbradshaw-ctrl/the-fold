@@ -210,3 +210,15 @@ test("a comma-formatted number is recognized by VALUE, not by substring — '1,8
   assert.equal(wrong.flags.length, 1);
   assert.equal(wrong.flags[0].reason, "absent");
 });
+
+test("a snip keeps a name's initial inside its sentence: the attribution is never severed from its claim, and every snip reads back from its passage", () => {
+  // Live specimen 2026-09-16: the verbatim block handed "A later county pamphlet
+  // stated that Ulysses S." and a subjectless "Grant was born in Georgetown, Kentucky."
+  const text = "Ulysses S. Grant was born in Point Pleasant, Ohio, in 1822. Grant led the Union armies to victory in the Civil War.\n\nA later county pamphlet stated that Ulysses S. Grant was born in Georgetown, Kentucky. Grant served two terms as president of the United States.";
+  const snips = snipsFor([{ ref: "pasted.txt", text }], { obligations: ["born"] });
+  assert.deepEqual(snips.map((s) => s.text), [
+    "Ulysses S. Grant was born in Point Pleasant, Ohio, in 1822.",
+    "A later county pamphlet stated that Ulysses S. Grant was born in Georgetown, Kentucky.",
+  ]);
+  for (const s of snips) assert.equal(text.slice(s.start, s.end), s.text);
+});

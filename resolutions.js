@@ -168,6 +168,24 @@ const standingPhrase = (n) => {
   return `stated once so far${disputed}`;
 };
 const addressesOf = (n, max = 2) => [...new Set((n.witnesses ?? []).map(addressOf).filter((a) => a && a.includes("#")))].slice(0, max);
+// PLACES, NOT WITNESS RECORDS. One sentence read at two grains leaves two
+// witnesses on a note — the paragraph the arrival read took (`#0-115`) and the
+// sentence this turn's read took (`#0-59`) — and counting both made every note
+// read once "recur" at the floor of 2 (measured 2026-09-16, live: "«was born»
+// recurs between Ulysses S Grant and Georgetown (2 places)" over a material
+// stating it once). A range counts only when no other range of the same source
+// lies inside it, so nested reads of the same bytes are one place, and two
+// sentences of one paragraph are still two. Disclosed cost: a paragraph read
+// whole AND one of its two sentences read alone counts as one place, not two;
+// it undercounts recurrence, never invents it. An address with no byte range
+// counts as its own place.
+const RANGE = /^(.*)#(\d+)-(\d+)$/;
+const placesOf = (n) => {
+  const addrs = [...new Set([...(n.witnesses ?? []).map(addressOf), ...(n.spans ?? []).map((sp) => addressOf(sp?.ref ?? sp))].filter(Boolean))];
+  const ranges = addrs.map((a) => { const m = RANGE.exec(a); return m ? { a, source: m[1], start: Number(m[2]), end: Number(m[3]) } : { a }; });
+  const inside = (x, y) => x !== y && x.source != null && x.source === y.source && x.start >= y.start && x.end <= y.end && (x.start !== y.start || x.end !== y.end);
+  return ranges.filter((y) => y.source == null || !ranges.some((x) => inside(x, y))).length;
+};
 const noteIds = (n, index) => new Set([...resolveIds(index, n.subject ?? n.end1), ...resolveIds(index, n.object ?? n.end2)]);
 const noteLine = (n) => `${n.subject ?? n.end1} — ${n.verb ?? n.label}→ ${n.object ?? n.end2}`;
 
@@ -186,14 +204,29 @@ export function lensCut({ active, index, notes = [], dmdWindow = null, question 
   if (!active?.size) return { rows: [], window: 0, basis: "no active referent", acts: new Set(), ceiling: false };
   const last = lastOwnTurn(transcript);
   const co = new Set([...idsOfText(question, index), ...idsOfText(last?.answer ?? "", index)].filter((id) => !active.has(id)));
-  const rows = (notes ?? []).map((n) => ({ n, ids: noteIds(n, index), sources: Number.isFinite(n.sources) ? n.sources : 0, seen: (n.witnesses ?? []).length }))
+  // THE ASKED ACT KEEPS EVERY VALUE. A note's act is asked when every word of
+  // its label is a word of the question ("was born" in "Where was Ulysses S.
+  // Grant born?"). At act grain a second note with the same act counts as a
+  // repeat, which is right for an act the question does not ask about, and
+  // wrong for the one it does: there the objects ARE the candidate answers.
+  // Measured 2026-09-16, live: "Grant — was born→ in Point Pleasant" and
+  // "— in Georgetown" (a pamphlet's claim) shared the key, the cut kept the
+  // first by sort order and dropped the other, and the Lens listed Georgetown
+  // alone. So for an asked act the object joins the reach, and the cut keeps
+  // every value; the unasked acts compress exactly as before.
+  const questionWords = new Set(fold(question).split(/[^\p{L}\p{N}]+/u).filter(Boolean));
+  const labelOf = (n) => fold(n?.verb ?? n?.label);
+  const asked = (n) => { const w = labelOf(n).split(/[^\p{L}\p{N}]+/u).filter(Boolean); return w.length > 0 && w.every((x) => questionWords.has(x)); };
+  const rows = (notes ?? []).map((n) => ({ n, ids: noteIds(n, index), sources: Number.isFinite(n.sources) ? n.sources : 0, seen: (n.witnesses ?? []).length, asked: asked(n) }))
     .filter((r) => r.ids.size)
     .sort((a, b) => [...b.ids].filter((id) => active.has(id)).length - [...a.ids].filter((id) => active.has(id)).length
       || [...b.ids].filter((id) => co.has(id)).length - [...a.ids].filter((id) => co.has(id)).length
+      || Number(b.asked) - Number(a.asked)
       || b.sources - a.sources || b.seen - a.seen);
-  const act = (r) => [...r.ids].filter((id) => active.has(id)).map((id) => `${id}|${fold(r.n?.verb ?? r.n?.label)}`);
-  const cut = dmdCut(rows, active, { dmdWindow, reachOf: act });
-  return { ...cut, act, acts: new Set(cut.rows.flatMap(act)), coactive: sortedIds(co) };
+  const act = (r) => [...r.ids].filter((id) => active.has(id)).map((id) => `${id}|${labelOf(r.n)}`);
+  const reach = (r) => (r.asked ? act(r).map((k) => `${k}|${fold(r.n?.object ?? r.n?.end2)}`) : act(r));
+  const cut = dmdCut(rows, active, { dmdWindow, reachOf: reach });
+  return { ...cut, act, acts: new Set(cut.rows.flatMap(act)), asked: cut.rows.filter((r) => r.asked).length, coactive: sortedIds(co) };
 }
 
 /**
@@ -237,7 +270,7 @@ export function paradigmBlock({ active, index, notes = [], dmdWindow = null }) {
   const bears = new Map();
   for (const n of notes ?? []) {
     const s = resolveIds(index, n.subject ?? n.end1), o = resolveIds(index, n.object ?? n.end2);
-    const count = Math.max((n.witnesses ?? []).length, (n.spans ?? []).length, 1);
+    const count = Math.max(placesOf(n), 1);
     const label = fold(n.verb ?? n.label);
     if (!label) continue;
     if (s.size && o.size) { const k = `${key(s)}|${label}|${key(o)}`; const p = pairs.get(k) ?? { s, o, label: n.verb ?? n.label, count: 0 }; p.count += count; pairs.set(k, p); }

@@ -92,7 +92,11 @@ export function makeGary({ strikeAddresses = null, apparatusMentions = null, kon
     if (typeof apparatusMentions === "function") {
       let named = [];
       try { named = apparatusMentions(text) ?? []; } catch { named = []; }
-      if (named.length) add("no-apparatus", `names this instrument's own parts: ${[...new Set(named)].slice(0, 6).join(", ")}`);
+      // apparatusMentions returns [{term, index, excerpt}], not strings — a
+      // caller that joins the rows themselves gets "[object Object]" on every
+      // hit. Found live 2026-09-16, checking the witness's own prompts: every
+      // no-apparatus finding this file had ever produced read as garbage.
+      if (named.length) add("no-apparatus", `names this instrument's own parts: ${[...new Set(named.map((m) => m.term ?? m))].slice(0, 6).join(", ")}`);
     } else gaps.push({ type: "no_apparatus_organ", detail: "no apparatusMentions injected — the naming rule was not checked" });
 
     if (JSON_ASK.test(text)) add("no-json-ask", `the prompt asks for JSON: "${clip(text.match(JSON_ASK)?.[0])}"`);

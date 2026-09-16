@@ -19,7 +19,7 @@
 //   5. One rewrite of the flagged sentences from the snips, accepted only
 //              where the atoms now pass (holon.js).
 // Every flag carries the snip it failed against or the absence it stands in.
-import { numberSet, wordSet, CLAIM_STOPWORDS } from "./grounding.js";
+import { numberSet, wordSet, CLAIM_STOPWORDS, splitSentences } from "./grounding.js";
 import { namesIn } from "./ground-ladder.js";
 
 const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -120,13 +120,20 @@ export const SNIP_MAX = 40;         // snips a section is handed (P9: declared)
 export const SNIP_WINDOW = 320;     // chars of a passage around a hit, when the passage has no sentence boundary near it
 
 /** Split a passage into addressed sentences — the snip grain. */
+// THE ORGAN'S OWN SPLITTER, never a local regex (2026-09-16). The regex that
+// stood here cut at every period, so "A later county pamphlet stated that
+// Ulysses S. Grant was born in Georgetown, Kentucky." was handed as "…stated
+// that Ulysses S." and a subjectless "Grant was born in Georgetown, Kentucky."
+// — the attribution severed from its claim, in the verbatim block, after the
+// reader itself had been fixed to keep it whole. grounding.js::splitSentences
+// is the splitter the atom checks in this file already stand beside, with its
+// abbreviation guard and byte-true offsets. Disclosed cost it brings: a lone
+// capital before a period ("an A. Then") is kept as one sentence.
 function sentencesOf(passage) {
   const text = String(passage?.text ?? "");
-  const out = [];
-  const re = /[^.!?]+[.!?]+(?:["”’)]+)?|[^.!?]+$/g;
-  let m;
-  while ((m = re.exec(text))) { const s = m[0].trim(); if (s.length >= 20) out.push({ ref: passage.ref, start: m.index, end: m.index + m[0].length, text: s }); }
-  return out;
+  return splitSentences(text)
+    .filter((x) => x.text.length >= 20)
+    .map((x) => ({ ref: passage.ref, start: x.start, end: x.end, text: x.text }));
 }
 
 /**

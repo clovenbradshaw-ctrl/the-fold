@@ -402,3 +402,12 @@ test("the Yoda principle, wired into the recorded rung's own match (P224's discl
   });
   assert.equal(hebReordered.tier, "recorded", "the reorder-tolerance is cell-based, not script-based — a Hebrew copula reorder matches its note exactly as the English one does");
 });
+
+test("a sentence a second witness grounded says so in its detail, with why the first witness did not decide", () => {
+  const s = "Amelia Hartley directed the Northgate Observatory in 1887.";
+  const second = groundOf(s, { ...ctx, witness: { sentence: s, witness: "states", decider: "founded the Northgate Observatory in 1887", secondWitness: "gemma2:2b", firstWitness: "incoherent" } });
+  assert.equal(second.tier, "witnessed");
+  assert.match(second.detail, /asked again of gemma2:2b: the first witness said no while pointing at a sentence/);
+  const plain = groundOf(s, { ...ctx, witness: { sentence: s, witness: "states", decider: "founded the Northgate Observatory in 1887" } });
+  assert.doesNotMatch(plain.detail, /asked again/);
+});

@@ -8126,3 +8126,68 @@ POLICIES.md **P241**; eoreader7 **S127**. Gary and Kondo were run against real p
 ## The sentence witness is a parliament of two; pasted sources are named with a giver (added 2026-09-16) — pointer
 
 POLICIES.md **P239** and **P240**; eoreader7 **S126**. A select answer that says no while pointing is `incoherent`, not a no; when the first witness (OLMo-2-1B) is incoherent, indiscriminate or says a clean no, `app.js::witnessSentencesFor` hands the whole question to a second, different small model (`S2_MODEL`), and the witnessed rung says so. A claim end with no source word is not an anchor, the arm compares sentences not indices, and a decider must carry every figure the claim states — the last one earned when the second witness grounded "…in 1850" on a year-less sentence. `source-door.js::nameForPaste` names every pasted source (title → title page → heading → first sentence → pasted.txt) and the giver rides the source's persisted provenance; the paste dialog has an optional title.
+
+## The local vault (added 2026-09-16) — what was decided, so it is not re-derived
+
+POLICIES.md **P242** is the law; this is the map. The feature: encrypt what
+this instrument keeps at rest — eoreader7's on-disk ledgers, the-fold's own
+local state — under a key that never touches the server. Nothing here
+invents a cipher. `vault.js` reuses matrix.js's AES-256-GCM
+(`encryptBytes`/`decryptBytes`), PBKDF2 (`keyFromPassphrase`, `KDF_ROUNDS` =
+600,000), and ECDH wrap/unwrap (`wrapChatKey`/`unwrapChatKey`) directly —
+the same posture space-seal.js already takes toward matrix.js's cipher
+("imported here rather than restated... a second copy of a cipher is how
+two copies drift into one that is wrong").
+
+**Files.** `vault.js` (pure: key derivation, the raw-bytes vault envelope,
+the Matrix-device-wrap shape, the pending-write queue) + `vault.test.mjs`
+(12 conformance tests, real matrix.js primitives). `vault-client.js` (the
+crossing — OPFS via `navigator.storage.getDirectory()` +
+`FileSystemSyncAccessHandle`, raw ciphertext bytes, never base64-in-JSON,
+per the OPFS-not-IndexedDB instruction this pass was built to). matrix.js
+had no storage-crossing layer of its own — its header says so
+("PURE: no fetch, no DOM, no storage") — vault-client.js is that missing
+layer, the same relationship matrix-client.js already has to matrix.js.
+
+**Key-sourcing priority, as declared.** (1) Matrix-derived — a vault key
+wrapped per device (`wrapVaultKeyForDevice`/`openVaultKeyFromAccountData`,
+literally `wrapChatKey`/`unwrapChatKey` under new names) and published as
+Matrix account_data (`fold.vault_key`, private, syncs to every signed-in
+device, the same account_data door P184's "About you" profile already
+opened for this instrument). (2) Browser passphrase-derived — PBKDF2, key
+held in memory plus a wrapped copy in the OPFS vault file. (3) No key yet —
+`makePendingQueue`/`queueWrite`/`drainQueue`, a plaintext-at-rest queue by
+construction (nothing has sealed it yet), drained atomically once a key
+exists via path 1 or 2, never sent anywhere unsealed. (4) Explicit opt-out —
+space-seal.js's own private-repo-or-sealed rule, unchanged, referenced not
+duplicated.
+
+**The server side: the primitive is wired, the pipeline is not.**
+`eoreader7/native/the-fold/document-ledger.js::appendLedgerLine` takes an
+optional `sealedLine` — caller-supplied ciphertext — and writes it to disk
+verbatim instead of the plaintext observation; `projectLedgerFile`/
+`projectLedgerChangelog` skip a sealed row (`isSealedLine`) rather than
+crash on ciphertext they hold no key for. **Disclosed, not silently
+complete:** nothing calls `appendLedgerLine` with a real `sealedLine` yet.
+The client-side step that would actually produce one — app.js sealing an
+essay line with vault.js before the request that appends it leaves the
+page — is not threaded through, because app.js and proxy-runner.mjs's live
+request/response shapes were both under active concurrent edit by other
+sessions the same day this landed (this file's own Explore-section caution
+about shared files, applied). What ships is the primitive both ends need
+and a proven round trip through it, not the wire connecting a real
+passphrase prompt to a real write.
+
+**Not built, named rather than implied done:** the first-run passphrase
+prompt, the unlock-on-session-start UI, the irrecoverability disclosure
+copy at setup time, and the live Matrix account_data sync loop that would
+publish/read `fold.vault_key` on a real login — the constant and the
+wrap/unwrap functions exist; nothing in matrix-client.js's own sync calls
+them yet. The GitHub plaintext opt-out needed no new code; it already
+exists (space-seal.js, the GitHub organ section above).
+
+**Threat model, stated once and not oversold anywhere it is mentioned:**
+protects a vault blob at rest — on disk, in a backup, or read cross-origin
+— from anyone without the key. Does NOT protect against a compromised
+browser process or a malicious extension running inside the same page,
+which can read the vault the moment a person unlocks it.

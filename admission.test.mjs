@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { tokenize, retrieve } from "./source.js";
 import { splitSentences } from "../eoreader7/native/adapters/text/spans.js";
 import { NEGATION_WORDS } from "../eoreader7/native/adapters/text/priors.js";
-import { makeAdmission, ADMISSION_FLOOR } from "./admission.js";
+import { makeAdmission, ADMISSION_FLOOR, NULL_DRAWS, NULL_ALPHA } from "./admission.js";
 
 const admission = makeAdmission({ tokenize });
 // The company-checking configuration (splitSentences injected) — see
@@ -417,4 +417,206 @@ test("P71 cross-domain replay: denying a fabricated astronomy claim does not re-
   const correction = "that's wrong, there's no olive oil or garlic anywhere in what I sent you - that's about comet orbits. just tell me plainly what causes a comet's orbit to change over time.";
   const v = admissionWithNegation.sourceAdmits(correction, cookingSource);
   assert.equal(v.admitted, false, `expected refusal; got shared=${JSON.stringify(v.shared)}`);
+});
+
+// ── `exempt`: a source THIS conversation attached, never the workspace pool
+// (2026-09-15) — the live specimen. A fresh conversation is handed a real
+// meeting-notes paste ("pasted-15.txt"); a follow-up asks for its action
+// items in words the notes never use ("action"/"items"/"owns" appear
+// nowhere in ordinary narrative notes), and a second, plain factual
+// question asks about facts the notes DO state verbatim. Both turns were
+// answered from unrelated legacy sources sitting in the workspace's shared
+// pool instead — app.js's own call site now tracks which conversation
+// attached a source (`state.sourceOrigin`) and marks that source `exempt`
+// here, so it can never lose to workspace-pool noise on a bare vocabulary
+// count. ──────────────────────────────────────────────────────────────────
+const MEETING_NOTES = `Library Board Meeting Notes -- Sept 12
+
+The board voted 3-1 to extend Saturday hours at the main branch through the
+end of the year. Treasurer Ines Vogel reported the reserve fund balance is
+now $18,750, down from $21,200 last quarter, mostly due to the roof repair.
+Chair Wendell Ruiz led the meeting; board members Callum Pratt and Sana
+Okafor were also present.
+
+Before adjourning, Callum agreed to get the printer's invoice over to the
+district office by September 20. Wendell said he would put together a
+staffing schedule for the new Saturday hours and also get some quotes on
+fixing the carpet in the children's room.`;
+
+// Legacy workspace-pool material: unrelated, but each shares >= 2 words
+// with at least one of the two turns below by ordinary coincidence — the
+// same shape P204 already discloses as this floor's own open residual gap,
+// used here only to reproduce the reported symptom, not to re-litigate it.
+const LEGACY_MINUTES = "The neighborhood association discussed action items for the community garden plot assignments; each committee member owns a follow-up task before the next meeting.";
+const LEGACY_BAKERY = "Weekly bakery update: staff hours shift starting next week, and the reserve of sourdough starters is currently balanced across both ovens' current schedules.";
+
+test("live specimen, turn 1: a generic instruction that never repeats the fresh source's own words no longer loses it to workspace-pool coincidence", () => {
+  const question = "pull out the action items and who owns each one";
+  const pool = [
+    { name: "pasted-15.txt", text: MEETING_NOTES },
+    { name: "pasted-13.txt", text: LEGACY_MINUTES },
+  ];
+  const naive = admission.admitSources(question, pool);
+  assert.deepEqual(naive.admitted.map((a) => a.name), ["pasted-13.txt"], "reproduces the reported bug: the fresh, relevant source is refused while unrelated legacy material clears the floor by coincidence");
+  const fixed = admission.admitSources(question, pool, { exempt: new Set(["pasted-15.txt"]) });
+  assert.deepEqual(fixed.admitted.map((a) => a.name).sort(), ["pasted-13.txt", "pasted-15.txt"]);
+  assert.equal(fixed.admitted.find((a) => a.name === "pasted-15.txt").exempt, true);
+});
+
+test("live specimen, turn 2: a plain factual question about the fresh source's own stated facts still beats legacy noise once exempt, and retrieve() alone finds nothing useful in the legacy source", () => {
+  const question = "what was the vote count on extending Saturday hours, and what's the current reserve fund balance?";
+  const pool = [
+    { name: "pasted-15.txt", text: MEETING_NOTES },
+    { name: "riverside-coffee-sales", text: LEGACY_BAKERY },
+  ];
+  const { admitted } = admission.admitSources(question, pool, { exempt: new Set(["pasted-15.txt"]) });
+  assert.ok(admitted.some((a) => a.name === "pasted-15.txt"));
+});
+
+test("exempt is additive: a caller that omits it gets byte-identical admitSources behaviour", () => {
+  const sources = [
+    { name: "rfp.txt", text: RFP_TRANSCRIPT },
+    { name: "trivia.txt", text: "The X-Files first aired in 1993 and asked viewers to write in with their own theories about the essay-worthy mysteries of the show." },
+  ];
+  const withoutExempt = admission.admitSources(QUESTION, sources);
+  const withEmptyExempt = admission.admitSources(QUESTION, sources, { exempt: new Set() });
+  assert.deepEqual(withoutExempt.admitted.map((a) => a.name), withEmptyExempt.admitted.map((a) => a.name));
+  assert.deepEqual(withoutExempt.refused.map((r) => r.name), withEmptyExempt.refused.map((r) => r.name));
+});
+
+test("exempt never touches retrieve()'s own zero-relevance floor: an exempt source with zero real overlap still contributes no passages", () => {
+  const question = "what's today's date?";
+  const paras = MEETING_NOTES.split(/\n\n+/).filter((p) => p.trim());
+  let start = 0;
+  const chunks = paras.map((p) => {
+    const c = { ref: `pasted-15.txt#${start}-${start + p.length}`, source: "pasted-15.txt", start, end: start + p.length, text: p, terms: new Set(tokenize(p)) };
+    start += p.length + 2;
+    return c;
+  });
+  const hits = retrieve(chunks, question, 3);
+  assert.equal(hits.length, 0, "admission's exempt flag offers the source for consideration; it does not manufacture a passage retrieve() has no honest reason to select");
+});
+
+// ── a search-aware null over COMPANY, closing P204's own disclosed residual
+// gap (2026-09-15) ───────────────────────────────────────────────────────
+// P204's own text names the specific remaining hole COMPANY (above) does
+// not close: two ORDINARY, unrelated content words — neither rare, neither
+// a stopword — can coincidentally sit together in ONE sentence of an
+// otherwise wholly irrelevant, multi-paragraph stale source, clearing both
+// the floor and COMPANY on pure chance. See admission.js's own header, "A
+// TWO-WORD FLOOR HAS A STRUCTURAL BLIND SPOT," for the full account of why
+// rarity-weighting and a closed-form independence estimate were each tried
+// on paper and refuted before this shipped.
+//
+// This is a reconstruction of the reported live specimen, not the exact
+// captured text (which lives only in a shared turn-log): a stale,
+// unrelated, multi-paragraph office newsletter whose one middle paragraph
+// happens to read "...the engineering team...cost of living..." — verified
+// directly (not assumed) to share EXACTLY "team" and "cost" with the
+// message below, and that pair to sit together in exactly ONE of the
+// source's 8 sentences (and exactly one of its 5 paragraphs).
+const STALE_OFFICE_NEWSLETTER = `Northfield Manufacturing wrapped up its annual safety audit last week, with inspectors praising the plant floor's updated signage and lockout procedures. Every shift supervisor completed the refresher course ahead of schedule.
+
+The cafeteria menu rotates seasonally, and this quarter introduces a build-your-own salad bar alongside the usual hot line. Feedback cards are available at the register for anyone with suggestions.
+
+Priya Desai led the relocation of the engineering team from Austin to Denver, after their lease in Texas expired in March 2019, citing the mountain-biking culture, shorter commutes, and cheaper cost of living.
+
+Facilities reminds everyone that the loading dock gate now closes automatically at 8pm, and badge access is required after hours. Contact security if your badge stops working.
+
+The quarterly newsletter will move to a digital-only format starting next year, saving an estimated four reams of paper a month.`;
+
+const CLUB_UPDATE_MESSAGE = "Oakview Robotics Club - Spring Update: Membership hit 27 students this term, split across Team Falcon and Team Comet. The club is asking for $250 toward extra servo motors. Meeting snacks cost $30 total this term.";
+
+test("search-aware null: verified fixture — 'team' and 'cost' are the ONLY shared words, and they sit together in exactly one of the stale source's 8 sentences / 5 paragraphs", () => {
+  const v = admissionWithCompany.sourceAdmits(CLUB_UPDATE_MESSAGE, STALE_OFFICE_NEWSLETTER);
+  assert.deepEqual(v.shared.sort(), ["cost", "team"]);
+});
+
+test("search-aware null: the pre-fix behaviour reproduces the report exactly — COMPANY alone (no null) admits the coincidence, because it only ever asked 'does SOME sentence carry both words', never 'is that the only place they could have landed'", () => {
+  // A bare re-implementation of the pre-this-pass hasCompany: true the
+  // moment any one sentence (or paragraph) carries `need` of `shared`
+  // together, with no further question asked — pinned here, once, so the
+  // fix below is legible as a fix and not an assumption.
+  const sentences = splitSentences(STALE_OFFICE_NEWSLETTER).map((s) => (typeof s === "string" ? s : s.text));
+  const shared = ["team", "cost"];
+  const qualifyingSentences = sentences.filter((s) => shared.every((w) => new Set(tokenize(s)).has(w)));
+  assert.equal(qualifyingSentences.length, 1, "exactly one sentence carries both words — the shape of a chance collision, not a pattern");
+});
+
+test("search-aware null: the fix — the SAME two words, found together in only ONE sentence of a multi-paragraph source, are refused as indistinguishable from a chance collision, not trusted as company", () => {
+  const v = admissionWithCompany.sourceAdmits(CLUB_UPDATE_MESSAGE, STALE_OFFICE_NEWSLETTER);
+  assert.equal(v.admitted, false, `expected refusal; got reason=${v.reason}`);
+  assert.match(v.reason, /indistinguishable from a chance collision/);
+});
+
+test("search-aware null: WITHOUT the sentence-splitter injected (COMPANY itself opted out), the bare floor still admits the coincidence — pins the older, still-real gap this null sits on top of, never replaces", () => {
+  const v = admission.sourceAdmits(CLUB_UPDATE_MESSAGE, STALE_OFFICE_NEWSLETTER);
+  assert.equal(v.admitted, true, "the base floor alone (no COMPANY at all) has always admitted this; the null is COMPANY's own refinement, not a third independent gate");
+});
+
+test("search-aware null: real corroboration — the SAME two words recurring in TWO INDEPENDENT paragraphs of a source genuinely about the topic — is trusted outright, never put to the null", () => {
+  const relevant = `Priya Desai led the relocation of the engineering team from Austin to Denver, after their lease in Texas expired in March 2019, citing the mountain-biking culture, shorter commutes, and cheaper cost of living.
+
+Finance later confirmed the total cost of the move came in under budget, and every member of the team was reimbursed for moving expenses within six weeks of the transition.`;
+  const q = "How much did it cost to relocate the team, and when did that happen?";
+  const v = admissionWithCompany.sourceAdmits(q, relevant);
+  assert.equal(v.admitted, true, `expected admission via real recurrence; got reason=${v.reason}`);
+  assert.ok(!/redeal|chance collision/.test(v.reason), "genuine recurrence should never even reach the null's own wording");
+});
+
+test("search-aware null: a single-paragraph source is EXEMPT from the null by construction — there is nowhere else the company could have been, so this file's own existing single-paragraph fixtures (cider, observatory, garden, coffee shop) all stay admitted exactly as before", () => {
+  // Direct, minimal reproduction of the exemption boundary itself: two
+  // ordinary words coincidentally sharing ONE sentence of an otherwise
+  // unrelated but SHORT, single-paragraph source are still admitted — the
+  // disclosed residual limit this file's own header names plainly ("a
+  // source with fewer than two units at this grain is exempt... testing
+  // it would be degenerate").
+  const shortCoincidence = "The bakery hired two new part-time cashiers this week to cover the busy weekend shift, and the manager mentioned the added labor cost was worth it for the extra team coverage during the holiday rush.";
+  const q = "how big is the team, and what did it cost?";
+  const v = admissionWithCompany.sourceAdmits(q, shortCoincidence);
+  assert.deepEqual(v.shared.sort(), ["cost", "team"]);
+  assert.equal(v.admitted, true, "a single-paragraph source has no second region to test recurrence against — this is a disclosed limit, not a silent regression");
+});
+
+// P71 cross-domain replay: a wholly different domain (an astronomy club's
+// newsletter; a school chess club's fundraiser message) — nothing borrowed
+// from the office-relocation specimen's own vocabulary — proving the null
+// is a genuine, reusable mechanism rather than a patch fitted to "team" and
+// "cost" specifically. Verified directly: the two texts share five words in
+// total (club/order/supplies/donation/next), all five landing in exactly
+// one of the astronomy newsletter's five paragraphs.
+const STALE_ASTRONOMY_NEWSLETTER = `The Riverbend Astronomy Club's stargazing night at Miller Field drew about forty attendees despite a chilly wind, and the club's loaner telescopes were in steady use until well past midnight.
+
+Officer elections will run next month; anyone interested in serving as secretary or outreach coordinator should let the board know before the March meeting.
+
+The club placed a bulk order for red-light flashlights and eyepiece supplies before the meteor shower, splitting the cost three ways among the treasury, a member donation, and a small grant.
+
+The newsletter is moving to a quarterly schedule instead of monthly, freeing up volunteer time for the observatory's own maintenance list.
+
+Parking near the observatory will shift to the north lot starting next season while the south lot gets repaved.`;
+
+const CHESS_CLUB_MESSAGE = "Lincoln Middle School Chess Club - Fall Update: We now have 34 members after tryouts. In order to fund new boards and clocks, we're doing a supplies drive collecting gently-used backpacks and notebooks for donation. Tournament registration opens next Friday.";
+
+test("P71 cross-domain replay: a stale astronomy-club newsletter does not ground a school chess-club message on words that all happen to land in its one 'bulk order' paragraph", () => {
+  const v = admissionWithCompany.sourceAdmits(CHESS_CLUB_MESSAGE, STALE_ASTRONOMY_NEWSLETTER);
+  assert.equal(v.admitted, false, `expected refusal; got shared=${JSON.stringify(v.shared)}, reason=${v.reason}`);
+  assert.match(v.reason, /indistinguishable from a chance collision/);
+});
+
+test("P71 cross-domain replay, positive control: a chess-club message asking specifically about the astronomy club's own real order is admitted — the null does not over-refuse genuine single-paragraph relevance", () => {
+  const q = "what did the astronomy club order before the meteor shower, and how did they split the cost?";
+  const v = admissionWithCompany.sourceAdmits(q, STALE_ASTRONOMY_NEWSLETTER);
+  assert.equal(v.admitted, true, `expected admission; got reason=${v.reason}`);
+});
+
+test("the null's own numbers are structural, not tunable per call — NULL_DRAWS/NULL_ALPHA are exported and reused (this repo's own standing null-arm draw count and standing alpha), never re-derived for this specimen", () => {
+  assert.equal(NULL_DRAWS, 200);
+  assert.equal(NULL_ALPHA, 0.05);
+});
+
+test("the null is deterministic under its own default seed — a pure function, not a source of test flakiness", () => {
+  const a = admissionWithCompany.sourceAdmits(CLUB_UPDATE_MESSAGE, STALE_OFFICE_NEWSLETTER);
+  const b = admissionWithCompany.sourceAdmits(CLUB_UPDATE_MESSAGE, STALE_OFFICE_NEWSLETTER);
+  assert.equal(a.admitted, b.admitted);
+  assert.equal(a.reason, b.reason);
 });

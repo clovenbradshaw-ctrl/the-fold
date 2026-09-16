@@ -4802,7 +4802,7 @@ window.addEventListener("fold:coding-submit", (e) => {
     const features = splitFeatures(String(task ?? "").trim());
     if (!features.length) { codingStep("no_features", { task }); releaseBusy(); return; }
     const cp = { lang, spec: task, features, parts: Math.max(2, Math.min(10, features.length)) };
-    await codePieceTurn(cp, task, { onEvent: codingStep });
+    await codePieceTurn(cp, task, { onEvent: codingStep, compactChat: true });
   });
 });
 window.addEventListener("fold:coding-iterate", (e) => {
@@ -5674,7 +5674,7 @@ async function runBuildOnce(entry) {
 }
 const CODE_PIECE_BODY_TOKENS = 700;   // one function body per ask (P117)
 const CODE_PIECE_FIXES = 1;           // one fix per failing function, named by the traceback
-async function codePieceTurn(cp, typed, { onEvent = null } = {}) {
+async function codePieceTurn(cp, typed, { onEvent = null, compactChat = false } = {}) {
   // The Coding pane is standalone (coding-pane.js's own header: "never
   // imports app.js... not itself a conversation") and this turn is reached
   // through guardedCoding's own busy guard, which switchConvo also checks —
@@ -5687,9 +5687,25 @@ async function codePieceTurn(cp, typed, { onEvent = null } = {}) {
   // happens to be active THEN, not the one this build actually ran under).
   const targetConvo = state.convos[state.active];
   addMessage("user", typed);
-  const node = addMessage("assistant", "");
-  node.querySelector(".role-tag").textContent = "program";
-  const body = node.querySelector(".body");
+  // compactChat (set by the Coding-tab's own two callers, below) is the fix
+  // for a reported bug: the Coding pane already shows every step of a run
+  // LIVE, as its own structured cards (onEvent, coding-pane.js) — mirroring
+  // that same, growing, ~2000-char narration a SECOND time into whatever
+  // chat conversation happens to be active is not disclosure, it is an
+  // unrelated conversation's own thread getting build tracebacks nobody
+  // asked to see there. The chat-typed door (detectCodePiece, no Coding-tab
+  // view of its own) is untouched: compactChat defaults false, so it keeps
+  // the full live narration exactly as before. Either way `lines` (below)
+  // still accumulates the FULL text — the append-only record
+  // (mirrorTermRecord) and "send to chat" (state.history, further down)
+  // stay exactly as complete as they always were; only the DOM message a
+  // reader sees while the build is running is scoped by this flag. The
+  // detached scratch element mirrors this file's own precedent (the
+  // "thinking affordance, vastly simplified" pass): a live target for
+  // `say()` to write into that nothing ever attaches to the page.
+  let node = compactChat ? null : addMessage("assistant", "");
+  if (node) node.querySelector(".role-tag").textContent = "program";
+  const body = node ? node.querySelector(".body") : document.createElement("div");
   const lines = [];
   // A second, structured disclosure channel beside `say`'s prose — the
   // Coding pane's own live step cards (coding-pane.js, via the
@@ -5701,7 +5717,17 @@ async function codePieceTurn(cp, typed, { onEvent = null } = {}) {
   const say = (l, evt) => { lines.push(l); body.textContent = lines.join("\n"); if (evt) onEvent?.(evt.type, evt.payload ?? {}); };
   const sentCalls = [];
   const call = async (messages, opts = {}) => { sentCalls.push({ n: sentCalls.length + 1, messages }); return complete(messages, { ...opts, model: state.model }); };
-  if (!CODE_RUNTIMES.includes(cp.lang)) { say(`no skeleton for ${cp.lang} yet — the code piece builds ${CODE_RUNTIMES.join(" and ")} programs; the ordinary /run and /fold doors still take ${cp.lang}.`, { type: "unsupported_language", payload: { lang: cp.lang, supported: CODE_RUNTIMES } }); releaseBusy(); return; }
+  if (!CODE_RUNTIMES.includes(cp.lang)) {
+    say(`no skeleton for ${cp.lang} yet — the code piece builds ${CODE_RUNTIMES.join(" and ")} programs; the ordinary /run and /fold doors still take ${cp.lang}.`, { type: "unsupported_language", payload: { lang: cp.lang, supported: CODE_RUNTIMES } });
+    // This refusal never reaches the tail's compact-handle code (it returns
+    // here), and it is one short line, not the growing narration compactChat
+    // exists to keep out of chat — so it is shown in full, the same way the
+    // chat-typed door always has, rather than left as a "user" bubble with
+    // no reply at all.
+    if (compactChat) { const refusal = addMessage("assistant", body.textContent); refusal.querySelector(".role-tag").textContent = "program"; }
+    releaseBusy();
+    return;
+  }
   // NUL → SIG → INS → CON → SYN, all mechanical: the spec's clauses in their own order are the dependency order; names off the clauses; the skeleton born as a build with a pipeline main.
   const sk = skeletonFor(cp.lang, cp.spec, cp.features);
   publishBuild({ type: "code", lang: cp.lang, code: sk.code }, `${cp.lang}: ${cp.spec.slice(0, 60)}`, typed);
@@ -5821,6 +5847,24 @@ async function codePieceTurn(cp, typed, { onEvent = null } = {}) {
   // words") — load-bearing on the narrow/mobile layout, where the
   // conversation strip that would otherwise show it is not on screen at all
   // (task_3e9f2a31).
+  // The visible chat bubble, finally built now that the run is over: a
+  // one-line handle (this file's own long-standing "code is a one-line
+  // handle to the build" rule, The build log section above, applied here
+  // to the step-by-step narration rather than the code itself) pointing
+  // back at the Coding tab's own full Steps feed and the append-only
+  // record — never a second copy of the whole run.
+  if (compactChat) {
+    node = addMessage("assistant", "");
+    node.querySelector(".role-tag").textContent = "program";
+    const handle = document.createElement("button");
+    handle.type = "button";
+    handle.className = "build-chip";
+    handle.textContent = `▤ fold ${n} · ${cp.lang} · ${sk.names.length} function(s) — open Steps for the full run`;
+    handle.title = "every ask, repair and witness of this run is in the Coding tab's own Steps feed and on the append-only record — this chat message is a pointer, not a second copy";
+    handle.onclick = () => showView("coding");
+    node.querySelector(".body").append(handle);
+  }
+  const visibleBody = node.querySelector(".body");
   const dest = document.createElement("span");
   dest.className = "build-dest";
   dest.textContent = `→ ${convoTitle(targetConvo)}`;
@@ -5852,7 +5896,7 @@ async function codePieceTurn(cp, typed, { onEvent = null } = {}) {
     sendChip.textContent = targetConvo === state.convos[state.active] ? "sent to chat" : `sent to ${convoTitle(targetConvo)}`;
     mirrorTermRecord("codepiece-sent-to-chat", { fold: n, via: "chat" });
   };
-  body.append(dest, sendChip);
+  visibleBody.append(dest, sendChip);
   renderFold(node, { sent: sentCalls });
   renderThreads();
   $("status").textContent = readyLine();

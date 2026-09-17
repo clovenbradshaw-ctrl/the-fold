@@ -118,6 +118,67 @@ export function verifyExternalResolvable(graph, siblings) {
   return true;
 }
 
+/**
+ * Walk the page's ACTUAL module graph — the page's own files, then every
+ * relative import they make, across the mount boundary into the engine trees
+ * and the vendored packages — and fail the build on either of the two ways a
+ * static page dies at LINK time (2026-09-17, the deploy that booted to the
+ * #not-served banner on GitHub Pages):
+ *
+ *   1. a `node:*` specifier — `import fs from "node:fs"` cannot LOAD in a
+ *      browser (CORS-blocks the `node:` scheme), and one poisoned module in
+ *      the graph aborts the WHOLE graph: app.js never evaluates, `fillModels`
+ *      never runs, and the reader is told to install the app locally. The
+ *      eoreader7 seam re-exported two organs whose adapter imports `node:fs`;
+ *      only a walk past the seam's own re-export line could see it.
+ *   2. an unresolvable RELATIVE import — a browser's module resolver does
+ *      EXACT matching (no `.js` guessing), so `from "./x"` that names no real
+ *      file is a link error on a static host, never a server-side resolution.
+ *
+ * Anything reachable from the page is checked; anything else (a node-only
+ * organ the seam excludes, a test file, the server itself) is not, so a
+ * server-side `node:` import that never reaches the page does not fail the
+ * build. A bare specifier (import-mapped, or a vendored package's own
+ * internal import) is left to its own package's browser build — the vendored
+ * packages the page loads are themselves browser-targeted by decision.
+ */
+export function verifyBrowserLoadable(graph, root, siblings) {
+  const visited = new Set();
+  const problems = [];
+  const read = (p) => { try { return readFileSync(p, "utf8"); } catch { return null; } };
+  const walk = (file, from) => {
+    if (visited.has(file)) return;
+    visited.add(file);
+    if (!existsSync(file)) { problems.push(`${relative(siblings, file)} — does not exist, imported from ${from}`); return; }
+    const src = read(file);
+    if (src == null) return;
+    const rel = relative(siblings, file);
+    const specifiers = [];
+    for (const m of src.matchAll(/from\s+(["'])([^"']+)\1/g)) specifiers.push(m[2]);
+    for (const m of src.matchAll(/import\s*\(\s*(["'])([^"']+)\1\s*\)/g)) specifiers.push(m[2]);
+    for (const m of src.matchAll(/new URL\(\s*(["'])([^"']+)\1\s*,\s*import\.meta\.url\s*\)/g)) specifiers.push(m[2]);
+    for (const spec of specifiers) {
+      if (spec.startsWith("node:")) { problems.push(`${rel} imports ${spec} — a node built-in cannot load in a browser and would kill the whole page graph`); continue; }
+      if (!spec.startsWith(".")) continue; // bare specifier: import-mapped or vendored
+      const base = dirname(file);
+      const target = resolve(base, spec);
+      if (existsSync(target)) { walk(target, rel); }
+      else {
+        problems.push(`${rel} imports "./${relative(dirname(join(root, "the-fold")), target) || spec}" which does not resolve on disk — a browser's module resolver needs the exact path`);
+      }
+    }
+  };
+  for (const f of graph.files) walk(join(root, f), "the page");
+  if (problems.length) {
+    throw new Error(
+      `static build would ship a page that cannot boot: ${problems.length} browser-load problem(s) in the page's module graph.\n` +
+        problems.slice(0, 25).join("\n") +
+        "\nA module the page loads must resolve with EXACT relative paths and must never import node: built-ins (see deploy/build-site.mjs verifyBrowserLoadable).",
+    );
+  }
+  return true;
+}
+
 /** A Chrome MV3 manifest for the same dist: the action opens the page in a
  * tab; host permissions name the local servers and the two weights hosts
  * the rung may reach when the site itself carries no mirror. */
@@ -177,6 +238,14 @@ export async function build(opts) {
   // Skew check before any copying: every engine import the page makes must
   // resolve in the sibling checkout, or the built page cannot boot.
   verifyExternalResolvable(graph, SIBLINGS);
+  // Browser-load check, the same gate at the next rung: walk the page's whole
+  // module graph — own files, engine trees, vendored packages — and refuse to
+  // ship any module that imports a node: built-in or an unresolvable relative
+  // path, the two ways a static page dies at LINK time (2026-09-17: the seam
+  // re-exported a node:fs organ and the GitHub Pages build booted to the
+  // #not-served banner). A graph that passes verifyExternalResolvable but
+  // fails here would still ship a dead page.
+  verifyBrowserLoadable(graph, ROOT, SIBLINGS);
 
   // 1. the page's own files, mount specifiers rewritten per depth
   const fold = join(out, "the-fold");

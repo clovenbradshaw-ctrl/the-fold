@@ -128,7 +128,7 @@ import { whereAmI, describeRoutes } from "./routes.js";
 // machine through a Matrix homeserver the person names — every byte that
 // leaves this page for it sealed under a key the homeserver never holds.
 import { FoldMatrix, localStorageStorage, MatrixError } from "./matrix-client.js";
-import { parseShareLink, stripShareFragment, SERVER_SEES, MAGIC_KEY_WARNING, deviceContent, deviceLine, fallbackMouth } from "./matrix.js";
+import { parseShareLink, stripShareFragment, SERVER_SEES, MAGIC_KEY_WARNING, deviceContent, deviceLine, fallbackMouth, renderConversation } from "./matrix.js";
 import { createWatch } from "./heimdall-client.js";
 import { mintInvite, recordCode, CODES_TYPE as HEIMDALL_CODES_TYPE } from "./heimdall-invite.js";
 import { JOB_KINDS, CANDIDATE_KINDS, candidateOf, roomCandidateOf, roomCandidatesFrom, emptyEvidence, huginnObserve, huginnPrioritize, huginnHopAfter, huginnDecision } from "./huginn.js";
@@ -1630,14 +1630,23 @@ const OLLAMA_DEFAULT = "http://localhost:11434";
 // model `er7:`; the fold normalizes that away on read and re-adds it on
 // send, so MODEL_PICKER's bare rungs still match.
 const HEIMDALL_DEFAULT = "http://localhost:11436";
+// The server this page load discovered, when the primary base did not answer
+// and a local server did (see fillModels). A per-load rediscovery, never
+// persisted — a server that is up now may be down next boot, and the person's
+// own explicit override always wins over this. Because every send path reads
+// its base through ollamaBase() and isHeimdallBase(), discovering the proxy
+// here keeps model naming (/api/tags's `er7:` prefix) and send (addEr7IfNeeded)
+// consistent end to end — no second base is carried anywhere.
+let discoveredBase = null;
 // The base a caller picked explicitly (localStorage override, never synced
 // through the room or the record) — a tunnel, a reverse proxy, anything a
 // browser can reach, for a page served over https.
 function ollamaBase() {
   try {
     const v = (localStorage.getItem("fold-ollama-base") || "").trim();
-    return v && /^https?:\/\/\S+$/i.test(v) ? v.replace(/\/+$/, "") : OLLAMA_DEFAULT;
-  } catch { return OLLAMA_DEFAULT; }
+    if (v && /^https?:\/\/\S+$/i.test(v)) return v.replace(/\/+$/, "");
+  } catch { /* fall through to the discovered or default base */ }
+  return discoveredBase ?? OLLAMA_DEFAULT;
 }
 // The proxy's model id shape: `er7:<real-ollama-model>`. A name read off
 // the proxy's /api/tags is prefixed; MODEL_PICKER names are bare. These two
@@ -2754,36 +2763,76 @@ async function seedPaceFromBridge() {
   }
 }
 
+/**
+ * Fill the picker's server models off one base's /api/tags. Called from at
+ * most ONE base per load (the first that answers) — Ollama's or the er7
+ * proxy's — so offeredModels holds exactly one server's rungs, never a mix.
+ * Normalize the seam: the er7 proxy (Heimdall) prefixes every model `er7:`;
+ * MODEL_PICKER names are bare. Store BOTH — the bare name is what
+ * routing/MODEL_PICKER match, and the prefixed form is what the proxy
+ * accepts on send (rebuilt on send, not stored — see the connect path).
+ * availableModels keys the BARE names so S1_MODEL/S2_MODEL and every picker
+ * rung resolve against this server whatever it is.
+ */
+function populateServerModels(sel, models, base) {
+  const byName = new Map((models ?? []).map((m) => [stripEr7(m?.name), m]));
+  state.availableModels = new Set(byName.keys());
+  const offered = MODEL_PICKER.map((name) => byName.get(name)).filter(Boolean);
+  state.offeredModels = offered.map((m) => m.name);
+  for (const m of offered) {
+    const opt = document.createElement("option");
+    opt.value = m.name;
+    opt.textContent = `${m.name} · ${((m.size ?? 0) / 1e9).toFixed(1)}GB`;
+    sel.append(opt);
+  }
+  // Default to the smallest offered rung, not the largest — the fastest
+  // model is what most turns actually run on (routeModel only reaches for
+  // `selected` on DEEP turns), and it is what a first connection should
+  // cost. Degrades to the next offered rung if the smallest isn't pulled,
+  // the same graceful-degradation model-routing.js already documents.
+  sel.value = state.offeredModels[0] ?? MODEL_PICKER[0];
+  if (!offered.length) $("status").textContent = isHeimdallBase(base) ? `eoreader7's proxy answered on ${base} but has no models pulled` : "ollama has no models pulled";
+}
+
 async function fillModels() {
   const sel = $("model");
   sel.textContent = "";
-  try {
-    const res = await fetchWithRetry(`${ollamaBase()}/api/tags`);
-    const { models } = await res.json();
-    // Normalize the seam: the er7 proxy (Heimdall) prefixes every model
-    // `er7:`; MODEL_PICKER names are bare. Store BOTH — the bare name is
-    // what routing/MODEL_PICKER match, and the prefixed form is what the
-    // proxy accepts on send (rebuilt on send, not stored — see the connect
-    // path). availableModels keys the BARE names so S1_MODEL/S2_MODEL and
-    // every picker rung resolve against this server whatever it is.
-    const byName = new Map(models.map((m) => [stripEr7(m.name), m]));
-    state.availableModels = new Set(byName.keys());
-    const offered = MODEL_PICKER.map((name) => byName.get(name)).filter(Boolean);
-    state.offeredModels = offered.map((m) => m.name);
-    for (const m of offered) {
-      const opt = document.createElement("option");
-      opt.value = m.name;
-      opt.textContent = `${m.name} · ${(m.size / 1e9).toFixed(1)}GB`;
-      sel.append(opt);
-    }
-    // Default to the smallest offered rung, not the largest — the fastest
-    // model is what most turns actually run on (routeModel only reaches for
-    // `selected` on DEEP turns), and it is what a first connection should
-    // cost. Degrades to the next offered rung if the smallest isn't pulled,
-    // the same graceful-degradation model-routing.js already documents.
-    sel.value = state.offeredModels[0] ?? MODEL_PICKER[0];
-    if (!offered.length) $("status").textContent = "ollama has no models pulled";
-  } catch {
+  // A discovery from a previous call is this call's to remake: a server that
+  // answered then may not answer now, and an explicit override (which never
+  // reads discoveredBase) re-probes its own base regardless.
+  discoveredBase = null;
+  // Probe the primary base (Ollama) FIRST, then the local eoreader7 proxy
+  // (Heimdall) — the same /api/tags wire shape, the bridge's own full
+  // pipeline behind it — so a visitor with a local eoreader7 and no Ollama
+  // is offered the engine's models rather than a "start Ollama" dead end,
+  // and a GitHub Pages visitor on a machine running NEITHER still gets the
+  // in-tab rungs below (never "install it locally"). The proxy speaks only
+  // when the primary did not: an explicitly chosen address is never
+  // overridden, and pointing at the proxy directly probes it alone. When the
+  // proxy is the one that answers, it becomes this load's base
+  // (discoveredBase), keeping its `er7:`-prefixed model names consistent
+  // with the send path that re-adds the prefix.
+  const primary = ollamaBase();
+  const bases = [primary];
+  if (primary !== HEIMDALL_DEFAULT && !isHeimdallBase(primary)) bases.push(HEIMDALL_DEFAULT);
+  let answered = null;
+  for (const base of bases) {
+    try {
+      const res = await fetchWithRetry(`${base}/api/tags`);
+      const { models } = await res.json();
+      populateServerModels(sel, models, base);
+      answered = base;
+      if (base !== primary) {
+        discoveredBase = base;
+        $("status").textContent = `eoreader7's proxy answered on ${base} — its models are on offer; the fold's own in-tab models sit beside them below`;
+        // Keep the address field honest about whose models these are.
+        const input = $("ollama-base");
+        if (input) { input.value = base; updateOllamaAddressLine(); }
+      }
+      break;
+    } catch { /* this base did not answer — try the next */ }
+  }
+  if (!answered) {
     state.availableModels = state.availableModels ?? new Set();
     state.offeredModels = [];
     $("status").textContent = ollamaMixedContentRisk()
@@ -3882,6 +3931,7 @@ const matrixUsage = [
   "/matrix — where this page stands with its homeserver, and what that server can see",
   "/matrix login [homeserver] — sign in (a sheet; the password never touches the composer)",
   "/matrix logout · rooms · open <room id> · request <room id> · members · fingerprint · forget",
+  "/matrix print <room id> — the FULL conversation, every entry of every kind, both roles, every gap named (nothing hidden)",
   "/matrix lock · unlock · unlock off — seal what this browser keeps under a passphrase (a sheet)",
   "/matrix rotate · remove @who:server — a new key epoch; removal takes the seat and rotates",
   "/preserve [name] — seal this chat's turns into blocks on the homeserver (new turns only, each time; with a room open, turns are preserved automatically)",
@@ -4017,6 +4067,16 @@ async function matrixTurn(arg, question) {
       return usageTurn(question, `opened ${roomLabel(tail)}: ${r.chains} chain(s), ${r.blocks} block(s), ${r.entries.length} entr${r.entries.length === 1 ? "y" : "ies"} read back and decrypted here — ${n} drawn above${r.gaps.length ? `\ngaps: ${r.gaps.join("; ")}` : ""}`, { what: "matrix" });
     }
     if (verb === "request") { if (!/^!/.test(tail)) return usageTurn(question, "/matrix request <room id>", { what: "matrix" }); await foldMatrix.requestKey(tail); return usageTurn(question, `your public key is published in ${tail}; when a member runs /share there, the chat key is wrapped to it — then /matrix open ${tail}`, { what: "matrix" }); }
+    // /matrix print <room id> — the FULL conversation from this surface, the
+    // same renderConversation the TUI/proxy/archon-hyphae use: every entry of
+    // every kind, both roles, every gap named. Nothing hidden, nothing
+    // filtered to "turn" — unlike /matrix open, which replays turns only.
+    if (verb === "print") {
+      if (!/^!/.test(tail)) return usageTurn(question, "/matrix print <room id> — a room id starts with !", { what: "matrix" });
+      const r = await foldMatrix.load(tail);
+      const text = renderConversation({ room: tail, entries: r.entries, blocks: r.blocks, chains: r.chains, partial: r.partial, gaps: r.gaps, session: foldMatrix.session });
+      return usageTurn(question, text, { what: "matrix" });
+    }
     return usageTurn(question, matrixUsage, { what: "matrix" });
   } catch (e) { return usageTurn(question, `/matrix ${verb}: ${matrixGap(e)}`, { what: "matrix" }); }
 }
@@ -18518,7 +18578,7 @@ async function togglePriorPath(rel, on) {
   renderPriorsFromData();
 }
 
-async function openPriorDoc(rel) {
+async function openPriorDoc(rel, find = null) {
   priorsBusy = rel;
   renderPriorsFromData();
   try {
@@ -18526,8 +18586,39 @@ async function openPriorDoc(rel) {
   } catch (e) {
     priorsFocus = { path: rel, gap: { silence: "unreachable", detail: e.message } };
   }
+  if (find) priorsFocus.find = find;
   priorsBusy = null;
   renderPriorsFromData();
+}
+
+// The chat's archon card (archon-card.js) quotes works this corpus holds; its
+// citation opens the work here, at the passage it quotes, so "read from your
+// priors" is something a reader can check rather than take on the card's word.
+window.addEventListener("fold:open-prior", (e) => {
+  const { path, find } = e.detail ?? {};
+  if (typeof path !== "string" || !path) return;
+  showView("explore");
+  setExploreView("priors");
+  openPriorDoc(path, typeof find === "string" ? find : null);
+  window.dispatchEvent(new CustomEvent("fold:prior-opened", { detail: { path } }));
+});
+
+/**
+ * Where a quoted passage sits in a document's text: the quote's own words in
+ * order, any whitespace (or a verse divider the quote writes as " / ") between
+ * them. A quote the card shows with a declared OCR fix may not occur as
+ * printed, so the match falls back to its opening words — shorter, never
+ * looser than word-for-word.
+ */
+function findPassage(text, quote) {
+  const words = String(quote).replace(/…/g, " ").split(/[\s/|]+/).filter(Boolean);
+  for (const n of [words.length, 12, 8, 5, 3]) {
+    if (n > words.length || n < 1) continue;
+    const pattern = words.slice(0, n).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[\\s/|]+");
+    const m = new RegExp(pattern, "u").exec(text);
+    if (m) return { start: m.index, end: m.index + m[0].length };
+  }
+  return null;
 }
 
 function renderPriorsFocusCard(byPath) {
@@ -18590,7 +18681,22 @@ function renderPriorsFocusCard(byPath) {
   if (typeof f.text === "string") {
     const textBox = document.createElement("div");
     textBox.className = "priors-card-text";
-    textBox.textContent = f.text;
+    const at = f.find ? findPassage(f.text, f.find) : null;
+    if (at) {
+      const mark = document.createElement("mark");
+      mark.className = "priors-find";
+      mark.textContent = f.text.slice(at.start, at.end);
+      textBox.append(f.text.slice(0, at.start), mark, f.text.slice(at.end));
+      // Once, when the passage is first shown — a toggle re-renders this card
+      // and must not yank the reader back to it.
+      if (!f.findShown) {
+        f.findShown = true;
+        requestAnimationFrame(() => mark.scrollIntoView({ block: "center" }));
+      }
+    } else {
+      textBox.textContent = f.text;
+      if (f.find) card.append(priorsGapLine("the quoted passage was not found in this text as printed — the whole document is below."));
+    }
     card.append(textBox);
   }
 

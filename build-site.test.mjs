@@ -5,10 +5,10 @@
 // mount specifier left and every mount tree beside it.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { rewriteMounts, planSite, extensionManifest, build, MOUNT_TARGETS, verifyExternalResolvable } from "./deploy/build-site.mjs";
+import { rewriteMounts, planSite, extensionManifest, build, MOUNT_TARGETS, verifyExternalResolvable, verifyBrowserLoadable } from "./deploy/build-site.mjs";
 import { pageGraph, diskReader } from "./page-graph.mjs";
 
 test("rewriteMounts: every mount prefix becomes a relative path from the file's depth; /api and relative imports are untouched", () => {
@@ -72,6 +72,51 @@ test("verifyExternalResolvable: a missing engine module is a loud build error na
   assert.match(err.message, /3 mount import\(s\) missing/);
   assert.match(err.message, /does-not-exist\.js/);
   assert.match(err.message, /explore\/explore\.js/);
+});
+
+test("verifyBrowserLoadable: the real page's whole module graph resolves and imports no node: built-in (the 2026-09-17 GitHub Pages boot-killer)", () => {
+  const root = new URL(".", import.meta.url).pathname;
+  const siblings = resolve(root, "..");
+  if (!existsSync(join(siblings, "eoreader7"))) return; // no sibling in this checkout — the workflow's own clone runs the check
+  const graph = pageGraph({ entry: "index.html", read: diskReader(root) });
+  verifyBrowserLoadable(graph, root, siblings);
+  assert.ok(true, "every module the page loads resolves with exact paths and imports no node: built-in");
+});
+
+test("verifyBrowserLoadable: a node: import anywhere in the graph is a loud build error, not a silent dead deploy", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "fold-bl-"));
+  try {
+    writeFileSync(join(tmp, "index.js"), `import fs from "node:fs";\nexport const x = 1;\n`);
+    const graph = { files: ["index.js"], external: [], vendored: [] };
+    let err = null;
+    try { verifyBrowserLoadable(graph, tmp, tmp); } catch (e) { err = e; }
+    assert.ok(err, "a node: import in the page graph throws");
+    assert.match(err.message, /node:fs/);
+    assert.match(err.message, /cannot load in a browser/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("verifyBrowserLoadable: a relative import that resolves to no real file is a loud build error (a browser's module resolver needs the exact path)", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "fold-bl-"));
+  try {
+    writeFileSync(join(tmp, "index.js"), `import { x } from "./gone.js";\nexport const y = 1;\n`);
+    writeFileSync(join(tmp, "real.js"), `export const x = 1;\n`);
+    const graph = { files: ["index.js"], external: [], vendored: [] };
+    let err = null;
+    try { verifyBrowserLoadable(graph, tmp, tmp); } catch (e) { err = e; }
+    assert.ok(err, "an unresolvable relative import in the page graph throws");
+    assert.match(err.message, /gone\.js/);
+    assert.match(err.message, /does not resolve on disk/);
+    // And the walker is not blind to what DOES resolve: it recurses.
+    const graph2 = { files: ["index.js"], external: [], vendored: [] };
+    writeFileSync(join(tmp, "index.js"), `import { x } from "./real.js";\nexport const y = x;\n`);
+    verifyBrowserLoadable(graph2, tmp, tmp);
+    assert.ok(true, "a resolvable import is followed, not flagged");
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 });
 
 test("a real --no-vendor build: every page file present, no mount specifier left anywhere under the-fold/, every mount tree beside it, the root lands on the page, the sums cover every file", async () => {

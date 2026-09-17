@@ -284,12 +284,26 @@ createServer((req, res) => {
   // fold-chat surface's own corner of it, and the reason a watcher that
   // cannot see inside a browser can still see the page's engine and room.
   if (req.method === "GET" && rel === "/heimdall") {
-    json(res, 200, {
-      surface: { name: "fold-chat", port: PORT, up: true, since: startedAt },
-      pages: pageViews,
-      vitals: latestVitals ?? null,
-      at: new Date().toISOString(),
-    });
+    // The BRIDGE's own corner, folded in: the er7 proxy's /heimdall carries
+    // the machine-wide queue ETA (work ahead, per-turn time, etaHuman) —
+    // the honest answer to "how long before my turn crosses". The surface
+    // folds it over loopback so a page asking THIS corner sees the same
+    // queue the bridge does. A failed fold is a typed null, never a broken
+    // surface: the corner still answers with its own vitals.
+    (async () => {
+      let bridge = null;
+      try {
+        const b = await fetch("http://127.0.0.1:11436/heimdall", { signal: AbortSignal.timeout(4000) });
+        if (b.ok) bridge = (await b.json())?.disclosure?.queue ?? null;
+      } catch { bridge = null; }
+      json(res, 200, {
+        surface: { name: "fold-chat", port: PORT, up: true, since: startedAt },
+        pages: pageViews,
+        vitals: latestVitals ?? null,
+        bridgeQueue: bridge, // workAhead · perTurnMs · etaMs · etaHuman (or null)
+        at: new Date().toISOString(),
+      });
+    })();
     return;
   }
 

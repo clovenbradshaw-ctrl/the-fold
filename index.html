@@ -2189,17 +2189,6 @@
         line-height: 1.5;
         color: var(--muted);
       }
-      /* The BARE LOGIC view (recordView === "logic", bareLogic in
-         answer-record.js): the turn's mechanical record as a step trace.
-         Monospace + pre-wrap so the aligned "input/handed/said/…" column
-         and the nested claim lines line up the way the call-tree's own
-         ├─/└─ connectors do; pre-wrap (not pre) so a long claim line wraps
-         instead of forcing horizontal scroll. */
-      .fold-logic {
-        font-family: var(--mono);
-        white-space: pre-wrap;
-        line-height: 1.55;
-      }
       /* callTreeFor's map of what was prompted (2026-09-09): the turn's own
          phases (holonicTurn's `phaseLabel`, already computed for the status
          line — nothing new measured), each call nested under the phase
@@ -5104,6 +5093,11 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
           <input id="ollama-base" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="http://localhost:11434">
         </label>
         <p class="sub" id="ollama-base-line"></p>
+        <p class="sub" style="margin:6px 0 0">
+          <button type="button" id="use-heimdall" class="seg">Use Heimdall (er7 proxy, :11436)</button>
+          <button type="button" id="use-plain-ollama" class="seg">Use plain Ollama (:11434)</button>
+          — the bridge's proxy runs the full pipeline (admission, residency, attribution); the fold speaks to either without knowing which answered.
+        </p>
       </div>
     </dialog>
 

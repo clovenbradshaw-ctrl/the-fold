@@ -1620,18 +1620,31 @@ let ANSWER_CURSOR = 0;
 import { parseHandbookIndex, findChapter } from "./handbook.js";
 
 const OLLAMA_DEFAULT = "http://localhost:11434";
-// Overridable per-browser (localStorage, never synced through the room or
-// the record) so a page served over https — the deployed static home P118
-// builds — can still be pointed at wherever Ollama actually answers: a
-// tunnel, a reverse proxy, anything reachable from this browser. Read fresh
-// on every call, never cached, since the model menu can change it while the
-// page is open and the next fetch must see the new address immediately.
+// HEIMDALL — the er7 proxy (eoreader7, port 11436): the same Ollama wire
+// shape (/api/tags, /api/chat) through the full pipeline and the bridge's
+// own admission/residency/attribution. Both homes of the fold — the local
+// terminal and the GitHub Pages static build — probe the SAME local
+// servers, so a visitor on either reaches whichever of 11434/11436 answers
+// (and the in-tab WebLLM rung beside them). The er7 proxy prefixes every
+// model `er7:`; the fold normalizes that away on read and re-adds it on
+// send, so MODEL_PICKER's bare rungs still match.
+const HEIMDALL_DEFAULT = "http://localhost:11436";
+// The base a caller picked explicitly (localStorage override, never synced
+// through the room or the record) — a tunnel, a reverse proxy, anything a
+// browser can reach, for a page served over https.
 function ollamaBase() {
   try {
     const v = (localStorage.getItem("fold-ollama-base") || "").trim();
     return v && /^https?:\/\/\S+$/i.test(v) ? v.replace(/\/+$/, "") : OLLAMA_DEFAULT;
   } catch { return OLLAMA_DEFAULT; }
 }
+// The proxy's model id shape: `er7:<real-ollama-model>`. A name read off
+// the proxy's /api/tags is prefixed; MODEL_PICKER names are bare. These two
+// normalize the seam in both directions so the fold speaks to either server
+// without knowing which one answered.
+const stripEr7 = (name) => String(name ?? "").replace(/^er7:/, "");
+const addEr7IfNeeded = (name) => (String(name ?? "").startsWith("er7:") ? name : `er7:${name}`);
+const isHeimdallBase = (base) => String(base ?? "").includes(":11436");
 // ONE DECLARED WINDOW PER MODEL (2026-09-15). This page used to send no
 // `num_ctx` at all, and the measured consequence is not what the comments
 // elsewhere assumed: Ollama's "default" is ADAPTIVE to free memory, not the
@@ -1658,7 +1671,7 @@ const loadedWindows = new Map();
 function refreshLoadedWindows() {
   fetch(`${ollamaBase()}/api/ps`)
     .then((r) => (r.ok ? r.json() : null))
-    .then((j) => { for (const m of j?.models ?? []) if (m?.name && Number.isFinite(m.context_length)) loadedWindows.set(m.name, m.context_length); })
+    .then((j) => { for (const m of j?.models ?? []) if (m?.name && Number.isFinite(m.context_length)) loadedWindows.set(stripEr7(m.name), m.context_length); })
     .catch(() => {});
 }
 
@@ -1670,7 +1683,7 @@ function declaredWindowFor(model) {
   if (Number.isFinite(known)) return Math.min(known, WINDOW_CEILING);
   if (known === undefined) {
     modelWindows.set(model, null); // in flight: ask once, never on every call
-    fetch(`${ollamaBase()}/api/show`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ model }) })
+    fetch(`${ollamaBase()}/api/show`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ model: isHeimdallBase(ollamaBase()) ? addEr7IfNeeded(model) : model }) })
       .then((r) => (r.ok ? r.json() : null))
       .then((info) => {
         for (const [k, v] of Object.entries(info?.model_info ?? {})) if (k.endsWith(".context_length") && Number.isFinite(v)) modelWindows.set(model, v);
@@ -1885,6 +1898,11 @@ function phMarkup(path, size = 16) {
 
 const state = {
   model: null,
+  /** An EXPLICIT pin set by `/model <name>` — the one way a person chooses
+   *  their horse (2026-09-17). The picker no longer silently binds every
+   *  turn; by default Heimdall/Huginn route for the job. This pin is
+   *  honored for the conversation until changed or `/model clear`. */
+  pinnedModel: null,
   /** The picker rungs Ollama actually has, fastest first — what routing may name. */
   offeredModels: [],
   matrixRoom: null, // the room this chat is preserved to / read from
@@ -2629,16 +2647,59 @@ async function fetchWithRetry(url, { attempts = 4, delayMs = 700 } = {}) {
   throw lastErr;
 }
 
+/** Seed this page's pace from the bridge's long model history (Wilson's
+ *  swarm, 2026-09-17). /heimdall carries per-model throughput measured
+ *  across EVERY surface (calls, tok/s, reloads, window) — a memory the
+ *  page's own paceLog lacks across reloads. Reconstruct a pace entry per
+ *  measured model so foldPace/predictCall report a grounded rate on the
+ *  first call instead of "pace unmeasured". Each seeded row is ONE
+ *  observation carrying the bridge's aggregate rate — a prior with a giver
+ *  (heimdall), never a fabricated number; the page's own live calls
+ *  overwrite it immediately. A failed fetch is a typed absence. */
+async function seedPaceFromBridge() {
+  let bridge;
+  try {
+    const r = await fetch(`${HEIMDALL_DEFAULT}/heimdall`, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return;
+    bridge = await r.json();
+  } catch {
+    return; // no bridge — the page's own measurements take over
+  }
+  const rows = bridge?.throughput ?? [];
+  for (const t of rows) {
+    const model = stripEr7(t.model);
+    if (!model || !Number.isFinite(t.genTokPerSec) && !Number.isFinite(t.promptTokPerSec)) continue;
+    // One entry carrying the aggregate rate, reconstructed from a nominal
+    // 1000-token prompt so the prefill/decode split the page folds reads
+    // sanely: promptTokens=1000 tokens / prompt rate, outTokens = 10s of
+    // decode at the gen rate. This is a SEED — the first live call's own
+    // real entry follows immediately and the aggregate prior is superseded.
+    const prefillTps = t.promptTokPerSec || 500;
+    const genTps = t.genTokPerSec || 10;
+    state.paceLog = recordCall(state.paceLog, {
+      model,
+      promptChars: 1000,
+      promptTokens: 1000,
+      promptNs: (1000 / prefillTps) * 1e9,
+      outTokens: Math.round(genTps * 10),
+      outNs: 10e9,
+    });
+  }
+}
+
 async function fillModels() {
   const sel = $("model");
   sel.textContent = "";
   try {
     const res = await fetchWithRetry(`${ollamaBase()}/api/tags`);
     const { models } = await res.json();
-    const byName = new Map(models.map((m) => [m.name, m]));
-    // The full raw set, unfiltered — S1_MODEL/S2_MODEL are specialists,
-    // never picker rungs, so they would never survive the MODEL_PICKER
-    // filter below.
+    // Normalize the seam: the er7 proxy (Heimdall) prefixes every model
+    // `er7:`; MODEL_PICKER names are bare. Store BOTH — the bare name is
+    // what routing/MODEL_PICKER match, and the prefixed form is what the
+    // proxy accepts on send (rebuilt on send, not stored — see the connect
+    // path). availableModels keys the BARE names so S1_MODEL/S2_MODEL and
+    // every picker rung resolve against this server whatever it is.
+    const byName = new Map(models.map((m) => [stripEr7(m.name), m]));
     state.availableModels = new Set(byName.keys());
     const offered = MODEL_PICKER.map((name) => byName.get(name)).filter(Boolean);
     state.offeredModels = offered.map((m) => m.name);
@@ -2800,7 +2861,7 @@ async function connect() {
     const res = await fetch(`${ollamaBase()}/api/show`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ model: state.model }),
+      body: JSON.stringify({ model: isHeimdallBase(ollamaBase()) ? addEr7IfNeeded(state.model) : state.model }),
     });
     const info = (await res.json())?.model_info ?? {};
     for (const [k, v] of Object.entries(info))
@@ -3015,6 +3076,10 @@ async function completeLocal(messages, { onDelta, onThinking, maxTokens, json, m
     return { text, thinking: "", doneReason: cancelled ? "cancelled" : "stop" };
   }
   const ollamaStarted = Date.now();
+  // The Heimdall proxy (er7, :11436) prefixes every model `er7:` on the
+  // wire; the fold stores bare names (they are what MODEL_PICKER and the
+  // routing ladder match). Re-prefix at the send when talking to the proxy.
+  const sendName = isHeimdallBase(ollamaBase()) ? addEr7IfNeeded(modelName) : modelName;
   // A connection refused / dropped / never-answered is a MACHINE failure —
   // typed so completeOnce can roll the turn over to a room mouth. A non-2xx
   // RESPONSE is not: the model answered, badly, and that is the caller's.
@@ -3024,7 +3089,7 @@ async function completeLocal(messages, { onDelta, onThinking, maxTokens, json, m
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        model: modelName,
+        model: sendName,
         messages,
         stream: true,
         // A token cap bounds the damage; constrained decoding removes it. Asked
@@ -3045,6 +3110,12 @@ async function completeLocal(messages, { onDelta, onThinking, maxTokens, json, m
         // `num_ctx`: one declared window per model (declaredWindowFor, above) —
         // never left to Ollama's memory-adaptive default, which moves under
         // this page and reloads the model every time it does.
+        // `keep_alive`: hold the horse. Ollama's default 5m drops a model the
+        // fold touched once between turns, and every drop is a cold reload
+        // the next turn pays. The fold asks for an hour (the same window the
+        // Heimdall proxy holds) so a resident model stays resident whether
+        // this page talks to the proxy or straight to Ollama.
+        keep_alive: "3600s",
         options: { num_predict: maxTokens ?? MAX_TOKENS, ...(temperature !== undefined ? { temperature } : {}), ...(declaredWindowFor(modelName) ? { num_ctx: declaredWindowFor(modelName) } : {}) },
       }),
     });
@@ -3393,6 +3464,51 @@ function stripComputedCaption(text) {
 /** A command that arrived without its argument gets its usage line back — a
  * turn with no model in it, folded like any other so the exchange is on the
  * conversation's own record. */
+/** /model — the one explicit way a person chooses their horse (2026-09-17).
+ *  The picker no longer silently binds every turn: Heimdall/Huginn route by
+ *  measured fitness unless a person EXPLICITLY asks. Bare `/model` shows the
+ *  pin; `/model <name>` pins it for the conversation; `/model clear` returns
+ *  routing to the bridge. `resolveNamedModel` guards a stale/unpulled name
+ *  (falls back to the fastest offered rung — never a model that fails on
+ *  first use). No model call anywhere; the door is mechanical. */
+function parseModelCommand(question) {
+  const m = /^\/model(?:\s+([^\s][\s\S]*))?$/.exec(String(question ?? "").trim());
+  if (!m) return null;
+  const arg = (m[1] ?? "").trim();
+  if (!arg) return { verb: "show" };
+  if (/^(clear|none|auto|default)$/i.test(arg)) return { verb: "clear" };
+  return { verb: "set", name: arg.split(/\s+/)[0] };
+}
+
+function modelTurn(cmd, question) {
+  addMessage("user", question);
+  if (cmd.verb === "show") {
+    const lines = [
+      "The bridge chooses the model for every job (Heimdall/Huginn, by measured fitness).",
+      state.pinnedModel ? `Currently pinned by your explicit ask: ${state.pinnedModel}` : "No pin — routing is the bridge's.",
+      "`/model <name>` pins one for this conversation · `/model clear` returns to the bridge.",
+    ];
+    return usageTurn(question, lines.join("\n"), { what: "model" });
+  }
+  if (cmd.verb === "clear") {
+    state.pinnedModel = null;
+    return usageTurn(question, "Routing returned to the bridge — the horse for each job is chosen by measured fitness, not by the picker.", { what: "model" });
+  }
+  // set
+  const resolved = resolveNamedModel(cmd.name, { available: state.availableModels, offered: state.offeredModels });
+  if (!state.availableModels.has(resolved)) {
+    // The name Ollama doesn't have: resolveNamedModel already fell back to
+    // the fastest rung, which would silently answer for a different horse —
+    // refuse instead, naming what the bridge actually has. (A room mouth is
+    // the one legitimately unverifiable pin — it is another machine's offer.)
+    if (!isRoomModel(cmd.name)) {
+      return usageTurn(question, `\`${cmd.name}\` is not pulled on this machine. Available: ${[...state.availableModels].join(", ") || "(none)"}.\n\`/model <name>\` with one of those pins it explicitly.`, { what: "model" });
+    }
+  }
+  state.pinnedModel = resolved;
+  return usageTurn(question, `Pinned to ${resolved} for this conversation — an explicit ask, honored over the bridge's routing. \`/model clear\` returns to the bridge.`, { what: "model" });
+}
+
 function usageTurn(question, usage, { what = "usage" } = {}) {
   addMessage("user", question);
   const node = addMessage("assistant", usage);
@@ -8365,6 +8481,16 @@ async function send(question) {
   // and never by whether a corpus happens to be loaded. The explicit door is
   // checked FIRST: a typed command must never be hijacked by a heuristic
   // that happens to match its wording.
+  // The model door: `/model <name>` — the ONE way a person may choose their
+  // horse. By default the bridge routes (Heimdall/Huginn pick the model for
+  // the job, from measured fitness); the picker no longer silently binds
+  // every turn. An explicit `/model` is honored as a pin for THIS
+  // conversation until changed or cleared — the fold's own "explicitly
+  // asked for a particular model" case, which is the one legitimate reason
+  // to override the schedule. `/model` bare shows the pin; `/model clear`
+  // releases it back to the bridge.
+  const modelCmd = parseModelCommand(question);
+  if (modelCmd) return modelTurn(modelCmd, question);
   // The fold door first: `/fold <n> <instruction>` names its target by
   // number, mechanically — the door carries the address, so whatever code
   // the model returns lands as a revision on THAT fold's log, never as a
@@ -10422,15 +10548,17 @@ async function twoPassTurn(question) {
   // one place a person is told who they are talking to (the UX pass above:
   // "picking a model IS connecting to it... the single source of truth");
   // a fixed answering model that never appears there breaks that contract
-  // for nearly every ordinary turn (S1 answers alone whenever the gate
-  // stays off — most of plain chat). This is the same "picker is
-  // authoritative" rule isPinnedModel already enforces for a room mouth,
-  // widened to the ordinary local case instead of carving it out as the
-  // one exception. `resolveNamedModel` still guards a stale/unpulled
-  // selection by falling back to the fastest offered rung, so this cannot
-  // name a model that would fail on first use.
-  const pinned = isPinnedModel(state.model) ? state.model : null;
-  const picked = pinned ?? resolveNamedModel(state.model, { available: state.availableModels, offered: state.offeredModels });
+  // By default the BRIDGE routes (Heimdall/Huginn pick the horse for the
+  // job); the picker's silent selection no longer binds the turn
+  // (2026-09-17). The one override is an EXPLICIT `/model <name>` pin — the
+  // fold's own "explicitly asked for a particular model" case. A pinned
+  // room mouth is honored as ever. `resolveNamedModel` still guards a
+  // stale/unpulled selection by falling back to the fastest offered rung,
+  // so this cannot name a model that would fail on first use.
+  const pinned = state.pinnedModel && (isPinnedModel(state.pinnedModel) || state.availableModels.has(state.pinnedModel))
+    ? state.pinnedModel
+    : null;
+  const picked = pinned ?? routeModel(ROUTE_KINDS.FLAT, { offered: state.offeredModels, selected: pinned });
   const s1Model = picked;
   const s2Model = picked;
 
@@ -10664,12 +10792,18 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // "asked" act is one event per question, not one per pass over it.
   if (!opts.skipUserMessage) logAct("asked", { text: task });
 
-  // The model this turn spends. A flat turn (the common little question) is
-  // the fastest rung; a decomposed task is the model the user chose. The
-  // same name feeds the call, the ticker's pace, and the status line.
-  const turnModel = opts.forceModel ?? routeModel(planMode === "model" ? ROUTE_KINDS.DEEP : ROUTE_KINDS.FLAT, {
+  // The model this turn spends. By default the BRIDGE routes (Heimdall/
+  // Huginn pick the horse for the job by measured fitness); the picker's
+  // silent selection no longer binds the turn (2026-09-17). The one
+  // override is an EXPLICIT `/model <name>` pin — the fold's own "the user
+  // explicitly asked for a particular model" case. A pinned room mouth is
+  // honored as ever (the pinner chose where the work runs).
+  const pinned = state.pinnedModel && (isPinnedModel(state.pinnedModel) || state.availableModels.has(state.pinnedModel))
+    ? state.pinnedModel
+    : null;
+  const turnModel = opts.forceModel ?? pinned ?? routeModel(planMode === "model" ? ROUTE_KINDS.DEEP : ROUTE_KINDS.FLAT, {
     offered: state.offeredModels,
-    selected: state.model,
+    selected: pinned, // a pin is the only "selected" the ladder may see
   });
 
   const foldedRefs = (state.summary.records || []).flatMap((r) => r.refs);
@@ -20007,11 +20141,14 @@ function updateOllamaAddressLine() {
   if (!line) return;
   const base = ollamaBase();
   const custom = base !== OLLAMA_DEFAULT;
+  const viaHeimdall = isHeimdallBase(base);
   line.textContent = ollamaMixedContentRisk()
     ? `${custom ? base : "The default address"} is plain http, and this page is https — the browser blocks the request outright. Point this at an https address that reaches Ollama, or open the app from http://localhost instead.`
-    : custom
-      ? `Using ${base} instead of the default.`
-      : "";
+    : viaHeimdall
+      ? `Using the Heimdall proxy (${base}) — the bridge's full pipeline: admission, residency, per-turn attribution.`
+      : custom
+        ? `Using ${base} instead of the default.`
+        : "";
 }
 
 function openSettings(open) {
@@ -20077,7 +20214,12 @@ function renderModelMenu() {
     h.textContent = title;
     host.append(h);
   };
-  const pickLocal = (opt) => { sel.value = opt.value; settingsDialog.close(); connect(); };
+  // A click in the model dialog is an EXPLICIT choice (2026-09-17): it
+  // pins the horse for this conversation, exactly as `/model <name>` would
+  // — the picker no longer silently binds every turn; the bridge routes by
+  // measured fitness unless a person explicitly chooses. connect() still
+  // makes the connection; the pin makes the choice.
+  const pickLocal = (opt) => { sel.value = opt.value; state.pinnedModel = opt.value; settingsDialog.close(); connect(); };
   const opts = [...sel.options];
   const ollama = opts.filter((o) => !isWebLLMModel(o.value) && !isTfModel(o.value) && !isRoomModel(o.value));
   const webgpu = opts.filter((o) => isWebLLMModel(o.value));
@@ -20098,7 +20240,7 @@ function renderModelMenu() {
     if (entries.length) {
       group("through the room");
       for (const e of entries) row(e.value, e.text, () => {
-        state.model = e.value; state.ready = true; state.contextTokens = null;
+        state.model = e.value; state.pinnedModel = e.value; state.ready = true; state.contextTokens = null;
         // The room's mouths belong in what this page considers offered, so
         // every routing decision can see them and the picker's own checks
         // do not treat the choice as unknown.
@@ -20139,6 +20281,23 @@ $("ollama-base").addEventListener("change", async () => {
   renderModelMenu();
   syncModelPick();
 });
+
+// The one-click base shortcuts: Heimdall (the er7 proxy, :11436 — the
+// bridge's full pipeline) or plain Ollama (:11434). Either way the fold
+// speaks to whichever answered; the er7 prefix is normalized on read and
+// re-added on send, so the two homes of this page reach the same servers.
+const setOllamaBase = async (base) => {
+  try { localStorage.setItem("fold-ollama-base", base); } catch {}
+  const input = $("ollama-base");
+  if (input) input.value = base;
+  syncOllamaAddressField();
+  $("status").textContent = "checking…";
+  await fillModels();
+  renderModelMenu();
+  syncModelPick();
+};
+$("use-heimdall")?.addEventListener("click", () => setOllamaBase(HEIMDALL_DEFAULT));
+$("use-plain-ollama")?.addEventListener("click", () => setOllamaBase(OLLAMA_DEFAULT));
 
 /** The composer's model button: the name, or the reason there isn't one. */
 function chipLabel(name) {
@@ -20198,6 +20357,16 @@ $("model-pick").onclick = () => openSettings(true);
 // only when there is a real choice to make: nothing reachable, or nothing
 // pulled. The picker stays in the chip for anyone who wants a different rung.
 fillModels().then(() => {
+  // SEED THE PACE FROM THE BRIDGE'S HISTORY (Wilson's swarm, 2026-09-17):
+  // the page's own paceLog is per-load and forgotten on reload. The bridge's
+  // /heimdall throughput carries the model's LONG memory — calls, measured
+  // tok/s, reloads, window — across every surface it served. Seed this
+  // page's pace from it so a reload never forgets what the horse actually
+  // measured: a first call after a reload reports a rate with a ground
+  // instead of "pace unmeasured", and the ETA/predictions inherit the
+  // horse's real history. A failed seed is a typed absence, never a broken
+  // boot — the page's own measurements take over on the first live call.
+  seedPaceFromBridge().catch(() => {});
   if (!state.ready) {
     if (state.offeredModels.length) connect();
     else openSettings(true);

@@ -391,3 +391,13 @@ Constitution: `../FOLD-CONSTITUTION.md` + this repo's POLICIES.md/CLAUDE.md. Rev
 | Simon/Chekhov | residual | plato.js + plato-forms.js | clean | both new sources are imported by plato.test.mjs (10 cases) — no unwired module |
 
 clean: Diaconis/Ostrom/Alexander — no null or threshold in the new modules; scope of credit is the form itself; no composition gate added.
+
+## 2026-09-17 — heimdall compute invites (main, 7 files)
+fast: 7 files · 53 affected tests pass (heimdall-invite 4, matrix-client 31, constitution II.13, build-site, web seam) · law: ok (II.13 allowance added for heimdall-invite.js; zero-egress predicate holds)
+| lens | citation | file:line | verdict | one line |
+| Diaconis | none | heimdall-invite.js:33 | clean | Math.random() names the room suffix only — a name, not a null or a measurement |
+| Feynman | none | index.html:5518 | clean | maxlength="6" is the pairing code's own format, not a tuned constant |
+| Ostrom | none | index.html:5512 | clean | the status line reuses the shared pool-note style; scope is the sheet's own |
+| Marshall | II.13 | constitution.test.mjs | clean | heimdall-invite.js joins the zero-egress allowance — pure, injected crossings, the site literal is only a link target |
+| Simon/Chekhov | none | heimdall-invite.js | clean | dedicated heimdall-invite.test.mjs (4 cases) plus a production consumer (app.js) — wired, not nascent |
+clean: - (the four chorus FAIL lines were environmental, verified not-mine: widget.test.mjs concurrent uncommitted edits, the stray _site_check/ built-site dir, and archon-hyphae.test.mjs's live-homeserver provision failing identically on HEAD)

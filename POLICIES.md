@@ -13892,3 +13892,121 @@ Direct instruction: let a person log into Matrix or GitHub through any of these 
 Verified live: `matrix` (bare) prints the full room-status/usage block in the terminal AND posts `/matrix` into the chat; `matrix login` opens the real "Sign in to a homeserver" dialog from the terminal; `github` reports "not connected · \`github login\` opens the connect pane" before any account exists.
 
 **Not attempted this pass, disclosed rather than implied:** the new `eoreader7` CLI (a separate Node process, no browser/localStorage) needs its own independent login — matrix.js's password-login shape is already Node-compatible (no DOM, per its own header) and is the intended reuse there, with credentials at `~/.eoreader7/credentials.json` (mode 600, `matrix-worker.mjs`'s own `~/.the-fold/matrix-worker.json` precedent) — scoped as separate, later work to avoid colliding with the concurrent TUI build in `eoreader7/cli/`.
+
+## P244 — the falsification protocol for relation/coreference organs: three legs plus omnilingual-or-named-scope, and "declined" as a first-class outcome (added 2026-09-17)
+
+**Generality:** not-applicable — this entry is a discipline about how a
+class of fix is investigated and disclosed, not a claim about a reading
+mechanism's own reach.
+
+**Falsification:** not-applicable — this entry names the organ files it
+governs (`hypergraph.js`, `pronouns.js`, `relations.js`, `surfaces.js`,
+`morphology.js`) as a governed CLASS; it is not itself an investigation
+of a fix to one of them, so its own gate does not apply to itself, the
+same self-referential exemption `**Generality:** not-applicable` already
+takes for a process entry.
+
+P71 already names the three legs that separate a specimen-shaped patch
+from a genuinely universal capability (cross-domain replay; a named giver
+or a derived floor, never a fit; a demonstrated-necessity case on material
+the discovery never saw), and its own "Enforced" paragraph is explicit that
+it checks DISCLOSURE, never truth. This entry narrows that gate to one
+specific, high-risk class of change — a fix, or a disclosed-limit finding,
+about a relation-extraction, coreference, or binding organ
+(`hypergraph.js`, `pronouns.js`, `relations.js`, `surfaces.js`,
+`morphology.js`, and equivalents crossing the eoreader7 boundary) — and
+adds two things P71 does not itself require, both earned on 2026-09-17 by
+an eight-agent swarm chasing five false-fabrication findings out of
+`mvp-acceptance.mjs`.
+
+**Why this class needed its own entry rather than living entirely inside
+P71's own text.** P71's gate fires on a claim of `universal`; it says
+nothing about a fix that never makes that claim at all, and every real
+finding this swarm produced was exactly that shape — narrow, cited,
+declared `specimen-scoped` from the start (P87f9a9f's headVerb fix: "A
+non-English falsification pass was not attempted... testing this fix in
+isolation would not exercise a comparable pipeline" — an honest,
+correctly-scoped disclosure, not a P71 violation, and P71's own gate would
+have nothing to say about it). What P71 does not mechanically require is
+that a fix to THIS organ class be *investigated* with a minimum discipline
+before it lands, regardless of what it ends up claiming. Two entries into
+`hypergraph.test.mjs` land as pure documentation of a correctly-refused
+patch (commit 12c4487: "found and disclosed, not fixed... fixing it
+narrowly would mean inventing exception handling this repo's house rule
+forbids") — P71's gate, aimed only at `universal` claims, would never even
+look at a commit like that, and it is exactly the kind of commit this
+project most needs to keep making correctly. Widening P71's own text to
+require this of every policy entry in the document — including entries
+about the terminal, the room, the vault, none of which touch a
+relation/coreference organ — would dilute a gate that is precise today
+into one with false negatives everywhere else. A narrower, citing entry,
+scoped to the organ class where the real damage in this class of bug
+occurs, is the more consistent choice given this repo's own standing rule
+against inventing a duplicate mechanism for a question an existing one
+already half-answers ("search for the organ before inventing one") —
+P71's own `generality-gate.test.mjs` pattern is reused verbatim below,
+never re-derived, because the checking shape (scan headers ≥ N, require a
+tag) already exists and works.
+
+**The two additions, on top of P71's existing three legs.**
+
+4. **Omnilingual disclosure, not omnilingual coverage.** Every
+   investigation into this organ class must state, in its own commit
+   message or the test comment it lands, either (a) that it was actually
+   re-run on non-English or non-Latin-script material and what happened
+   (S64's real Russian Borodino replay, or the swarm's own
+   `session-stress-omnilingual.mjs`), or (b) that it was NOT attempted and
+   *why the pipeline configuration makes that non-attempt honest rather
+   than an omission* — the exact form commit 87f9a9f already uses ("the
+   surrounding reader configuration... is English-specific throughout this
+   codebase, so testing this fix in isolation on non-English text would
+   not exercise a comparable pipeline") and P62/P70's own precedent already
+   sets for tokenize/foldDiacritics and the omnilingual MHC battery. A
+   silent absence of any language statement is what this leg closes — not
+   a requirement that every fix be tested in Hebrew, Russian, and Mandarin,
+   which P44/P70/the LaVar spiral already show is sometimes structurally
+   impossible for an English-only-configured pipeline, and forcing the
+   attempt anyway would manufacture exactly the kind of unearned
+   cross-script claim S24 already refused ("a silent claim of cross-script
+   generality is a more severe failure than a disclosed narrow scope").
+5. **A declined fix, correctly investigated and disclosed, is not an
+   inferior outcome to a landed one — it is a first-class result of this
+   protocol and satisfies it completely.** The pronoun-binding
+   investigation this session ran (local gender evidence, then syntactic
+   role, then external knowledge via Wikidata/Wiktionary — three
+   candidate mechanisms, three rounds, three explicit, checked declines,
+   each with its own stated reason rather than a shrug) is the reference
+   case: nothing shipped, nothing regressed, and the investigation is
+   worth exactly as much as a landed fix would have been, because it
+   closes off three specific wrong directions for the next pass with real
+   evidence rather than leaving them to be re-attempted and re-declined
+   from scratch. The mvp-acceptance.mjs fix itself (5739a5b, "stop
+   conflating unbound with fabrication") is the companion case at the
+   *tool* level: the real defect the whole swarm chased was never five
+   organ bugs — one real organ bug (headVerb) and four correct, disclosed
+   organ refusals, all reported identically as "fabrication" by an
+   acceptance driver that had no third bucket for "correctly declined."
+   This leg exists so a future pass reads a declined investigation as
+   evidence banked, not as a task left undone.
+
+**Enforced.** `falsification-gate.test.mjs` (new, this repo) extends
+P71's own `lawSections`/`GENERATION_TAG` scan pattern (reused verbatim,
+not re-derived) with a second, narrower scan: any `## P<N>` entry at
+N ≥ 244 whose text matches `RELATION_ORGAN_RE` (a fixed list of the organ
+files named above — `hypergraph.js`, `pronouns.js`, `relations.js`,
+`surfaces.js`, `morphology.js`, and the eoreader7-crossed equivalents)
+must ALSO carry a line matching `FALSIFICATION_TAG` — the literal words
+"Falsification:" followed by one of `ran (` / `not attempted —` /
+`declined —`, mirroring P71's own three-state vocabulary at this class's
+own finer grain. Like P71's own enforcement, this checks disclosure only:
+no test can confirm a cross-domain replay genuinely happened, a cited
+giver is honest, or a decline's stated reason is correct — the same limit
+this document's own VI.1 already states for any policy whose violation no
+test can catch. eoreader7's own S128 is the paired entry, enforced by the
+matching case appended to `native/conformance/reading-spec.test.mjs`,
+scanning `## S<N>` at N ≥ 128 for organ-file mentions and the identical
+tag. Neither test can be satisfied by a policy entry that merely repeats
+P71's own three legs by name without adding the omnilingual-disclosure
+and declined-is-valid legs this entry actually requires — the tag is
+distinct from P71's `**Generality:**` tag on purpose, so a future entry
+cannot satisfy both gates with one borrowed line.

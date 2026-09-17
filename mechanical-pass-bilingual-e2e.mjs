@@ -55,10 +55,19 @@ const hebFile = join(WLC, "2Sam.txt");
 const hebText = existsSync(hebFile) ? readFileSync(hebFile, "utf8") : "";
 const hebChunks = hebText ? chunkSource("2Sam.txt", hebText) : [];
 
-// ── the Greek material: no real Greek prose on disk (both odyssey files are
-//    English — verified); a declared Attic sentence + the UniMorph prior. ──
-const GRC_TEXT = "ὁ γαλλικὸς στρατὸς διέβη τὸν Νέμωνα, ἵνα εἰσβάλῃ εἰς τὴν Ῥωσίαν.";
-const grcChunks = chunkSource("attic.txt", GRC_TEXT);
+// ── the Greek material: THE REAL CORPUS, in live_priors the whole time ────
+// 47 volumes of genuine Ancient Greek (Homer, Plato, Aristotle, the
+// tragedians, Herodotus, Thucydides, Plotinus…) live in
+// `live_priors/11-multi-language/greek-originals/` — fetched 2026-09-13 from
+// Greek Wikisource (el.wikisource.org), polytonic, public domain. An earlier
+// version of this driver wrongly claimed "no real Greek prose on disk"
+// because it only looked in eoreader7 fixtures (both "odyssey-greek.txt"
+// files there are the Samuel Butler ENGLISH translation). The real Iliad
+// opens "Μῆνιν ἄειδε, θεά, Πηληϊάδεω Ἀχιλῆος". This driver uses it.
+const GREEK_DIR = "/Users/mlacy/Documents/3.0/live_priors/11-multi-language/greek-originals/";
+const iliadFile = join(GREEK_DIR, "homer-iliad.txt");
+const iliadText = existsSync(iliadFile) ? readFileSync(iliadFile, "utf8") : "";
+const iliadChunks = iliadText ? chunkSource("homer-iliad.txt", iliadText) : [];
 
 // ── the questions ─────────────────────────────────────────────────────────
 const CASES = [
@@ -78,23 +87,30 @@ const CASES = [
   },
   {
     lang: "grc",
-    label: "Attic Greek — constructed sentence, real morphology prior",
-    q: "ὁ γαλλικὸς στρατὸς διέβη τὸν Νέμωνα;",
-    material: "attic.txt (declared) + UniMorph grc prior (30215 forms)",
-    note: "the exact door's triggers are lang/en — it must decline, never silently English-match",
+    label: "Greek — the real Iliad: the muse's subject",
+    q: "τίνα ἄνδρα ἡ θεὰ ἄειδε;",
+    material: "homer-iliad.txt (real Greek Wikisource)",
+    note: "the question's own tokens (θεά, ἄειδε, ἀνήρ) retrieve the Iliad's first line — retrieval works on real Greek",
   },
   {
     lang: "grc",
-    label: "Attic Greek — a question the material does not answer",
+    label: "Greek — the real Iliad: the wrath's agent",
+    q: "τοῦ Ἀχιλλῆος ἡ μῆνις τίνι ἦν;",
+    material: "homer-iliad.txt",
+    note: "μῆνις and Ἀχιλλῆος are in the opening line — does retrieval find them and does the English reader refuse typed?",
+  },
+  {
+    lang: "grc",
+    label: "Greek — a question the Iliad does not answer",
     q: "τίς ὁ Ὅμηρος ἦν;",
-    material: "attic.txt",
+    material: "homer-iliad.txt",
     note: "a different subject — the pass must refuse typed, not guess",
   },
 ];
 
 const results = [];
 for (const t of CASES) {
-  const chunks = t.lang === "he" ? hebChunks : grcChunks;
+  const chunks = t.lang === "he" ? hebChunks : iliadChunks;
   const pool = retrieve(chunks, t.q, 4, [], {});
   const exact = chunks.length ? answerBeforeTheModel({ question: t.q, passages: pool, transcript: [], math: mathjs, chunksByRef: new Map(chunks.map((c) => [c.ref, c])) }) : null;
 

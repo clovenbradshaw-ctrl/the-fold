@@ -7,8 +7,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { rewriteMounts, planSite, extensionManifest, build, MOUNT_TARGETS } from "./deploy/build-site.mjs";
+import { join, resolve } from "node:path";
+import { rewriteMounts, planSite, extensionManifest, build, MOUNT_TARGETS, verifyExternalResolvable } from "./deploy/build-site.mjs";
 import { pageGraph, diskReader } from "./page-graph.mjs";
 
 test("rewriteMounts: every mount prefix becomes a relative path from the file's depth; /api and relative imports are untouched", () => {
@@ -42,6 +42,36 @@ test("extensionManifest: MV3, wasm allowed, the local servers and the two weight
   assert.ok(m.host_permissions.includes("http://localhost:11434/*") && m.host_permissions.includes("http://localhost:8812/*"));
   assert.ok(m.host_permissions.some((h) => /huggingface/.test(h)) && m.host_permissions.some((h) => /archive\.org/.test(h)));
   assert.equal(extensionManifest({ version: "1.2.3-beta" }).version, "1.2.3");
+});
+
+test("verifyExternalResolvable: every mount import the real page makes resolves in the sibling engine checkout", () => {
+  const root = new URL(".", import.meta.url).pathname;
+  const siblings = resolve(root, "..");
+  if (!existsSync(join(siblings, "eoreader7"))) return; // no sibling in this checkout — the workflow's own clone runs the check
+  const graph = pageGraph({ entry: "index.html", read: diskReader(root) });
+  assert.ok(graph.external.length > 0, "the page reaches the engine");
+  verifyExternalResolvable(graph, siblings);
+  assert.ok(true, "no missing mount import");
+});
+
+test("verifyExternalResolvable: a missing engine module is a loud build error naming the file and its importer", () => {
+  const fake = {
+    external: [
+      { from: "app.js", spec: "/engine-v7/organs/claims.js", mount: "/engine-v7/" },
+      { from: "explore/explore.js", spec: "/nul/index.js", mount: "/nul/" },
+      { from: "app.js", spec: "/engine-v7/native/organs/does-not-exist.js", mount: "/engine-v7/" },
+    ],
+  };
+  let err = null;
+  try {
+    verifyExternalResolvable(fake, "/nonexistent-sibling");
+  } catch (e) {
+    err = e;
+  }
+  assert.ok(err, "a skew build throws");
+  assert.match(err.message, /3 mount import\(s\) missing/);
+  assert.match(err.message, /does-not-exist\.js/);
+  assert.match(err.message, /explore\/explore\.js/);
 });
 
 test("a real --no-vendor build: every page file present, no mount specifier left anywhere under the-fold/, every mount tree beside it, the root lands on the page, the sums cover every file", async () => {

@@ -87,6 +87,37 @@ const packageOf = (spec) => {
   return p[0]?.startsWith("@") ? `${p[0]}/${p[1]}` : p[0];
 };
 
+/**
+ * Fail a skew build. Every mount import the page graph makes must exist in
+ * the sibling engine checkout the build runs against: a the-fold commit and
+ * an eoreader7 commit that disagree ship a page whose module graph aborts on
+ * a 404 (one missing import kills the whole graph) and that boots straight
+ * to the #not-served banner on a static host. This turns that class — the
+ * Sep 2026 deploy that lost eoreader7/native/organs/claims.js and
+ * provenance.js — into a loud build error instead of a dead deploy.
+ */
+export function verifyExternalResolvable(graph, siblings) {
+  const missing = [];
+  for (const edge of graph.external) {
+    const target = MOUNT_TARGETS[edge.mount];
+    if (!target) {
+      missing.push(`${edge.spec} ← ${edge.from} (no mount target for ${edge.mount})`);
+      continue;
+    }
+    const rest = edge.spec.slice(edge.mount.length);
+    const p = join(siblings, target + rest);
+    if (!existsSync(p)) missing.push(`${edge.spec} ← ${edge.from} (wanted ${relative(siblings, p)})`);
+  }
+  if (missing.length) {
+    throw new Error(
+      `static build would ship a page that cannot boot: ${missing.length} mount import(s) missing from the sibling engine checkout.\n` +
+        missing.slice(0, 20).join("\n") +
+        "\nThis is a the-fold↔eoreader7 commit skew — sync the engine, then rebuild.",
+    );
+  }
+  return true;
+}
+
 /** A Chrome MV3 manifest for the same dist: the action opens the page in a
  * tab; host permissions name the local servers and the two weights hosts
  * the rung may reach when the site itself carries no mirror. */
@@ -142,6 +173,10 @@ export async function build(opts) {
   mkdirSync(out, { recursive: true });
   const graph = pageGraph({ entry: "index.html", read: diskReader(ROOT) });
   const plan = planSite(graph);
+
+  // Skew check before any copying: every engine import the page makes must
+  // resolve in the sibling checkout, or the built page cannot boot.
+  verifyExternalResolvable(graph, SIBLINGS);
 
   // 1. the page's own files, mount specifiers rewritten per depth
   const fold = join(out, "the-fold");

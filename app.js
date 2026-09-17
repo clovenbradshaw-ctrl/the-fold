@@ -4068,9 +4068,9 @@ async function matrixTurn(arg, question) {
     }
     if (verb === "request") { if (!/^!/.test(tail)) return usageTurn(question, "/matrix request <room id>", { what: "matrix" }); await foldMatrix.requestKey(tail); return usageTurn(question, `your public key is published in ${tail}; when a member runs /share there, the chat key is wrapped to it — then /matrix open ${tail}`, { what: "matrix" }); }
     // /matrix print <room id> — the FULL conversation from this surface, the
-    // same renderConversation the TUI/proxy/archon-hyphae use: every entry of
-    // every kind, both roles, every gap named. Nothing hidden, nothing
-    // filtered to "turn" — unlike /matrix open, which replays turns only.
+    // same renderConversation the TUI/proxy use: every entry of every kind,
+    // both roles, every gap named. Nothing hidden, nothing filtered to
+    // "turn" — unlike /matrix open, which replays turns only.
     if (verb === "print") {
       if (!/^!/.test(tail)) return usageTurn(question, "/matrix print <room id> — a room id starts with !", { what: "matrix" });
       const r = await foldMatrix.load(tail);

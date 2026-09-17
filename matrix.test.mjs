@@ -11,7 +11,7 @@ import {
   seal, open, pickMouth, syncFilter, mouthContent, jobContent, answerContent, deviceContent, deviceLine, wantContent, wantsFor, fallbackMouth, ROOM_FALLBACK_KINDS,
   buildShareLink, parseShareLink, stripShareFragment,
   generateInviteSecret, inviteProof, verifyInviteProof, fingerprint, keyFromPassphrase, generateSalt, sealVault, openVault, INVITE_TTL_MS, MAGIC_KEY_WARNING,
-  SecretSet, bytesIndexOf, byteEntropy, forRecord, SERVER_SEES,
+  SecretSet, bytesIndexOf, byteEntropy, forRecord, SERVER_SEES, renderConversation,
 } from "./matrix.js";
 
 const enc = new TextEncoder();
@@ -270,4 +270,30 @@ test("forRecord: a field named for a secret is dropped and said; a value carryin
   assert.throws(() => forRecord({ note: `k=${b64(key)}` }, s), /refusing to record note: it carries the chat key/);
   assert.equal(SERVER_SEES.length, 5);
   assert.deepEqual(unb64url(b64url(key)), key);
+});
+
+test("renderConversation: the FULL conversation — every kind, both roles, and every gap — with nothing hidden", () => {
+  const entries = [
+    { id: "a1", kind: "turn", role: "user", content: "does the material say anything about this?", seq: 0, ts: 1 },
+    { id: "a2", kind: "lesson", role: "assistant", content: "An embedding signal is measured against a null, never assumed.", seq: 1, ts: 2 },
+    { id: "a3", kind: "correction", role: "assistant", content: "Shared chain, one witness.", seq: 2, ts: 3 },
+    { id: "a4", kind: "lesson", role: "user", content: "first line\nsecond line", seq: 3, ts: 4 },
+  ];
+  const text = renderConversation({ room: "!r1:h", entries, blocks: 2, chains: 1, partial: false, gaps: [], session: { user_id: "@alice:h", hs: "h" } });
+  assert.match(text, /@alice:h on h/);
+  assert.match(text, /room !r1:h · 1 chain\(s\) · 2 block\(s\) · 4 entries/);
+  // every kind and both roles print — the renderer never filters by kind
+  for (const s of ["kind=turn  role=user", "kind=lesson  role=assistant", "kind=correction  role=assistant", "kind=lesson  role=user"]) assert.match(text, new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  // multi-line content prints verbatim
+  assert.match(text, /first line\n\s+second line/);
+  // no GAPS section when the read was clean
+  assert.doesNotMatch(text, /GAPS/);
+
+  // partial read: gaps are printed, never a silently shorter conversation
+  const partial = renderConversation({ room: "!r1:h", entries: entries.slice(0, 1), blocks: 1, chains: 1, partial: true, gaps: ["@alice:h block 1: sealed under epoch 2, which this reader holds no key for", "!r1 chain not linked at block 0"], session: null });
+  assert.match(partial, /PARTIAL — gaps below/);
+  assert.match(partial, /GAPS \(2/);
+  assert.match(partial, /sealed under epoch 2/);
+  assert.match(partial, /chain not linked/);
+  assert.match(partial, /\(1 entries, 2 gaps\)/);
 });

@@ -524,3 +524,40 @@ export const SERVER_SEES = Object.freeze([
 ]);
 /** The plain words for an open link, said at the door every time. */
 export const MAGIC_KEY_WARNING = "this link is a magic key: whoever holds it reads this whole chat, past and future, and it cannot be taken back — send it only over a channel you would trust with the chat itself, and prefer /share @who:server, which works for that account alone";
+
+/**
+ * Render a loaded room's conversation to plain lines — the ONE renderer every
+ * surface uses (the TUI, the browser page, the proxy route), so a reader sees
+ * the identical text everywhere. NOTHING is hidden: every entry of every kind
+ * and both roles prints in order; every gap (a block the reader holds no key
+ * for, a hash mismatch, an unlinked chain) prints as an explicit line, never a
+ * silently shorter conversation. Pure: entries and gaps arrive already decoded
+ * (FoldMatrix.load), so this runs in a browser or Node.
+ */
+export function renderConversation({ room, entries = [], blocks = 0, chains = 0, partial = false, gaps = [], session = null } = {}) {
+  const out = [];
+  const who = session ? `${session.user_id} on ${session.hs}` : "this session";
+  out.push(who);
+  out.push(`room ${room} · ${chains} chain(s) · ${blocks} block(s) · ${entries.length} entr${entries.length === 1 ? "y" : "ies"}${partial ? " · PARTIAL — gaps below" : ""}`);
+  out.push("");
+  if (entries.length) {
+    out.push("ENTRIES (every kind, both roles, in order):");
+    for (const e of entries) {
+      const ts = new Date(e.ts ?? 0).toISOString();
+      const id = e.id ?? "";
+      out.push(`  [${e.seq ?? "?"}] ${ts}  kind=${e.kind ?? "turn"}  role=${e.role ?? ""}  id=${id}`);
+      for (const line of String(e.content ?? e.text ?? "").split("\n")) out.push(`      ${line}`);
+      out.push("");
+    }
+  } else {
+    out.push("(no entries recorded yet)");
+    out.push("");
+  }
+  if (partial && gaps.length) {
+    out.push(`GAPS (${gaps.length} — the conversation holds more than this read could open, named here, never hidden):`);
+    for (const g of gaps) out.push(`  - ${g}`);
+    out.push("");
+  }
+  out.push(`— end (${entries.length} entries, ${gaps.length} gap${gaps.length === 1 ? "" : "s"})`);
+  return out.join("\n");
+}

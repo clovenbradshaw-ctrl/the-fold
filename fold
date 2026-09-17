@@ -76,12 +76,26 @@ if [ ! -d "$EOREADER/.git" ] && [ ! -f "$EOREADER/.git" ]; then
     echo "error: git is required to fetch EOReader 7 and wasn't found" >&2
     exit 1
   fi
-  echo "cloning EOReader 7 next to this repo (with its frozen 6.1 source pin)..."
-  git clone --recurse-submodules https://github.com/clovenbradshaw-ctrl/eoreader7.git "$EOREADER"
+  echo "cloning EOReader 7 next to this repo (the 6.1 cut is fetched below)..."
+  git clone https://github.com/clovenbradshaw-ctrl/eoreader7.git "$EOREADER"
 fi
 
-# If eoreader7 was cloned without its submodule, complete it before either
-# server starts. Idempotent; a no-op for a fully initialized checkout.
+# eoreader7 retired the frozen 6.1 submodule (2026-09-15;
+# eoreader7/LEGACY-EOREADER6.1.md) — the cut lives at its own repository
+# now, and the /engine and /nul mounts read it at ../eoreader7/
+# legacy-eoreader6.1. Clone it there when it is absent so a fresh machine
+# still comes up whole. Idempotent; a no-op for a complete checkout.
+if [ ! -d "$EOREADER/legacy-eoreader6.1/.git" ] && [ ! -f "$EOREADER/legacy-eoreader6.1/.git" ]; then
+  if ! command -v git >/dev/null 2>&1; then
+    echo "error: git is required to fetch EOReader 7's frozen 6.1 cut" >&2
+    exit 1
+  fi
+  echo "cloning the frozen 6.1 cut (retired submodule) into the legacy mount..."
+  git clone https://github.com/clovenbradshaw-ctrl/eoreader6.1.git "$EOREADER/legacy-eoreader6.1"
+fi
+
+# An older eoreader7 checkout may still pin the cut as a submodule; keep
+# that path working. Idempotent; a no-op where nothing declares one.
 if [ -f "$EOREADER/.gitmodules" ]; then
   if ! command -v git >/dev/null 2>&1; then
     echo "error: git is required to initialize EOReader 7's source pin" >&2

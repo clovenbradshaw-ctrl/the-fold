@@ -12,8 +12,11 @@ name: Deploy Pages
 # the model publisher — never from this repository: the shards are ~100 MB
 # each and Pages holds a site under 1 GB.
 #
-# The engine is eoreader7 (its native tree, plus the frozen 6.1 cut it pins
-# as a submodule), checked out beside the-fold exactly as ./fold lays it out.
+# The engine is eoreader7 (its native tree, plus the frozen 6.1 cut the
+# page still reads for /engine and /nul — tiers.js, nul — which eoreader7
+# retired as a submodule 2026-09-15 and now keeps at its own repository;
+# see eoreader7/LEGACY-EOREADER6.1.md). Checked out beside the-fold exactly
+# as ./fold lays it out.
 
 on:
   push:
@@ -43,12 +46,18 @@ jobs:
         with:
           path: the-fold
 
-      - name: Checkout eoreader7 beside it (native tree + the frozen 6.1 submodule)
+      - name: Checkout eoreader7 beside it
         uses: actions/checkout@v4
         with:
           repository: clovenbradshaw-ctrl/eoreader7
           path: eoreader7
           submodules: recursive
+
+      - name: Clone the frozen 6.1 cut into the legacy mount (retired submodule)
+        run: |
+          if [ ! -d eoreader7/legacy-eoreader6.1/.git ]; then
+            git clone --depth 1 https://github.com/clovenbradshaw-ctrl/eoreader6.1.git eoreader7/legacy-eoreader6.1
+          fi
 
       - name: Setup Node
         uses: actions/setup-node@v4

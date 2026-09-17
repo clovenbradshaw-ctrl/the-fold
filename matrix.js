@@ -224,9 +224,23 @@ export function homeserverBase(input) {
   return u.origin;
 }
 export const loginBody = (user, password, deviceName = "The Fold") => ({ type: "m.login.password", identifier: { type: "m.id.user", user }, password, initial_device_display_name: deviceName });
+/** A heimdall fleet room: public-join (a worker opens the share link and
+ *  joins with a throwaway account), unlisted, unencrypted, no power override.
+ *  The room is only a directory for heimdall's WebRTC signaling — its
+ *  to-device messages carry the offers, never the room's timeline — so it
+ *  holds none of the chat room's sealed-envelope machinery. */
+export function heimdallRoomBody(name, { now = new Date().toISOString() } = {}) {
+  return {
+    name, visibility: "private", preset: "public_chat",
+    initial_state: [
+      { type: "m.room.history_visibility", state_key: "", content: { history_visibility: "shared" } },
+      { type: TYPES.meta, state_key: "", content: { app: NS, v: 1, created_at: now, heimdall: true } },
+    ],
+  };
+}
 /** Private, invite-only, every member at full power; the meta event marks it
- * as ours. No m.room.encryption: the room's readable content is never in its
- * timeline — a job or an answer there is a sealed envelope. */
+ *  as ours. No m.room.encryption: the room's readable content is never in its
+ *  timeline — a job or an answer there is a sealed envelope. */
 export function createRoomBody(name, { now = new Date().toISOString() } = {}) {
   return {
     name, visibility: "private", preset: "private_chat",

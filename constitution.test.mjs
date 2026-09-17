@@ -170,7 +170,7 @@ const ALLOWANCES = [
   },
   {
     host: null, // hostOf builds an authority from user input; there is no literal to name
-    files: ["web.js", "links.js", "github.js", "wikidata.js"],
+    files: ["web.js", "links.js", "github.js", "wikidata.js", "heimdall-invite.js"],
     why:
       "P13: web.js is the PURE half of the web organ — it names archive addresses and parses " +
       "typed ones; the egress lives in explore-server.mjs. links.js is the same split for the " +
@@ -185,7 +185,11 @@ const ALLOWANCES = [
       "same split once more, for the identity organ: it names the giver's own API and " +
       "Special:EntityData addresses so the URL shape lives beside the parser that " +
       "understands the response, and explore-server.mjs's /api/entity/seek is what actually " +
-      "fetches them — paced, and recorded like any other crossing.",
+      "fetches them — paced, and recorded like any other crossing. heimdall-invite.js is the " +
+      "same split for the compute fleet: it names the heimdall site (clovenbradshaw-ctrl.github.io) " +
+      "as the target the INVITE LINK is built from — a link the person copies and the worker " +
+      "follows, never a request this page makes — and its only crossings (createRoom, account " +
+      "data) are injected from app.js, so the file holds no egress call at all.",
     holds: (file, src) => egressCalls(src).length === 0,
   },
   {

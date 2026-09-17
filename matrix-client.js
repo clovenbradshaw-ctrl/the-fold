@@ -22,7 +22,7 @@ import {
   NS, TYPES, EVENTS, EVENT_SEAL_MAX_BYTES, b64, unb64, sha256B64, generateChatKey, generateIdentity, exportPublicKey, exportPrivateKey, importPrivateKey,
   wrapChatKey, unwrapChatKey, entryId, encodeBlock, decodeBlock, mergeChains, capManifest, manifestEntry, chainIsLinked,
   generateInviteSecret, INVITE_TTL_MS, inviteProof, verifyInviteProof, fingerprint, keyFromPassphrase, generateSalt, sealVault, openVault,
-  paths, homeserverBase, loginBody, createRoomBody, memberKeyContent, siblingContent, chatKeyContent, chainContent,
+  paths, homeserverBase, loginBody, createRoomBody, heimdallRoomBody, memberKeyContent, siblingContent, chatKeyContent, chainContent,
   seal, open, newJobId, mouthContent, jobContent, answerContent, pickMouth, syncFilter, encryptBytes, decryptBytes,
   deviceContent, deviceLine, wantContent, wantsFor,
   buildShareLink, parseShareLink, SecretSet, forRecord,
@@ -115,7 +115,7 @@ export class MatrixHttp {
   async login(user, password) { const r = await this.json("POST", paths.login(), { json: loginBody(user, password), auth: false }); this.token = r.access_token; return r; }
   async logout() { await this.req("POST", paths.logout(), { json: {} }); this.token = null; }
   async whoami() { return this.json("GET", paths.whoami()); }
-  async createRoom(name) { return (await this.json("POST", paths.createRoom(), { json: createRoomBody(name) })).room_id; }
+  async createRoom(name, { isPublic = false } = {}) { return (await this.json("POST", paths.createRoom(), { json: isPublic ? heimdallRoomBody(name) : createRoomBody(name) })).room_id; }
   async joinedRooms() { return (await this.json("GET", paths.joinedRooms())).joined_rooms ?? []; }
   async join(room) { return (await this.json("POST", paths.join(room), { json: {} })).room_id; }
   async invite(room, userId) { try { await this.req("POST", paths.invite(room), { json: { user_id: userId } }); } catch (e) { if (!(e.status === 403 && /already in the room/i.test(e.message))) throw e; } }

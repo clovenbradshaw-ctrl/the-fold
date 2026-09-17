@@ -130,6 +130,7 @@ import { whereAmI, describeRoutes } from "./routes.js";
 import { FoldMatrix, localStorageStorage, MatrixError } from "./matrix-client.js";
 import { parseShareLink, stripShareFragment, SERVER_SEES, MAGIC_KEY_WARNING, deviceContent, deviceLine, fallbackMouth } from "./matrix.js";
 import { createWatch } from "./heimdall-client.js";
+import { mintInvite, recordCode, CODES_TYPE as HEIMDALL_CODES_TYPE } from "./heimdall-invite.js";
 import { JOB_KINDS, CANDIDATE_KINDS, candidateOf, roomCandidateOf, roomCandidatesFrom, emptyEvidence, huginnObserve, huginnPrioritize, huginnHopAfter, huginnDecision } from "./huginn.js";
 
 // The local vault (P242): what's encrypted at rest — same posture as the
@@ -1788,6 +1789,72 @@ function startHeimdallWatch() {
   });
   heimdallWatch.start();
   postVitals();
+}
+// ── heimdall compute invites (heimdall-invite.js) ─────────────────────────
+// The one door onto the fleet: mint a room + link under the person's own
+// Matrix account, and record a worker's 6-digit pairing code into the
+// account's org.heimdall.codes registry — the same registry the heimdall
+// site confirms acceptance against. Pure logic in heimdall-invite.js; this
+// is only the wiring (the foldMatrix crossings + the sheet's controls).
+function heimdallSync() {
+  const st = foldMatrix.status();
+  const signed = st.signedIn && !st.tokenDead && !st.locked;
+  $("heimdall-toggle").dataset.state = signed ? "in" : "out";
+  $("heimdall-toggle").title = signed ? `Heimdall — compute fleet (as ${st.user})` : "Heimdall — compute fleet invites";
+  $("heimdall-mint").disabled = !signed;
+  $("heimdall-record").disabled = !signed || !/^\d{6}$/.test($("heimdall-code").value.trim());
+  $("heimdall-start").hidden = signed;
+  $("heimdall-note").textContent = signed
+    ? `minting as ${st.user} on ${st.hs}`
+    : "Sign in under Matrix (the room sheet) first — invites are minted under your own account.";
+}
+function initHeimdallInvite() {
+  $("heimdall-toggle").onclick = () => { heimdallSync(); $("heimdall").showModal(); };
+  $("heimdall-x").onclick = () => $("heimdall").close();
+  $("heimdall-start").onclick = () => { $("heimdall").close(); $("room").showModal(); $("room-start")?.focus(); };
+  $("heimdall-code").oninput = (e) => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6); heimdallSync(); };
+  $("heimdall-mint").onclick = async () => {
+    const st = foldMatrix.status();
+    $("heimdall-mint").disabled = true;
+    $("heimdall-note").textContent = "minting…";
+    try {
+      const http = foldMatrix.http();
+      const out = await mintInvite({ http, hs: st.hs, host: st.user, name: st.user.replace(/^@/, "").split(":")[0] });
+      $("heimdall-link").value = out.link;
+      $("heimdall-share").hidden = false;
+      $("heimdall-note").textContent = `fleet room ${out.roomId} — invite expires ${new Date(out.exp).toLocaleString()}. Share the link; the worker will give you their code.`;
+      foldMatrix.record("heimdall-invite", { room: out.roomId });
+    } catch (e) {
+      $("heimdall-note").textContent = `could not mint: ${e.message}`;
+    } finally {
+      heimdallSync();
+    }
+  };
+  $("heimdall-copy").onclick = async () => {
+    try { await navigator.clipboard.writeText($("heimdall-link").value); $("heimdall-note").textContent = "link copied"; }
+    catch { $("heimdall-link").select(); document.execCommand("copy"); }
+  };
+  $("heimdall-record").onclick = async () => {
+    const st = foldMatrix.status();
+    const http = foldMatrix.http();
+    $("heimdall-record").disabled = true;
+    try {
+      const r = await recordCode({
+        code: $("heimdall-code").value,
+        read: () => http.getAccountData(st.user, HEIMDALL_CODES_TYPE),
+        write: (content) => http.setAccountData(st.user, HEIMDALL_CODES_TYPE, content),
+      });
+      $("heimdall-code-note").textContent = r.ok
+        ? (r.duplicate ? `${$("heimdall-code").value} was already recorded` : `recorded ${$("heimdall-code").value} — that worker can accept now`)
+        : "enter the 6 digits the worker gave you";
+      if (r.ok) $("heimdall-code").value = "";
+    } catch (e) {
+      $("heimdall-code-note").textContent = `could not record: ${e.message}`;
+    } finally {
+      heimdallSync();
+    }
+  };
+  heimdallSync();
 }
 // A room member's mouth is a rung like any other: `room:@who:server model`.
 const ROOM_MODEL_PREFIX = "room:";
@@ -20379,6 +20446,7 @@ fillModels().then(() => {
   // and re-zeroed, and its vitals ride to serve.mjs's /api/vitals so the
   // machine's Heimdall sees the browser connections it cannot probe itself.
   startHeimdallWatch();
+  initHeimdallInvite();
   // The room (P119): a share link opened in the address bar, and the room
   // this browser last preserved to. The key is read off the fragment and the
   // fragment is dropped from the bar at once; nothing is joined until the

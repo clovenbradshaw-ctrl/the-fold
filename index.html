@@ -466,7 +466,7 @@
          a service either has an account here or it does not, and there is no
          third thing to say in an icon. */
       #matrix-toggle, #github-toggle { color: var(--muted); position: relative; }
-      #matrix-toggle[data-state="in"], #github-toggle[data-state="in"] { color: var(--accent); }
+      #matrix-toggle[data-state="in"], #github-toggle[data-state="in"], #heimdall-toggle[data-state="in"] { color: var(--accent); }
       /* #vault-toggle (P242): the colour IS the state, same convention as
          matrix-toggle/github-toggle above — unlocked reads accent (sealed
          and open right now), locked/none/skipped stay muted (nothing is
@@ -4493,9 +4493,18 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
            to connect, it's a standing fact about this device. app.js sets
            [data-state] to none|skipped|locked|unlocked|unavailable and the
            title to match; click opens whichever door state calls for. -->
-      <button id="vault-toggle" type="button" data-state="none" title="Local vault: not set up">
-        <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Zm-68-56a12,12,0,1,1-12-12A12,12,0,0,1,140,152Z"/></svg>
-      </button>
+<button id="vault-toggle" type="button" data-state="none" title="Local vault: not set up">
+         <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Zm-68-56a12,12,0,1,1-12-12A12,12,0,0,1,140,152Z"/></svg>
+       </button>
+       <!-- Heimdall — the distributed inference fleet, and the page's own
+            watcher at Bifröst (heimdall-client.js). This button opens the
+            compute-invite sheet: mint a fleet room under your own Matrix
+            account, share the link, and record the 6-digit code a worker
+            gives you out of band. Same colour-is-state convention: muted
+            when not signed in, accent when it can mint. -->
+       <button id="heimdall-toggle" type="button" data-state="out" title="Heimdall — compute fleet invites">
+         <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,56C76,56,36,96,36,128s40,72,92,72,92-40,92-72S180,56,128,56Zm0,120a48,48,0,1,1,48-48A48.05,48.05,0,0,1,128,176Zm0-80a32,32,0,1,0,32,32A32,32,0,0,0,128,96Z"/></svg>
+       </button>
         <!-- ONE control for the two screens (user, 2026-09-15): ⇄ puts
              whichever pane you are reading on the other side, which is what
              › was mostly used for too. #panel-collapse stays in the DOM,
@@ -5470,6 +5479,50 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
         <button>Close</button>
         <span class="spacer"></span>
         <button type="button" id="room-more" title="Prints the full state — every room this browser holds a key for, the traffic sent, and what the homeserver can see — into the conversation, where it stays on the record.">Full status</button>
+      </form>
+    </dialog>
+
+    <!-- Heimdall — the compute fleet. Mint a fleet room under the person's
+         own Matrix account, share the link, and record the 6-digit pairing
+         code a worker gives them out of band into the account's
+         org.heimdall.codes registry (the SAME registry the heimdall site's
+         host confirms against — an invite minted here is confirmable there,
+         and vice versa). The code never rides in the link: the worker's
+         device generates its own, and this page only records it. -->
+    <dialog id="heimdall">
+      <div class="sheet-head">
+        <div>
+          <h3>Heimdall — compute fleet</h3>
+          <p class="sub" id="heimdall-sub">lend or borrow inference across any device that opens the link — invites are minted under your own Matrix account</p>
+        </div>
+        <button type="button" class="sheet-close" id="heimdall-x" title="close" aria-label="close">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg>
+        </button>
+      </div>
+      <div class="sheet-body flush">
+        <div class="room-invite">
+          <h4>Mint an invite</h4>
+          <p class="room-steps" id="heimdall-steps">A heimdall fleet room is created under your own account and the link is built — no code in it. Anyone who opens the link can accept; you record their code below.</p>
+          <button type="button" id="heimdall-start" class="primary" hidden>Sign in to Matrix</button>
+          <button type="button" id="heimdall-mint" class="primary">Mint a compute invite</button>
+          <div class="room-share" id="heimdall-share" hidden>
+            <label class="field">Invite link<input id="heimdall-link" type="text" readonly spellcheck="false" /></label>
+            <button type="button" id="heimdall-copy" class="ghost">Copy</button>
+          </div>
+          <p class="pool-note" id="heimdall-note"></p>
+        </div>
+        <div class="room-invite">
+          <h4>Record a worker's code</h4>
+          <p class="room-steps">The worker's device shows a 6-digit pairing code; they give it to you out of band. Record it here so their acceptance can be confirmed.</p>
+          <div class="room-share">
+            <label class="field">6-digit code<input id="heimdall-code" type="text" inputmode="numeric" maxlength="6" autocomplete="off" spellcheck="false" /></label>
+            <button type="button" id="heimdall-record" class="primary" disabled>Record</button>
+          </div>
+          <p class="pool-note" id="heimdall-code-note"></p>
+        </div>
+      </div>
+      <form method="dialog" class="sheet-foot">
+        <button>Close</button>
       </form>
     </dialog>
 

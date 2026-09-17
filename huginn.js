@@ -1,3 +1,15 @@
+/* Huginn speaks:
+ * “Huginn  and  Muninn         hover  each  day 
+
+The  wide  earth  over; 
+I  fear  for  Huginn         lest  he  fare  not  back, — 
+
+Yet  watch  I  more  for  Muninn."”
+ *
+ * This file, `the-fold/huginn.js`, implements the concept of Huginn, one of Odin's two ravens, as a component of the recursive reader.  It's a crucial part of the system's ability to perceive and understand the world, but I believe its implementation should prioritize  the  clarity  of  its  underlying  logic  and  its  ability  to  be  read  and  understood  by  humans  before  being  used  to  power  complex  calculations.
+ *
+ * — the engineering record below, kept whole —
+ */
 // huginn.js — Huginn, the watcher of model prioritization, under heimdall.
 //
 // Handle: Huginn ("thought") — one of Odin's two ravens, who fly out over

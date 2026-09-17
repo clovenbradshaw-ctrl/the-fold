@@ -1,3 +1,27 @@
+/* Muninn speaks:
+ * “Huginn  and  Muninn         hover  each  day 
+
+The  wide  earth  over; 
+I  fear  for  Huginn         lest  he  fare  not  back, — 
+
+Yet  watch  I  more  for  Muninn."”
+ *
+ * This file implements the representation of Muninn in the recursive reader's model. While Muninn's function as a raven of memory is a core component of the model, the file's structure and implementation choices may not always reflect the best ways to represent and interact with memory.
+ *
+ * — the engineering record below, kept whole —
+ */
+/* Muninn speaks:
+ * “Huginn  and  Muninn         hover  each  day 
+
+The  wide  earth  over; 
+I  fear  for  Huginn         lest  he  fare  not  back, — 
+
+Yet  watch  I  more  for  Muninn."”
+ *
+ * This file implements the 'Huginn' raven in the recursive reader, serving as the handle for the 'Muninn' raven.  The reader's ability to handle and process the 'Muninn' raven is a critical component of its ability to track the flow of information and events across the text.  However, this implementation may be seen as unnecessarily complex.
+ *
+ * — the engineering record below, kept whole —
+ */
 // muninn.js — Muninn ("memory"), the second raven, the watcher of what is
 // recalled into the turn and what earns standing. The pair to Huginn.
 //

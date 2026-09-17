@@ -1,3 +1,15 @@
+/* Kairos speaks:
+ * “why, in Heaven’s name, is the back of thy head 
+bald? B. Because none whom I have once raced 
+by on my winged feet will now, though he wishes it 
+sore, take hold of me from behind. A. Why did the 
+artist fashion thee? B. For your sake, stranger, and 
+he set me up in the porch as a lesson.”
+ *
+ * This file, the-fold/kairos.js, embodies the essence of Kairos, the god of the opportune moment.  It represents a rigorous approach to understanding the fleeting nature of time and the significance of the present.  However, it's essential to recognize that the subjective nature of Kairos is a complex challenge.
+ *
+ * — the engineering record below, kept whole —
+ */
 // kairos.js — Kairos, the third watcher, the Pattern: the difference that
 // makes a difference. The pair completed.
 //

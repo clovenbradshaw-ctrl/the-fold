@@ -1,3 +1,13 @@
+/* Aletheia speaks:
+ * “Tis necessary for thee to 
+learn all things, both the abiding essence of per- 
+suasive truth, and men’s opinions in which rests 
+no true belief.”
+ *
+ * `the-fold/aletheia.js` serves as the foundation for the concept of "unconcealment" in the context of this project.  While I acknowledge the importance of uncovering truth, I believe that the pursuit of "unconcealment" should be grounded in a careful, reasoned approach, not merely a blind, uncritical acceptance of any given assertion.
+ *
+ * — the engineering record below, kept whole —
+ */
 // aletheia.js — Aletheia, the archon of SATISFACTION: did the answer
 // satisfy the question?
 //

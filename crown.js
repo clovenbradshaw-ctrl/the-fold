@@ -62,8 +62,19 @@
 // file) so a self-witness never co-signs AGREE's corroboration count — see
 // that function's own header for the full account. This file only
 // consumes whatever `mergeTestimony` decided; it never re-derives standing.
+//
+// SOCRATIC DISCLOSURE (socrates.js, added later — see that file's own
+// header): a render's own standing, beside a question a careful reader
+// would ask next, whenever the standing is anything short of two or more
+// real witnesses agreeing. This is NOT a second verification wall and NOT
+// a safety check — `socraticQuestion()` is called only after `verified`
+// has already been decided below, and nothing it returns can change
+// `text`/`trace`/`verified`/`violations` in any way. It is exactly as
+// additive as `apparatus` already is: a disclosed field beside the render,
+// never a gate on it.
 
 import { SELF_WITNESS } from "../eoreader7/native/organs/index.js";
+import { socraticQuestion } from "./socrates.js";
 
 // ── tokenize — the ONE word/punctuation splitter every render, every
 // witness name, and the trace-coverage veto all use. Never a second one:
@@ -430,22 +441,28 @@ function renderDisagree(merged) {
 }
 
 /**
- * `renderCrown(merged)` — the one public entry point. `merged` is
- * `mergeTestimony`'s own return value. Returns
- * `{text, trace, verified, violations, apparatus}` — `apparatus` is always
- * present and always carries `{case, standing, sources}`, the demoted
- * detail every case discloses even when the sentence itself doesn't name
- * sources inline (AGREE, CONTRADICTED's corroborated form). `sources` is
- * the real `who` list backing this render's case — self-witnesses
- * included, verbatim, never filtered out of the disclosure even where
- * `mergeTestimony` excluded them from a COUNT.
+ * `renderCrown(merged, {cycle})` — the one public entry point. `merged` is
+ * `mergeTestimony`'s own return value. `cycle` is optional:
+ * `logos.js::questionCycle`'s own return value, when a caller has computed
+ * one — passed straight through to socrates.js and nowhere else. Returns
+ * `{text, trace, verified, violations, apparatus, socratic}` —
+ * `apparatus` is always present and always carries `{case, standing,
+ * sources}`, the demoted detail every case discloses even when the
+ * sentence itself doesn't name sources inline (AGREE, CONTRADICTED's
+ * corroborated form). `sources` is the real `who` list backing this
+ * render's case — self-witnesses included, verbatim, never filtered out
+ * of the disclosure even where `mergeTestimony` excluded them from a
+ * COUNT. `socratic` is `socrates.js::socraticQuestion`'s own output —
+ * `null` on a bare-AGREE render, `{id, cites, text}` otherwise — computed
+ * AFTER `verified` is already decided and unable to change it: purely
+ * additive disclosure, not a second wall.
  *
  * Every case is covered; an unrecognized `merged.case` (a defensive floor,
  * never reachable from a real `mergeTestimony` call) renders exactly like
  * UNDETERMINED — nothing asserted is always the safe default direction to
  * fail in, matching this render's own whole reason for existing.
  */
-export function renderCrown(merged) {
+export function renderCrown(merged, { cycle = null } = {}) {
   const m = merged ?? {};
   let rendered = null;
   let fields = null;
@@ -495,5 +512,6 @@ export function renderCrown(merged) {
   return {
     ...verified,
     apparatus: { case: m.case ?? "UNDETERMINED", standing: m.standing ?? null, sources },
+    socratic: socraticQuestion(m, cycle),
   };
 }

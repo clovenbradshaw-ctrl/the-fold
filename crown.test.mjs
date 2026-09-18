@@ -553,3 +553,77 @@ test("renderCrown: DISAGREE between a self:model assertion and a real source's r
   assert.ok(crown.text.includes(`Backing it: ${SELF_WITNESS}`), crown.text);
   assert.ok(crown.text.includes("Denying it: lincolnNeg"), crown.text);
 });
+
+// ── socratic — the additive disclosure, real merge cases, never a gate ─────
+
+test("renderCrown: socratic is null on a real AGREE — two real witnesses agreeing gets no forced question", async () => {
+  const readings = await realReadings({ lincoln: LINCOLN_TEXT, lincoln2: LINCOLN_TEXT_2 }, CLAIM, CLAIM_LINE);
+  const crown = renderCrown(mergeTestimony(readings));
+  assert.equal(crown.apparatus.case, "AGREE");
+  assert.equal(crown.socratic, null);
+});
+
+test("renderCrown: socratic on a real SINGLE names no witness and asks for the case FOR the claim, not a replacement claim", async () => {
+  const readings = await realReadings({ lincoln: LINCOLN_TEXT }, CLAIM, CLAIM_LINE);
+  const crown = renderCrown(mergeTestimony(readings));
+  assert.equal(crown.apparatus.case, "SINGLE");
+  assert.equal(crown.socratic.id, "elenchus-definition");
+  assert.equal(crown.socratic.cites, "Plato, Euthyphro 6d–11b");
+});
+
+test("renderCrown: socratic on a real DISAGREE names the actual disagreeing witness, read straight off this render's own apparatus", async () => {
+  const readings = await realReadings({ lincoln: LINCOLN_TEXT, lincolnNeg: LINCOLN_TEXT_NEGATED }, CLAIM, CLAIM_LINE);
+  const crown = renderCrown(mergeTestimony(readings));
+  assert.equal(crown.apparatus.case, "DISAGREE");
+  assert.equal(crown.socratic.id, "elenchus-counterinstance");
+  assert.match(crown.socratic.text, /lincolnNeg/);
+});
+
+test("renderCrown: socratic on a real UNDETERMINED names the stuck state honestly and asks what would settle it", async () => {
+  const claim = { subject: "Lincoln", verb: "appointed", object: "Nobody" };
+  const readings = await realReadings({ lincoln: LINCOLN_TEXT }, claim, "Lincoln appointed Nobody");
+  const crown = renderCrown(mergeTestimony(readings));
+  assert.equal(crown.apparatus.case, "UNDETERMINED");
+  assert.equal(crown.socratic.id, "elenchus-aporia");
+});
+
+test("renderCrown: socratic on a real CONTRADICTED names the refusing witness without claiming unanimity a single witness doesn't have", async () => {
+  const readings = await realReadings({ lincolnNeg: LINCOLN_TEXT_NEGATED }, CLAIM, CLAIM_LINE);
+  const crown = renderCrown(mergeTestimony(readings));
+  assert.equal(crown.apparatus.case, "CONTRADICTED");
+  assert.equal(crown.apparatus.standing, "single");
+  assert.equal(crown.socratic.id, "elenchus-unanimous-refusal");
+  assert.doesNotMatch(crown.socratic.text, /every witness/i);
+});
+
+test("renderCrown: a real questionCycle passed as {cycle} always wins over the case, and never changes text/verified", async () => {
+  const readings = await realReadings({ lincoln: LINCOLN_TEXT, lincoln2: LINCOLN_TEXT_2 }, CLAIM, CLAIM_LINE);
+  const merged = mergeTestimony(readings);
+  const bare = renderCrown(merged);
+  const cycle = { cycle: ["A depends on B", "B depends on A"], detail: "..." };
+  const withCycle = renderCrown(merged, { cycle });
+  assert.equal(withCycle.socratic.id, "elenchus-question-begs-itself");
+  assert.match(withCycle.socratic.text, /A depends on B/);
+  // The one thing this proves: nothing about the verification wall moved.
+  assert.equal(withCycle.text, bare.text);
+  assert.equal(withCycle.verified, bare.verified);
+  assert.deepEqual(withCycle.violations, bare.violations);
+});
+
+test("renderCrown: the socratic disclosure survives a corrupted render exactly as the fallback sentence does — it is not a second wall, and the fallback still carries it", () => {
+  const corrupted = {
+    text: "Lincoln appointed Seward.",
+    trace: [
+      { index: 0, token: "Lincoln", source: { kind: "claim", field: "subject" } },
+      { index: 1, token: "appointed", source: { kind: "claim", field: "verb" } },
+      { index: 2, token: "Seward", source: { kind: "claim", field: "object" } },
+      { index: 3, token: ".", source: { kind: "connective", id: "period" } },
+    ],
+  };
+  const out = verifyOrFallback(corrupted, { ...CLAIM, witnesses: [] });
+  assert.equal(out.verified, false);
+  // verifyOrFallback itself carries no socratic field — that is renderCrown's
+  // own job, added after verification is decided. This test only confirms
+  // the fallback sentence stays exactly as before this change.
+  assert.equal(out.text, "This claim's render could not be verified word for word and has been withheld.");
+});

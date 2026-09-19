@@ -164,6 +164,7 @@ import { reduce as audioReduce } from "../eoreader7/native/adapters/audio/reduce
 import { createDeclarationLog, proposeCandidate as proposeDeclaration, promote as promoteDeclaration, foldDeclarations } from "/engine-v7/interpretation/declarations.js";
 import { renderCrown } from "./crown.js";
 import { compose, coverageLine } from "./compose.js";
+import { selectContent } from "./selector.js";
 import { formatReference, CITATION_STYLES, DEFAULT_CITATION_STYLE } from "./citation-style.js";
 
 import { transcribeBlob, fetchAudioFromUrl, WHISPER_DISCLOSURE } from "./transcribe.js";
@@ -6644,8 +6645,26 @@ async function factsTurn(argstr, typed) {
   addMessage("user", typed);
   const node = addMessage("assistant", "");
   const body = node.querySelector(".body");
-  const slice = notes.slice(0, n); // foldWithStanding's own order (post-filter): most-witnessed first — a declared order, never invented (compose.js's own rule)
-  body.textContent = `composing: checking ${slice.length} of ${notes.length} fact(s) heard from ${names.join(", ")}…`;
+  // THE SELECTOR (Corpus Mouth Increment 1): content choice flows through the
+  // tested selector.js organ — corroboration-ranked, typed, addressed
+  // candidates, no prose — rather than this door's own hand-rolled slice.
+  // /facts carries no question, so there is no active referent to gate on:
+  // the Selector runs whole-set and ranks by corroboration strength
+  // (AGREE > SINGLE > the rest, then distinct sources, then witness count).
+  // This RE-RANKS foldWithStanding's raw witness-count order (a 5-witness
+  // DISAGREE used to outrank a 1-witness SINGLE; now corroboration sorts
+  // first), so slice membership can shift with it — that re-rank is the
+  // wiring's intent, covered by selector.test.mjs's shuffle-null. The
+  // per-note evaluate+merge loop below still checks each selected note
+  // against every loaded source before compose renders — selection proposes,
+  // checking disposes, rendering phrases; no stage does another's job.
+  const { candidates: selected, refused: selectorRefused, basis: selectorBasis } = selectContent({ question: "", notes });
+  // A typed selector refusal over non-empty notes is never silently
+  // resurrected to the whole set (that would be the "decorated default" the
+  // shuffle-null exists to catch): fall back openly, and say so on the turn.
+  const slice = (selected.length ? selected.map((c) => c.note) : notes).slice(0, n); // selector order: most-corroborated first — a declared order, never invented (compose.js's own rule)
+  const selectorLine = selectorRefused ? `selector refused (${selectorRefused.type}) — composing from the unranked set, openly` : `selector: ${selectorBasis}`;
+  body.textContent = `composing: checking ${slice.length} of ${notes.length} fact(s) heard from ${names.join(", ")}… (${selectorLine})`;
 
   // RANKE'S RULE (P84; user direction, 2026-09-09: "Ranke is our agent in
   // charge of this type of thing, have him be in charge of these rules").

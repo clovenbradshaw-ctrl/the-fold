@@ -460,6 +460,11 @@
       .icon-group button { border: 0; border-radius: 0; background: transparent; line-height: 0; padding: 6px 9px; }
       .icon-group button + button { border-left: 1px solid var(--line); }
       .icon-group button:hover { background: var(--accent-soft); }
+      .more-wrap { position: relative; display: inline-flex; }
+      .more-tray { position: absolute; top: calc(100% + 6px); right: 0; z-index: 60; background: var(--bg); box-shadow: 0 6px 20px rgba(0,0,0,.14); }
+      .more-tray[hidden] { display: none; }
+      #more-toggle { color: var(--muted); }
+      #more-toggle[aria-expanded="true"], #more-toggle[data-live="1"] { color: var(--accent); }
       #theme-toggle { color: var(--muted); }
       #text-size-toggle { color: var(--muted); line-height: 1; font-size: 12px; font-weight: 700; }
       /* Not connected is quiet; connected takes the accent. Two states only —
@@ -2908,7 +2913,7 @@
          side column was a fixed 56px, which left the paperclip 18px of it and
          clipped the glyph against the Send circle. */
       .composer-side { width: auto; flex: 0 0 auto; gap: 6px; }
-      .composer-side #send { width: 34px; min-width: 34px; height: 34px; }
+      .composer-side #send { width: 34px; min-width: 34px; height: 34px; min-height: 34px; aspect-ratio: 1; }
       .composer-side #memory-open { width: 32px; min-width: 32px; height: 32px; justify-content: center; }
       /* THE ACTIVITY LINE (2026-09-15). Claude Code's CLI and opencode both
          disclose work the same way: one line per act, live, with its own result
@@ -4485,7 +4490,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
            LOOKS and neither changes what it does. Grouped, they read as a
            pair of settings; loose, they were two more unrelated boxes in a
            row of four different shapes. -->
-      <span class="icon-group">
+      <span class="more-wrap"><span class="icon-group">
       <!-- The marks are the reading apparatus drawn into the prose: the
            address chips, the ground underlines, the relation badges. They are
            the point of this instrument and they are also, sometimes, in the
@@ -4501,6 +4506,33 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
            colour is the whole state — muted is not connected, accent is —
            and the mark is the service's own so it is recognised before it is
            read. Matrix's mark names the PROTOCOL, never a homeserver. -->
+        <!-- The accounts and the fleet (Matrix, GitHub, the local vault,
+             Heimdall) live behind one "more" button (user, 2026-09-19):
+             they are standing facts, not things pressed every turn. The
+             buttons themselves are unchanged and stay in the DOM inside
+             #more-tray — app.js binds them by id — and their colour still is
+             the state; the more button lights when any of them is live. -->
+        <button id="more-toggle" type="button" aria-expanded="false" aria-controls="more-tray" title="More — Matrix, GitHub, encryption, Heimdall">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><circle cx="60" cy="128" r="16"/><circle cx="128" cy="128" r="16"/><circle cx="196" cy="128" r="16"/></svg>
+        </button>
+        <!-- ONE control for the two screens (user, 2026-09-15): ⇄ puts
+             whichever pane you are reading on the other side, which is what
+             › was mostly used for too. #panel-collapse stays in the DOM,
+             hidden, because its handler lives in app.js and this page is not
+             the place to decide that feature is gone. -->
+        <button type="button" id="panel-collapse" class="fold-side" aria-pressed="false" hidden title="fold this panel away — its tabs stay on the right, and pressing one opens it again">›</button>
+        <!-- ONE control for the two sides (user, 2026-09-15): it cycles split →
+             conversation full screen → panel full screen. #side-swap is kept
+             hidden — app.js binds it — but swapping sides is not a thing this
+             UI offers any more. -->
+        <button type="button" id="hero-expand" class="fold-side" aria-pressed="false" title="Full screen">⤢</button>
+        <button type="button" id="side-swap" class="fold-side" hidden title="Switch sides" aria-label="Switch sides">⇄</button>
+        <button id="text-size-toggle" type="button" title="Text size — click to cycle Small / Default / Large">Aa</button>
+        <button id="theme-toggle" type="button" title="Appearance">
+          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M120,40V16a8,8,0,0,1,16,0V40a8,8,0,0,1-16,0Zm72,88a64,64,0,1,1-64-64A64.07,64.07,0,0,1,192,128Zm-16,0a48,48,0,1,0-48,48A48.05,48.05,0,0,0,176,128ZM58.34,69.66A8,8,0,0,0,69.66,58.34l-16-16A8,8,0,0,0,42.34,53.66Zm0,116.68-16,16a8,8,0,0,0,11.32,11.32l16-16a8,8,0,0,0-11.32-11.32ZM192,72a8,8,0,0,0,5.66-2.34l16-16a8,8,0,0,0-11.32-11.32l-16,16A8,8,0,0,0,192,72Zm5.66,114.34a8,8,0,0,0-11.32,11.32l16,16a8,8,0,0,0,11.32-11.32ZM48,128a8,8,0,0,0-8-8H16a8,8,0,0,0,0,16H40A8,8,0,0,0,48,128Zm80,80a8,8,0,0,0-8,8v24a8,8,0,0,0,16,0V216A8,8,0,0,0,128,208Zm112-88H216a8,8,0,0,0,0,16h24a8,8,0,0,0,0-16Z"/></svg>
+        </button>
+      </span>
+      <span class="icon-group more-tray" id="more-tray" hidden>
       <button id="matrix-toggle" type="button" data-state="out" title="Matrix">
         <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M72,216a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V40a8,8,0,0,1,8-8H64a8,8,0,0,1,0,16H48V208H64A8,8,0,0,1,72,216ZM216,32H192a8,8,0,0,0,0,16h16V208H192a8,8,0,0,0,0,16h24a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32Zm-32,88a32,32,0,0,0-56-21.13,31.93,31.93,0,0,0-40.71-6.15A8,8,0,0,0,72,96v64a8,8,0,0,0,16,0V120a16,16,0,0,1,32,0v40a8,8,0,0,0,16,0V120a16,16,0,0,1,32,0v40a8,8,0,0,0,16,0Z"/></svg>
       </button>
@@ -4525,23 +4557,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
        <button id="heimdall-toggle" type="button" data-state="out" title="Heimdall — compute fleet invites">
          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,56C76,56,36,96,36,128s40,72,92,72,92-40,92-72S180,56,128,56Zm0,120a48,48,0,1,1,48-48A48.05,48.05,0,0,1,128,176Zm0-80a32,32,0,1,0,32,32A32,32,0,0,0,128,96Z"/></svg>
        </button>
-        <!-- ONE control for the two screens (user, 2026-09-15): ⇄ puts
-             whichever pane you are reading on the other side, which is what
-             › was mostly used for too. #panel-collapse stays in the DOM,
-             hidden, because its handler lives in app.js and this page is not
-             the place to decide that feature is gone. -->
-        <button type="button" id="panel-collapse" class="fold-side" aria-pressed="false" hidden title="fold this panel away — its tabs stay on the right, and pressing one opens it again">›</button>
-        <!-- ONE control for the two sides (user, 2026-09-15): it cycles split →
-             conversation full screen → panel full screen. #side-swap is kept
-             hidden — app.js binds it — but swapping sides is not a thing this
-             UI offers any more. -->
-        <button type="button" id="hero-expand" class="fold-side" aria-pressed="false" title="Full screen">⤢</button>
-        <button type="button" id="side-swap" class="fold-side" hidden title="Switch sides" aria-label="Switch sides">⇄</button>
-        <button id="text-size-toggle" type="button" title="Text size — click to cycle Small / Default / Large">Aa</button>
-        <button id="theme-toggle" type="button" title="Appearance">
-          <svg class="ph ph-lg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M120,40V16a8,8,0,0,1,16,0V40a8,8,0,0,1-16,0Zm72,88a64,64,0,1,1-64-64A64.07,64.07,0,0,1,192,128Zm-16,0a48,48,0,1,0-48,48A48.05,48.05,0,0,0,176,128ZM58.34,69.66A8,8,0,0,0,69.66,58.34l-16-16A8,8,0,0,0,42.34,53.66Zm0,116.68-16,16a8,8,0,0,0,11.32,11.32l16-16a8,8,0,0,0-11.32-11.32ZM192,72a8,8,0,0,0,5.66-2.34l16-16a8,8,0,0,0-11.32-11.32l-16,16A8,8,0,0,0,192,72Zm5.66,114.34a8,8,0,0,0-11.32,11.32l16,16a8,8,0,0,0,11.32-11.32ZM48,128a8,8,0,0,0-8-8H16a8,8,0,0,0,0,16H40A8,8,0,0,0,48,128Zm80,80a8,8,0,0,0-8,8v24a8,8,0,0,0,16,0V216A8,8,0,0,0,128,208Zm112-88H216a8,8,0,0,0,0,16h24a8,8,0,0,0,0-16Z"/></svg>
-        </button>
-      </span>
+      </span></span>
       <span id="status" hidden>idle</span>
     </header>
 
@@ -5622,6 +5638,20 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
             var next = SIZES[(SIZES.indexOf(cur) + 1) % SIZES.length];
             applySize(next);
           });
+        }
+        // The "more" tray: opens under the header, closes on an outside press
+        // or Escape; lights the button while any tray service is connected.
+        var moreBtn = document.getElementById("more-toggle");
+        var moreTray = document.getElementById("more-tray");
+        if (moreBtn && moreTray) {
+          var setMore = function (open) { moreTray.hidden = !open; moreBtn.setAttribute("aria-expanded", open ? "true" : "false"); };
+          moreBtn.addEventListener("click", function (e) { e.stopPropagation(); setMore(moreTray.hidden); });
+          document.addEventListener("click", function (e) { if (!moreTray.hidden && !moreTray.contains(e.target)) setMore(false); });
+          document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !moreTray.hidden) setMore(false); });
+          var LIVE = { in: 1, unlocked: 1 };
+          var lightMore = function () { moreBtn.dataset.live = Array.prototype.some.call(moreTray.querySelectorAll("[data-state]"), function (b) { return LIVE[b.dataset.state]; }) ? "1" : "0"; };
+          new MutationObserver(lightMore).observe(moreTray, { subtree: true, attributes: true, attributeFilter: ["data-state"] });
+          lightMore();
         }
         var exploreToggle = document.getElementById("explore-toggle");
         var secondary = document.getElementById("tabs-secondary");

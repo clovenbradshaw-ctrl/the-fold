@@ -3170,12 +3170,25 @@ async function completeLocal(messages, { onDelta, onThinking, maxTokens, json, m
     // compilation) narrates into the status line; a typed failure is thrown
     // to the caller like any Ollama error.
     let cancelled = false;
+    // The load is the same ~1 GB first-use egress the CPU rung shows, so it
+    // LOOKS the same: the banner goes up on the load's first report and comes
+    // down when the model answers (2026-09-19 — the status line alone was
+    // invisible: a person picked OLMo, sent, and could not tell whether
+    // anything was downloading). A cache hit raises it too, briefly, said as
+    // what the loader says it is.
+    const wlLabel = webllmLabelFor(modelName);
     const text = await webllmClient.stream(messages, {
       maxTokens: maxTokens ?? MAX_TOKENS,
       json,
       temperature,
       model: modelName,
-      onProgress: (line, pct) => { $("status").textContent = `${webllmLabelFor(modelName)} · ${line}${pct ? ` ${pct}%` : ""}`; },
+      onProgress: (line, pct) => {
+        $("status").textContent = `${wlLabel} · ${line}${pct ? ` ${pct}%` : ""}`;
+        tfDownloadBanner(wlLabel, `Loading ${wlLabel} in this tab — first use fetches the weights, cached after.`);
+        tfDownloadText(`${wlLabel} · ${line}`);
+        tfDownloadPct(pct ?? 0);
+      },
+
       onUsage: (rec) => {
         state.paceLog = recordCall(state.paceLog, rec);
         tokensSeen.in += rec.promptTokens ?? 0;
@@ -3185,10 +3198,11 @@ async function completeLocal(messages, { onDelta, onThinking, maxTokens, json, m
         $("status").textContent = `ready · ${webllmLabelFor(modelName)}${pace.decodeTps ? ` · ${Math.round(pace.decodeTps)} tok/s` : ""}`;
       },
       onDelta: (out) => {
+        tfDownloadDone();
         if (onDelta?.(out) === true) { cancelled = true; return true; }
         return false;
       },
-    });
+    }).finally(() => tfDownloadDone());
     noteMouth("in this tab", webllmLabelFor(modelName), null, callSeq);
     return { text, thinking: "", doneReason: cancelled ? "cancelled" : "stop" };
   }
@@ -4360,7 +4374,7 @@ let tfDisclosed = false;
  *  first-use egress, and it should LOOK like one, not hide in the status
  *  line. Removed when the model is ready. */
 let tfDlEl = null;
-function tfDownloadBanner(modelLabel) {
+function tfDownloadBanner(modelLabel, text) {
   if (tfDlEl) return tfDlEl;
   const el = document.createElement("div");
   el.id = "tf-download";
@@ -4373,7 +4387,7 @@ function tfDownloadBanner(modelLabel) {
   });
   const labelEl = document.createElement("span");
   labelEl.style.flex = "0 1 auto";
-  labelEl.textContent = `Downloading ${modelLabel} — first use fetches the weights from huggingface.co, cached after.`;
+  labelEl.textContent = text ?? `Downloading ${modelLabel} — first use fetches the weights from huggingface.co, cached after.`;
   const track = document.createElement("div");
   track.style.cssText = "flex:1 1 auto;height:8px;background:#21262d;border-radius:4px;overflow:hidden";
   const bar = document.createElement("div");
@@ -4393,6 +4407,10 @@ function tfDownloadPct(p) {
     tfDlEl.bar.style.width = `${v}%`;
     tfDlEl.pct.textContent = `${Math.round(v)}%`;
   }
+}
+/** The banner's one-line narration, for a loader that reports its own text. */
+function tfDownloadText(t) {
+  if (tfDlEl?.el?.firstChild && t) tfDlEl.el.firstChild.textContent = t;
 }
 function tfDownloadDone() {
   if (tfDlEl) { tfDlEl.el.remove(); tfDlEl = null; }
@@ -9085,13 +9103,24 @@ async function send(question) {
   // surface, unchanged. When the engine is unreachable or the turn fails,
   // fall back to the fold's own in-browser engine — the fold's chat must
   // never get worse in the meantime.
-  return er7Turn(question) ?? twoPassTurn(question);
+  // AWAITED: er7Turn is async, so its bare call is a Promise and `??` never
+  // fell through — a turn the engine path declined (unreachable, stalled,
+  // or an in-tab model it cannot serve) ended with nothing drawn and
+  // state.busy stuck true, so every later message queued forever. Found
+  // live, 2026-09-19.
+  return (await er7Turn(question)) ?? twoPassTurn(question);
 }
 
 /** The flat-chat turn routed through eoreader7's proxy engine, or null to
  *  fall back to the in-browser engine. Guarded: any reachability failure or
  *  turn error falls through, never half-answers. */
 async function er7Turn(question) {
+  // An in-tab model lives in THIS browser (WebGPU weights fetched on first
+  // use); the engine cannot serve it, so sending its id upstream only
+  // stalls to the timeout with no bubble and no download line. Found live,
+  // 2026-09-19 (OLMo 2 1B): take the in-browser path, which shows the
+  // person's message and the weight-download progress.
+  if (isWebLLMModel(state.model) || isTfModel(state.model)) return null;
   let up = false;
   try { up = await er7Reachable(); } catch { up = false; }
   if (!up) return null;

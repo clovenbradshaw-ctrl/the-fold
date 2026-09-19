@@ -3405,3 +3405,29 @@ test("the about call never fires on a decomposed (non-flat) task — it is scope
   await runHolonicTask({ task: "Describe what's this book about, in full.", call, chunks: wp, planMode: "model", maxCorrections: 0 });
   assert.ok(sent.every((m) => !/Not the answer/i.test(m[0]?.content ?? "")), "no about-call fired on a decomposed task");
 });
+
+test("the composition seam, armed, ships an unverifiable draft as itself with the gap said — never the bare coverage line (P244 amendment, 2026-09-19)", async () => {
+  // The specimen this pins, found live: a plain question whose one drafted
+  // sentence cleared no check answered with only "nothing composed — 1 draft
+  // sentence(s) cleared no check; 1 withheld" — no answer at all. The
+  // amendment: when nothing verifies AND nothing is refused, the draft ships
+  // and one plain line says it is unchecked. The coverage line still rides
+  // the record (`open`).
+  const draft = "Harbor Zeta closed permanently in 1802 after the flood.";
+  const result = await runHolonicTask({
+    task: "What happened to Harbor Zeta?",
+    chunks,
+    call: async () => draft,
+    shipExperiencer: { who: "test:reader", read: "conversation:test" },
+  });
+  const shipped = result.sections.map((s) => s.text ?? "").join("\n");
+  assert.ok(shipped.includes("Harbor Zeta closed permanently in 1802"), `the draft ships: ${shipped}`);
+  assert.ok(/unchecked/i.test(shipped), "and the gap is said in plain words");
+  assert.ok(!/^nothing composed/i.test(shipped.trim()), "never the bare coverage line as the whole answer");
+  assert.ok(result.open.some((o) => o.includes("composition seam: nothing verified composed")), "the coverage stays on the record");
+});
+
+test("CHAT_SYSTEM_PROMPT names a friendly assistant, not a reading/research job — a small model handed the job answers a bare hello with it (measured 9/40 vs 0/40, 2026-09-19)", () => {
+  assert.match(CHAT_SYSTEM_PROMPT, /^You are The Fold, a friendly assistant having a conversation\./);
+  assert.ok(!/reading and research|research assistant/i.test(CHAT_SYSTEM_PROMPT), "the no-material chat prompt carries no job to echo");
+});

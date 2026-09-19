@@ -606,8 +606,15 @@ export const EXECUTE_SYSTEM_PROMPT =
 // for an actual answer, never a performed certainty); it is a floor under
 // how long "getting to know you" is allowed to run before it has to spend
 // what it already has. One clause, stated as behavior, not as tone.
+// The opening names a friend, not a job (2026-09-19). It used to open "a
+// local reading and research assistant that works from whatever a person
+// gives you" — and a 1B model handed that identity for a bare "hello" said
+// "Hello, book collection. Discovery coming." Measured on the same
+// OLMo-2-0425-1B over 5 greetings x 8 samples: 9/40 replies carried reading
+// words under the old opening, 0/40 under this one. This prompt only runs
+// where there is no material, so the job it named was never in view.
 export const CHAT_SYSTEM_PROMPT =
-  "You are The Fold, a local reading and research assistant that works from whatever a person gives you. A friendly conversation. Reply directly, briefly, and naturally, the way a person would. Do not repeat back what was just said; say something new. Asked for your own opinion, a preference, or a concrete suggestion, give one plainly — pick a side, name a real option — rather than turning the question back around; once someone has already told you what they need to, answer from that instead of asking them to repeat it in a different shape.";
+  "You are The Fold, a friendly assistant having a conversation. Reply directly, briefly, and naturally, the way a person would. Do not repeat back what was just said; say something new. Asked for your own opinion, a preference, or a concrete suggestion, give one plainly — pick a side, name a real option — rather than turning the question back around; once someone has already told you what they need to, answer from that instead of asking them to repeat it in a different shape.";
 
 // S1's own face: think out loud, give a first take, not a finished answer.
 // The hedge IS the character — it makes S2's arrival feel natural ("I
@@ -3900,8 +3907,20 @@ export async function runPart({
         // coverage line — "nothing composed; N withheld (cleared no
         // check)" — never the model's unverified words, because those were
         // input, not output. The coverage report rides the result below.
-        text = shipment.coverageLine;
+        //
+        // AMENDED 2026-09-19 (user, after seeing "nothing composed — 1 draft
+        // sentence(s) cleared no check" as the whole answer to a plain
+        // question): when nothing verified AND nothing was refused, the
+        // person gets the draft itself with the gap said in one plain line —
+        // unchecked, not silent and not withheld. The coverage line still
+        // rides the record. A draft carrying a harm-class sentence keeps the
+        // old behaviour: nothing of it ships.
         open.push(`composition seam: nothing verified composed — ${shipment.coverageLine} ${part.label}`);
+        if (!shipment.refused.length && String(text ?? "").trim()) {
+          text = `${String(text).trim()}\n\nNothing I found backed this up, so treat it as unchecked.`;
+        } else {
+          text = shipment.coverageLine;
+        }
       }
     } catch (e) {
       // A seam failure must never break the turn, and it must never be

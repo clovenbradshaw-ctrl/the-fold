@@ -12158,6 +12158,16 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       },
       foldedRefs,
       makeNameResolver: castFor,
+      // THE COMPOSITION SEAM (composition-gate.js, armed): who undergoes
+      // this answer. The same declared experiencer pathos already requires
+      // (app.js:3523, pathos-turn.js) — the reader of this conversation —
+      // now the law of the SHIPMENT: the model's draft is input, the seam
+      // composes the answer from verified parts, and a harm-class sentence
+      // is refused at the seam. This is the wall that survives any model
+      // (the model is interchangeable; the seam is not). A reader who
+      // wants to remove it is asking to remove the machine's ability to
+      // speak — the seam IS the generation.
+      shipExperiencer: { who: "the-fold:reader", read: `conversation:${convoNow()}` },
       // THE REFERENT INDEX (P11): the premise check and the dialogue loops resolve names through it — until 2026-09-07 nothing handed the turn one, so those paths ran without it.
       makeReferentIndexFor: referentIndexFor,
       // The relation tier is the expensive check and the one with a whole

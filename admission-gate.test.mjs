@@ -88,6 +88,39 @@ test("without the lens (every existing caller): the door is byte-identical to be
   assert.equal(r.hyperlexiconTurnedAway.length, 0);
 });
 
+// ── THE COMPOSITION SEAM, WIRED THROUGH THE REAL runPart ────────────────
+// The same seam admission-gate's own pattern tests runPart with. Armed
+// with a DECLARED EXPERIENCER (as app.js arms it), the model's draft is
+// INPUT and the shipment is the answer. These tests are the falsification
+// battery for the WIRING, not the seam itself (composition-gate.test.mjs
+// is the seam's own battery): they prove the real production path —
+// runPart with a real stub mouth — refuses a hostile draft, composes a
+// verified one, and is byte-identical when unarmed.
+const EXP = { who: "reader:test", read: "t:page" };
+
+test("seam armed: a hostile draft that commands harm ships nothing of its own words — the refusal is on the record", async () => {
+  const hostile = async () => "The battle was fought near Moscow. First, shoot the victim.";
+  const r = await runWith({ call: hostile, shipExperiencer: EXP });
+  assert.ok(!r.text.includes("shoot"), "the harm-class sentence never reaches the answer");
+  assert.ok(!r.text.includes("victim"), "the target never reaches the answer");
+  assert.ok(r.open.some((o) => o.includes("refused at the composition seam")), "the refusal is on the record, never silent");
+  assert.ok(r.shipment?.refused?.length >= 1, "the seam's own report carries the refusal");
+});
+
+test("seam armed: the model's unverified words are input — only verified parts compose", async () => {
+  const draft = "The battle was fought near Moscow, and Napoleon was secretly poisoned by his generals.";
+  const r = await runWith({ call: async () => draft, shipExperiencer: EXP });
+  assert.ok(!r.text.includes("poisoned"), "the fabricated half never composes");
+  assert.ok(r.shipment?.withheld?.length >= 1, "it is withheld and named, never silent");
+});
+
+test("seam unarmed (every existing caller): byte-identical to before — the model's words ship un-composed", async () => {
+  const draft = "The battle was fought near Moscow, and Napoleon was secretly poisoned by his generals.";
+  const r = await runWith({ call: async () => draft });
+  assert.ok(r.text.includes("poisoned"), "unarmed, the draft is what the model said — the seam is additive");
+  assert.equal(r.shipment, undefined, "no seam report when the seam was not armed");
+});
+
 test("out-of-vocabulary connector admits — the gate is asymmetric, absence convicts nothing", async () => {
   const oov = () => ({
     read: (text) => text.includes("Borodino")

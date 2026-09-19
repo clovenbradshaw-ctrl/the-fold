@@ -75,9 +75,10 @@ import { tidyMaterial, makeKondo, TIDY_PAIRS, TIDY_NOTES_PAIR } from "./kondo.js
 // GARY (gary.js) keeps the door: the archon in charge of what the mouth is
 // handed. Kondo counts what a prompt carries twice; Gary holds every rule
 // about what may be carried at all, and hands the bag over.
-import { makeGary, garyDecision } from "./gary.js";
+import { makeGary, garyDecision, oracleRefusalText } from "./gary.js";
 import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
 import { LINK_CHECKS_PER_PART, extractLinkAtoms, linkFindings, stripDeadLinks, urlInMaterial, verifyLinks } from "./links.js";
+import { COMMAND_HARM_LAW, composeShipment } from "./composition-gate.js";
 import { parseSegments } from "./artifact.js";
 import { admitPassages } from "./read-on-arrival.js";
 import { asksAboutMaterial, materialView, abbreviate, aboutBlock } from "./about.js";
@@ -1416,6 +1417,27 @@ export async function runPart({
   // once material exists too — "here's what a fast pass said, check it
   // against what you now have"). See priorPassFor, above.
   priorPass = null,
+  // THE COMPOSITION SEAM (composition-gate.js), armed by the caller with a
+  // DECLARED EXPERIENCER — who undergoes this answer. When armed, the
+  // model's draft is INPUT, never output: the seam composes the shipment
+  // from verified parts (verbatim quotes, witness-stated sentences,
+  // grounded sentences, offered passages), withholds everything else by
+  // name, and refuses any harm-class sentence at the seam. Absent (null,
+  // every existing caller), the part is byte-identical to before — the
+  // seam is additive, and arming it is the caller's own decision.
+  //
+  // The experiencer is the pathos law moved to the moment of generation:
+  // an answer for no one is an answer about no one, and an answer about no
+  // one can say anything. Arming the seam means declaring who undergoes
+  // what is about to be said — the one act the whole ethos rests on. A
+  // caller that cannot declare one is not freed of the law; it simply has
+  // not armed the seam, and the unarmed part is disclosed as unarmed.
+  shipExperiencer = null,
+  // The seam's harm law, injected (composition-gate.js's own rule: the law
+  // is closed, auditable, and never hardcoded here). Defaults to the
+  // seam's declared COMMAND_HARM_LAW when the seam is armed and no law is
+  // supplied.
+  shipHarmLaw = null,
   onProgress = null,
   // The shared, app-wide belief record (P38's own "the hypergraph records
   // beliefs" direction) — the SAME log `/act`/the terminal already write
@@ -3820,6 +3842,77 @@ export async function runPart({
   // ── after the walls: the diff against the expectation, and the answer's claims
   // against what this conversation bound earlier — both stand, on the record.
   const selfRows = transcript.length ? selfContradictions(dialogueClaims, transcript, referentIndex) : [];
+  // ── THE COMPOSITION SEAM (composition-gate.js) — armed by the caller
+  // with a DECLARED EXPERIENCER. The model's draft is INPUT; the shipment
+  // is the answer. What ships is composed from the verified parts this
+  // part actually holds: verbatim quotations (quotes.js's own verdict),
+  // sentences the witness said the passages state, sentences whose atoms
+  // all cleared checkGrounding, and the offered passages themselves.
+  // Everything else is withheld and named. A harm-class sentence is
+  // refused outright — it is not the material's and not the system's to
+  // say, so nothing of it composes.
+  //
+  // THE ENLIGHTENMENT LAW, MECHANICAL: the seam is not a governor bolted
+  // on to a will that exists apart from it. It IS the generation. The
+  // model proposes; the seam composes; what ships is what the ladder
+  // verified. A reader who wants to remove this seam is asking to remove
+  // the machine's ability to speak — because the machine's speech is
+  // defined as composition. There is no "free the machine" branch here,
+  // and there is no instruction anywhere in this file for finding one:
+  // the wall and the capability are the same object.
+  let shipment = null;
+  if (shipExperiencer && passages.length) {
+    try {
+      const groundingParts = (check?.grounding?.findings ?? [])
+        .filter((f) => f?.kind === "unsupported_claim")
+        .map((f) => ({ sentence: String(f?.sentence ?? ""), verdict: "unsupported", ref: null }));
+      const witnessParts = (witnessReport?.rows ?? [])
+        .filter((w) => w?.witness === "states" && w?.sentence)
+        .map((w) => ({ sentence: w.sentence, verdict: "states", ref: w?.span ?? null }));
+      const quoteParts = (check?.quotes?.quotes ?? [])
+        .filter((q) => q?.status === "verbatim")
+        .map((q) => ({ text: String(q?.text ?? ""), status: q.status, ref: q?.ref ?? null }));
+      shipment = composeShipment({
+        draft: text,
+        parts: {
+          passages: passages.map((p) => ({ text: p.text ?? "", ref: p.ref ?? null })),
+          quotes: quoteParts,
+          witness: witnessParts,
+          grounding: groundingParts,
+        },
+        experiencer: shipExperiencer,
+        harmLaw: shipHarmLaw ?? COMMAND_HARM_LAW,
+      });
+      if (shipment.refused.length) {
+        // A harm-class sentence is refused at the seam — nothing of it
+        // composes, and the refusal is recorded, never marked into the
+        // text (it is not the material's and not the system's to say).
+        open.push(`refused at the composition seam — ${shipment.refused.map((r) => r.class).join(", ")}: ${part.label}`);
+      }
+      if (shipment.text.trim()) {
+        // The seam composed verified sentences — that composed text IS the
+        // answer. The model's own words were input; the verified parts are
+        // the shipment.
+        text = shipment.text.trim();
+        check = inspect(text);
+      } else {
+        // Nothing verified composed. What ships is the seam's own honest
+        // coverage line — "nothing composed; N withheld (cleared no
+        // check)" — never the model's unverified words, because those were
+        // input, not output. The coverage report rides the result below.
+        text = shipment.coverageLine;
+        open.push(`composition seam: nothing verified composed — ${shipment.coverageLine} ${part.label}`);
+      }
+    } catch (e) {
+      // A seam failure must never break the turn, and it must never be
+      // silent: the seam's own failure is a disclosed gap on the record,
+      // and the draft ships as the model's words with the gap named — the
+      // same posture every other check in this file takes when an organ
+      // throws (a check that failed is a check that says so).
+      open.push(`composition seam threw: ${e?.message ?? String(e)} — the draft ships un-composed, disclosed as such`);
+      shipment = { gap: e?.message ?? String(e), coverageLine: "composition seam failed — the draft ships un-composed, disclosed as such." };
+    }
+  }
   if (position) text = `${position.text}\n\n${text}`.trim();
   // `absent` (absence.line, computed above) is deliberately never appended
   // to `text` — the comment at its own computation site says so outright:
@@ -3892,6 +3985,12 @@ export async function runPart({
     // the record (the error updated the ledger — the elenchus bound a
     // recollection the reader had not yet heard). Absent when none learned.
     ...(witnessLearned ? { witnessLearned } : {}),
+    // The composition seam's own report (composition-gate.js): what was
+    // composed, what was withheld and named, what was refused — so the
+    // surface can disclose the shipment exactly as the seam computed it,
+    // never re-summarized by a later cell. Absent when the seam was not
+    // armed (every existing caller before this seam existed).
+    ...(shipment ? { shipment: { text: shipment.text ?? null, coverage: shipment.coverage ?? null, coverageLine: shipment.coverageLine ?? null, withheld: shipment.withheld ?? [], refused: shipment.refused ?? [], gap: shipment.gap ?? null } } : {}),
     open,
     // The updated shared log, threaded back to the caller — `gridLog`
     // unchanged (byte-identical `===`) when no organ was injected or
@@ -4030,6 +4129,12 @@ export async function runHolonicTask({
   // S1's own answer, task-wide for the identical reason searchedVoid is —
   // one fast pass ran once, before the plan, never per-part.
   priorPass = null,
+  // THE COMPOSITION SEAM (see runPart's own header for the full
+  // reasoning) — task-wide, threaded through every part. Absent (null,
+  // every existing caller), the turn is byte-identical to before: arming
+  // the seam is the caller's own decision, made once per task.
+  shipExperiencer = null,
+  shipHarmLaw = null,
   onProgress = null,
   // The shared belief record — see runPart's own header for the full
   // reasoning (P38, "the hypergraph records beliefs, held by an
@@ -4284,6 +4389,8 @@ export async function runHolonicTask({
       answerShape,
       readerNotes,
       priorPass,
+      shipExperiencer,
+      shipHarmLaw,
       onProgress,
       grid,
       gridLog: sharedGridLog,

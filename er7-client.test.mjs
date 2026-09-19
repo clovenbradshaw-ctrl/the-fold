@@ -5,7 +5,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { stripEr7Prefix } from "./er7-client.js";
+import { stripEr7Prefix, er7ChatCompletion, ER7_TURN_TIMEOUT_MS } from "./er7-client.js";
 
 test("stripEr7Prefix removes the er7: prefix, leaves a bare id", () => {
   assert.equal(stripEr7Prefix("er7:gemma2:2b"), "gemma2:2b");
@@ -27,4 +27,28 @@ test("the attachment contract is part of the request body, never a header", () =
   assert.equal(attachments[0].name, "presidents.txt");
   assert.ok(attachments[0].text.length > 0);
   assert.equal(Object.hasOwn(attachments[0], "workspace"), false);
+});
+
+// A stalled engine aborts past the ceiling instead of hanging forever.
+// Measured live, 2026-09-19: the proxy accepted er7:gemma2:2b and answered
+// zero bytes in 100s+, and the turn sat on "writing: through eoreader7…"
+// with no timeout anywhere. The ceiling itself is declared, not tuned.
+test("a stalled engine aborts past the ceiling instead of hanging forever", async () => {
+  assert.ok(Number.isFinite(ER7_TURN_TIMEOUT_MS) && ER7_TURN_TIMEOUT_MS > 0, "the ceiling is a declared number");
+  const realFetch = globalThis.fetch;
+  // A fetch that hangs until aborted — the stalled-lane shape, no server.
+  globalThis.fetch = (_url, { signal } = {}) => new Promise((_, reject) => {
+    if (signal?.aborted) return reject(new DOMException("aborted", "AbortError"));
+    signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+  });
+  try {
+    const t0 = Date.now();
+    await assert.rejects(
+      () => er7ChatCompletion({ model: "gemma2:2b", task: "hi", timeoutMs: 300 }),
+      /stalled past 300ms/,
+    );
+    assert.ok(Date.now() - t0 < 5000, "the ceiling fired promptly");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });

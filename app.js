@@ -9076,6 +9076,12 @@ async function er7Turn(question) {
   let up = false;
   try { up = await er7Reachable(); } catch { up = false; }
   if (!up) return null;
+  // The person's own message bubble, first — the fallback twoPassTurn
+  // renders it itself, but this path returns before ever reaching it.
+  // Found live, 2026-09-19: with the engine reachable, every flat turn
+  // showed only "model" replies and the transcript never showed what the
+  // person said — a chatbot that does not show your own messages.
+  const userNode = addMessage("user", question);
   const node = addMessage("assistant", "");
   const body = node.querySelector(".body");
   $("status").textContent = "writing: through eoreader7…";
@@ -9094,6 +9100,14 @@ async function er7Turn(question) {
     });
   } catch (err) {
     node.remove();
+    // The fallback re-renders the question bubble itself — leaving this
+    // one's standing would show the person's message twice.
+    try { userNode.remove(); } catch { /* already gone — never fatal */ }
+    // Said, not silent: a stalled engine otherwise looks exactly like a
+    // working one that is merely slow. The status line is transient (the
+    // fallback overwrites it on its first act); the ledger entry is not.
+    $("status").textContent = "eoreader7 stalled — answering in-browser instead";
+    try { logAct("errored", { where: "er7-turn", detail: String(err?.message ?? err) }); } catch { /* bookkeeping never breaks a fallback */ }
     console.warn("[er7] engine turn failed, falling back to the in-browser engine:", err?.message ?? err);
     return null;
   }
@@ -12815,6 +12829,15 @@ const tokensSeen = { in: 0, out: 0, calls: 0 };
 function addMessage(role, text) {
   const el = document.createElement("div");
   el.className = `msg ${role}`;
+  // Ground mode draws every turn's standings: a message born under it
+  // carries the same .show-ground the per-turn toggle would give it —
+  // flagged, so leaving the mode lifts only what the mode added, never a
+  // standing the reader opened by hand (index.html's own setMode sweeps
+  // the same flag on a switch).
+  if (document.body?.dataset?.mode === "ground") {
+    el.classList.add("show-ground");
+    el.dataset.groundAuto = "1";
+  }
   // The counter's reading when this message was born. Its cost is the delta.
   el.dataset.tokIn = String(tokensSeen.in);
   el.dataset.tokOut = String(tokensSeen.out);
@@ -19907,6 +19930,11 @@ bindSwitch("use-ranke", "fold-ranke", () => state.ranke, (v) => {
   state.ranke = v;
   $("status").textContent = v ? "primary-source chase on (Ranke)" : "primary-source chase off";
 });
+
+// NOTE (2026-09-19): the Chat/Build/Ground pivot lives in index.html's own
+// inline script (setMode there) — one driver only. An earlier cut of this
+// pass built a second driver here and was reverted on finding it: two
+// listeners, two storage keys, one accent pill.
 // #use-priors (below) and #priors-mode (further below) are two DIFFERENT
 // features, not a merge collision to resolve toward one — index.html's own
 // comment beside #priors-mode already disambiguates them: this checkbox

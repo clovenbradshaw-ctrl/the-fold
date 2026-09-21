@@ -405,6 +405,15 @@
         min-width: 0;
       }
       #workspace-chip:hover { border-color: var(--line); color: var(--ink); }
+      .identity-chip {
+        margin-left: 12px;
+        padding: 4px 9px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        color: var(--muted);
+        font-size: 12.5px;
+        white-space: nowrap;
+      }
       .workspace-name {
         color: var(--ink);
         font-weight: 500;
@@ -4480,6 +4489,15 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
         <span class="workspace-name" id="workspace-name">Workspace</span>
         <span class="workspace-access" id="workspace-access" data-access="private">private</span>
       </button>
+<!-- Identity + human path, always visible (F-01/F-04; PRX-04/M-08): this
+            is an AI assistant, and a human operator is reachable at any point.
+            The chip is disclosure, never decoration — it is the persistent form
+            of the greeting card, so the visible-alternative fact is never lost
+            mid-conversation (the PFC mechanism: an invisible human option reads
+            as a forced interaction and raises expectations). The copy is the
+            operator's own (user, 2026-09-20); the title keeps the fuller
+            operator reading. -->
+      <span class="identity-chip" title="I am an AI assistant — you are the operator">AI Assistant. Not A Mind, Just an Extension of Yours.</span>
       <!-- Who else is in this workspace, and whether they are here now. It
            appears only when the workspace is actually shared: a cluster of
            one avatar (yours) would be a widget telling you that you exist. -->

@@ -401,3 +401,15 @@ fast: 7 files · 53 affected tests pass (heimdall-invite 4, matrix-client 31, co
 | Marshall | II.13 | constitution.test.mjs | clean | heimdall-invite.js joins the zero-egress allowance — pure, injected crossings, the site literal is only a link target |
 | Simon/Chekhov | none | heimdall-invite.js | clean | dedicated heimdall-invite.test.mjs (4 cases) plus a production consumer (app.js) — wired, not nascent |
 clean: - (the four chorus FAIL lines were environmental, verified not-mine: widget.test.mjs concurrent uncommitted edits, the stray _site_check/ built-site dir, and archon-hyphae.test.mjs's live-homeserver provision failing identically on HEAD)
+
+## 2026-09-19 — plain-chat pass: er7Turn await + in-tab skip + WebLLM banner + suggest off + P244 chit-chat amendment + seam ships unchecked draft (main, working tree)
+fast: 68 files · 67 affected test files, 1243 tests, 14 fail (all in files I did not touch: BECOMING/blastRadius TODOs, the router fail-then-pass pin) · law: WARN pre-existing dup headers P115 P116 P117 P19 P233, S17 S96
+| lens | citation | file:line | verdict | one line |
+| Marshall | IV.1/IV.2, P244 | POLICIES.md P244 | fixed | amendment was self-enacted with no entry and no enforcement test: wrote the P244 "Amended 2026-09-19" paragraph; added holon.test.mjs seam pin, falsified against the old behaviour |
+| Alexander | P186 / seam | holon.js seam | noted | unchecked line is appended to the mouth's own text; open question left to the person (record-beside vs in-text) |
+| Simon/Chekhov | — | app.js twoPassTurn | noted | chit-chat door + chatStands have no test harness (app.js); verified live only, disclosed in P244 |
+clean: Feynman, Diaconis, Dijkstra, Holmes, Pearl, Ostrom, Frankfurt, Greenberg, Kondo, Lévi-Strauss (routed on other sessions' hunks or on pre-existing lines; nothing in mine)
+
+## 2026-09-20 — the header identity chip carries the operator's copy: "AI Assistant. Not A Mind, Just an Extension of Yours." (main, staged — chip unit only, not the concurrent working tree)
+fast: 1 files · 16 affected tests pass · law: ok (citations resolve 0 distinct)
+clean: Holmes (one entity, framing reframed; the title keeps "you are the operator" reading — no alias merge)

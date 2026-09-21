@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { makeMoves } from "./moves.js";
 import { CAPACITIES } from "../eoreader7/native/organs/index.js";
 
-const operators = await import("../eoreader7/legacy-eoreader6.1/packages/engine/operators.js");
+const operators = await import("../eoreader7/native/kernel/cube.js");
 const moves = makeMoves({ operators });
 
 test("the space is nine operators at three grains, and terrain is DERIVED", () => {
@@ -19,7 +19,7 @@ test("the space is nine operators at three grains, and terrain is DERIVED", () =
     // Never a free label: an operator's domain is fixed by its letter, so the
     // terrain follows from (domain, grain) and cannot be chosen.
     assert.equal(m.terrain, operators.TERRAIN_BY_DOMAIN[m.domain][m.grain]);
-    assert.equal(m.domain, operators.operatorOf(m.op).domain);
+    assert.equal(m.domain, operators.cellOf(m.op, m.grain).domain);
   }
 });
 
@@ -57,7 +57,7 @@ test("THE SPECIMEN: the list failed at a cell this instrument has never occupied
 
   const link = c.moves.find((m) => m.cell === "CON·Figure");
   assert.equal(link.terrain, "Link");
-  assert.deepEqual(link.organs, ["relations"]);
+  assert.deepEqual(link.organs, ["relations", "positionalSlots"], "relations sits beside positionalSlots (the native RoleConfig@1 slot organ, S122) on the same cell — reconciled 2026-09-20 when the legacy operatorOf namespace was retired");
 
   // The cell WAS empty when the specimen was measured — that emptiness, its
   // stated-before-the-file prediction, and the zero-edges confirmation are

@@ -25,14 +25,14 @@ const nProbes = Number(args[args.indexOf("--probes") + 1]) || 30;
 // The organs exactly as holon.test.mjs builds them (the real constitutional
 // reader's extraction bundle) — nothing hand-rolled, nothing faked.
 const organs = {
-  splitSentences: (await import("../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/spans.js")).splitSentences,
-  extractSurfaces: (await import("../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js")).extractSurfaces,
-  discoverReferents: (await import("../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js")).discoverReferents,
-  namesCorefer: (await import("../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js")).namesCorefer,
-  diaNorm: (await import("../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js")).diaNorm,
-  discoverRelationVocab: (await import("../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js")).discoverRelationVocab,
-  extractRelations: (await import("../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js")).extractRelations,
-  tokenize: (await import("../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/material.js")).tokenize,
+  splitSentences: (await import("../../eoreader7/native/adapters/text/spans.js")).splitSentences,
+  extractSurfaces: (await import("../../eoreader7/native/adapters/text/surfaces.js")).extractSurfaces,
+  discoverReferents: (await import("../../eoreader7/native/adapters/text/surfaces.js")).discoverReferents,
+  namesCorefer: (await import("../../eoreader7/native/adapters/text/surfaces.js")).namesCorefer,
+  diaNorm: (await import("../../eoreader7/native/adapters/text/surfaces.js")).diaNorm,
+  discoverRelationVocab: (await import("../../eoreader7/native/adapters/text/relations.js")).discoverRelationVocab,
+  extractRelations: (await import("../../eoreader7/native/adapters/text/relations.js")).extractRelations,
+  tokenize: (await import("../../eoreader7/native/adapters/text/material.js")).tokenize,
 };
 const relationsFor = makeRelationReader(organs);
 const indexFor = makeReferentIndex(organs);

@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 
 import { passDelta, deltaLine } from "./pass-delta.js";
 import { splitSentences } from "./cite.js";
-import { extractSurfaces } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js";
+import { extractSurfaces } from "../eoreader7/native/adapters/text/surfaces.js";
 
 // The organ bundle app.js composes in production: the engine's real surface
 // reader over the real sentence splitter. Not a stub — a delta computed over

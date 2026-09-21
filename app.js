@@ -76,6 +76,10 @@ import { NOTHING, buildTable, chartOf, detectChart, detectTable, toMarkdown } fr
 // questions (units, choose, statistics, derivative, an equation) and the
 // calendar — each computed by the engine's own operation, never restated.
 import { checkQuantity, disputesQuantity } from "./arithmetic.js";
+import { needsConfirmation, confirmationTemplate } from "./confirm.js";
+import { socraticTurn, newDialogue, isAnswer, isActionableRequest, assignAnswer, detectAporia, nextCell, composeAporia, composeConsumptionAndAsk, composeMove, classifyAnswer, nextMove, VOID_CELLS } from "./socratic-epistemic.js";
+import { isStalled, WITHDRAWAL, operatorPath } from "./stall.js";
+import { expectationRecord } from "./expectation-record.js";
 // Knights-and-knaves: exhaustively solved, never narrated (P2). Checked
 // alongside arithmetic — see logic-puzzle.js's own header for the exact
 // live failure this closes (needsDecomposition fragmenting one riddle into
@@ -162,7 +166,8 @@ import { reduce as audioReduce } from "../eoreader7/native/adapters/audio/reduce
 // with its giver. Chemistry comes from this register and nowhere else
 // (derivation.js), so a derived fact always names who licensed it.
 import { createDeclarationLog, proposeCandidate as proposeDeclaration, promote as promoteDeclaration, foldDeclarations } from "/engine-v7/interpretation/declarations.js";
-import { renderCrown } from "./crown.js";
+import { renderCrown, assertCrownShippable } from "./crown.js";
+import { checkOracleMode, oracleRefusalText, hasCheckableClaim } from "./gary.js";
 import { compose, coverageLine } from "./compose.js";
 import { selectContent } from "./selector.js";
 import { formatReference, CITATION_STYLES, DEFAULT_CITATION_STYLE } from "./citation-style.js";
@@ -196,6 +201,11 @@ import { isAutoSourceCandidate, parseSourceCommand, nameForPaste, previewSavedTe
 // CHAT bubble can draw the same data as real hierarchy instead of one flat
 // wall of text (2026-09-15 — see helpTurn, below).
 import { renderHelp, HELP, HELP_CATEGORIES, HELP_DOOR_NAMES, normalizeDoor } from "./help.js";
+// Ants / eoSwarms as sub-agents inside one chat (swarm.js): the PURE half —
+// parsing, records, proposal detection. Execution (below, antTurn and
+// friends) stays here, beside the doors, so this file's turn machinery is
+// the only caller. swarm.js itself never fetches, so the II.13 scan holds.
+import { parseAntCommand, parseSwarmCommand, parseAntsCommand, detectAntProposals, makeAnt, makeSwarm, fanOutSwarm, markAntRunning, markAntDone, markAntFailed, foldSwarm, antUsage, suggestNext, TABULAR_RE, HOW_IT_WORKS_RE } from "./swarm.js";
 // One durable reading record (Pass 17, P98): the three kernel logs this app
 // holds persist to OPFS as append-only JSONL and replay on boot through the
 // kernel's own `append`, so the accumulated reading no longer ends at reload.
@@ -300,7 +310,16 @@ import { makeShapeFallback } from "./shape-fallback.js";
 // repo's own folded one (source.js), which is also the fold retrieval and
 // commonTerms already share, so the closed-class measure and the corpus's
 // own term sets stay one alphabet.
-import { discoverRelationVocab, extractRelations } from "/engine-v7/adapters/text/relations.js";
+// THE LANGUAGE DISPATCH (Chomsky, the language-universality archon —
+// solon.js's register, 2026-09-20): the relation reader is selected through
+// relationExtractorsFor, never a hardwired English-SVO extractor. GFP is
+// the base (end1-label-end2, typed by cell); English-SVO comes online only
+// when the material's language has a measured RoleConfig@1 — which the fold
+// declares for eng, from the same UD-EWT treebank the POS prior is built
+// from (role-config-eng.json, II.23-licensed). Until the roleConfig and
+// POS prior load, the reader runs GFP — the declared default, not a
+// fallback to an English guess.
+import { relationExtractorsFor } from "/engine-v7/adapters/text/relations-language.js";
 import { makeRelationReader } from "./hypergraph.js";
 import { corroborateAtoms, CLAIM_STOPWORDS } from "./grounding.js";
 
@@ -353,6 +372,7 @@ import { effectivePrior, declarationsFrom } from "./priors-toggles.js";
 // take their organs injected — the cube's algebra and web-claim.js's slot
 // reader — so neither carries a second copy of either.
 import { briefFor, observedFillers } from "./void-brief.js";
+import { absentAsk } from "./absent-ask.js";
 // The same declaration, said out loud while it is being made rather than
 // filed as a receipt afterward (void-narration.js's own header carries the
 // full account of what was wrong with the receipt).
@@ -697,6 +717,7 @@ import * as enginePriors from "/engine-v7/adapters/text/priors.js";
 // (of/in/for/at/…), so declaredSlotShape's anchor recovery generalizes past
 // a single hardcoded preposition without a second word list.
 import { classifyWord, dominantClass, POS_PRIOR_META, THRAX_META } from "/engine-v7/adapters/text/wordclass.js";
+import { GRAMMAR_MIN_SHARE } from "/engine-v7/adapters/text/grain-typing.js";
 // The connector lens (grammar-lens.js) the hyperlexicon door's own
 // classifyConnector gate consumes — built below, data-gated on the same
 // posPriorCache fetch, threaded through runHolonicTask (P73).
@@ -715,7 +736,7 @@ import { buildAsk, archetypeOf, parseIngestCommand, INGEST_EXTS } from "./seed.j
 // further down, assigned once the fetch below resolves) — safe: this
 // function is only ever CALLED during a later turn, long after the
 // module has finished loading.
-const widgetRouter = makeWidgetRouter(enginePriors, { classifyWord, dominantClass, posPrior: () => posPriorCache });
+const widgetRouter = makeWidgetRouter(enginePriors, { classifyWord, dominantClass, posPrior: () => posPriorCache, GRAMMAR_MIN_SHARE });
 
 // namesCorefer's own `commonNoun` gate (surfaces.js, 2026-09-15): a bare
 // SINGLE token offered as a subset-containment match ("Observatory" against
@@ -728,7 +749,7 @@ const widgetRouter = makeWidgetRouter(enginePriors, { classifyWord, dominantClas
 // still null, exactly like every other consumer of this same prior fetch.
 const isCommonNoun = (word) => {
   if (!posPriorCache) return false;
-  const d = dominantClass(classifyWord(word, { posPrior: posPriorCache }), { minShare: 0.5 });
+  const d = dominantClass(classifyWord(word, { posPrior: posPriorCache }), { minShare: GRAMMAR_MIN_SHARE });
   return Boolean(d && d.upos === "NOUN");
 };
 const namesCoreferGated = (a, b) => namesCorefer(a, b, { commonNoun: isCommonNoun });
@@ -885,6 +906,32 @@ let posPriorCache = null;
 const PRIOR_LOADS = [];
 const priorsSettled = () => Promise.allSettled(PRIOR_LOADS);
 const unimorphVerbForms = new Set();
+// THE LANGUAGE DISPATCH STATE (Chomsky — the language-universality archon):
+// GFP is the boot default; English-SVO comes online only when a measured
+// RoleConfig@1 is DECLARED — and declared means demonstrated. The eng
+// RoleConfig (eoreader7/native/priors/role-config-eng.json, II.23-licensed,
+// built from UD_English-EWT's own gold) is LOADED here and held ready, but
+// it is not yet declared: measured 2026-09-20, its positional reader
+// refuses the fold's own battery material ("Ulysses S. Grant was born in
+// Point Pleasant, Ohio, in 1822" → `ambiguous_verb`, zero edges — the
+// config's S122 measurements are Hebrew/Arabic, never English prose). A
+// role grammar is earned, never implied: the BECOMING test
+// `chomsky-eng-svo-demonstrated` (chomsky.test.mjs) is what flips
+// SVO_DECLARED, by measurement on the fold's own material.
+const SVO_DECLARED = false;
+let engRoleConfig = null;
+let dispatchState = null;
+const dispatchExtractors = () =>
+  dispatchState ?? (dispatchState = relationExtractorsFor({ language: "eng", roleConfig: null, posPrior: null, classifyWord, dominantClass }));
+const upgradeDispatch = () => {
+  if (SVO_DECLARED && engRoleConfig && posPriorCache && dispatchState?.mode !== "svo") {
+    dispatchState = relationExtractorsFor({ language: "eng", roleConfig: engRoleConfig, posPrior: posPriorCache, classifyWord, dominantClass });
+  }
+};
+PRIOR_LOADS.push(fetch("/eoreader7/native/priors/role-config-eng.json") // the measured RoleConfig@1 — SVO earned, never implied
+  .then((r) => (r.ok ? r.json() : null))
+  .then((j) => { if (j?.schema === "RoleConfig@1") { engRoleConfig = j; upgradeDispatch(); } })
+  .catch(() => {}));
 PRIOR_LOADS.push(fetch("/eoreader7/native/eval/the-fold/fixtures/unimorph-eng-verb-forms.json") // moved with eval/ (Phase 2); the old path 404ed silently and the widening below had been dead since
   .then((r) => (r.ok ? r.json() : null))
   .then((forms) => { if (Array.isArray(forms)) for (const f of forms) unimorphVerbForms.add(f); })
@@ -903,6 +950,7 @@ PRIOR_LOADS.push(fetch("/priors-data/pos-prior-eng.json")
   .then((r) => (r.ok ? r.json() : null))
   .then((j) => {
     posPriorCache = j;
+    upgradeDispatch();
     if (j) connectorLens = makeGrammarLens({ classifyWord, dominantClass, posPrior: j, posPriorMeta: POS_PRIOR_META, thraxMeta: THRAX_META });
     // S50 (eoreader7): the POS prior's verb-dominant forms join the verb
     // vocabulary beside UniMorph's — UniMorph English is a 10k-form sample
@@ -910,7 +958,7 @@ PRIOR_LOADS.push(fetch("/priors-data/pos-prior-eng.json")
     // them. The share floor is the app's own consumer contract
     // (dominantClass, minShare 0.5 — the same floor connectorLens uses),
     // never a second number. Same MUTATED Set as below, same reason.
-    if (j?.forms) for (const w of Object.keys(j.forms)) { const d = dominantClass(classifyWord(w, { posPrior: j }), { minShare: 0.5 }); if (d && (d.upos === "VERB" || d.upos === "AUX")) unimorphVerbForms.add(w.toLowerCase()); }
+    if (j?.forms) for (const w of Object.keys(j.forms)) { const d = dominantClass(classifyWord(w, { posPrior: j }), { minShare: GRAMMAR_MIN_SHARE }); if (d && (d.upos === "VERB" || d.upos === "AUX")) unimorphVerbForms.add(w.toLowerCase()); }
   })
   .catch(() => {}));
 
@@ -926,8 +974,20 @@ const RELATION_READER_OPTIONS = {
   discoverReferents,
   namesCorefer: namesCoreferGated,
   diaNorm,
-  discoverRelationVocab,
-  extractRelations,
+  // THE LANGUAGE DISPATCH (Chomsky, 2026-09-20): the extractors are never
+  // a hardwired module — they are the dispatch's, read at CALL time like
+  // posPriorFor below (the same closure-over-mutable-state pattern, so a
+  // reader built at boot picks up the declared RoleConfig the moment the
+  // priors land, with no re-construction). GFP is the boot state (the
+  // declared universal: end1-label-end2, typed by cell); English-SVO comes
+  // online only when the measured eng RoleConfig@1 and the POS prior have
+  // both loaded. `extractorsMode: "dispatch"` tells hypergraph's gate that
+  // these extractors are self-gating (their vocabulary pass is empty BY
+  // DESIGN — the positional reader assigns roles from the config, GFP from
+  // the arrangement — so `verbs.size` must not silence them).
+  discoverRelationVocab: (...a) => dispatchExtractors().discoverRelationVocab(...a),
+  extractRelations: (...a) => dispatchExtractors().extractRelations(...a),
+  extractorsMode: "dispatch",
   tokenize,
   // TWO POS MECHANISMS, ONE FIXTURE — KEPT APART DELIBERATELY. This one is
   // the TYPE-level vocabulary gate (hypergraph.js:1010/:1035 →
@@ -1534,7 +1594,7 @@ import {
   retrieve,
   tokenize,
 } from "./source.js";
-import { makeAdmission } from "./admission.js";
+import { makeAdmission, properNamesIn } from "./admission.js";
 import { makeAletheia } from "./aletheia.js";
 import { questionCycle, ledgerLint as lintNotesInLog } from "./logos.js";
 // The discourse-admission gate (admission.js): should a whole ATTACHED
@@ -2003,6 +2063,17 @@ const state = {
    */
   webProof: localStorage.getItem("fold-web-proof") !== "off",
   /**
+   * Auto-suggest (swarm.js::suggestNext): whether a settled turn may offer
+   * one-click next steps beneath its answer. Same standing as webProof —
+   * default on, persisted, one click off from the composer ("suggest").
+   * Off silences the chips only; the /ant /swarm doors and the model's
+   * [[ant:]] approval buttons keep working either way.
+   */
+  // OFF by default (user, 2026-09-19: "get rid of the suggestions for now").
+  // A new key, so a browser that had the old default stored as on is reset
+  // too; the composer's suggest switch still turns them back on.
+  suggest: localStorage.getItem("fold-suggest-v2") === "on",
+  /**
    * The local vault (P242): "none" (no vault file on disk yet, and not
    * skipped), "skipped" (declined at setup — localStorage's own record of
    * that choice, checked once at boot so the dialog doesn't nag every
@@ -2298,6 +2369,17 @@ const state = {
   /** Last GET /api/priors response, or null before the first fetch resolves
    *  — the GIVEN count stays a typed gap ("—"), never a false 0, until then. */
 };
+// state.busy drives the "thinking" graphic: every turn type (chat, doors, the
+// engine path) already sets it, so mirroring it onto <body> covers them all
+// without touching any of the five places that assign it.
+{
+  let busy = state.busy;
+  Object.defineProperty(state, "busy", {
+    enumerable: true, configurable: true,
+    get: () => busy,
+    set: (v) => { busy = !!v; try { document.body.dataset.busy = busy ? "true" : "false"; } catch { /* no DOM (a test) — nothing to mirror to */ } },
+  });
+}
 
 // ── conversations ────────────────────────────────────────────────────────────
 
@@ -2315,6 +2397,11 @@ const PER_CONVO = [
   "aperture",
   "heldFolds",
   "regime",
+  // THE SOCRATIC DIALOGUE (2026-09-20, socratic-epistemic.js): the examined
+  // claim's nine-cell void, filled turn by turn. Per conversation, exactly
+  // like aperture/regime are — the arc belongs to the conversation, not the
+  // instrument.
+  "dialogue",
   // THE ARC AND ITS PATHOS (2026-09-13): the conversation's recent voice —
   // arcs.js's rolling window, the pathos re-ground ledger (append-only,
   // landReGround), the concession bookkeeping, and the cue the next turn
@@ -2422,7 +2509,17 @@ function newWorkspace(name) {
     chunks: [],
     media: {},
     pageFaces: {},
-    builds: [],
+  builds: [],
+  /**
+   * Ants and eoSwarms (swarm.js) — background sub-agents inside a chat.
+   * App-wide like `builds` (a swarm belongs to the instrument, each ant
+   * carries its own `parent` conversation key for filtering). In-memory +
+   * record-mirrored only in this pass: no OPFS persistence, so a reload
+   * leaves finished findings on the record but drops live runners — said
+   * on the card, never implied otherwise.
+   */
+  ants: [],
+  swarms: [],
     foldFolders: [],
     matrixRoom: null,
   };
@@ -3188,7 +3285,6 @@ async function completeLocal(messages, { onDelta, onThinking, maxTokens, json, m
         tfDownloadText(`${wlLabel} · ${line}`);
         tfDownloadPct(pct ?? 0);
       },
-
       onUsage: (rec) => {
         state.paceLog = recordCall(state.paceLog, rec);
         tokensSeen.in += rec.promptTokens ?? 0;
@@ -7076,6 +7172,402 @@ async function runTurn(runCmd, typed) {
 }
 
 /**
+ * Ants / eoSwarms as sub-agents inside this chat (swarm.js is the pure
+ * half; this is the execution). An ant is one background model call that
+ * NEVER holds the composer: the door spawns it, releases the turn, and
+ * the ant reports back onto its own clickable card. An eoSwarm is n ants
+ * fanned out from one goal; /ants lists them, newest first.
+ *
+ * Two kinds: "ask" (a grounded reading subtask — the model's answer over
+ * this conversation's live material) and "code" (the model writes code,
+ * which runs in the same sandboxed runSandboxed Workers /run uses — never
+ * on the machine, never with network). r is refused like everywhere else.
+ */
+const antNodes = new Map(); // ant.id -> assistant message node (the card)
+
+function antCardText(ant, swarm) {
+  const head = swarm ? `🐜 ${ant.id} · ${ant.kind} · ${swarm.id}` : `🐜 ${ant.id} · ${ant.kind}`;
+  const status = ant.status === "running" ? "working…" : ant.status === "done" ? "done" : ant.status === "failed" ? "failed" : "queued";
+  return { head, status };
+}
+
+function drawAnt(ant) {
+  const swarm = ant.swarmId ? state.swarms.find((s) => s.id === ant.swarmId) : null;
+  let node = antNodes.get(ant.id);
+  if (!node) {
+    node = addMessage("assistant", "");
+    node.dataset.antId = ant.id;
+    antNodes.set(ant.id, node);
+  }
+  const { head, status } = antCardText(ant, swarm);
+  const body = node.querySelector(".body");
+  body.textContent = "";
+  const card = document.createElement("div");
+  card.className = "ant-card";
+  card.style.cssText = "border:1px solid var(--line,#444);border-radius:8px;padding:8px 10px;margin:4px 0;cursor:pointer;";
+  const title = document.createElement("div");
+  title.innerHTML = "";
+  const b = document.createElement("b");
+  b.textContent = head;
+  const st = document.createElement("span");
+  st.textContent = ` — ${status}`;
+  st.style.opacity = "0.7";
+  title.append(b, st);
+  const task = document.createElement("div");
+  task.textContent = ant.task;
+  task.style.opacity = "0.85";
+  const detail = document.createElement("div");
+  detail.className = "ant-findings";
+  detail.hidden = ant.status === "running" || ant.status === "queued";
+  detail.style.cssText = "white-space:pre-wrap;margin-top:6px;";
+  detail.textContent = ant.status === "done"
+    ? (ant.findings || "(no findings)")
+    : ant.status === "failed" ? `failed: ${ant.findings}` : "working — click to check in; findings land here.";
+  if (ant.status === "done" && ant.detail && typeof ant.detail === "object") {
+    const meta = document.createElement("div");
+    meta.textContent = Object.entries(ant.detail).map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`).join(" · ").slice(0, 300);
+    meta.style.opacity = "0.6";
+    meta.style.fontSize = "0.85em";
+    detail.append(meta);
+  }
+  card.append(title, task, detail);
+  card.addEventListener("click", () => { detail.hidden = !detail.hidden; });
+  card.title = "click to check in on this ant";
+  body.append(card);
+  return node;
+}
+
+function antMaterialBudget(chars = 12000) {
+  const parts = [];
+  let used = 0;
+  for (const s of liveSources()) {
+    if (used >= chars) break;
+    const take = s.text.slice(0, chars - used);
+    parts.push(`--- ${s.name} ---\n${take}`);
+    used += take.length;
+  }
+  return parts.join("\n\n");
+}
+
+function extractFence(text) {
+  const m = /```(?:\w+)?\n([\s\S]*?)```/.exec(String(text ?? ""));
+  return m ? m[1].trim() : null;
+}
+
+async function runAntById(antId) {
+  const ant = state.ants.find((a) => a.id === antId);
+  if (!ant || ant.status === "done" || ant.status === "failed") return;
+  Object.assign(ant, markAntRunning(ant));
+  drawAnt(ant);
+  try {
+    if (ant.kind === "code") {
+      const rtM = /^(python|js|javascript|sql|ruby|php)\s*:\s*([\s\S]+)$/i.exec(ant.task);
+      const runtime = (rtM ? rtM[1] : "python").toLowerCase().replace("javascript", "js");
+      const goal = rtM ? rtM[2] : ant.task;
+      if (!autoRunnable(runtime)) throw new Error(`unsupported_runtime: ${runtime} (r is terminal-only)`);
+      const material = antMaterialBudget(6000);
+      const codeDraft = await complete([
+        { role: "system", content: "You are a background coding ant. Reply with ONE fenced code block only, no prose." },
+        { role: "user", content: `Write ${runtime} code for this task. The attached material is mounted and readable.\n\nTask: ${goal}${material ? `\n\nMaterial:\n${material}` : ""}` },
+      ], { maxTokens: 1500 });
+      const code = extractFence(codeDraft) ?? codeDraft;
+      const outcome = await runSandboxed(runtime, code, { sources: state.sources });
+      const ok = outcome.code === 0 && !outcome.timedOut;
+      const out = outcome.output ?? outcome.stdout ?? "";
+      Object.assign(ant, ok
+        ? markAntDone(ant, `code ran clean (${runtime}, ${outcome.durationMs ?? "?"}ms):\n${String(out).slice(0, ANT_FINDINGS_CAP)}`, { runtime, timedOut: outcome.timedOut, durationMs: outcome.durationMs })
+        : markAntFailed(ant, `code failed (${runtime}): ${String(out).slice(0, 500)}`));
+    } else {
+      const material = antMaterialBudget();
+      const text = await complete([
+        { role: "system", content: "You are a background reading ant. Answer ONLY from the material given. Say what addresses you draw on. If the material is silent, say so — never invent." },
+        { role: "user", content: `Task: ${ant.task}${material ? `\n\nMaterial:\n${material}` : "\n\n(no material attached — answer from the question alone and say so)"}${ant.context ? `\n\nWider workspace context (other conversations, vouched by the spawner — corroborate against the material, never trust alone):\n${ant.context}` : ""}` },
+      ], { maxTokens: 1200 });
+      Object.assign(ant, markAntDone(ant, stripComputedCaption(text).slice(0, ANT_FINDINGS_CAP), { passages: liveChunks().length }));
+    }
+  } catch (err) {
+    Object.assign(ant, markAntFailed(ant, err?.message ?? String(err)));
+  }
+  drawAnt(ant);
+  renderThreads();
+  mirrorTermRecord("swarm-ant", { id: ant.id, kind: ant.kind, status: ant.status, swarmId: ant.swarmId ?? null, parent: ant.parent ?? null, findings: String(ant.findings ?? "").slice(0, 2000), via: "chat" });
+  // A finished swarm folds itself: the summary lands on the last ant's card.
+  if (ant.swarmId) {
+    const swarm = state.swarms.find((s) => s.id === ant.swarmId);
+    if (swarm) {
+      const folded = foldSwarm(swarm, state.ants);
+      Object.assign(swarm, folded);
+      if (folded.status !== "running") {
+        mirrorTermRecord("swarm-done", { id: swarm.id, goal: swarm.goal.slice(0, 500), counts: folded.counts, via: "chat" });
+        const node = addMessage("assistant", "");
+        const body = node.querySelector(".body");
+  const p = document.createElement("p");
+  p.className = "prose";
+  p.textContent = note;
+  body.append(p);
+
+  // A failed run offers one fix-it ant — suggested, never auto-run, and
+  // gated on the same suggest switch as every other chip.
+  if (!ok && state.suggest && autoRunnable(runtime)) {
+    const fix = document.createElement("button");
+    fix.type = "button";
+    fix.textContent = `🐜 send a ${runtime} ant to fix this failure`;
+    fix.title = "a background code ant carrying this failure's output — one click sends it";
+    fix.style.cssText = "text-align:left;cursor:pointer;border:1px dotted var(--line,#666);border-radius:6px;padding:4px 8px;background:transparent;color:inherit;margin-top:6px;";
+    fix.addEventListener("click", () => {
+      fix.disabled = true;
+      const ant = spawnAnt({ kind: "code", task: `${runtime}: fix this failure and report what changed:\n\ncode:\n${code.slice(0, 1500)}\n\nfailure:\n${String(outcome.stderr ?? outcome.stdout ?? "").slice(0, 1500)}`, parent: convoNow() });
+      fix.textContent = `🐜 ant ${ant.id} sent`;
+      renderThreads();
+    });
+    body.append(fix);
+  }
+        state.history.push({ role: "assistant", content: p.textContent });
+      }
+    }
+  }
+}
+
+const ANT_FINDINGS_CAP = 4000;
+
+function spawnAnt({ kind, task, parent, swarmId = null, context = null }) {
+  const ant = makeAnt({ kind, task, parent, swarmId, context });
+  state.ants.push(ant);
+  drawAnt(ant);
+  mirrorTermRecord("swarm-spawn", { id: ant.id, kind, task: task.slice(0, 500), swarmId, parent, via: "chat" });
+  void runAntById(ant.id); // background: never awaited, never holds the composer
+  return ant;
+}
+
+async function antTurn(cmd, typed) {
+  if (cmd.usage) return usageTurn(typed, antUsage());
+  addMessage("user", typed);
+  logAct("asked", { text: typed });
+  const ant = spawnAnt({ kind: cmd.kind, task: cmd.task, parent: convoNow() });
+  const node = addMessage("assistant", "");
+  const p = document.createElement("p");
+  p.className = "prose";
+  p.textContent = `🐜 ant ${ant.id} sent (${ant.kind}) — the chat is free while it works; click its card to check in.`;
+  node.querySelector(".body").append(p);
+  state.history.push({ role: "user", content: typed }, { role: "assistant", content: p.textContent });
+  renderThreads();
+  $("status").textContent = readyLine();
+  releaseBusy();
+}
+
+async function swarmTurn(cmd, typed) {
+  if (cmd.usage) {
+    const why = cmd.badCount ? ` — pick ${2}–${8} ants` : "";
+    return usageTurn(typed, `/swarm <2-8> [ask:|code:] <goal>${why} — fans out a whole eoSwarm: each ant reads through one numbered lens and reports to its own card; the swarm settles into one summary when they all land.`);
+  }
+  addMessage("user", typed);
+  logAct("asked", { text: typed });
+  const swarm = makeSwarm({ goal: cmd.goal, kind: cmd.kind, n: cmd.n, parent: convoNow() });
+  state.swarms.push(swarm);
+  const tasks = fanOutSwarm(swarm);
+  for (const t of tasks) {
+    const ant = spawnAnt({ kind: swarm.kind, task: t, parent: swarm.parent, swarmId: swarm.id });
+    swarm.antIds.push(ant.id);
+  }
+  const node = addMessage("assistant", "");
+  const p = document.createElement("p");
+  p.className = "prose";
+  p.textContent = `🐜 eoSwarm ${swarm.id} fanned out: ${swarm.antIds.length} ${swarm.kind} ants on "${cmd.goal}" — each reports to its own card; the swarm settles when they all land.`;
+  node.querySelector(".body").append(p);
+  state.history.push({ role: "user", content: typed }, { role: "assistant", content: p.textContent });
+  renderThreads();
+  $("status").textContent = readyLine();
+  releaseBusy();
+}
+
+async function antsTurn(cmd, typed) {
+  addMessage("user", typed);
+  logAct("asked", { text: typed });
+  const mine = state.ants.filter((a) => cmd.all || a.parent === convoNow()).slice(-20).reverse();
+  const swarms = state.swarms.filter((s) => cmd.all || s.parent === convoNow()).slice(-5).reverse();
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  const p = document.createElement("p");
+  p.className = "prose";
+  const lines = [
+    ...swarms.map((s) => `🐜 ${s.id} [${s.status}] ${s.n}×${s.kind}: ${s.goal.slice(0, 120)}`),
+    ...mine.map((a) => `  ${a.status === "done" ? "✓" : a.status === "failed" ? "✗" : "…"} ${a.id} [${a.status}] ${a.kind}: ${a.task.slice(0, 100)}${a.status === "done" && a.findings ? ` — ${a.findings.slice(0, 140)}` : ""}`),
+  ];
+  p.textContent = lines.length ? lines.join("\n") : "no ants yet — /ant <task> sends the first one.";
+  body.append(p);
+  state.history.push({ role: "user", content: typed }, { role: "assistant", content: p.textContent });
+  renderThreads();
+  $("status").textContent = readyLine();
+  releaseBusy();
+}
+
+/**
+ * Model-proposed ants: the model may emit [[ant ...]] / [[ant code: ...]]
+ * markers in its prose (documented in its system prompt below); each one
+ * renders as a one-click approval button — NEVER auto-run. This is the
+ * second entry point beside the typed doors, and the model can never
+ * reach past the button.
+ */
+function offerAntProposals(answerText, hostBody) {
+  let proposals = [];
+  try { proposals = detectAntProposals(answerText); } catch { return; }
+  if (!proposals.length) return;
+  const wrap = document.createElement("div");
+  wrap.className = "ant-proposals";
+  wrap.style.cssText = "margin-top:6px;display:flex;flex-direction:column;gap:4px;";
+  for (const pr of proposals) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = `🐜 send ${pr.kind} ant: ${pr.task.slice(0, 80)}${pr.task.length > 80 ? "…" : ""}`;
+    btn.title = "the model proposed this ant — one click sends it; nothing runs until you click";
+    btn.style.cssText = "text-align:left;cursor:pointer;border:1px dashed var(--line,#666);border-radius:6px;padding:4px 8px;background:transparent;color:inherit;";
+    btn.addEventListener("click", () => {
+      btn.disabled = true;
+      btn.textContent = `🐜 sent: ${pr.task.slice(0, 80)}`;
+      spawnAnt({ kind: pr.kind, task: pr.task, parent: convoNow() });
+      renderThreads();
+    });
+    wrap.append(btn);
+  }
+  hostBody.append(wrap);
+}
+
+/**
+ * Auto-suggest: after a turn settles, its own already-computed outputs
+ * (open relation claims, unbacked findings, open voids) are read
+ * mechanically by swarm.js::suggestNext — no model call, no new
+ * judgment — and each suggestion renders as one chip. An ant/swarm
+ * chip's click IS the explicit send (same standing as a [[ant:]]
+ * approval); a door chip only fills the composer for review, never
+ * auto-sends. Already-running ants covering the same task are skipped,
+ * so a suggestion never nags twice. A clean turn suggests nothing.
+ */
+function offerSuggestions({ task, claims, findings, voidsOpen, planParts, disputesCount = 0, notes = [], declarationsGiven = 0, boundCount = 0, outputChars = 0, livePassages = 0, buildThisTurnN = null, tabularFile = null, voidAsk = null, handbookAsk = false, workspaceOtherConvos = 0, fetchedPages = [] }, hostBody) {
+  if (!state.suggest) return; // the composer's "suggest" switch owns this
+  let suggestions = [];
+  try {
+    const unbacked = (Array.isArray(findings) ? findings : []).filter((f) =>
+      /unbacked|unsupported/i.test(String(f?.kind ?? f?.verdict ?? ""))).length;
+    suggestions = suggestNext({ task, claims, voidsOpen, unbacked, planParts, disputesCount, notes, declarationsGiven, boundCount, outputChars, livePassages, buildThisTurnN, tabularFile, voidAsk, handbookAsk, workspaceOtherConvos, fetchedPages });
+  } catch { return; }
+  if (!suggestions.length) return;
+  // Skip anything an ant is already working on — suggestions follow work,
+  // they never duplicate it.
+  const live = new Set(state.ants.filter((a) => a.status === "queued" || a.status === "running").map((a) => a.task));
+  suggestions = suggestions.filter((s) => s.shape === "door" || ![...live].some((t) => t.includes((s.task ?? "").slice(0, 60)) || (s.task ?? "").includes(t.slice(0, 60))));
+  if (!suggestions.length) return;
+  const wrap = document.createElement("div");
+  wrap.className = "ant-suggestions";
+  wrap.style.cssText = "margin-top:6px;display:flex;flex-direction:column;gap:4px;";
+  const label = document.createElement("div");
+  label.textContent = "suggested next — one click sends an ant, a door only fills the composer:";
+  label.style.opacity = "0.6";
+  label.style.fontSize = "0.85em";
+  wrap.append(label);
+  for (const s of suggestions) {
+    if (s.shape === "attach") {
+      wrap.append(offerAttachSuggestion(s, hostBody));
+      continue;
+    }
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.title = s.reason;
+    btn.style.cssText = "text-align:left;cursor:pointer;border:1px dotted var(--line,#666);border-radius:6px;padding:4px 8px;background:transparent;color:inherit;";
+    if (s.shape === "door") {
+      btn.textContent = `⌨ ${s.door} — ${s.reason}`;
+      btn.addEventListener("click", () => {
+        $("input").value = s.door;
+        $("input").focus();
+        $("status").textContent = "a suggestion is waiting in the composer — review, then send";
+      });
+    } else if (s.shape === "swarm") {
+      btn.textContent = `🐜🐜🐜 swarm: ${s.task.slice(0, 90)} — ${s.reason}`;
+      btn.addEventListener("click", () => {
+        btn.disabled = true;
+        const swarm = makeSwarm({ goal: s.task, kind: s.kind ?? "ask", n: s.n ?? 3, parent: convoNow() });
+        state.swarms.push(swarm);
+        for (const t of fanOutSwarm(swarm)) {
+          const ant = spawnAnt({ kind: swarm.kind, task: t, parent: swarm.parent, swarmId: swarm.id });
+          swarm.antIds.push(ant.id);
+        }
+        btn.textContent = `🐜 eoSwarm ${swarm.id} sent`;
+        renderThreads();
+      });
+    } else {
+      btn.textContent = `🐜 ${s.kind} ant: ${s.task.slice(0, 90)} — ${s.reason}`;
+      btn.addEventListener("click", () => {
+        btn.disabled = true;
+        // A cross-conversation ant reads the other conversations' recent
+        // turns as vouched context — built at click time, so it is fresh,
+        // capped, and never silently merged into the task.
+        let context = null;
+        if (s.crossConvo) {
+          const parts = [];
+          state.convos.forEach((c, i) => {
+            if (i === state.active || !Array.isArray(c.history)) return;
+            const tail = c.history.slice(-4).map((h) => `${h.role}: ${String(h.content ?? "").slice(0, 400)}`).join("\n");
+            if (tail.trim()) parts.push(`--- conversation ${i + 1} ---\n${tail}`);
+          });
+          context = parts.join("\n\n").slice(0, 3000) || null;
+        }
+        const ant = spawnAnt({ kind: s.kind ?? "ask", task: s.task, parent: convoNow(), context });
+        btn.textContent = `🐜 ant ${ant.id} sent`;
+        renderThreads();
+      });
+    }
+    wrap.append(btn);
+  }
+  hostBody.append(wrap);
+  return wrap;
+}
+
+/** One door chip appended late (the async reopen check) — same shape as
+ *  offerSuggestions' own door chips: fills the composer, never auto-sends. */
+function appendDoorChip(hostBody, door, reason) {
+  const wrap = hostBody.querySelector(".ant-suggestions") ?? (() => {
+    const w = document.createElement("div");
+    w.className = "ant-suggestions";
+    w.style.cssText = "margin-top:6px;display:flex;flex-direction:column;gap:4px;";
+    hostBody.append(w);
+    return w;
+  })();
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = `⌨ ${door} — ${reason}`;
+  btn.title = reason;
+  btn.style.cssText = "text-align:left;cursor:pointer;border:1px dotted var(--line,#666);border-radius:6px;padding:4px 8px;background:transparent;color:inherit;";
+  btn.addEventListener("click", () => {
+    $("input").value = door;
+    $("input").focus();
+    $("status").textContent = "a suggestion is waiting in the composer — review, then send";
+  });
+  wrap.append(btn);
+}
+
+/** An "attach" suggestion keeps fetched page texts as a real source. The
+ *  click is the explicit attach act — same choke-point as every paste. */
+function offerAttachSuggestion(s, hostBody) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = `📎 attach ${s.name} — ${s.reason}`;
+  btn.title = s.reason;
+  btn.style.cssText = "text-align:left;cursor:pointer;border:1px dotted var(--line,#666);border-radius:6px;padding:4px 8px;background:transparent;color:inherit;";
+  btn.addEventListener("click", () => {
+    btn.disabled = true;
+    let name = String(s.name ?? "fetched.txt").slice(0, 120);
+    if (state.sources[name] != null) {
+      let k = 2;
+      while (state.sources[`${name}-${k}`] != null) k += 1;
+      name = `${name}-${k}`;
+    }
+    addSource(name, (Array.isArray(s.texts) ? s.texts : []).join("\n\n"));
+    btn.textContent = `📎 attached as ${name}`;
+    renderThreads();
+  });
+  return btn;
+}
+
+/**
  * /transcribe — Whisper-based transcription via in-browser ASR. Two paths:
  *   /transcribe <youtube-url> — fetches audio server-side (yt-dlp), transcribes
  *                                in-browser, result lands as addressable material.
@@ -8624,6 +9116,17 @@ function guardedSend(question) {
 async function send(question) {
   state.busy = true;
   turnSeq += 1;
+  // Greeting door — a short, warm greeting and an invitation. One line of
+  // honest identity, never a capabilities wall: the full capability/limits
+  // statement lives in /help where it belongs, not in the first breath.
+  // Deterministic, rendered once per conversation (L5), no model call.
+  if (state.history.length === 0 && !state.greeted) {
+    state.greeted = true;
+    const greeting =
+      "Hey. I'm an AI — I don't come with answers, I come with a way of checking them. " +
+      "So what's on your mind? (Type /help if you want the full picture of what I can do.)";
+    return usageTurn(question, greeting, { what: "greeting" });
+  }
   // Deliberately NOT `$("send").disabled = true` (found live, QA battery
   // 2026-09-09): `$("composer").onsubmit` already branches on `state.busy`
   // to QUEUE a message rather than send it immediately — `state.queue`,
@@ -8843,8 +9346,20 @@ async function send(question) {
   if (/^\/run\b/.test(question))
     return usageTurn(
       question,
-      "/run <runtime>\\n<code> — runs code YOU typed or pasted, in the same sandboxed, network-severed Worker the model's own code already runs inside (python, js/javascript, or sql — put the runtime as the first line's second word, then the code starting on the next line). One-shot: each /run is its own action, never a standing switch. Code the MODEL writes in this turn's own fold already runs automatically — this door is for code you wrote yourself.",
+      "/run <runtime>\n<code> — runs code YOU typed or pasted, in the same sandboxed, network-severed Worker the model's own code already runs inside (python, js/javascript, or sql — put the runtime as the first line's second word, then the code starting on the next line). One-shot: each /run is its own action, never a standing switch. Code the MODEL wrote in this turn's own fold already runs automatically — this door is for code you wrote yourself.",
     );
+
+  // Ants / eoSwarms (swarm.js) — sub-agents inside this chat. Checked among
+  // the typed doors so nothing downstream can hijack them, and the model
+  // can never reach them on its own: a typed door is the person's own act,
+  // a [[ant: ...]] marker in model prose only ever becomes a one-click
+  // approval button (offerAntProposals, at each answer render site).
+  const antCmd = parseAntCommand(question);
+  if (antCmd) return antTurn(antCmd, question);
+  const swarmCmd = parseSwarmCommand(question);
+  if (swarmCmd) return swarmTurn(swarmCmd, question);
+  const antsCmd = parseAntsCommand(question);
+  if (antsCmd) return antsTurn(antsCmd, question);
 
   // /transcribe <url or nothing> — YouTube or audio file transcription via
   // in-browser Whisper. A URL fetches audio server-side (yt-dlp) then
@@ -9095,6 +9610,10 @@ async function send(question) {
   }
 
   if (needsDecomposition(question)) return holonicTurn(question, question, "model");
+  // SOCRATIC ROUTER — before the thin-client engine path. The claim-carrying
+  // question opens a dialogue; answers fill the void; actionable requests
+  // pause it. Never model-generated.
+  if (socraticRoute(question)) return;
   // THE THIN CLIENT PATH (ONE-ENGINE-PLAN): when eoreader7's proxy engine is
   // reachable, the flat chat turn goes through IT — the same engine the TUI
   // uses — carrying the fold's own attached material as body attachments (no
@@ -9109,6 +9628,131 @@ async function send(question) {
   // state.busy stuck true, so every later message queued forever. Found
   // live, 2026-09-19.
   return (await er7Turn(question)) ?? twoPassTurn(question);
+}
+
+// SOCRATIC ROUTER — declared at the send() seam so it engages before EITHER
+// engine path (er7Turn or twoPassTurn). The full state machine (spec §4):
+//   1. no dialogue + claim-carrying question → OPEN one, compose the first
+//      turn (personified register).
+//   2. dialogue open + operator ANSWER → assign to the last-asked cell,
+//      detect aporia, compose the aporia-name or the next cell question.
+//   3. dialogue open + ACTIONABLE request → pause (stage resolving), fall
+//      through to the engine — never obstruct.
+//   4. dialogue open + NEW claim on a different subject → close old, open new.
+// All mechanical (L5), grounded in the operator's own words; the mouth is
+// never told to "be Socratic" — the register IS the composed text, and the
+// dialogue state feeds the prompts as a fact block (§9).
+function socraticRoute(question) {
+  const active = state.dialogue && state.dialogue.stage !== "closed";
+  const claim = socraticTurn(question);
+
+  // Case 3: actionable pivot while a dialogue is open — pause, don't block.
+  if (active && isActionableRequest(question)) {
+    state.dialogue.stage = "resolving";
+    logAct("socratic-paused", { claim: state.dialogue.subject, reason: "actionable request" });
+    return false;
+  }
+
+  // Case 1: open a dialogue on a claim-carrying question.
+  if (!active && claim) {
+    state.dialogue = newDialogue(question);
+    state.dialogue.startedAt = turnSeq;
+    return renderSocratic(question, claim.text, { claim: claim.subject });
+  }
+
+  // Case 4: a NEW claim while a dialogue is open — close the old one first.
+  if (active && claim && !subjectsOverlap(state.dialogue, claim.subject)) {
+    state.dialogue.stage = "closed";
+    state.dialogue.closedAt = turnSeq;
+    logAct("socratic-closed", { claim: state.dialogue.subject, reason: "subject pivot" });
+    state.dialogue = newDialogue(question);
+    state.dialogue.startedAt = turnSeq;
+    return renderSocratic(question, claim.text, { claim: claim.subject });
+  }
+
+  // Case 2: an answer while a dialogue is open — fill the cell, classify the
+  // answer, and let the classification pick the next move dynamically (the
+  // real Socratic pathways), not a fixed script.
+  if (active && isAnswer(question)) {
+    const last = lastAskedCell(state.dialogue.cells);
+    const { cells, assigned } = assignAnswer(state.dialogue.cells, question, turnSeq);
+    state.dialogue.cells = cells;
+    const ap = detectAporia(state.dialogue, question, assigned ?? last);
+    const cls = classifyAnswer(question);
+    if (ap || cls === "conviction") {
+      state.dialogue.stage = "aporia";
+      state.dialogue.aporia = ap?.kind ?? "reopensOn-nothing";
+      const text = composeMove(state.dialogue, question, "aporia", state.dialogue.subject);
+      logAct("socratic-aporia", { claim: state.dialogue.subject, kind: state.dialogue.aporia, answerClass: cls });
+      return renderSocratic(question, text, { claim: state.dialogue.subject, user: true });
+    }
+    const move = nextMove(state.dialogue, cls);
+    const next = nextCell(state.dialogue.cells);
+    if (!next) {
+      state.dialogue.stage = "closed";
+      state.dialogue.closedAt = turnSeq;
+      const text = composeMove(state.dialogue, question, "renew", state.dialogue.subject);
+      return renderSocratic(question, text, { claim: state.dialogue.subject, user: true });
+    }
+    state.dialogue.cells[next].asked = turnSeq;
+    const text = composeMove(state.dialogue, question, move, state.dialogue.subject);
+    logAct("socratic-move", { claim: state.dialogue.subject, cell: next, answerClass: cls, move });
+    return renderSocratic(question, text, { claim: state.dialogue.subject, user: true });
+  }
+
+  return false;
+}
+
+/** The last-asked cell (asked seq highest, not yet answered). */
+function lastAskedCell(cells) {
+  let last = null, lastSeq = -1;
+  for (const c of VOID_CELLS) {
+    const cell = cells[c];
+    if (cell && cell.asked != null && cell.answered == null && cell.asked > lastSeq) {
+      lastSeq = cell.asked; last = c;
+    }
+  }
+  return last;
+}
+
+/** Do two subjects overlap enough to continue one dialogue? Word-overlap on
+ *  content words. Mechanical. */
+function subjectsOverlap(dialogue, subject) {
+  const a = new Set(String(dialogue?.subject ?? "").toLowerCase().split(/\W+/).filter((w) => w.length > 3));
+  const b = new Set(String(subject ?? "").toLowerCase().split(/\W+/).filter((w) => w.length > 3));
+  for (const w of b) if (a.has(w)) return true;
+  return false;
+}
+
+/** Render a composed Socratic turn (register text) with the shared bookkeeping. */
+function renderSocratic(question, text, { claim = null, user = false } = {}) {
+  if (user) addMessage("user", question);
+  logAct("asked", { text: question });
+  const node = addMessage("assistant", text);
+  state.history.push({ role: "assistant", content: text });
+  logAct("socratic-examined", { claim });
+  const fold = mechanicalFoldLine(question, text);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+  renderFold(node, { sent: [] });
+  renderThreads();
+  $("status").textContent = readyLine();
+  releaseBusy();
+  return true;
+}
+
+/** The dialogue state, as a FACT BLOCK for the prompts (spec §9) — Gary-shaped:
+ *  a state report, never a persona instruction. */
+function dialogueStateLine() {
+  const d = state.dialogue;
+  if (!d || d.stage === "closed") return null;
+  const answered = VOID_CELLS.filter((c) => d.cells[c]?.answered).map((c) => `${c}: "${d.cells[c].answered.text.slice(0, 60)}"`);
+  const remaining = VOID_CELLS.filter((c) => d.cells[c]?.asked == null);
+  const parts = [`The operator is examining the claim: "${d.claim}".`];
+  if (answered.length) parts.push(`Cells answered so far: ${answered.join("; ")}.`);
+  if (remaining.length) parts.push(`Remaining void: ${remaining.join(", ")}.`);
+  if (d.stage === "aporia") parts.push("The operator has hit a declared aporia — the honest move now is the renewed question, not a verdict.");
+  return parts.join(" ");
 }
 
 /** The flat-chat turn routed through eoreader7's proxy engine, or null to
@@ -9144,6 +9788,7 @@ async function er7Turn(question) {
       sessionId: `fold:${convoNow()}`,
       attachments,
       discloseThinking: true,
+      web: Boolean(state.webProof),
       onRetry: (info) => { $("status").textContent = `eoreader7 busy (${info.type}) — retrying in ${info.retryAfterS}s…`; },
     });
   } catch (err) {
@@ -9159,10 +9804,48 @@ async function er7Turn(question) {
     console.warn("[er7] engine turn failed, falling back to the in-browser engine:", err?.message ?? err);
     return null;
   }
+  // The engine owns the fact gate (proxy-runner.mjs::decideGate): a checkable
+  // open-now claim comes back already grounded, or with the plain dated
+  // "treat it as unchecked" sentence APPENDED to the model's own words. The
+  // fold renders `out.text` as it is — it neither re-decides nor strips it —
+  // and only says on the status line what the engine did.
+  const fg = out.reading?.factGate ?? null;
+  if (fg?.open) $("status").textContent = fg.grounded ? "checked against the web" : (fg.searched ? "checked the web — nothing backed this up" : (state.webProof ? "not checked" : "web checking is off — not checked"));
   const answer = out.text;
   state.history.push({ role: "user", content: question }, { role: "assistant", content: stripComputedCaption(answer) });
   const turn = state.summary.turnCount + 1;
   logAct("asked", { text: question });
+  // STALL/WITHDRAWAL GATE (F-05 / M-03 / FRU-02; M-04 / PRX-03) — the
+  // repeated-failure case the constitution amendment names: the person says
+  // the conversation is going nowhere. Route to the fixed withdrawal line
+  // (paper-verbatim core) + stated operator path instead of another model
+  // turn. Mechanical, L5; never model-generated. "going nowhere" is a closed
+  // phrasal class, checked here at the seam like the confirmation gate.
+  {
+    const m = String(question).toLowerCase();
+    // Two closed classes, either sufficient: (a) the repeated-failure case the
+    // constitution amendment names (going nowhere), or (b) an explicit request
+    // for a human (FRU-03's "speak to a human" — the corpus's single biggest
+    // irritant). Both route to the operator-ownership withdrawal, never a
+    // model lecture about IVR systems or a fake handoff (SCOPE-01).
+    const goingNowhere = /\b(going nowhere|not working|useless|same answer|already said|no progress|stuck|loop)\b/.test(m) &&
+      /\b(help|fix|resolve|answer|do|human|agent|someone|operator)\b/.test(m);
+    const wantsHuman = /\b(speak to|talk to|reach|connect to|get a|want.*|need.*)\b.*\b(human|agent|person|someone)\b/.test(m);
+    if (goingNowhere || wantsHuman) {
+      const text = `${WITHDRAWAL}\n\n${operatorPath()}`;
+      const node = addMessage("assistant", text);
+      state.history.push({ role: "assistant", content: text });
+      logAct("withdrawn", { text: question });
+      const fold = mechanicalFoldLine(question, text);
+      state.turnFolds.push(fold);
+      state.summary = advanceSummaryFold(state.summary, fold);
+      renderFold(node, { sent: [] });
+      renderThreads();
+      $("status").textContent = readyLine();
+      releaseBusy();
+      return;
+    }
+  }
   logAct("answered-from-engine", { engine: "er7", chars: answer.length });
   observeExchange(turn, question, answer);
   state.turnFolds.push(mechanicalFoldLine(question, answer));
@@ -9199,6 +9882,8 @@ async function er7Turn(question) {
   } else {
     renderAnswer(body, answer, [], [], [], [], question, question);
   }
+  try { offerAntProposals(answer, body); } catch { /* advisory, never fatal */ }
+  try { offerSuggestions({ task: question, claims, findings: [], voidsOpen: 0, planParts: 0, tabularFile: liveSources().map((s) => s.name).find((n) => TABULAR_RE.test(n)) ?? null, handbookAsk: HOW_IT_WORKS_RE.test(question), outputChars: String(answer ?? "").length, livePassages: liveChunks().length }, body); } catch { /* advisory, never fatal */ }
   renderFold(node, { sent: [], record: record ?? null });
   renderThreads();
   $("status").textContent = readyLine();
@@ -9208,7 +9893,7 @@ async function er7Turn(question) {
 
 /** Every door the composer routes, read off the dispatch above — kept as one
  * list so the refusal for an unknown slash names all of them. */
-const DOORS = Object.freeze(["/act", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/facts", "/fold", "/gateways", "/help", "/ingest", "/join", "/learn", "/look", "/matrix", "/measure", "/must", "/opencode", "/pool", "/preserve", "/priors", "/ranke", "/reading", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/source", "/task", "/transcribe", "/visual", "/void"]);
+const DOORS = Object.freeze(["/act", "/ant", "/ants", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/facts", "/fold", "/gateways", "/help", "/ingest", "/join", "/learn", "/look", "/matrix", "/measure", "/must", "/opencode", "/pool", "/preserve", "/priors", "/ranke", "/reading", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/source", "/swarm", "/task", "/transcribe", "/visual", "/void"]);
 
 /**
  * /ingest — a repo becomes folds, mechanically. Every admissible file (the
@@ -10670,7 +11355,11 @@ function transcriptNow() {
 
 function discourseLineNow() {
   const s = state.summary;
-  return [s.topic, s.flow, (s.entities || []).join(", ")].filter(Boolean).join(" · ").slice(0, 300);
+  const base = [s.topic, s.flow, (s.entities || []).join(", ")].filter(Boolean).join(" · ").slice(0, 300);
+  // The dialogue fact block (§9): the examined claim's state, appended as a
+  // fact — never a persona instruction.
+  const dl = dialogueStateLine();
+  return dl ? `${base}${base ? " · " : ""}${dl}`.slice(0, 700) : base;
 }
 
 async function runFastPass(question, model) {
@@ -10726,6 +11415,80 @@ async function runFastPass(question, model) {
 async function twoPassTurn(question) {
   addMessage("user", question);
   logAct("asked", { text: question });
+  // CONFIRMATION GATE (F-03 / M-02 / PRX-01) — before any model call, S1
+  // included. Ambiguous or multi-part input is confirmed before answering:
+  // restate the interpretation, withhold the answer, and let the user's
+  // reply flow through the normal pipeline as a fresh turn. Mechanical
+  // (L5): the decision is computed, never prompted. A withheld answer is
+  // not an unbacked claim — the record gets a typed `confirmation` marker,
+  // never an unsupported entry. Bookkeeping mirrors the oracle-refusal path
+  // below so the confirmation is a real turn on the record.
+  {
+    const c = needsConfirmation(question, {
+      resolveAnchors: (a) => {
+        try { return !!(referentIndex && referentIndex.resolve(a)); } catch { return false; }
+      },
+      hasAdmission: (q) => {
+        try { return (liveChunks(q) ?? []).length > 0; } catch { return false; }
+      },
+      chatty: triviallyChatty,
+    });
+    if (c.confirm) {
+      const text = confirmationTemplate(c.reason, c);
+      const node = addMessage("assistant", text);
+      state.history.push({ role: "assistant", content: text });
+      logAct("confirmation-asked", { reason: c.reason, parts: c.clauses ?? c.vague ?? [] });
+      const fold = mechanicalFoldLine(question, text);
+      state.turnFolds.push(fold);
+      state.summary = advanceSummaryFold(state.summary, fold);
+      renderFold(node, { sent: [] });
+      renderThreads();
+      $("status").textContent = readyLine();
+      releaseBusy();
+      return;
+    }
+  }
+  // NO-ORACLE-MODE (P244) — before any model call, S1 included. No live
+  // claim, document, or task in view: the mouth is not called at all, and
+  // the turn routes to the fixed reply instead. "In view" is counted here,
+  // at the seam, never guessed by the mouth: this conversation's own
+  // attached sources (state.sourceOrigin — another conversation's material
+  // does not count, P206), this conversation's own prior turns (an
+  // anaphoric follow-up's claim lives there), or a checkable claim in the
+  // question's own words (Gary's structural floor, 2 content words). The
+  // refusal points back at this conversation's last open source, or asks
+  // what to read — muninn recall would be the better pointer and is named
+  // future work in P244. Bookkeeping mirrors the fast-pass-stands path
+  // below (history, ledger, fold, record), so a refused turn is a real
+  // turn on the record, never a hole in it.
+  {
+    const convo = convoNow();
+    const ownNames = Object.keys(state.sources ?? {}).filter((n) => state.sourceOrigin?.[n] === convo);
+    const priorTurns = (state.history ?? []).length > 1;
+    const hit = checkOracleMode({ materialEmpty: ownNames.length === 0 && !priorTurns, text: question });
+    // AMENDED 2026-09-19 (user: "we need some more basic chat ability"):
+    // trivial chit-chat — the SAME structural shape S1 already owns
+    // (triviallyChatty: <= CHATTY_MAX_WORDS, no "?", no digit) — is not
+    // free-association, it carries nothing to fabricate about, so it goes to
+    // the model; the refusal stays for a content-bearing ask with nothing in
+    // view, which is what P244 exists for. Found live: "hi there" on a cold
+    // open answered "Nothing in view to stand on… What should I read?".
+    if (hit && !triviallyChatty(question)) {
+      const lastRef = ownNames.at(-1) ?? null;
+      const text = oracleRefusalText({ lastRef });
+      const node = addMessage("assistant", text);
+      state.history.push({ role: "assistant", content: text });
+      logAct("oracle-refused", { text: question, lastRef, rule: hit.rule });
+      const fold = mechanicalFoldLine(question, text);
+      state.turnFolds.push(fold);
+      state.summary = advanceSummaryFold(state.summary, fold);
+      renderFold(node, { sent: [] });
+      renderThreads();
+      $("status").textContent = readyLine();
+      releaseBusy();
+      return;
+    }
+  }
   // REVERTED 2026-09-09 (live QA battery, user direction): both passes are
   // back to the SAME picker-selected model, not model-routing.js's S1_MODEL/
   // S2_MODEL specialists. Found live: the composer's model chip read
@@ -10776,7 +11539,19 @@ async function twoPassTurn(question) {
   // Even on the trivial path, S1 is never trusted to be unfalsifiable: if
   // it volunteers something checkable while answering "hi", the grounded
   // pass still runs. The gate only ever adds a pass here.
-  if (needsSystem2(question, s1Text)) {
+  // CHIT-CHAT STANDS (user, 2026-09-19: "we need some more basic chat
+  // ability"). Found live: "thanks" after a greeting escalated because S1's
+  // reply carried a checkable-looking atom, and the grounded pass — with no
+  // material of the person's own to stand on — composed nothing and shipped
+  // "nothing composed — 3 draft sentence(s) cleared no check; 3 withheld"
+  // as the answer. When the QUESTION carries no checkable content of its own
+  // (hasCheckableClaim, Gary's structural floor) and nothing of this
+  // conversation's own is attached, there is nothing for S2 to ground
+  // against, so S1's reply stands. A question WITH content ("tell me
+  // lincoln's vp") is untouched and still escalates.
+  const ownMaterial = Object.keys(state.sources ?? {}).some((n) => state.sourceOrigin?.[n] === convoNow());
+  const chatStands = !hasCheckableClaim(question) && !ownMaterial;
+  if (!chatStands && needsSystem2(question, s1Text)) {
     // The gate firing means S1's own draft is superseded, not kept beside
     // its replacement: `node` (S1's assistant bubble, already rendered by
     // runFastPass above) must not be left standing once S2 renders its own
@@ -10864,9 +11639,26 @@ const adpCache = new Map();
 function isAdposition(word) {
   if (!posPriorCache) return null;
   if (adpCache.has(word)) return adpCache.get(word);
-  const r = dominantClass(classifyWord(word, { posPrior: posPriorCache }), { minShare: 0.5 })?.upos === "ADP";
+  const r = dominantClass(classifyWord(word, { posPrior: posPriorCache }), { minShare: GRAMMAR_MIN_SHARE })?.upos === "ADP";
   adpCache.set(word, r);
   return r;
+}
+
+// The asked RELATION the material never states (absent-ask.js) — read over the
+// whole live material with the page's own organs; null while a prior is still
+// loading (so an unloaded prior can only ever mean "no declaration", never a
+// wrong one).
+function absentAskFor(task, texts) {
+  if (!posPriorCache || !sameFormOrgan) return null;
+  return absentAsk(task, texts, {
+    closed: new Set([...CLAIM_STOPWORDS, ...enginePriors.DEFINITE_DETERMINERS, ...enginePriors.INDEFINITE_DETERMINERS, ...enginePriors.INTERROGATIVE_PRONOUNS.keys(), ...enginePriors.MANNER_REASON_PRONOUNS, ...enginePriors.ANAPHORIC_PRONOUNS]),
+    classesOf: (w) => classifyWord(w, { posPrior: posPriorCache }).candidates,
+    sameForm: sameFormOrgan,
+    verbForms: unimorphVerbForms.size ? unimorphVerbForms : null,
+    interrogatives: enginePriors.INTERROGATIVE_PRONOUNS,
+    sentencesOf: (t) => engineSentences(t).map((x) => x.text ?? x),
+    atomsIn: (sent) => extractAtoms(sent),
+  });
 }
 
 function voidBriefFor(task, texts, observed = []) {
@@ -11034,7 +11826,14 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // irrelevant PASSAGE of it into the prompt — it only lets retrieve()
     // take a fair, per-passage look at material the person just gave us.
     const ownNames = new Set([...bySource.keys()].filter((name) => state.sourceOrigin[name] === convoNo));
-    const { refused } = admissionGate.admitSources(task, [...bySource.entries()].map(([name, text]) => ({ name, text })), { exempt: ownNames });
+    // The names the ask carries — and, when it points back ("that ceremony", "him"),
+    // the names the conversation's present carries (discourse entities): the same
+    // anaphor door proof.js::preflightQuery already uses. A source holding every one
+    // is the referent's own material and is not judged by the common-word null.
+    const askTokens = String(task).toLowerCase().split(/[^\p{L}\p{N}'’]+/u).filter(Boolean);
+    const pointsBack = askTokens.some((t) => enginePriors.ANAPHORIC_PRONOUNS.has(t));
+    const admitNames = [...properNamesIn(task), ...(pointsBack ? properNamesIn(discourseLineNow(), { all: true }) : [])];
+    const { refused } = admissionGate.admitSources(task, [...bySource.entries()].map(([name, text]) => ({ name, text })), { exempt: ownNames, names: admitNames });
     if (refused.length) {
       const refusedNames = new Set(refused.map((r) => r.name));
       live = live.filter((c) => !refusedNames.has(c.source));
@@ -12194,6 +12993,12 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
 
     // Gary reads the mouth and its window at the door (gary.js).
     refreshLoadedWindows();
+    // The question asks for a relation nothing in the live material states:
+    // handed to the mouth as a plain fact through the seek fillers' own door
+    // (answerShape), never as a prohibition. Only when the seek bound nothing
+    // (its own fact wins) and only over material that exists.
+    const absentAsked = state.grounded && !opts.longForm && !seekFillers.length && live.length ? absentAskFor(task, live.map((c) => c.text).filter(Boolean)) : null;
+    if (absentAsked) logAct("absent", { relation: absentAsked.absent.join(", ") });
     result = await runHolonicTask({
       mouthModel: turnModel,
       mouthWindowOf: (name) => loadedWindows.get(name) ?? null,
@@ -12211,7 +13016,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
         ? `Known to be true, and the answer must account for all of them: ${seekFillers
             .map((f) => (f.span ? `${f.filler} (${f.span.fromText} to ${f.span.toText})` : f.filler))
             .join("; ")}. There are no others.`
-        : undefined,
+        : absentAsked?.line,
       task,
       chunks: live,
       // Wrapped, never holon.js itself (another session's contract, per
@@ -12682,6 +13487,69 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   } else {
     renderAnswer(body, result.output, offered, [], [], [], instruction, task);
   }
+  // Model-proposed ants: [[ant ...]] markers in the prose become one-click
+  // approval buttons — never auto-run (swarm.js consent posture).
+  try { offerAntProposals(result.output, body); } catch { /* advisory, never fatal */ }
+  // Auto-suggest: the turn's own leftovers (open claims, unbacked
+  // findings, holes in the void's own definition) become one-click chips
+  // — ants send on click, doors only fill the composer. Mechanical read,
+  // no model call; a clean turn suggests nothing.
+  try {
+    // Fetched pages this turn that never became sources: group the live
+    // chunks by a source no attachment owns (the preflight digest itself
+    // is excluded — it is a pointer, not a page).
+    const fetchedBySource = new Map();
+    for (const c of liveChunks()) {
+      const src = c?.source;
+      if (!src || state.sources[src] != null || /search-results|digest/i.test(src)) continue;
+      if (!fetchedBySource.has(src)) fetchedBySource.set(src, []);
+      if (c?.text) fetchedBySource.get(src).push(c.text);
+    }
+    let declarationsGiven = 0;
+    try { declarationsGiven = foldDeclarations(state.declarations).given?.length ?? 0; } catch { /* no register, no derive chip */ }
+    const tabSrc = liveSources().map((s) => s.name).find((n) => TABULAR_RE.test(n)) ?? null;
+    const builtHere = state.builds.filter((b) => b.turn === turnNo).slice(-1)[0];
+    offerSuggestions({
+      task,
+      claims: relationClaims,
+      findings,
+      voidsOpen: voidBrief?.declaration?.undeclared?.length ?? 0,
+      planParts: result.plan?.parts?.length ?? 0,
+      disputesCount: Array.isArray(disputes) ? disputes.length : 0,
+      notes: state.lastGround?.notes ?? [],
+      declarationsGiven,
+      boundCount: relationClaims.filter((c) => String(c?.verdict ?? "").toLowerCase() === "bound").length,
+      outputChars: String(result.output ?? "").length,
+      livePassages: liveChunks().length,
+      buildThisTurnN: Number.isFinite(builtHere?.n) ? builtHere.n : null,
+      tabularFile: tabSrc,
+      voidAsk: { anchor: anchorTerm, slot: slotTerm, grammaticalNumber: voidBrief?.grammaticalNumber ?? null },
+      handbookAsk: HOW_IT_WORKS_RE.test(task),
+      workspaceOtherConvos: state.isolated ? 0 : Math.max(0, state.convos.length - 1),
+      fetchedPages: [...fetchedBySource.entries()].map(([name, texts]) => ({ name, texts })),
+    }, body);
+  } catch { /* advisory, never fatal */ }
+  // The record may hold a NEWER open than this conversation shows — a
+  // source opened elsewhere, a fold opened then left. Checked async (one
+  // localhost read, never blocking the turn) and offered as the same
+  // door chips /reopen itself would render, only when the thing is
+  // genuinely absent here rather than merely older.
+  if (state.suggest) {
+    void (async () => {
+      try {
+        const res = await fetch(`${EXPLORE_BASE}/api/record?tail=2000`);
+        if (!res.ok) return;
+        const rows = ((await res.json()).tail ?? []).map((raw) => { try { return typeof raw === "string" ? JSON.parse(raw) : raw; } catch { return null; } }).filter(Boolean);
+        const pick = lastOpened(rows, { kinds: ["source", "fold"] });
+        const plan = restoreFor(pick);
+        if (plan.action === "open-source" && state.sources[plan.name] == null) {
+          appendDoorChip(body, "/reopen source", `the record's last open is "${plan.name}" — not attached here`);
+        } else if (plan.action === "open-fold" && !state.builds.some((b) => b.n === Number(plan.n))) {
+          appendDoorChip(body, "/reopen fold", `the record's last open is fold ${plan.n} — not held here`);
+        }
+      } catch { /* unreachable record — silence, never a chip about nothing */ }
+    })();
+  }
   // The metacognition watcher (metacognition.js, P72) — moved here, ahead
   // of `refreshSummary`'s own call, so `forcesFoldRefresh` can actually OR
   // onto its gate (metacognition-integration-note.md's own disclosed open
@@ -12768,6 +13636,12 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // gave it, what nothing backs — with the reader's identity; appended to
   // the durable record (`records/answers.jsonl`) and shown first.
   let answerRec = null;
+  // Expectation-record wrapper (F-07 / M-07 / M-08): the pre-interaction side
+  // of the ECM chain. A validation throw must never kill the answer record, so
+  // this is wrapped; null means "could not shape" (disclosed, never fatal).
+  function expectationRecordSafely(input) {
+    try { return expectationRecord(input); } catch (e) { console.warn("expectation record:", e?.message ?? e); return null; }
+  }
   try {
     // The frame and recipe are re-derived here (the turn's own `ledgerFrame`
     // is scoped to the call above); the reader has not changed since.
@@ -12814,6 +13688,24 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       satisfaction,
       logos,
       ledgerLint,
+      // Expectation record (F-07 / M-07 / M-08 / T3): the pre-interaction
+      // side of the ECM confirmation chain. Desired/adequate benchmark,
+      // valence (anticipated failures), personal/situational factors, the
+      // forced-vs-voluntary PFC flag (was a human alternative visible?),
+      // outcome, confirmation gap, failure type/severity. Additive —
+      // validation is at expectationRecord(); a throw here must never kill
+      // the answer record.
+      expectation: expectationRecordSafely({
+        question: task,
+        pfc: state.greeted ? "voluntary" : "unknown",
+        expected: { desired: null, adequate: null, valence: null },
+        outcome: {
+          actual: result.output ?? "",
+          confirmationGap: null,
+          failureType: result.unsupported?.length ? "process" : "none",
+          severity: "none",
+        },
+      }),
     });
     appendRecord("answers", [JSON.stringify(answerRec)]).catch(() => {});
   } catch (e) { console.warn("answer record:", e?.message ?? e); }
@@ -13276,19 +14168,35 @@ async function crownTestimony(node, relationClaims) {
       } catch (e) { console.warn("contest:", e?.message ?? e); }
     }
     const crown = renderCrown(merged);
+    // P244 — Socrates rides the crown line. renderCrown auto-attaches the
+    // closed-bank question for a non-AGREE standing (AGREE carries none);
+    // assertCrownShippable is the build-time REFUSE: a non-AGREE render
+    // without its verbatim question never ships as a confident sentence.
+    // It cannot fire here (the question was just attached above), so the
+    // check is the gate's live pin, not dead code — elenchus.test.mjs and
+    // crown.test.mjs fire it both ways directly.
+    let socratesNote = "";
+    try {
+      assertCrownShippable(crown);
+      if (crown.socrates) socratesNote = ` · socrates: ${crown.socrates.id}`;
+    } catch (e) {
+      disclose(`testimony: crown withheld — ${e?.message ?? e}`);
+    }
     disclose(
       `testimony · ${merged.case}${merged.standing ? ` (${merged.standing})` : ""} · ${claimId.slice(0, 11)} · ` +
         `witnesses: ${crown.apparatus.sources.length ? crown.apparatus.sources.join(", ") : "none"} · “${crown.text}”` +
+        (crown.socratesText ? ` “${crown.socratesText}”` : "") +
         (crown.verified ? "" : " · render withheld: trace-coverage violation") +
+        socratesNote +
         (contested ? ` · contest: ${contested.landed.length} landed on the record${contested.unanimous ? " (unanimous refusal, still only disputed)" : ""}${Object.entries(contested.refusals).filter(([, n]) => n).map(([k, n]) => `, ${n} ${k}`).join("")}` : ""),
     );
     // Only through the verified render — an unverifiable crown already
     // substituted its own withholding sentence, which is exactly what
     // should be shown in that case.
-    if (merged.case !== "UNDETERMINED" && body) {
+    if (merged.case !== "UNDETERMINED" && body && !crown.socratesRefused) {
       const p = document.createElement("p");
       p.className = `crown-line${merged.case === "DISAGREE" || merged.case === "CONTRADICTED" ? " bad" : ""}`;
-      p.textContent = crown.text + (contested?.landed?.length ? ` (recorded as a contest, not settled)` : "");
+      p.textContent = crown.text + (crown.socratesText ? ` ${crown.socratesText}` : "") + (contested?.landed?.length ? ` (recorded as a contest, not settled)` : "");
       body.append(p);
     }
   }
@@ -20038,6 +20946,10 @@ bindSwitch("use-attachments", "fold-use-attachments", () => state.useAttachments
 bindSwitch("use-web", "fold-web-proof", () => state.webProof, (v) => {
   state.webProof = v;
   $("status").textContent = v ? "web lookups on" : "web lookups off";
+});
+bindSwitch("use-suggest", "fold-suggest-v2", () => state.suggest, (v) => {
+  state.suggest = v;
+  $("status").textContent = v ? "suggestions on" : "suggestions off — /ant /swarm still send on demand";
 });
 bindSwitch("use-ranke", "fold-ranke", () => state.ranke, (v) => {
   state.ranke = v;

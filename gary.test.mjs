@@ -5,7 +5,7 @@
 // PLANTED-CONTROL.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { makeGary, assertPromptsBuildable, garyDecision, RULES, SEVERITY } from "./gary.js";
+import { makeGary, assertPromptsBuildable, garyDecision, RULES, SEVERITY, checkOracleMode, hasCheckableClaim, oracleContentWords, oracleRefusalText, ORACLE_MIN_CONTENT_WORDS } from "./gary.js";
 import { makeKondo, TIDY_PAIRS, TIDY_NOTES_PAIR, wordsOf } from "./kondo.js";
 import { makeParmenides } from "./parmenides.js";
 import { strikeAddresses, apparatusMentions } from "../eoreader7/native/organs/firewall.js";
@@ -141,4 +141,48 @@ test("the record carries rules and severities — never the prompt's own words",
   assert.equal(entry.act, "gary-hand");
   assert.ok(entry.findings.length >= 1);
   assert.ok(!JSON.stringify(entry).includes("Hodgenville"), "the record holds rules, not material");
+});
+
+test("no-oracle-mode is a closed, REFUSE-severity rule", () => {
+  const rule = RULES.find((r) => r.id === "no-oracle-mode");
+  assert.ok(rule, "the rule is in the closed table");
+  assert.equal(rule.severity, SEVERITY.REFUSE);
+  assert.equal(rule.cites, "P244");
+});
+
+test("REFUSED: nothing in view and nothing checkable in the person's own words", () => {
+  assert.equal(ORACLE_MIN_CONTENT_WORDS, 2, "the floor is admission.js's own structural 2, never a fresh number");
+  assert.deepEqual(oracleContentWords("hi"), [], "a greeting carries no content");
+  assert.ok(!hasCheckableClaim("hi"));
+  assert.ok(!hasCheckableClaim("prove it"), "one content word is not a claim");
+  assert.ok(hasCheckableClaim("What's the capital of France?"), "two content words are");
+
+  const hit = checkOracleMode({ materialEmpty: true, text: "hi" });
+  assert.ok(hit, "fires");
+  assert.equal(hit.rule, "no-oracle-mode");
+  assert.equal(hit.severity, SEVERITY.REFUSE);
+
+  assert.equal(checkOracleMode({ materialEmpty: false, text: "hi" }), null, "material in view never fires");
+  assert.equal(checkOracleMode({ materialEmpty: true, text: "What's the capital of France?" }), null, "a checkable claim in view never fires");
+  assert.equal(checkOracleMode({ materialEmpty: true, text: "hi", questionCycle: { cycle: ["a"] } }), null, "a cycle result is a claim in view");
+  assert.ok(checkOracleMode({ materialEmpty: true, text: "hi", questionCycle: null }), "checked-and-nothing still refuses");
+  assert.equal(checkOracleMode({ text: "hi" }), null, "unknown material is a gap, never a conviction");
+  assert.equal(checkOracleMode({ materialEmpty: null, text: "hi" }), null);
+
+  const via = gary.check([sys("material"), user("hi")], { material: [] });
+  assert.ok(rules(via).includes("no-oracle-mode"), "Gary's own check reads it over the person's last turn");
+  assert.ok(via.findings.some((f) => f.rule === "no-oracle-mode" && f.severity === SEVERITY.REFUSE));
+  assert.ok(!rules(gary.check([sys("material"), user("hi")], { material: ["notes.txt"] })).includes("no-oracle-mode"));
+  assert.ok(!rules(gary.check([sys("material"), user("What's the capital of France?")], { material: [] })).includes("no-oracle-mode"));
+  const unknown = gary.check([sys("material"), user("hi")]);
+  assert.ok(!rules(unknown).includes("no-oracle-mode"), "no material count handed over: not checked");
+  assert.ok(unknown.gaps.some((g) => g.type === "no_material_view"));
+  const refused = gary.hand([sys("material"), user("hi")], { material: [] }).refused;
+  assert.ok(refused.some((f) => f.rule === "no-oracle-mode"), "a REFUSE rides `refused` so the caller decides");
+});
+
+test("the oracle refusal routes to the fixed reply — last document, or what to read", () => {
+  assert.match(oracleRefusalText({ lastRef: "notes.txt" }), /notes\.txt/, "points back at the last live document");
+  assert.match(oracleRefusalText({}), /What should I read\?/, "otherwise asks what to read");
+  assert.equal(oracleRefusalText({ lastRef: "a" }) === oracleRefusalText({ lastRef: "b" }), false, "two shapes, closed set — never free association");
 });

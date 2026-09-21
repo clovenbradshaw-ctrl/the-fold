@@ -6,8 +6,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import * as operators from "../eoreader7/legacy-eoreader6.1/packages/engine/operators.js";
-import * as taskLog from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
+import * as operators from "../eoreader7/native/kernel/cube.js";
+import * as taskLog from "../eoreader7/native/kernel/task-log.js";
 import { makeGrid, resolveStance, tokenizeAct, VERBS, STANCE_SHORTHANDS, flattenTerrains } from "./grid.js";
 import { CAPACITIES, findCapacity, unresolvedCapacity, listCapacities } from "../eoreader7/native/organs/index.js";
 
@@ -517,7 +517,7 @@ test("capacities: every entry's declared terrain is domain-consistent with its d
   const byTerrain = flattenTerrains(operators.TERRAIN_BY_DOMAIN);
   for (const c of CAPACITIES) {
     const ops = c.op.split("+");
-    const domains = new Set(ops.map((op) => operators.operatorOf(op).domain));
+    const domains = new Set(ops.map((op) => operators.cellOf(op, "Ground").domain));
     assert.equal(domains.size, 1, `${c.id}: its operator(s) ${c.op} do not share one domain`);
     const [domain] = domains;
     const { grain } = byTerrain.get(c.terrain);

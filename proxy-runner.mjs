@@ -26,9 +26,10 @@ import { runHolonicTask, needsDecomposition } from "./holon.js";
 import { makeCastResolver } from "./cast.js";
 import { makeRelationReader } from "./hypergraph.js";
 import { tokenize } from "./source.js";
-import { splitSentences as engineSentences } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/spans.js";
-import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js";
-import { discoverRelationVocab, extractRelations } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js";
+import { splitSentences as engineSentences } from "../eoreader7/native/adapters/text/spans.js";
+import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "../eoreader7/native/adapters/text/surfaces.js";
+import { discoverRelationVocab, extractRelations } from "../eoreader7/native/adapters/text/relations.js";
+import { answerRecord, answerRecordProse, bareLogic } from "./answer-record.js";
 
 // Overridable so a Node test or a non-default Ollama install is not stuck
 // on localhost:11434 — every other Ollama call site in this repo (app.js,
@@ -76,9 +77,14 @@ const CALL_RETRIES = 2;
  * second). `usage` is a shared accumulator object so the turn's real
  * token cost is measured from Ollama's own counters across every call the
  * turn makes (plan, each part, each correction) — CLAUDE.md's "turn cost
- * is measured, never estimated," applied here as it already is in app.js. */
-function makeOllamaCall(model, usage) {
+ * is measured, never estimated," applied here as it already is in app.js.
+ * `sent` is a shared array the same way: every messages array actually
+ * handed to the mouth is captured verbatim (app.js's own sentCalls shape),
+ * so the proxy's `thinking` disclosure can say, without a second source of
+ * truth, exactly what the model was shown on each call. */
+function makeOllamaCall(model, usage, sent) {
   return async function call(messages, { maxTokens, json } = {}) {
+    sent.push({ call: sent.length + 1, messages });
     for (let attempt = 0; attempt < CALL_RETRIES; attempt++) {
       try {
         const res = await fetch(`${OLLAMA}/api/chat`, {
@@ -118,7 +124,8 @@ function makeOllamaCall(model, usage) {
  */
 export async function runProxyTurn({ model, task, chatHistory = [], discourse = "", grounded = true }) {
   const usage = { promptTokens: 0, completionTokens: 0 };
-  const call = makeOllamaCall(model, usage);
+  const sent = [];
+  const call = makeOllamaCall(model, usage, sent);
   const planMode = needsDecomposition(task) ? "model" : "flat";
   const result = await runHolonicTask({
     task,
@@ -135,6 +142,31 @@ export async function runProxyTurn({ model, task, chatHistory = [], discourse = 
     chatHistory,
     discourse,
   });
+  // THE FOLD'S OWN THINKING (the disclosure): what was handed to the mouth,
+  // what was said with the material's verdict, what nothing backs — the
+  // apparatus's record of the turn, computed mechanically. Deliberately NOT
+  // the model's chain-of-thought: the fold does not use reasoning models,
+  // and the disclosure is built the same way the browser's thinking panel
+  // builds its own (answer-record.js), so an API caller and a page reader
+  // see the identical record. `sent` carries the verbatim messages arrays
+  // (the browser panel's call-tree content), so the API can disclose "what
+  // the model was shown" with no second source of truth.
+  const witness = [];
+  const voids = [];
+  for (const s of result.sections ?? []) {
+    for (const w of s?.witness?.rows ?? []) witness.push(w);
+    for (const v of s?.voidsDeclared ?? []) voids.push(v);
+  }
+  const record = answerRecord({
+    question: task,
+    answer: result.output,
+    model,
+    sections: result.sections ?? [],
+    unsupported: result.unsupported ?? [],
+    unbacked: result.unbacked ?? [],
+    witness,
+    voids,
+  });
   return {
     text: result.output,
     refs: result.refs,
@@ -145,5 +177,11 @@ export async function runProxyTurn({ model, task, chatHistory = [], discourse = 
     planMode,
     parts: result.plan.parts.length,
     usage,
+    // thinking = the fold's own disclosure: the full record, a plain-language
+    // prose reading, the BARE LOGIC (the record as a compact mechanical step
+    // trace — the same rendering the browser's "logic" disclosure mode draws),
+    // and the verbatim messages every call actually sent. All four are the
+    // SAME record; nothing here is the model's chain-of-thought.
+    thinking: { record, prose: answerRecordProse(record), logic: bareLogic(record), sent },
   };
 }

@@ -1,229 +1,153 @@
-// nagarjuna.js — Nāgārjuna, the archon of the void: DEFINES what would need
-// to be satisfied, and TESTS any filling by consequence (prasaṅga).
+// nagarjuna.js — Nagarjuna, the archon in charge of THE FOUR CORNERS: every
+// mechanical conclusion this instrument reaches is is / is-not / both /
+// neither, and there is exactly ONE lattice for that, never two.
 //
-// Dependent arising (pratītyasamutpāda): a slot has NO own-being. It is
-// defined by what it depends on — its ANCHOR (what the question is about),
-// its KIND (what a "who"/"when"/"how many" asks for — received grammar,
-// giver-named), and what STANDS AGAINST it (the material's own claims about
-// the anchor). This module makes that explicit: `defineVoid` returns the
-// slot's dependencies and the three things satisfaction requires of a
-// filling; `prasaṅga` tests a candidate filling by its consequences — does
-// it HOLD against the material, or COLLAPSE? A wrong filling collapses under
-// examination; a grounded one holds. The tetralemma is the verdict space:
-// a filling is affirmed (filled), negated (honestly-absent), both/neither
-// (vacuous — collapses), or untested (unexamined).
+// Handle: Nāgārjuna, the Madhyamaka philosopher. His catuṣkoṭi (the
+// tetralemma) states a claim's only real positions as A, not-A, both, or
+// neither — and his own radical move, chasing that fourth corner, was to
+// show that even "none of the four" has to be nameable, or the whole
+// scheme silently smuggles in a fifth, unexamined position. Śūnyatā
+// (emptiness) is not nothingness — a candidate that is currently UNBOUND
+// has no fixed, independent nature yet; what it is depends on what has
+// been checked against it, not on an eternal fact sitting behind the
+// question. That is the discipline this file exists to keep: a void is a
+// real epistemic state, not an absence to be embarrassed about or a fifth
+// value to invent around.
 //
-// PURE. `deriveSlot` (slot-shape) supplies the dependent-arising of the
-// question; `relationsFor` (the relation reader) supplies the material's
-// claims; `decline` is the received absence detector. Aletheia renders the
-// final satisfaction verdict AGAINST these slots.
+// User direction, 2026-09-16, mid-build on a general (non-puzzle-shaped)
+// mechanical reasoning engine: "Nagarjuna, get this all aligned." Found,
+// reading the code rather than asking what it should say: this codebase
+// had ALREADY built the tetralemma once, correctly, in
+// eoreader7/native/interpretation/hl.js — Belnap-Dunn FDE, four verdicts
+// (bound/contradicted/contested/unbound) plus a fifth, hl.js's own
+// "genuine inexpressibility outside that lattice" (beyond-reach), with a
+// real involution (`flip`). native/organs/precision-race.js — built the
+// SAME session, hours earlier — had reinvented three of the four corners
+// under different names (SETTLED/CONTRADICTION/UNDERDETERMINED), the
+// exact drift class this repo's own postmortems keep naming (the
+// operator-order divergence, the runtime-type ternary duplicated across
+// two call sites). Separately, `declareVoid` is exported by BOTH
+// the-fold/void-shape.js (a single extent with dimensions, one filler)
+// and eoreader7/native/kernel/notes.js (a ledger entry with a scope and a
+// timeline) — same name, unrelated meaning, neither file's header said so.
+//
+// THE RULES HE KNOWS. Every one mechanical, checked against real values or
+// real file headers — never a matter of taste:
+//
+//   one-lattice        A binding that claims to BE bound/contradicted/
+//                      contested/unbound/beyond-reach is hl.js's own
+//                      string, byte for byte — never a re-typed synonym
+//                      (P2's own drift lesson, applied to a verdict
+//                      lattice instead of an operator order).
+//   involution-holds   flip(bound)=contradicted, flip(contradicted)=bound,
+//                      and contested/unbound/beyond-reach are each their
+//                      own fixed point (hl.js's R3) — a claimed tetralemma
+//                      that fails this is not the lattice it claims to be.
+//   same-name-named    An export name reused across files for a DIFFERENT
+//                      meaning needs each file's own header to name every
+//                      sibling — the precedent this repo already set for
+//                      itself ("Three modules share the name
+//                      'hyperlexicon'", CLAUDE.md) — or a reader silently
+//                      imports the wrong one.
+//
+// PURE: no fetch, no DOM, no fs. hl.js's own lattice values and `flip` are
+// injected (the cast.js pattern) so this module never imports a specific
+// checkout layout; file headers for the collision check are passed in as
+// plain strings, already read by the caller.
 
-export const PRASANGA = Object.freeze({
-  HOLDS: "holds",
-  COLLAPSES: "collapses",
-  UNTESTED: "untested",
-});
+export const SEVERITY = Object.freeze({ STRIKE: "strike", REFUSE: "refuse", FLAG: "flag" });
 
-export const TERRAINS = Object.freeze([
-  "void", "entity", "kind", "field", "link", "network", "atmosphere", "lens", "paradigm",
+export const RULES = Object.freeze([
+  { id: "one-lattice", cites: "hl.js (Belnap-Dunn FDE)", severity: SEVERITY.STRIKE, says: "a verdict claiming to be bound/contradicted/contested/unbound/beyond-reach is hl.js's own string, never a re-typed synonym" },
+  { id: "involution-holds", cites: "hl.js R3", severity: SEVERITY.STRIKE, says: "flip(bound)=contradicted, flip(contradicted)=bound, contested/unbound/beyond-reach are each their own fixed point" },
+  { id: "same-name-named", cites: "CLAUDE.md — 'Three modules share the name hyperlexicon'", severity: SEVERITY.FLAG, says: "a name reused across files for a different meaning needs each file's own header to name every sibling" },
 ]);
 
-// what it MEANS for an answer to satisfy at each terrain — the satisfaction
-// each terrain's judgment is wired to.
-export const TERRAIN_SATISFACTIONS = Object.freeze({
-  void: "the answer is measured against the declared slot",
-  entity: "the answer engages the same beings the question does",
-  kind: "the being is the kind the slot asked for",
-  field: "the answer holds against the material's whole ground",
-  link: "the answer's claim binds to a material edge",
-  network: "the answer composes with what the reading already holds",
-  atmosphere: "the reading's regime is declared, not hidden",
-  lens: "the judgment stands on a declared position",
-  paradigm: "the answer's standing in the whole is established",
-});
-
-export const KOTIS = Object.freeze({
-  FILLED: "filled",
-  HONESTLY_ABSENT: "honestly-absent",
-  VACUOUS: "vacuous",
-  UNEXAMINED: "unexamined",
-});
-
-export function makeNagarjuna({ deriveSlot = null, relationsFor = null, decline = null, material = [], organs = {} } = {}) {
-  const isDecline = (s) => (typeof decline === "function" ? decline(s) : false);
-
-  /**
-   * defineVoid(question) — the slot's dependent arising: what the slot IS,
-   * and what a filling must do. Every field names its dependency.
-   */
-  function defineVoid(question) {
-    const d = typeof deriveSlot === "function" ? deriveSlot(question) : { anchor: null, slot: null, kind: "unknown" };
-    return {
-      question,
-      anchor: d.anchor,
-      slot: d.slot,
-      kind: d.kind,
-      // what stands against the slot: the material's own claims about the
-      // anchor (the reading's edges) — the ground a filling must hold against.
-      against: material.length
-        ? (relationsFor ? material.map((m) => m) : [])
-        : [],
-      requires: {
-        addressed: `the answer engages ${d.anchor ? `the being "${d.anchor}"` : "the question"}`,
-        filled: d.kind === "date" || d.kind === "number"
-          ? `the answer supplies the ${d.kind}: "${d.slot}"`
-          : `the answer supplies a claim for: "${d.slot}"`,
-        grounded: `the supply HOLDS against the material (prasaṅga) — or, when the material is silent, the answer says so plainly`,
-      },
-    };
+/**
+ * makeNagarjuna({ lattice, flip }) — `lattice` is hl.js's own exported
+ * value object ({BOUND, CONTRADICTED, CONTESTED, UNBOUND, BEYOND_REACH}),
+ * `flip` is hl.js's own involution function. Both injected, never
+ * re-derived, so this file can never drift from the one it is checking
+ * against by definition.
+ */
+export function makeNagarjuna({ lattice, flip } = {}) {
+  if (!lattice || typeof flip !== "function") {
+    throw new Error("nagarjuna: lattice and flip must be injected from hl.js — there is nothing to check against otherwise");
   }
+  const CANON = new Set(Object.values(lattice));
 
   /**
-   * prasaṅga(answer, void) — test a candidate filling by its consequences.
-   * Returns {standing, reason} where standing is holds / collapses / untested.
-   *   holds       — the answer's claim binds to the material (or the answer
-   *                 honestly states the material is silent).
-   *   collapses   — the answer's claim binds to nothing (or contradicts the
-   *                 material), or the answer is a vacuous echo of the question.
-   *   untested    — no claim could be extracted from the answer to test.
+   * checkLatticeUsage(bindings) — `bindings` is a map/array of
+   * `{ name, value }` a caller BELIEVES is hl.js's lattice (e.g. a
+   * re-exported CONCLUSION object). Flags any value that is not literally
+   * one of hl.js's own five strings — a synonym, a typo, or a second
+   * lattice under a shared vocabulary all read the same way here: it does
+   * not equal the canonical value, so it is not the canonical value.
    */
-  function prasaṅga(answer, v = {}) {
-    if (isDecline(answer)) return { standing: PRASANGA.HOLDS, reason: "the void is honestly empty — the absence is the answer", koti: KOTIS.HONESTLY_ABSENT };
-    const reader = relationsFor ? relationsFor(material.length ? material : v.against ?? [], { pool: material.length ? material : v.against ?? [] }) : null;
-    const claims = reader?.read?.(answer)?.claims ?? [];
-    if (!claims.length) {
-      // vacuous echo or genuinely no claim: test by the question-echo
-      const aw = String(answer).toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2);
-      const qw = new Set(String(v.question ?? "").toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2));
-      const novel = aw.filter((w) => !qw.has(w)).length;
-      if (novel < 2) return { standing: PRASANGA.COLLAPSES, reason: `the filling is a vacuous echo of the question (adds ${novel} new word${novel === 1 ? "" : "s"})`, koti: KOTIS.VACUOUS };
-      return { standing: PRASANGA.UNTESTED, reason: "no claim could be extracted from the answer to test", koti: KOTIS.UNEXAMINED };
+  function checkLatticeUsage(bindings) {
+    const rows = Array.isArray(bindings) ? bindings : Object.entries(bindings ?? {}).map(([name, value]) => ({ name, value }));
+    const findings = [];
+    for (const { name, value } of rows) {
+      if (!CANON.has(value)) {
+        const rule = RULES.find((r) => r.id === "one-lattice");
+        findings.push({ rule: rule.id, severity: rule.severity, cites: rule.cites, detail: `"${name}" = ${JSON.stringify(value)} is not one of hl.js's own lattice values`, name, value });
+      }
     }
-    const verdict = claims[0].verdict ?? null;
-    if (verdict === "bound") return { standing: PRASANGA.HOLDS, reason: `the claim binds the material (${claims.length} claim${claims.length === 1 ? "" : "s"})`, koti: KOTIS.FILLED };
-    if (verdict === "contradicted") return { standing: PRASANGA.COLLAPSES, reason: "the claim CONTRADICTS the material", koti: KOTIS.FILLED };
-    if (verdict === "unbound" || verdict === "beyond-reach" || verdict === "unheard") return { standing: PRASANGA.COLLAPSES, reason: `the claim binds to nothing in the material (${verdict})`, koti: KOTIS.FILLED };
-    return { standing: PRASANGA.UNTESTED, reason: `no verdict could be reached (${verdict ?? "none"})`, koti: KOTIS.UNEXAMINED };
+    return { findings, checked: rows.length };
   }
 
   /**
-   * prasaṅgaTerrains — the FULL holographic walk: all nine terrains, each
-   * through its own organ, each asking its own satisfaction question of the
-   * answer. A terrain with no organ injected is UNJUDGEABLE — disclosed,
-   * never silently skipped and never a pass. The answer SATISFIES iff every
-   * judgeable terrain holds.
+   * checkInvolution({ BOUND, CONTRADICTED, CONTESTED, UNBOUND, BEYOND_REACH })
+   * — runs the injected `flip` over a candidate value set and confirms
+   * Belnap's structure: bound/contradicted swap, the rest are fixed
+   * points. Values default to the injected canonical lattice, so calling
+   * with no argument re-proves hl.js's own flip is still the involution
+   * it claims to be — this file's own self-test, not assumed.
    */
-  function terrainVerdict(t, answer, v = {}, q = "") {
-    const O = (name) => organs?.[name];
-    switch (t) {
-      case "void": {
-        if (!v.slot) return { judgeable: false, terrain: "void", reason: "no slot declared" };
-        return { judgeable: true, terrain: "void", standing: PRASANGA.HOLDS, reason: `slot "${v.slot}" declared; the answer is measured against it` };
+  function checkInvolution(values = lattice) {
+    const findings = [];
+    const pairs = [
+      [values.BOUND, values.CONTRADICTED],
+      [values.CONTRADICTED, values.BOUND],
+      [values.CONTESTED, values.CONTESTED],
+      [values.UNBOUND, values.UNBOUND],
+      [values.BEYOND_REACH, values.BEYOND_REACH],
+    ];
+    for (const [input, expected] of pairs) {
+      if (input === undefined) continue; // caller's set doesn't declare this corner — nothing to check
+      const got = flip(input);
+      if (got !== expected) {
+        const rule = RULES.find((r) => r.id === "involution-holds");
+        findings.push({ rule: rule.id, severity: rule.severity, cites: rule.cites, detail: `flip(${JSON.stringify(input)}) = ${JSON.stringify(got)}, expected ${JSON.stringify(expected)}` });
       }
-      case "entity": {
-        const idx = O("entity");
-        if (!idx?.resolve) return { judgeable: false, terrain: "entity", reason: "no referent index (cast.js) injected" };
-        let qr = null, ar = null;
-        try { qr = idx.resolve(q); ar = idx.resolve(answer); } catch { /* skip */ }
-        if (!qr || !ar) return { judgeable: false, terrain: "entity", reason: qr ? "the answer's surfaces resolve to no being" : "the question's surfaces resolve to no being" };
-        const same = qr === ar || (qr instanceof Set && ar instanceof Set && qr.size && ar.size && [...qr].every((x) => ar.has(x)));
-        return { judgeable: true, terrain: "entity", standing: same ? PRASANGA.HOLDS : PRASANGA.COLLAPSES, reason: same ? "engages the same beings" : "engages different beings" };
-      }
-      case "kind": {
-        const kindOf = O("kind");
-        if (typeof kindOf !== "function") return { judgeable: false, terrain: "kind", reason: "no kind organ (kind-standing.js, P79) injected" };
-        const want = v.kind;
-        let is = null;
-        try { is = kindOf(answer); } catch { /* skip */ }
-        if (is == null) return { judgeable: false, terrain: "kind", reason: "the being's kind is unresolved" };
-        return { judgeable: true, terrain: "kind", standing: is === want ? PRASANGA.HOLDS : PRASANGA.COLLAPSES, reason: `the answer supplies a ${is}; the slot asked for ${want ?? "anything"}` };
-      }
-      case "field": {
-        const coverage = O("field");
-        if (typeof coverage !== "function") return { judgeable: false, terrain: "field", reason: "no field organ (cite.js::coverage, pool-wide) injected" };
-        const c = coverage(answer);
-        const refs = Array.isArray(c) ? c.filter((x) => x?.ref) : [];
-        if (!refs.length) return { judgeable: true, terrain: "field", standing: PRASANGA.COLLAPSES, reason: "the answer holds against no passage of the material's ground" };
-        return { judgeable: true, terrain: "field", standing: PRASANGA.HOLDS, reason: `the answer holds against ${refs.length} passage${refs.length === 1 ? "" : "s"} of the ground` };
-      }
-      case "link": {
-        const reader = relationsFor;
-        if (!reader) return { judgeable: false, terrain: "link", reason: "no relation reader injected" };
-        const claims = reader.read?.(answer)?.claims ?? [];
-        if (!claims.length) return { judgeable: false, terrain: "link", reason: "no claim extracted to bind" };
-        const verdict = claims[0].verdict ?? null;
-        if (verdict === "bound") return { judgeable: true, terrain: "link", standing: PRASANGA.HOLDS, reason: "the claim binds a material edge" };
-        if (verdict === "contradicted") return { judgeable: true, terrain: "link", standing: PRASANGA.COLLAPSES, reason: "the claim CONTRADICTS the material" };
-        return { judgeable: true, terrain: "link", standing: PRASANGA.COLLAPSES, reason: `the claim binds to no edge (${verdict ?? "none"})` };
-      }
-      case "network": {
-        const ledger = O("network");
-        if (!ledger?.fold) return { judgeable: false, terrain: "network", reason: "no ledger organ (the record) injected" };
-        const notes = ledger.fold() ?? [];
-        const claim = (relationsFor?.read?.(answer)?.claims ?? [])[0];
-        if (!claim) return { judgeable: false, terrain: "network", reason: "no claim to compose" };
-        const key = [claim.end1 ?? claim.subject, claim.label ?? claim.verb, claim.end2 ?? claim.object].map((s) => String(s ?? "").toLowerCase().trim()).join("|");
-        const composed = notes.some((n) => [n.end1 ?? n.subject, n.label ?? n.verb, n.end2 ?? n.object].map((s) => String(s ?? "").toLowerCase().trim()).join("|") === key);
-        return { judgeable: true, terrain: "network", standing: composed ? PRASANGA.HOLDS : PRASANGA.COLLAPSES, reason: composed ? "the claim composes with the record" : "nothing in the record holds this claim" };
-      }
-      case "atmosphere": {
-        const pathos = O("atmosphere");
-        if (typeof pathos !== "function") return { judgeable: false, terrain: "atmosphere", reason: "no pathos organ injected" };
-        try {
-          const r = pathos({ text: answer });
-          if (r?.refused) return { judgeable: false, terrain: "atmosphere", reason: `pathos refused: ${r.refused}` };
-          return { judgeable: true, terrain: "atmosphere", standing: PRASANGA.HOLDS, reason: `the reading's felt shape is declared (strain ${r?.strain ?? "report"}, for ${r?.forWhom ?? "the reader"})` };
-        } catch (e) { return { judgeable: false, terrain: "atmosphere", reason: `pathos refused (no declared experiencer): ${e?.message ?? e}` }; }
-      }
-      case "lens": {
-        const frameOf = O("lens");
-        if (typeof frameOf !== "function") return { judgeable: false, terrain: "lens", reason: "no frame organ injected — the judgment would stand from nowhere" };
-        try {
-          const f = frameOf();
-          return { judgeable: true, terrain: "lens", standing: PRASANGA.HOLDS, reason: f?.declared ? `judged from a declared position (${f.declared})` : "a frame is declared" };
-        } catch { return { judgeable: false, terrain: "lens", reason: "no frame declared — no view from nowhere" }; }
-      }
-      case "paradigm": {
-        const logos = O("logos");
-        const standingOf = O("paradigm");
-        // LOGOS: the answer's claim, added to the record's notes, must not
-        // turn the argument in on itself (reasoning-lint's findClaimCycle).
-        // An answer that introduces a cycle into the whole is logically
-        // unsound, whatever it binds to — logos, wired at the paradigm rung.
-        if (typeof logos === "function") {
-          const ledger = O("network");
-          const notes = (ledger?.fold?.() ?? []);
-          const claim = (relationsFor?.read?.(answer)?.claims ?? [])[0];
-          if (claim) {
-            const asNote = { id: "answer:claim", end1: claim.end1 ?? claim.subject, label: claim.label ?? claim.verb, end2: claim.end2 ?? claim.object, conceded: false };
-            const cyc = logos([...notes, asNote]);
-            if (cyc?.length) return { judgeable: true, terrain: "paradigm", standing: PRASANGA.COLLAPSES, reason: `the claim turns the argument in on itself (${cyc.length} cycle${cyc.length === 1 ? "" : "s"})` };
-            return { judgeable: true, terrain: "paradigm", standing: PRASANGA.HOLDS, reason: "the claim stands soundly in the whole (no cycle)" };
-          }
-        }
-        if (typeof standingOf !== "function") return { judgeable: false, terrain: "paradigm", reason: "no standing organ (and no logos organ) injected" };
-        const s = standingOf(answer);
-        return { judgeable: true, terrain: "paradigm", standing: s ? PRASANGA.HOLDS : PRASANGA.COLLAPSES, reason: s ? `standing established: ${s}` : "the answer's standing is unestablished" };
-      }
-      default:
-        return { judgeable: false, terrain: t, reason: "unknown terrain" };
     }
+    return { findings, holds: findings.length === 0 };
   }
 
-  function prasaṅgaTerrains(answer, v = {}, ctx = {}) {
-    const q = v.question ?? ctx.question ?? "";
-    const verdicts = {};
-    for (const t of TERRAINS) verdicts[t] = terrainVerdict(t, answer, v, q);
-    const judged = TERRAINS.filter((t) => verdicts[t].judgeable);
-    const satisfied = judged.length > 0 && judged.every((t) => verdicts[t].standing === PRASANGA.HOLDS);
-    return {
-      satisfied,
-      judgedTerrains: judged.length,
-      totalTerrains: TERRAINS.length,
-      verdicts,
-      satisfies: judged.map((t) => TERRAIN_SATISFACTIONS[t]),
-    };
+  /**
+   * checkNameCollision({ name, files }) — `files` is `[{ path, header }]`,
+   * every file (read by the caller, this module touches no fs) that
+   * exports a binding called `name`. Two or more files sharing a name is
+   * not itself a violation — the violation is a header that does not say
+   * so. `header` is checked for the OTHER files' own basenames; a file
+   * naming none of its siblings is flagged.
+   */
+  function checkNameCollision({ name, files }) {
+    const list = Array.isArray(files) ? files : [];
+    if (list.length < 2) return { findings: [], collision: false };
+    const basename = (p) => String(p ?? "").split("/").pop();
+    const findings = [];
+    for (const f of list) {
+      const others = list.filter((o) => o.path !== f.path).map((o) => basename(o.path));
+      const named = others.filter((sib) => String(f.header ?? "").includes(sib));
+      if (named.length < others.length) {
+        const missing = others.filter((sib) => !named.includes(sib));
+        const rule = RULES.find((r) => r.id === "same-name-named");
+        findings.push({ rule: rule.id, severity: rule.severity, cites: rule.cites, detail: `${basename(f.path)} exports "${name}" but its header never names ${missing.join(", ")}`, path: f.path, missing });
+      }
+    }
+    return { findings, collision: true, exporters: list.map((f) => f.path) };
   }
 
-  return { defineVoid, prasaṅga, prasaṅgaTerrains, PRASANGA, KOTIS, TERRAINS, TERRAIN_SATISFACTIONS };
+  return { checkLatticeUsage, checkInvolution, checkNameCollision };
 }

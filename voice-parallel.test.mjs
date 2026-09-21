@@ -16,14 +16,14 @@ import { makeReferentIndex } from "./cast.js";
 import { chunkSource } from "./source.js";
 
 const organs = async () => ({
-  splitSentences: (await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/spans.js")).splitSentences,
-  extractSurfaces: (await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js")).extractSurfaces,
-  discoverReferents: (await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js")).discoverReferents,
-  namesCorefer: (await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js")).namesCorefer,
-  diaNorm: (await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js")).diaNorm,
-  discoverRelationVocab: (await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js")).discoverRelationVocab,
-  extractRelations: (await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js")).extractRelations,
-  tokenize: (await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/material.js")).tokenize,
+  splitSentences: (await import("../eoreader7/native/adapters/text/spans.js")).splitSentences,
+  extractSurfaces: (await import("../eoreader7/native/adapters/text/surfaces.js")).extractSurfaces,
+  discoverReferents: (await import("../eoreader7/native/adapters/text/surfaces.js")).discoverReferents,
+  namesCorefer: (await import("../eoreader7/native/adapters/text/surfaces.js")).namesCorefer,
+  diaNorm: (await import("../eoreader7/native/adapters/text/surfaces.js")).diaNorm,
+  discoverRelationVocab: (await import("../eoreader7/native/adapters/text/relations.js")).discoverRelationVocab,
+  extractRelations: (await import("../eoreader7/native/adapters/text/relations.js")).extractRelations,
+  tokenize: (await import("../eoreader7/native/adapters/text/material.js")).tokenize,
 });
 const SENTENCES = [
   "The Kessington report put the harbor figure at 12% for the spring quarter, revising the earlier estimate downward after the audit.",

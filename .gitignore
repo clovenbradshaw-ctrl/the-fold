@@ -27,3 +27,8 @@ models/*/
 # a symlinked node_modules (worktrees) is not a directory, so node_modules/ above misses it
 node_modules
 war-and-peace.txt
+
+# static build artifacts — the 2.4GB deployed snapshot and the worktree
+# checkouts are not source (the chorus affected-test scan excludes these too)
+_site_check/
+.claude/worktrees/

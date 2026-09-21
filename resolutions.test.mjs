@@ -93,7 +93,7 @@ test("PARADIGM: an act recurring between the same two referents at binding's flo
   // so two places. Counting the repeated record as a third place is the bug
   // the places test below pins (one sentence read at two grains "recurred").
   assert.match(p.text, /«questioned» recurs between Porfiry Petrovich and .*Raskolnikov \(2 places\)\./);
-  assert.match(p.text, /Porfiry Petrovich most often stands in «questioned»/);
+  assert.match(p.text, /«questioned» is most often stated about Porfiry Petrovich/, "the line leads with the quoted act, never the referent surface — a bare name that is also a verb read as an imperative to the stability harness's detector (2026-09-20)");
   assert.doesNotMatch(p.text, /«brought»/, `a single witness is below the floor of ${RECURRENCE_FLOOR}`);
   clean(p.text);
   assert.equal(paradigmBlock({ active: new Set([id("Razumihin")]), index, notes: NOTES, dmdWindow }).text, "", "nothing recurs for Razumihin at the floor");

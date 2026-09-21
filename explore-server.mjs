@@ -879,6 +879,19 @@ async function fetchAndKeep(url, { forceArchive = false } = {}) {
   // way `every` overrides applyOps' default for one call without touching
   // its default. `archiveAsked` on the record names which reason applied.
   const willArchive = settings.archiveOrg || forceArchive;
+  // THE LOOK TRIGGER — is the plain-text reading of this page reading it
+  // WRONG? Pure and instant (shouldLookPage, eoreader7 native/organs/look.js):
+  // the survey (`look` — empty face, garbled text, embedded visual structure)
+  // is carried on the history entry so /look and a reader can see why a page
+  // might deserve a look; `auto` is the strict subset — clear extraction
+  // ambiguity (an empty face, extracted text that reads wrong) — and ONLY
+  // `auto` records a web-look-needed line, because only that ever auto-
+  // renders. A page whose prose extracted fine, however many tables or
+  // images it carries, is read fine as text: no render, no cost (measured
+  // rule, 2026-09-15 — a plain infobox page must never slow a fetch).
+  const look = text != null && ext === ".html" ? shouldLookPage({ url, title, text, html: buf.toString("utf8") }) : null;
+  if (look?.auto) record("web-look-needed", { url, finalUrl: r.url || url, sha256: sha, reason: look.reason, signals: look.signals });
+
   const entry = {
     id: crypto.randomUUID(),
     url,
@@ -892,6 +905,7 @@ async function fetchAndKeep(url, { forceArchive = false } = {}) {
     sha256: sha,
     rawPath: relOf(rawFile),
     textPath: textFile ? relOf(textFile) : null,
+    ...(look?.look ? { look } : {}),
     ...(looksLikeChallenge({ title, textChars: text?.length }) ? { challenge: true } : {}),
     ...(via ? { via } : {}),
     ...(gatewaysTried && !via ? { gatewaysTried } : {}),
@@ -901,6 +915,40 @@ async function fetchAndKeep(url, { forceArchive = false } = {}) {
   record("web-fetch", { id: entry.id, url, finalUrl: entry.finalUrl, status: entry.status, bytes: entry.bytes, sha256: sha, archiveAsked: willArchive, ...(via ? { via: via.gateway, why: via.why } : {}) });
   if (willArchive) archivePage(entry.id, entry.finalUrl); // deferred, lands as a patch line
   return { url, entry, fold, text };
+}
+
+/**
+ * Rebuild an entry from a page's already-saved, content-addressed faces —
+ * used by /api/web/look when the caller hands over the sha256 of a page
+ * fetched moments ago, so LOOKING never re-fetches the page it is looking
+ * at. The faces are the raw bytes and the extracted text face, both saved by
+ * fetchAndKeep; metadata (title, the look trigger) is re-derived from them
+ * with the SAME organs the original fetch used. `sha` is the full sha256
+ * hex of the raw bytes (the file is named by its first 16 chars).
+ */
+function savedEntryForSha(sha, url) {
+  const short = sha.slice(0, 16);
+  const rawAbs = path.join(WEB_PAGES_DIR, `${short}.html`);
+  const txtAbs = path.join(WEB_PAGES_DIR, `${short}.txt`);
+  const rawHtml = existsSync(rawAbs) ? readFileSync(rawAbs, "utf8") : "";
+  const readable = rawHtml ? extractReadable(rawHtml) : null;
+  const text = existsSync(txtAbs) ? readFileSync(txtAbs, "utf8") : null;
+  const look = readable && text != null ? shouldLookPage({ url, title: readable.title, text, html: rawHtml }) : null;
+  return {
+    id: crypto.randomUUID(),
+    url,
+    finalUrl: url,
+    status: 200,
+    contentType: "text/html",
+    title: readable?.title ?? null,
+    retrievedAt: new Date().toISOString(),
+    bytes: rawHtml.length,
+    textChars: text?.length ?? null,
+    sha256: sha,
+    rawPath: relOf(rawAbs),
+    textPath: existsSync(txtAbs) ? relOf(txtAbs) : null,
+    ...(look?.look ? { look } : {}),
+  };
 }
 
 // ── the wheel organ (P21, amending P18): pip installs closed to pyodide's
@@ -1729,6 +1777,37 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { entries: enabled, total: enabled.length, truncated });
     }
 
+    // has: are these documents in the corpus, and in play? A stat and the
+    // toggle ledger, never a read — so nothing lands on the record. The chat's
+    // archon card (archon-card.js) asks it on every new conversation about
+    // the works it quotes; opening one is a read, and /api/priors/doc records
+    // that. ?path= repeats, capped at 8 — a card names two.
+    if (req.method === "GET" && p === "/api/priors/has") {
+      const paths = url.searchParams.getAll("path").slice(0, 8);
+      if (!existsSync(PRIORS_ROOT)) {
+        return send(res, 200, {
+          entries: paths.map((rel) => ({ path: normalizePriorPath(rel), present: false })),
+          gap: { silence: "not-present", detail: `live_priors is not beside this repo (looked at ${PRIORS_ROOT})` },
+        });
+      }
+      const { byPath } = readPriorToggles();
+      const entries = paths.map((raw) => {
+        const rel = normalizePriorPath(raw);
+        const abs = confinePrior(rel);
+        if (!abs) return { path: rel, present: false, refused: "path escapes the corpus" };
+        let st;
+        try {
+          st = statSync(abs);
+        } catch {
+          return { path: rel, present: false };
+        }
+        if (!st.isFile()) return { path: rel, present: false, refused: "not a file" };
+        const eff = effectivePrior(byPath, rel);
+        return { path: rel, present: true, bytes: st.size, on: eff.on, decidedBy: eff.decidedBy };
+      });
+      return send(res, 200, { entries });
+    }
+
     // ---- the check: the reference library as the grounding ladder's FREE
     // tier. A claim (the same {kind, text, tokens, sentence} shape
     // /api/web/primary takes) is judged against live_priors with ZERO
@@ -2101,6 +2180,72 @@ const server = http.createServer(async (req, res) => {
       const got = await fetchAndKeep(url, { forceArchive: !!body.archive });
       if (got.gap) return send(res, 200, { url, gap: got.gap });
       return send(res, 200, { entry: got.entry, fold: got.fold });
+    }
+
+    // ---- /api/web/look — the "look at a website" door. The SAME recorded
+    // egress (fetchAndKeep: the page is saved, historied, folded, content-
+    // addressed exactly like any other page read), then the raw HTML bytes
+    // are rendered to a full-page PNG by headless Chrome (render-page.mjs —
+    // loopback only, never a second egress) and saved content-addressed
+    // beside the raw/text faces. The TWO-SENSE READ — mechanical OpenCV/OCR
+    // plus the vision ladder and the fusion — runs in the browser through the
+    // existing /api/visual path, exactly as /visual already does; this route
+    // hands back the render bytes and the trigger verdict that named why the
+    // page was worth looking at. Re-looking the same page reuses the render
+    // (it is sha-addressed off the raw bytes), never a fresh Chrome spawn.
+    // A non-HTML face is a typed refusal: a text/PDF/binary page IS its text
+    // face, there is no layout to render.
+    //
+    // `sha256` (optional) names a page already fetched THIS session — the
+    // auto-look path hands it over the moment a named URL's fetch fires the
+    // trigger, so looking never re-fetches the page it is looking at (the
+    // raw + text faces are content-addressed on disk; the entry is rebuilt
+    // from them). Looking then stays what it is: a local render of bytes
+    // already on the record.
+    if (req.method === "POST" && p === "/api/web/look") {
+      const body = await readJsonBody(req);
+      const url = normalizeUrl(body.url);
+      if (!url) return send(res, 400, { error: "url must be http(s), not loopback — the tree already serves local files" });
+      const sha = String(body.sha256 ?? "");
+      let entry;
+      // Accepts the full 64-char sha256 (what fetchAndKeep records and the
+      // browser holds) or its 16-char content-addressed file prefix.
+      if (/^[0-9a-f]{16,64}$/.test(sha) && existsSync(path.join(WEB_PAGES_DIR, `${sha.slice(0, 16)}.html`))) {
+        entry = savedEntryForSha(sha, url);
+      } else {
+        const got = await fetchAndKeep(url, { forceArchive: !!body.archive });
+        if (got.gap) return send(res, 200, { url, gap: got.gap });
+        entry = got.entry;
+      }
+      const isHtml = String(entry.rawPath ?? "").endsWith(".html");
+      if (!isHtml) {
+        record("web-look-refused", { url, reason: "not-html", contentType: entry.contentType ?? null });
+        return send(res, 200, { url, entry, look: entry.look ?? { look: false, reason: "not-html", signals: [] }, gap: { silence: "beyond-reach", detail: `the saved face is ${entry.contentType || "binary"} — only an HTML page can be rendered and looked at; the bytes are kept at ${entry.rawPath}` } });
+      }
+      const rawAbs = confine(entry.rawPath);
+      if (!rawAbs || !rawAbs.startsWith(WEB_PAGES_DIR + path.sep) || !existsSync(rawAbs)) {
+        return send(res, 200, { url, entry, gap: { silence: "not-present", detail: `the saved raw face ${entry.rawPath} is not on disk` } });
+      }
+      const renderAbs = path.join(WEB_PAGES_DIR, `${entry.sha256.slice(0, 16)}.render.png`);
+      if (!existsSync(renderAbs)) {
+        const html = readFileSync(rawAbs, "utf8");
+        try {
+          const r = await renderHtmlToImage(html, { url: entry.finalUrl || url, outPath: renderAbs });
+          record("web-look-render", { id: entry.id, url, renderPath: relOf(renderAbs), width: r.width, height: r.height, truncated: r.truncated, settled: r.settled, renderMs: r.renderMs });
+        } catch (e) {
+          // A missing renderer is a typed refusal, never a silent empty read —
+          // the page's text face is still on the history either way.
+          record("web-look-refused", { url, reason: "render-failed", detail: e.message });
+          return send(res, 200, { url, entry, look: entry.look, gap: { silence: "render-refused", detail: e.message } });
+        }
+      }
+      // A late patch line, folded by the same foldWebHistory merge — the
+      // render address rides beside the entry it belongs to, never a second
+      // history row.
+      appendWebHistory({ id: entry.id, url, renderPath: relOf(renderAbs), lookedAt: new Date().toISOString() });
+      record("web-look", { id: entry.id, url, renderPath: relOf(renderAbs), look: entry.look ?? null });
+      const pngBuf = readFileSync(renderAbs);
+      return send(res, 200, { url, entry, renderPath: relOf(renderAbs), imageBase64: pngBuf.toString("base64"), look: entry.look ?? { look: false, reason: null, signals: [] } });
     }
 
     // ---- the primary-source walk: Wikipedia as a stepping stone, never a
@@ -3117,7 +3262,7 @@ function mergeRelatingLedger(left, nominations) {
       // silently; a declared allowlist is only a wall if it is kept). The
       // long-form events (P108) carry a piece's progress so a reader — or a
       // driver — can follow a 30-page run off the record rather than the DOM.
-      const CHAT_MIRRORED = new Set(["kondo-review", "gary-hand", "source-open", "fold-open", "transcribe", "corroborate", "derive", "declare", "concede", "void-concede", "ranke", "obligation-admit", "obligation-mark", "longform-part", "longform-done", "web-digest", "codepiece-plan", "codepiece-part", "codepiece-done", "codepiece-sent-to-chat", "piece-export-built"]);
+      const CHAT_MIRRORED = new Set(["kondo-review", "gary-hand", "source-open", "fold-open", "transcribe", "corroborate", "derive", "declare", "concede", "void-concede", "ranke", "obligation-admit", "obligation-mark", "longform-part", "longform-done", "web-digest", "codepiece-plan", "codepiece-part", "codepiece-done", "codepiece-sent-to-chat", "piece-export-built", "swarm-spawn", "swarm-ant", "swarm-done"]);
       if (typeof body.event !== "string" || !(body.event.startsWith("term-") || CHAT_MIRRORED.has(body.event))) return send(res, 400, { error: `event (string) is required: "term-"-prefixed, or one of ${[...CHAT_MIRRORED].join(" / ")}` });
       const { event, ...fields } = body;
       record(event, fields);
@@ -3199,8 +3344,8 @@ function mergeRelatingLedger(left, nominations) {
       const wireModel = prefixModel(model);
       if (stream) {
         const lines = openai
-          ? openAIStreamLines({ id, model: wireModel, text: turn.text, created, fold })
-          : ollamaChatStreamLines({ model: wireModel, text: turn.text, createdAt, usage: turn.usage, fold });
+          ? openAIStreamLines({ id, model: wireModel, text: turn.text, created, fold, thinking: turn.thinking })
+          : ollamaChatStreamLines({ model: wireModel, text: turn.text, createdAt, usage: turn.usage, fold, thinking: turn.thinking });
         res.writeHead(200, { "content-type": openai ? "text/event-stream" : "application/x-ndjson", "cache-control": "no-store" });
         for (const line of lines) res.write(line);
         return res.end();
@@ -3209,8 +3354,8 @@ function mergeRelatingLedger(left, nominations) {
         res,
         200,
         openai
-          ? openAIResponse({ id, model: wireModel, text: turn.text, created, usage: turn.usage, fold })
-          : ollamaChatResponse({ model: wireModel, text: turn.text, createdAt, usage: turn.usage, fold }),
+          ? openAIResponse({ id, model: wireModel, text: turn.text, created, usage: turn.usage, fold, thinking: turn.thinking })
+          : ollamaChatResponse({ model: wireModel, text: turn.text, createdAt, usage: turn.usage, fold, thinking: turn.thinking }),
       );
     }
 

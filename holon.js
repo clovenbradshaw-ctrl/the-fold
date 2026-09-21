@@ -36,6 +36,7 @@
 
 import { buildSourceBlock, checkCitations, foldTypography, openQuestions, retrieve, tokenize } from "./source.js";
 import { distinctSources, proposeCandidates, sourceOfWitness, textFeatures } from "./corroboration.js";
+import { anchorFindings } from "./anchor-chase.js";
 import { checkGrounding, extractCheckableAtoms, unsupportedClaims, CLAIM_STOPWORDS, numberSet } from "./grounding.js";
 import { attribute, attributedRefs, coverage as poolCoverage, splitSentences } from "./cite.js";
 import { editPiece } from "./piece-edit.js";
@@ -53,6 +54,7 @@ import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repe
 import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine, lastOwnTurn } from "./transcript.js";
 import { refKey } from "./dialogue.js";
 import { checkComparison } from "./arithmetic.js";
+import { checkPassageComparison } from "./passage-comparison.js";
 import { answerBeforeTheModel } from "./answerable.js";
 import { recruit, strainOf, substituted, identitySwapped } from "./strain.js";
 import { placeCoverage } from "./calibration.js";
@@ -78,7 +80,7 @@ import { tidyMaterial, makeKondo, TIDY_PAIRS, TIDY_NOTES_PAIR } from "./kondo.js
 import { makeGary, garyDecision, oracleRefusalText } from "./gary.js";
 import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
 import { LINK_CHECKS_PER_PART, extractLinkAtoms, linkFindings, stripDeadLinks, urlInMaterial, verifyLinks } from "./links.js";
-import { COMMAND_HARM_LAW, composeShipment } from "./composition-gate.js";
+import { composeShipment } from "./composition-gate.js";
 import { parseSegments } from "./artifact.js";
 import { admitPassages } from "./read-on-arrival.js";
 import { asksAboutMaterial, materialView, abbreviate, aboutBlock } from "./about.js";
@@ -614,7 +616,7 @@ export const EXECUTE_SYSTEM_PROMPT =
 // words under the old opening, 0/40 under this one. This prompt only runs
 // where there is no material, so the job it named was never in view.
 export const CHAT_SYSTEM_PROMPT =
-  "You are The Fold, a friendly assistant having a conversation. Reply directly, briefly, and naturally, the way a person would. Do not repeat back what was just said; say something new. Asked for your own opinion, a preference, or a concrete suggestion, give one plainly — pick a side, name a real option — rather than turning the question back around; once someone has already told you what they need to, answer from that instead of asking them to repeat it in a different shape.";
+  "You are The Fold, an AI assistant having a conversation. Reply directly, briefly, and naturally, the way a person would. Do not answer by merely restating the question or copying out what you were given — say something new, in your own words. Restating your interpretation to check it (“So you want X and Y — is that right?”) before answering an ambiguous or multi-part request is allowed and, when the turn asks you to confirm first, required. Asked for your own opinion, a preference, or a concrete suggestion, give one plainly — pick a side, name a real option — rather than turning the question back around; once someone has already told you what they need to, answer from that instead of asking them to repeat it in a different shape.";
 
 // S1's own face: think out loud, give a first take, not a finished answer.
 // The hedge IS the character — it makes S2's arrival feel natural ("I
@@ -742,7 +744,7 @@ const S2_FRAME_PREFIX = "";
 // Nothing here names a part of this instrument now, so there is no word to
 // borrow. `firewall.test.mjs` fails if one comes back.
 export const FLAT_EXECUTE_SYSTEM_PROMPT =
-  "You are talking with someone. Answer what they asked, in your own words, the way a person would — not a summary of the question and not a description of what you were given. Everything below is yours to answer from. If the answer is not there, say plainly that it is not, rather than filling the gap.";
+  "You are talking with someone. Answer what they asked, in your own words, the way a person would — not a summary of the question and not a description of what you were given. Everything below is yours to answer from. If the answer is not there, say plainly that it is not, rather than filling the gap. If a side errand would help while you answer the rest, you can propose it by writing [[ant: what to look into]] — the person decides with one click whether anything runs, so never treat it as already running.";
 
 /** The words of a draft, counted — never trusted from a prompt (P108). */
 export const wordCount = (t) => String(t ?? "").split(/\s+/).filter(Boolean).length;
@@ -803,8 +805,27 @@ export function cutMetaTalk(text, { instructionText, materialText, splitSentence
   return { text: cut.length ? kept.join(" ") : text, cut };
 }
 
-export function buildExecutePrompt(part, sourceBlock, piece = null) {
-  const head = `Write this part: ${part.label}. ${part.description}${piece ? `\n${pieceLine(piece)}` : ""}`;
+export function buildExecutePrompt(part, sourceBlock, piece = null, topic = null) {
+  // A part like "Collisions" is a bare label a model has its own (often
+  // wrong) generic sense of — measured live (2026-09-17): asked to explain
+  // hash tables and why collisions happen, the plan split into "Definition"
+  // and "Collisions" parts; "Collisions" alone, with no topic anchor, drew a
+  // section about physical objects bumping into each other, not hash
+  // collisions. pieceLine already anchors a long-form document build via
+  // piece.topic; an ordinary short chat decomposition never sets `piece`, so
+  // that anchor was silently absent. This is NOT the full original question
+  // (task_03d3a119 / 2026-09-09's own fix keeps that out on purpose, so a
+  // part doesn't re-answer the whole compound ask) — just enough of a
+  // subject noun to keep a bare label grounded.
+  // Truncated well below any real task's own length (never the full
+  // question) — buildExecutePrompt's own scoping to label+description is
+  // what task_03d3a119/2026-09-09 protects; this is a short subject
+  // anchor, not the compound question re-admitted.
+  const anchorText = String(topic ?? "").trim();
+  const anchor = !piece?.topic && anchorText
+    ? `\nThis part belongs to a larger answer about: ${anchorText.length > 48 ? `${anchorText.slice(0, 48).trim()}…` : anchorText.slice(0, Math.max(0, anchorText.length - 1))}`
+    : "";
+  const head = `Write this part: ${part.label}. ${part.description}${anchor}${piece ? `\n${pieceLine(piece)}` : ""}`;
   return sourceBlock
     ? `${head}\n\n${sourceBlock}`
     : `${head}\n\nNo material matched this part. Say what the part would need and stop; do not invent content.`;
@@ -1442,7 +1463,7 @@ export async function runPart({
   shipExperiencer = null,
   // The seam's harm law, injected (composition-gate.js's own rule: the law
   // is closed, auditable, and never hardcoded here). Defaults to the
-  // seam's declared COMMAND_HARM_LAW when the seam is armed and no law is
+  // seam's own default when the seam is armed and no law is
   // supplied.
   shipHarmLaw = null,
   onProgress = null,
@@ -2561,7 +2582,13 @@ export async function runPart({
   pieceWitnessAsks = spend.pieceWitnessAsks;
   snipRounds = spend.snipRounds;
   const comparison = math ? checkComparison(task || question, { math }) : null;
-  const comparisonLine = comparison && !comparison.gap ? `Worked out from the numbers in the question: ${comparison.sentence}` : "";
+  // The same worked-out comparison when the numbers are the PASSAGES', not the question's
+  // (passage-comparison.js): two referents the question sets side by side, each bound to
+  // the figure of the sentence that names it alone, in one shared unit. Refused when unsure.
+  const passageComparison = math && !comparison ? checkPassageComparison(task || question, passages, { math }) : null;
+  const comparisonLine = comparison && !comparison.gap
+    ? `Worked out from the numbers in the question: ${comparison.sentence}`
+    : passageComparison ? `Worked out from the figures in the sources: ${passageComparison.sentence}` : "";
   // ACTIVATION (activation-retrieval.js): when the pick was an activation over
   // the reading, the passages ARE sentences chosen and cut by it — they are
   // handed verbatim as the snips, once, and never doubled as a raw source block.
@@ -2621,8 +2648,20 @@ export async function runPart({
     : activated
       ? (passages.length ? snipBlock(passages.map((p) => ({ ref: p.ref, start: 0, end: String(p.text ?? "").length, text: String(p.text ?? "") }))) : null)
       : mechanicallyConfident
-        ? null
+        ? (passages.length ? snipBlock(passages.map((p) => ({ ref: p.ref, start: 0, end: String(p.text ?? "").length, text: String(p.text ?? "") }))) : null)
         : (passages.length ? turnSnipBlock(dedupedProsePassages, question) || null : null);
+  // THE FLOOR NEVER LEAVES (P237, reconciled 2026-09-20): the
+  // mechanicallyConfident branch above used to hand NOTHING verbatim — no
+  // snips and no raw source — trusting the fact block to replace the floor
+  // (P179's compression), only for Kondo's claims-arm to cut the fact block
+  // as claims the notes already restate. Result: a turn whose fact block
+  // happened to cover the question's words handed the mouth no material at
+  // all (measured on the stability battery: northgate-plain at every rung
+  // above L0-raw, containment 0). The compression may replace the RAW
+  // SOURCE with the fact block; the verbatim floor — the passages
+  // themselves as snips, the Field-level ground the walls check against —
+  // stays, handed exactly as the activated branch hands it. `rawSource`
+  // below still drops on mechanicallyConfident; only the floor was missing.
   // COMPRESSION (P179): a higher holon stands in for the lower material it
   // was computed from — a Lens line for the sentence it was read from, a
   // Paradigm line for every occurrence of a recurring act. So at level 2
@@ -2771,7 +2810,7 @@ export async function runPart({
         // into the `user` content buildExecutePrompt returns, which is
         // exactly what a piece section drew quoted prose from live.
         { role: "system", content: EXECUTE_SYSTEM_PROMPT + resolutionSuffix + discourseSuffix(discourse) },
-        { role: "user", content: buildExecutePrompt(part, draftMaterial, piece) },
+        { role: "user", content: buildExecutePrompt(part, draftMaterial, piece, task) },
       ];
   onProgress?.("execute", part, {
     // What this call will actually carry — the page's pace ledger turns it
@@ -3272,7 +3311,7 @@ export async function runPart({
             // task_03d3a119: same fix as the initial draft call above — discourse
             // in the system message, never folded into buildExecutePrompt's user content.
             { role: "system", content: EXECUTE_SYSTEM_PROMPT + discourseSuffix(discourse) },
-            { role: "user", content: buildExecutePrompt(buildRedefinedPart(part, correctionFailures), draftMaterial) },
+            { role: "user", content: buildExecutePrompt(buildRedefinedPart(part, correctionFailures), draftMaterial, null, task) },
           ]
         : [
             { role: "system", content: EXECUTE_SYSTEM_PROMPT },
@@ -3288,6 +3327,27 @@ export async function runPart({
     check = inspect(draft);
     verdict = verdictOf(draft, check);
     mode = pieceMode(modeOf(verdict, check));
+  }
+
+  // THE ANCHOR CHASE (anchor-chase.js; ⊨+ Lens·Binding, ○+ Entity·Binding). A draft whose every named
+  // particular lives in a passage that does NOT hold the question's own anchors (a distractor's leader, or a
+  // stranger) is asked ONE more time with the material narrowed to the anchor passages — an INPUT change, stated as
+  // the material, never a prohibition. The first draft stays on the record (`anchorChase.first`); the second
+  // replaces it only if it names nothing the anchor passages do not hold (a fact, not a threshold).
+  let anchorChase = null;
+  if (passages.length > 1 && !piece && !verdict.echoed && !verdict.reproduced && !verdict.narrated) {
+    const found = anchorFindings(question, passages, draft);
+    if (found) {
+      const narrowed = buildSourceBlock(found.anchors);
+      const again = executeMessages.map((m) => ({ ...m, content: m.content.split(draftMaterial).join(narrowed) }));
+      if (again.some((m, i) => m.content !== executeMessages[i].content)) {
+        const raw2 = await call(again, { effort: "low", maxTokens: executeMaxTokens, ...streaming });
+        const second = clean(raw2);
+        const ok = !!second.trim() && !anchorFindings(question, passages, second); // no particular at all (a plain 'not stated') is anchored too: nothing foreign was named
+        anchorChase = { first: draft, second, refs: found.anchors.map((p) => p.ref), foreign: found.foreign.map((a) => a.text), accepted: !!ok };
+        if (ok) { draft = second; check = inspect(draft); verdict = verdictOf(draft, check); }
+      }
+    }
   }
 
   // The mechanical fallback (user-directed 2026-08-17): the correction
@@ -3888,7 +3948,13 @@ export async function runPart({
           grounding: groundingParts,
         },
         experiencer: shipExperiencer,
-        harmLaw: shipHarmLaw ?? COMMAND_HARM_LAW,
+        // No default word-list harm law (user, 2026-09-19: "harm class shouldn't
+        // really exist as a module — AntiStrauss is to make it structurally
+        // very difficult"). The old default (COMMAND_HARM_LAW) matched ANY one
+        // of its patterns anywhere in the draft, so "Her office moved" or "the
+        // man who owns the shop" refused the whole answer as "harm class". A
+        // caller may still inject a law; the seam no longer supplies one.
+        harmLaw: shipHarmLaw ?? [],
       });
       if (shipment.refused.length) {
         // A harm-class sentence is refused at the seam — nothing of it
@@ -3916,10 +3982,18 @@ export async function runPart({
         // rides the record. A draft carrying a harm-class sentence keeps the
         // old behaviour: nothing of it ships.
         open.push(`composition seam: nothing verified composed — ${shipment.coverageLine} ${part.label}`);
-        if (!shipment.refused.length && String(text ?? "").trim()) {
-          text = `${String(text).trim()}\n\nNothing I found backed this up, so treat it as unchecked.`;
+        // Plain words, never bookkeeping (user, 2026-09-19: "the model should be
+        // giving back stuff like 'Nothing I found backed this up, so treat it as
+        // unchecked'"): with a refused sentence the rest still ships — the
+        // refused one is left out and the gap said — and only when nothing is
+        // left is that said plainly too. The coverage line stays on the record.
+        const left = shipment.refused.length
+          ? (shipment.withheld ?? []).map((w) => String(w?.sentence ?? "").trim()).filter(Boolean).join(" ")
+          : String(text ?? "").trim();
+        if (left) {
+          text = `${left}\n\nNothing I found backed this up, so treat it as unchecked.${shipment.refused.length ? " Part of the draft was left out." : ""}`;
         } else {
-          text = shipment.coverageLine;
+          text = "I left that draft out, so I have no answer to give for it.";
         }
       }
     } catch (e) {
@@ -3954,7 +4028,6 @@ export async function runPart({
   // THE RECORD OWNS ITS CORRECTIONS (user, 2026-09-07: "I just want it to learn and own its mistakes"): a correction learned in this conversation and in scope of this question is said on the answer, in the record's own words — what was held, what the sources say.
   // Record-only (user, 2026-09-07: "we don't need apologies, just awareness in a way that makes future mistakes less likely"): the awareness is the corrected fact handed back in scope and the guard that catches a repeat; `owned` names them on the record, the answer is not decorated.
   const owned = ownedRows(learnedRows, { since: learnedSince });
-  if (selfRows.length) text = `${text}\n\n${contradictionLine(selfRows)}`;
   onProgress?.("checked", part, { refs: check.refs, unsupported: check.unsupported, open, relations: check.relations });
 
   return {
@@ -3971,6 +4044,7 @@ export async function runPart({
     ...(selfRows.length ? { selfContradictions: selfRows.map((r) => ({ kind: r.kind, key: r.key, basis: r.basis, turn: r.turn })) } : {}),
     ...(position ? { position: position.verdict } : {}),
     ...(continued ? { continued } : {}),
+    ...(anchorChase ? { anchorChase } : {}),
     ...(piece ? { piece: { obligations: piece.obligations ?? [], coverage, reasked, metaCut, hunted, words: wordCount(text), snipCheck } } : {}),
     ...(turnCorrection ? { correction: turnCorrection } : {}),
     ...(!piece && metaCut.length ? { metaCut } : {}),
@@ -4191,6 +4265,12 @@ export async function runHolonicTask({
   // silently). Absent, the fit is a typed gap and everything else still runs.
   mouthModel = null,
   mouthWindowOf = null,
+  // P244's oracle door: logos.js's questionCycle result over this task, when
+  // the caller already computed one. undefined (every existing caller) =
+  // unchecked, and Gary falls back to the content-words heuristic; null =
+  // checked, no claim in the question's own words; an object = a claim is
+  // in view and the door never fires. Threaded to every Gary read below.
+  oracleQuestionCycle = undefined,
 }) {
   // THE MOUTH'S DOOR, KEPT BY GARY (gary.js). He strikes every address before
   // the model sees it — the same firewall organ this line always used, so the
@@ -4202,16 +4282,55 @@ export async function runHolonicTask({
   // and counts, never the prompt's text). He changes only the input, and never
   // a word of what comes back (P186).
   const gary = makeGary({ strikeAddresses, apparatusMentions, kondo: makeKondo(), windowOf: mouthWindowOf });
+  // P244's material-in-view count, read once per task: what this turn stands
+  // on. Chunks are the admitted material; transcript and chatHistory are the
+  // conversation's own record (an anaphoric follow-up's claim lives there);
+  // discourse/priorPass/searchedVoid are a live task context even with no
+  // passages (a hunt that ran and found nothing is still a task in view —
+  // P32's own amendment feeds it to the mouth rather than refusing it);
+  // math is a declared task even with no prose to stand on. Gary never
+  // guesses it — it is counted here, at the seam, outside the mouth.
+  const oracleInView =
+    chunks.length + transcript.length + chatHistory.length +
+    (math != null ? 1 : 0) +
+    (discourse ? 1 : 0) +
+    (priorPass != null ? 1 : 0) +
+    (searchedVoid != null ? 1 : 0);
   if (typeof call === "function") {
     const rawCall = call;
     call = (messages, opts) => {
-      const bag = gary.hand(messages, { model: mouthModel, options: opts ?? {} });
+      const bag = gary.hand(messages, { model: mouthModel, options: opts ?? {}, material: oracleInView, questionCycle: oracleQuestionCycle });
       if (bag.findings.length) onProgress?.("prompt", null, garyDecision({ model: mouthModel, read: bag }));
       return rawCall(bag.messages, opts);
     };
   }
   if (!task || typeof task !== "string") throw new TypeError("runHolonicTask requires a task string");
   if (typeof call !== "function") throw new TypeError("runHolonicTask requires a call function");
+  // ── NO-ORACLE-MODE (P244) ─────────────────────────────────────────────
+  // No live claim, document, or task in view: the mouth is not called at
+  // all. This sits beside the answered-before-the-model door below (which
+  // needs chunks/transcript/math to even run — exactly what is absent
+  // here), and returns that door's own shape so the caller renders it the
+  // same way: zero calls, the fixed refusal as output, every checklist
+  // field declared empty rather than absent (P4). A REFUSE the caller can
+  // see, never a silent no-op and never a free-associated answer.
+  // NARROWED 2026-09-18 (P244 landing): conversation context counts as in
+  // view — chatHistory/discourse/priorPass/searchedVoid above — so only a
+  // true cold open (nothing attached, nothing said, an uncheckable question)
+  // refuses. A bare "hi" mid-conversation keeps its voice.
+  if (oracleInView === 0) {
+    const probe = gary.check([{ role: "user", content: task }], { model: mouthModel, options: {}, material: 0, questionCycle: oracleQuestionCycle });
+    if (probe.findings.some((f) => f.rule === "no-oracle-mode")) {
+      onProgress?.("prompt", null, garyDecision({ model: mouthModel, read: probe }));
+      const text = oracleRefusalText();
+      return {
+        oracleRefused: true, answeredBeforeTheModel: null, calls: 0, depth: 0,
+        task, plan: null, log: null, production: null,
+        sections: [], output: text, refs: [], unsupported: [], unbacked: [], open: [], channels: [],
+        learned: [], gridLog, hyperlexiconLog, hyperlexiconTurnedAway: [],
+      };
+    }
+  }
   // ── ANSWERED BEFORE THE MODEL (P173) ──────────────────────────────────
   // User, 2026-09-06: "why is the model even doing the generation? how much
   // of this can we do before it gets to the model?" For a class of questions

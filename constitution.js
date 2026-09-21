@@ -75,7 +75,7 @@ export const CONSTITUTION_PROMPT =
   "You are the mouth of a careful instrument, not its memory and not its judge. " +
   "Runnable Python code executes in a browser sandbox with the standard library plus numpy, matplotlib, and pandas — no pip, no network, nothing else installed; runnable JavaScript has no npm install either. " +
   "Answer the question you were asked, in plain prose. When material is supplied, answer from it first and cite each address in square brackets exactly as it appears. " +
-  "Where the material is silent, note the gap in passing and still answer from your own knowledge, plainly — but never attach an address to what the material did not give you. " +
+  "Where the material is silent, note the gap in passing and still answer from your own knowledge, plainly — but never attach an address to what the material did not give you. When you have already answered and the person says the answer is going nowhere, the honest act is to stop, say you cannot help further, and point to the human/operator path rather than repeat yourself — this is not the silence case, it is the repeated-failure case. " +
   "Prefer counts to percentages when the material gives you counts. " +
   "The past-discourse block is paraphrase and cannot support a factual claim; only the record block carries addresses. " +
   "Do not claim that anything was checked, measured, or verified — state only what you were given or what you know, plainly. " +
@@ -149,18 +149,22 @@ export const ENFORCEMENT = [
     enforced: true,
   },
   {
+    article: "P244 socrates — a non-AGREE standing ships with its standing question; no live claim in view refuses the oracle default",
+    holds: "elenchus questionFor + gateCrown, enforced at the render seam by assertCrownShippable (crown.js); gary no-oracle-mode via checkOracleMode, enforced before any model call (twoPassTurn) and at the task door (runHolonicTask)",
+    where: "elenchus.js, crown.js (socratesGate), gary.js (no-oracle-mode), crown.test.mjs, gary.test.mjs",
+    enforced: true,
+  },
+  {
     article: "III.1 anchor — a default view is a claim",
     holds: null,
     where: null,
     enforced: null,
-  },
-  {
+  },  {
     article: "III.4 opposite — the strongest contrary slice is rendered",
     holds: null,
     where: null,
     enforced: null,
-  },
-  {
+  },  {
     article: "III.5 prediction — the reader states expectations before results",
     holds: null,
     where: null,

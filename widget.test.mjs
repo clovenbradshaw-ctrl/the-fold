@@ -24,14 +24,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import * as taskLog from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
-import { checkCubeProgression } from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
+import * as taskLog from "../eoreader7/native/kernel/task-log.js";
+import { checkCubeProgression } from "../eoreader7/native/kernel/task-log.js";
 import { RENDERABLE, parseSegments, toDocument } from "./artifact.js";
 import { makeBuildLog } from "./build-log.js";
 import { tokenize } from "./source.js";
-import * as enginePriors from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
+import * as enginePriors from "../eoreader7/native/adapters/text/priors.js";
 import { CLAUSE_OPENERS } from "../eoreader7/native/adapters/text/priors.js";
 import { classifyWord, dominantClass } from "../eoreader7/native/adapters/text/wordclass.js";
+import { GRAMMAR_MIN_SHARE } from "../eoreader7/native/adapters/text/grain-typing.js";
 import { makeWidgetRouter } from "./widget.js";
 import { skeletonFor } from "./code-piece.js";
 
@@ -39,19 +40,29 @@ import { skeletonFor } from "./code-piece.js";
 // classes the page gets from /engine. No stub carries these walls either.
 const { iterationTell, routeMessage, routeSegment } = makeWidgetRouter(enginePriors);
 
+// The PRE-FIX router the fail-then-pass tests need: the register minus
+// CLAUSE_OPENERS and with no POS prior. When these tests were first written,
+// `enginePriors` pointed at the frozen legacy provider, which predated
+// CLAUSE_OPENERS (promoted into the register 2026-09-01) — so the bare
+// router WAS the pre-fix shape. The native register now carries
+// CLAUSE_OPENERS itself (this file's own enginePriors import moved to it),
+// so the pre-fix shape must be reconstructed by stripping the class
+// explicitly rather than by pointing at an older provider — the same
+// "the fixture must match what ships" discipline P193's own lesson names.
+const { CLAUSE_OPENERS: _preFixOpener, ...preFixPriors } = enginePriors;
+const preFixRouter = makeWidgetRouter(preFixPriors);
+
 // A SECOND router, additive to the one above — bound the way app.js actually
-// binds it in production: `enginePriors` above is the FROZEN legacy
-// provider (CLAUDE.md's own ratchet keeps it as a reference, never edited),
-// which predates CLAUSE_OPENERS (promoted into the register 2026-09-01) and
-// carries no POS prior at all. `routedReal` merges in the native provider's
-// CLAUSE_OPENERS and the real, committed UD-treebank POS prior
-// (priors-data/pos-prior-eng.json — the SAME file app.js fetches), so the
-// specimens below are verified against what actually ships, not a stand-in.
+// binds it in production: `routedReal` merges in CLAUSE_OPENERS (already in
+// the native register, kept explicit here) and the real, committed
+// UD-treebank POS prior (priors-data/pos-prior-eng.json — the SAME file
+// app.js fetches), so the specimens below are verified against what actually
+// ships, not a stand-in.
 const here = path.dirname(fileURLToPath(import.meta.url));
 const realPosPrior = JSON.parse(fs.readFileSync(path.join(here, "priors-data/pos-prior-eng.json"), "utf8"));
 const routedReal = makeWidgetRouter(
   { ...enginePriors, CLAUSE_OPENERS },
-  { classifyWord, dominantClass, posPrior: () => realPosPrior },
+  { classifyWord, dominantClass, posPrior: () => realPosPrior, GRAMMAR_MIN_SHARE },
 );
 
 const buildLog = makeBuildLog(taskLog);
@@ -1066,7 +1077,7 @@ test("anaphora reads the surrounding tokens: a bare demonstrative followed by a 
     const top = classified?.candidates?.[0];
     return top && top.share >= minShare ? top : null;
   };
-  const routed = makeWidgetRouter(enginePriors, { classifyWord: stubClassify, dominantClass: stubDominant, posPrior: () => posPrior });
+  const routed = makeWidgetRouter(enginePriors, { classifyWord: stubClassify, dominantClass: stubDominant, posPrior: () => posPrior, GRAMMAR_MIN_SHARE });
 
   assert.equal(routed.iterationTell("what is this app, in one sentence?", known), null, "a known noun after the demonstrative — determiner use");
   // "widget" carries no entry in this stub prior (the real treebank's own
@@ -1080,7 +1091,7 @@ test("anaphora reads the surrounding tokens: a bare demonstrative followed by a 
   // demonstrative (a verb, an adjective) still reports pronominal, and a
   // demonstrative with nothing following it still does too.
   const posPrior2 = { forms: { app: [{ upos: "NOUN", count: 10, share: 1 }], is: [{ upos: "AUX", count: 10, share: 1 }], bigger: [{ upos: "ADJ", count: 10, share: 1 }] } };
-  const routed2 = makeWidgetRouter(enginePriors, { classifyWord: stubClassify, dominantClass: stubDominant, posPrior: () => posPrior2 });
+  const routed2 = makeWidgetRouter(enginePriors, { classifyWord: stubClassify, dominantClass: stubDominant, posPrior: () => posPrior2, GRAMMAR_MIN_SHARE });
   assert.equal(routed2.iterationTell("this is broken", known), "anaphora", "a known verb after the demonstrative — still pronominal");
   assert.equal(routed2.iterationTell("make this bigger", known), "anaphora", "a known adjective after the demonstrative — still pronominal");
   assert.equal(routed2.iterationTell("fix it, it's broken", known), "anaphora", "nothing follows — still pronominal");
@@ -1311,12 +1322,12 @@ test("(a)/(c) fail-then-pass: the pre-fix router (no CLAUSE_OPENERS, no POS prio
   // every caller that has not opted into CLAUSE_OPENERS/the POS prior —
   // matchedTerms/iterationTell here show exactly the routing this file's
   // own fix exists to prevent, using the SAME three specimens above.
-  assert.deepEqual(iterationTell("Great, thanks so much for the help today!", gcdKnown), "resolved");
-  assert.deepEqual(iterationTell(
+  assert.deepEqual(preFixRouter.iterationTell("Great, thanks so much for the help today!", gcdKnown), "resolved");
+  assert.deepEqual(preFixRouter.iterationTell(
     "I want to correct something: the treaty was signed in 1868, not 1867, regardless of whether earlier sources say otherwise.",
     validatorKnown,
   ), "judgment");
-  assert.deepEqual(iterationTell("The list should be processed backwards, not forwards, per the updated requirements.", walkBackwardKnown), "resolved");
+  assert.deepEqual(preFixRouter.iterationTell("The list should be processed backwards, not forwards, per the updated requirements.", walkBackwardKnown), "resolved");
 });
 
 test("the morphological gate never touches an EXACT match — real code identifiers and the flagship suffix cases (buttons/colors) keep working exactly as before", () => {
@@ -1330,7 +1341,7 @@ test("both new gates fall OPEN, not closed, when their prior is unavailable — 
   // CLAUSE_OPENERS absent: the base router (legacy priors alone) still
   // reads "whether" as ordinary content, exactly as it did before this class
   // was ever wired in — disclosed, not silently narrowed for every caller.
-  assert.deepEqual(iterationTell(
+  assert.deepEqual(preFixRouter.iterationTell(
     "I want to correct something: the treaty was signed in 1868, not 1867, regardless of whether earlier sources say otherwise.",
     validatorKnown,
   ), "judgment");

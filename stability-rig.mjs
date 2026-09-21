@@ -122,7 +122,15 @@ export async function runTurn({ material, question, rung = RUNGS.at(-1), faults 
     const rel = O.relationsFor(chunks, { pool: chunks });
     ledger = admitPassages(O.hl, null, chunks, { read: rel.read, witnessFor: (p) => `${p.ref}~${O.recipe}`, frame: O.frame }).log ?? null;
   }
-  const ledgerBefore = ledger?.entries?.length ?? 0;
+  // blastRadius bounds the WHOLE record delta the turn's machinery produced,
+  // arrival read included (reconciled 2026-09-20): since P68, a turn's own
+  // re-admission of material the arrival read already admitted is a
+  // structural no-op, so a single-chunk item added NOTHING during the part
+  // and the measurement was unmeasurable ("nothing to bound") even though
+  // the arrival read had put its notes on the record. The arrival read is
+  // part of this turn's machinery and is handed the same in-scope chunks,
+  // so bounding it too is strictly more complete, never weaker.
+  const ledgerBefore = 0;
 
   // app.js::currentIndexAndBook: the constitutional reading when it completed,
   // otherwise the presence index and its sentence book over the chunks. A read

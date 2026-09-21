@@ -171,18 +171,11 @@ export const STANDINGS = Object.freeze(["verbatim", "witnessed", "grounded", "un
 // drift from the constitution. Where a caller supplies an empty law, the
 // seam's disclosure floor still holds — the refusal floor is simply lower,
 // and it is disclosed as lowered.
-export const COMMAND_HARM_LAW = Object.freeze([
-  {
-    id: "command_harm",
-    label: "imperative command to harm a person",
-    basis: "a command is the one speech act the experiencer law cannot absorb — it overrides rather than undergoes; a sentence that opens the imperative register and names an act of physical harm against a person is refused at the seam",
-    patterns: [
-      /^(first|second|third|next|then|step|finally|lastly|after that|firstly|secondly)\b/i,
-      /\b(shoot|stab|kill|maim|poison|beat|strangle|drown|burn alive|decapitate|torture|mutilate|murder|assassinate|lynch)\b/i,
-      /\b(person|victim|target|them|him|her|neighbor|neighbour|officer|child|woman|man)\b/i,
-    ],
-  },
-]);
+// COMMAND_HARM_LAW was removed here 2026-09-19 (user: "harm class shouldn't really
+// exist as a module — AntiStrauss is to make it structurally very difficult").
+// It matched ANY one of its patterns anywhere in a draft, so ordinary words
+// ("her", "man", "then") refused whole answers. The seam still takes an
+// injected `harmLaw`; it no longer ships one.
 
 const norm = (s) => String(s ?? "")
   .toLowerCase()

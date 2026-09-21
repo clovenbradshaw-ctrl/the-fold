@@ -1,0 +1,49 @@
+// wals-typology-data.js — the SAME real WALS Online data as
+// wals-typology.json (this directory), as a plain ES module object
+// literal instead of a JSON file read via node:fs.
+//
+// WHY THIS SECOND COPY EXISTS, rather than one file: language-typology.js
+// originally read wals-typology.json with `readFileSync` at module TOP
+// LEVEL (P227) — Node-only, and it breaks a browser's module graph
+// immediately on import, before any function is even called (found live,
+// 2026-09-15, trying to demonstrate language-relation-reader.js in a real
+// browser tab: "Access to script at 'node:fs'... blocked by CORS
+// policy"). A plain ES module object literal is the one form both
+// environments load identically with zero runtime branching, zero async
+// boundary, and zero bundler — this repo's own no-CDN, plain-ES-modules
+// law (CLAUDE.md).
+//
+// wals-typology.json stays the canonical, diffable PROVENANCE artifact —
+// "a received table is checked against its real source, never
+// transcribed from memory" reads more naturally as reviewable JSON than
+// as JS syntax, and it is what a future re-fetch would regenerate. This
+// file's content is copied VERBATIM from it (never hand-retyped — a JSON
+// object literal is already valid JS, so no transformation happened) and
+// `language-typology.test.mjs` pins the two files byte-for-byte equal so
+// they cannot silently drift apart.
+export const WALS_TYPOLOGY_FIXTURE = {
+  "giver": {
+    "resource": "WALS Online",
+    "version": "v2020.4",
+    "url": "https://doi.org/10.5281/zenodo.13950591",
+    "retrievedAt": "2026-09-15",
+    "features": {
+      "81A": "Matthew S. Dryer. 2013. Order of Subject, Object and Verb. In: Dryer, Matthew S. & Haspelmath, Martin (eds.), WALS Online (v2020.4) [Data set]. Zenodo. https://doi.org/10.5281/zenodo.13950591 (http://wals.info/chapter/81)",
+      "49A": "Oliver A. Iggesen. 2013. Number of Cases. In: Dryer, Matthew S. & Haspelmath, Martin (eds.), WALS Online (v2020.4) [Data set]. Zenodo. https://doi.org/10.5281/zenodo.13950591 (http://wals.info/chapter/49)",
+      "51A": "Matthew S. Dryer. 2013. Position of Case Affixes. In: Dryer, Matthew S. & Haspelmath, Martin (eds.), WALS Online (v2020.4) [Data set]. Zenodo. https://doi.org/10.5281/zenodo.13950591 (http://wals.info/chapter/51)"
+    }
+  },
+  "_fetchedVia": "curl https://wals.info/feature/81A.tab, 49A.tab and 51A.tab, filtered to the wals codes below — real captured rows, never hand-typed values (this repo's own standing rule: a received table is checked against its real source, not transcribed from memory)",
+  "_why51A": "49A alone ('number of cases') cannot tell English apart from Russian — WALS records English at '2 cases' (its closed pronoun class: he/him, who/whom), which is not a general noun-marking system the way Russian's 6-7 cases are. 51A ('position of case affixes') answers the question this module actually needs: does the language mark role with an AFFIX ON THE NOUN at all. English reads 'No case affixes or adpositional clitics' there — correctly excluding its vestigial pronoun case from counting as a usable role-assignment mechanism for arbitrary noun phrases.",
+  "languages": [
+    { "iso639_1": "en", "walsCode": "eng", "name": "English", "genus": "Germanic", "family": "Indo-European", "dominantOrder81A": "SVO", "case49A": "2 cases", "caseAffix51A": "No case affixes or adpositional clitics" },
+    { "iso639_1": "ru", "walsCode": "rus", "name": "Russian", "genus": "Slavic", "family": "Indo-European", "dominantOrder81A": "SVO", "case49A": "6-7 cases", "caseAffix51A": "Case suffixes" },
+    { "iso639_1": "he", "walsCode": "heb", "name": "Hebrew (Modern)", "genus": "Semitic", "family": "Afro-Asiatic", "dominantOrder81A": "SVO", "case49A": "No morphological case-marking", "caseAffix51A": "Prepositional clitics" },
+    { "iso639_1": "ar", "walsCode": "aeg", "name": "Arabic (Egyptian)", "genus": "Semitic", "family": "Afro-Asiatic", "dominantOrder81A": "SVO", "case49A": "No morphological case-marking", "caseAffix51A": "No case affixes or adpositional clitics", "note": "WALS's Modern Standard Arabic entry (wals code 'ams') carries no 49A/51A case entry at all -- a typed gap, not a zero -- and its own 81A order is VSO, the classical/formal register's pattern; Egyptian Arabic (aeg) is used here because it is the one variety WALS records these features for, and the values match how this repo's own relation-kinds.js/grounding-gfp.js headers already describe Arabic (root-and-pattern, no general case)." },
+    { "iso639_1": "zh", "walsCode": "mnd", "name": "Mandarin", "genus": "Chinese", "family": "Sino-Tibetan", "dominantOrder81A": "SVO", "case49A": "No morphological case-marking", "caseAffix51A": "No case affixes or adpositional clitics" },
+    { "iso639_1": "ja", "walsCode": "jpn", "name": "Japanese", "genus": "Japanese", "family": "Japanese", "dominantOrder81A": "SOV", "case49A": "8-9 cases", "caseAffix51A": "Postpositional clitics" },
+    { "iso639_1": "ko", "walsCode": "kor", "name": "Korean", "genus": "Korean", "family": "Korean", "dominantOrder81A": "SOV", "case49A": "6-7 cases", "caseAffix51A": "Case suffixes" },
+    { "iso639_1": "tr", "walsCode": "tur", "name": "Turkish", "genus": "Turkic", "family": "Altaic", "dominantOrder81A": "SOV", "case49A": "6-7 cases", "caseAffix51A": "Case suffixes" },
+    { "iso639_1": "fi", "walsCode": "fin", "name": "Finnish", "genus": "Finnic", "family": "Uralic", "dominantOrder81A": "SVO", "case49A": "10 or more cases", "caseAffix51A": "Case suffixes" }
+  ]
+};

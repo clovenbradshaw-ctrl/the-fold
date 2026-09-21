@@ -620,3 +620,28 @@ test("the null is deterministic under its own default seed — a pure function, 
   assert.equal(a.admitted, b.admitted);
   assert.equal(a.reason, b.reason);
 });
+
+// A NAME IS NOT A COMMON WORD (Kelsen/Parmenides): a five-paragraph source cannot clear the co-occurrence null for a one-place hit, yet it carries the very name the question asks about.
+{
+  const DOC = [
+    "The Vellmar bridge reopened to traffic on 4 March 2031 after a two-year closure. The reopening ceremony was led by the harbour master, Ines Okafor.",
+    "The bridge carries 12,000 vehicles a day. The older Karst tunnel, two kilometres upstream, carries 9,500 vehicles a day.",
+    "Construction was funded by a regional grant. The contractor, Halden Works, finished the steel deck in November 2030.",
+    "A separate project, the Ostrin footbridge, opened in June 2029 and is managed by the parks department.",
+    "Local shops reported a rise in foot traffic after the reopening.",
+  ].join("\n\n");
+  test("a source carrying every name the question carries is admitted, not refused as chance", () => {
+    const v = admissionWithCompany.sourceAdmits("When did the Vellmar bridge reopen?", DOC);
+    assert.equal(v.admitted, true);
+    assert.match(v.reason, /carries the name/);
+  });
+  test("names handed in from the conversation (an anaphoric ask) admit the same way", () => {
+    assert.equal(admissionWithCompany.sourceAdmits("And who led that ceremony?", DOC).admitted, false);
+    assert.equal(admissionWithCompany.sourceAdmits("And who led that ceremony?", DOC, { names: ["Vellmar"] }).admitted, true);
+  });
+  test("control: a name the source does NOT carry admits nothing", () => {
+    const v = admissionWithCompany.sourceAdmits("When did the Hinman bridge reopen?", DOC);
+    assert.doesNotMatch(v.reason, /carries the name/);
+    assert.equal(admissionWithCompany.sourceAdmits("Who designed the Zorbek bridge?", DOC).admitted, false);
+  });
+}

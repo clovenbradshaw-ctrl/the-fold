@@ -159,6 +159,44 @@ test("shaped: choose, factorial, statistics, derivative-at, linear and quadratic
   assert.deepEqual(checkShaped("solve x^2 - 5x + 6 = 0", { math }).value, [2, 3]);
 });
 
+// The five exact-arithmetic shapes measured live as model-generated wrong
+// (2026-09-17): fibonacci, the exact big product, factorial-with-gloss,
+// √/cube-root (single and compound), and the percent-with-tax word problem.
+test("shaped: fibonacci is the engine's own matrix power, exact at any index", () => {
+  assert.equal(checkQuantity("what is the 25th fibonacci number, exactly?", { math }).display, "75025");
+  assert.equal(checkShaped("fib of 10", { math }).display, "55");
+  assert.equal(checkShaped("What is the 1st fibonacci number?", { math }).display, "1");
+});
+
+test("shaped: the exact big product never passes through float", () => {
+  // 123456789*987654321 as a double ends ...260; the true product ends ...269.
+  assert.equal(checkQuantity("what is the exact product of 123,456,789 × 987,654,321?", { math }).display, "121932631112635269");
+  assert.equal(checkQuantity("what is 123456789 * 987654321?", { math }).display, "121932631112635269");
+  assert.equal(checkQuantity("what is 17 × 24?", { math }).display, "408");
+  // Layering: the pure door declines the big bare-star product so this shape
+  // can claim it exactly, and keeps the small ones byte-identical.
+  assert.equal(detectArithmetic("what is 123456789 * 987654321?", { math }), null);
+  assert.equal(checkQuantity("what is 17 times 24?", { math }).value, 408);
+  assert.equal(detectShaped("What is 17 times 24?", { math }), null);
+});
+
+test("shaped: factorial tolerates a parenthetical gloss and an exact-integer tail", () => {
+  assert.equal(checkQuantity("what is 17! (seventeen factorial) as an exact integer?", { math }).display, "355687428096000");
+  assert.equal(checkShaped("What is 12 factorial?", { math }).value, 479001600);
+});
+
+test("shaped: modulo, roots, and the two-limb compound", () => {
+  assert.equal(checkQuantity("what is 12345 mod 97?", { math }).value, 26);
+  assert.equal(checkQuantity("what is the cube root of 1728?", { math }).value, 12);
+  assert.equal(checkQuantity("how much is √529, and what about the cube root of 1728?", { math }).display, "23; 12");
+  // A compound claims only when EVERY limb independently claims.
+  assert.equal(checkQuantity("how much is √529, and what about the mayor?", { math }), null);
+});
+
+test("shaped: percent taken then tax on the result is read structurally", () => {
+  assert.equal(checkQuantity("if 15% of 2000 is taken and then 8% tax is added to the result, what is the final amount?", { math }).display, "324");
+});
+
 test("shaped: a question about the world, and a pure expression, are never this door's", () => {
   assert.equal(detectShaped("Who is the mayor of Nashville?", { math }), null);
   assert.equal(detectShaped("What is 17 times 24?", { math }), null);

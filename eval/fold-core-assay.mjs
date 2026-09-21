@@ -33,7 +33,7 @@ import { chunkSource } from "../source.js";
 
 // ── shared organs ──
 import { makeReferentIndex } from "../cast.js";
-import { createRecursiveReader } from "../../eoreader7/kernel.js";
+import { createRecursiveReader } from "../../eoreader7/native/kernel/index.js";
 import {
   createCausalTextPerceiver, textEncounters, surfaceIndex, surfacesIn
 } from "../../eoreader7/native/adapters/text/recursive.js";
@@ -597,7 +597,7 @@ async function armReadingLog() {
   try {
     POS = JSON.parse(
       readFileSync(
-        new URL("../../eoreader7/legacy-eoreader6.1/bin/priors/pos/en-ud-ewt.json", import.meta.url),
+        new URL("../../eoreader7/native/eval/the-fold/fixtures/pos-prior-eng.json", import.meta.url),
         "utf8"
       )
     );
@@ -605,7 +605,7 @@ async function armReadingLog() {
     // fallback: try the priors-data path
     POS = JSON.parse(
       readFileSync(
-        new URL("../../priors-data/pos-prior-eng.json", import.meta.url),
+        new URL("../../eoreader7/native/eval/the-fold/fixtures/pos-prior-eng.json", import.meta.url),
         "utf8"
       )
     );

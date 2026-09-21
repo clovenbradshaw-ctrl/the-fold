@@ -47,6 +47,10 @@
 //                     never wrapped in a directive about itself — fed a
 //                     description of the task, a small model answers with a
 //                     description of the task (FLAT_EXECUTE's own history).
+//   no-oracle-mode    No live claim, document, or task in view — the mouth
+//                     does not free-associate (P244). REFUSED: the caller
+//                     routes to the fixed reply (oracleRefusalText), never
+//                     to the model.
 //
 // PURE: no fetch, no DOM, no storage. The firewall's organs and Kondo are
 // injected; tested against the real ones.
@@ -62,6 +66,7 @@ export const RULES = Object.freeze([
   { id: "notes-are-not-cut-for-a-snip", cites: "P232 amendment", severity: SEVERITY.REFUSE, says: "a note is never dropped because a verbatim line carries it, outside the declared arm" },
   { id: "fits-the-window", cites: "P232", severity: SEVERITY.FLAG, says: "prompt plus declared output fits the loaded window, or the middle goes silently" },
   { id: "question-last", cites: "P199", severity: SEVERITY.FLAG, says: "the person's own message is the final turn, verbatim" },
+  { id: "no-oracle-mode", cites: "P244", severity: SEVERITY.REFUSE, says: "no live claim, document, or task in view — the mouth does not free-associate" },
 ]);
 
 /** Asking for JSON in prose — the shapes measured to teach a small model that
@@ -75,11 +80,73 @@ const PROHIBITION = /\b(?:do not|don't|never|avoid|refrain from|must not|should 
 const wordsOf = (t) => String(t ?? "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 const clip = (s, n = 90) => { const t = String(s ?? "").replace(/\s+/g, " ").trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
 
+// ── no-oracle-mode — the pure helpers, so callers without a Gary instance
+// (app.js's pre-model door, holon.js's task-level door) read the SAME rule
+// Gary's own check reads below: one implementation, never two that drift
+// (P22's own postmortem class). ────────────────────────────────────────────
+//
+// The floor is structural, never fitted: 2 distinct content words, reused
+// from admission.js's own ADMISSION_FLOOR (a whole source is not offered on
+// less), never a fresh number. The stopword set mirrors eoreader7
+// native/organs/source.js's own STOPWORDS (copied, not imported — this file
+// holds no imports by design, and the page graph pins that); the length
+// floor mirrors that tokenizer's own (length > 2, numerals exempt).
+export const ORACLE_MIN_CONTENT_WORDS = 2;
+
+const ORACLE_STOPWORDS = new Set(
+  ("a an and are as at be but by for from had has have he her his i in into is it its of on or " +
+    "our she that the their them there these they this to was were what when where which who why " +
+    "will with would you your do does did can could should about not no if then than so " +
+    "how me my we us been being over under after before also just like more most some such only").split(" "),
+);
+
+const isNumeral = (t) => /^\d+$/.test(t);
+
+/** The turn's own checkable shape, mechanically: distinct content words. */
+export function oracleContentWords(text) {
+  return [...new Set(wordsOf(text).filter((t) => (t.length > 2 || isNumeral(t)) && !ORACLE_STOPWORDS.has(t)))];
+}
+
+/** Whether the person's own words carry anything an elenchus could hold against. */
+export function hasCheckableClaim(text) {
+  return oracleContentWords(text).length >= ORACLE_MIN_CONTENT_WORDS;
+}
+
+/**
+ * checkOracleMode({ materialEmpty, text, questionCycle } = {}) — the rule as
+ * a pure function. `materialEmpty`: true (nothing in view) / false / null
+ * or undefined (unknown — a gap, never a conviction: an absence the caller
+ * never measured must not refuse). `questionCycle`: undefined = not checked
+ * (fall back to the content-words heuristic); null = checked, no claim;
+ * object = a claim is in view, never refused. Returns the REFUSE finding or
+ * null — never throws, never a bare boolean (P4: a gap is a result).
+ */
+export function checkOracleMode({ materialEmpty = null, text = "", questionCycle = undefined } = {}) {
+  if (materialEmpty !== true) return null;
+  if (questionCycle !== undefined && questionCycle !== null) return null;
+  if (questionCycle === null) {
+    return { rule: "no-oracle-mode", severity: SEVERITY.REFUSE, cites: "P244", detail: "no live claim, document, or task in view — the mouth does not free-associate" };
+  }
+  if (hasCheckableClaim(text)) return null;
+  return { rule: "no-oracle-mode", severity: SEVERITY.REFUSE, cites: "P244", detail: `no live claim, document, or task in view (“${clip(text, 60)}”) — the mouth does not free-associate` };
+}
+
+/**
+ * oracleRefusalText({ lastRef } = {}) — the fixed, small reply an oracle-
+ * mode refusal routes to (P244): point back at the last live document or
+ * task, or ask what to read. Closed set of two shapes — no model call, no
+ * free association wearing a refusal's clothes.
+ */
+export function oracleRefusalText({ lastRef = null } = {}) {
+  if (lastRef) return `Nothing in view to stand on — no document, claim, or task in this turn. The last thing open was ${lastRef}; say the word and I'll read it. Otherwise: what should I read?`;
+  return "Nothing in view to stand on — no document, claim, or task in this turn. What should I read?";
+}
+
 export function makeGary({ strikeAddresses = null, apparatusMentions = null, kondo = null, windowOf = null, tokensOf = null } = {}) {
   const count = (text) => (typeof tokensOf === "function" ? { n: tokensOf(text), estimated: false } : { n: Math.ceil(String(text ?? "").length / 4), estimated: true });
 
   /** Every rule read over one call's messages. Returns findings, never throws. */
-  function check(messages, { model = null, options = {}, arm = "claims" } = {}) {
+  function check(messages, { model = null, options = {}, arm = "claims", material = undefined, questionCycle = undefined } = {}) {
     const list = Array.isArray(messages) ? messages : [];
     const text = list.map((m) => String(m?.content ?? "")).join("\n");
     const findings = [];
@@ -107,6 +174,20 @@ export function makeGary({ strikeAddresses = null, apparatusMentions = null, kon
     const last = list.at(-1);
     if (last && last.role !== "user") add("question-last", `the last turn is ${last.role}, not the person's own message`);
 
+    // no-oracle-mode reads the PERSON's own words (the last user turn, not
+    // merely the last turn — question-last above already owns the shape) and
+    // the caller's own material count. `material` undefined = the caller
+    // never said what is in view: a gap, never a refusal. An array counts by
+    // length; a number is the count; anything else is unknown too.
+    const lastUser = [...list].reverse().find((m) => m?.role === "user");
+    const materialEmpty = Array.isArray(material) ? material.length === 0 : typeof material === "number" ? material === 0 : null;
+    if (material === undefined) {
+      gaps.push({ type: "no_material_view", detail: "no material count handed over — oracle mode not checked" });
+    } else {
+      const hit = checkOracleMode({ materialEmpty, text: lastUser ? String(lastUser.content ?? "") : "", questionCycle });
+      if (hit) add(hit.rule, hit.detail);
+    }
+
     const tokens = count(text);
     const out = Number(options?.num_predict ?? 0) || 0;
     let window = null;
@@ -132,7 +213,7 @@ export function makeGary({ strikeAddresses = null, apparatusMentions = null, kon
    * decides whether to ship it, and the record says he objected. Gary changes
    * only the INPUT, and never a word of what comes back (P186).
    */
-  function hand(messages, { model = null, options = {}, arm = "claims" } = {}) {
+  function hand(messages, { model = null, options = {}, arm = "claims", material = undefined, questionCycle = undefined } = {}) {
     const list = Array.isArray(messages) ? messages : [];
     const handed = typeof strikeAddresses === "function"
       ? list.map((m) => (m && typeof m.content === "string" ? { ...m, content: strikeAddresses(m.content) } : m))
@@ -140,7 +221,7 @@ export function makeGary({ strikeAddresses = null, apparatusMentions = null, kon
     const struck = typeof strikeAddresses === "function"
       ? list.reduce((n, m, i) => n + (String(m?.content ?? "").length - String(handed[i]?.content ?? "").length), 0)
       : 0;
-    const read = check(handed, { model, options, arm });
+    const read = check(handed, { model, options, arm, material, questionCycle });
     return { messages: handed, struck, ...read, refused: read.findings.filter((f) => f.severity === SEVERITY.REFUSE) };
   }
 

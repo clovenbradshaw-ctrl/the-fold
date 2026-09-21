@@ -130,6 +130,33 @@ export const HELP = {
     tutorial: "A single act of the operator algebra — distinguish, relate, synthesize, define, evaluate, and the rest — lands on the grid log, and a distinguish over a loaded source can run the cast capacity for real (the referents found attach to the act's own entry). Refusals are typed and grammatical: no ground clause, an unestablished referent, an illegal stance — each is named, never guessed.",
     needs: "the composition grammar's own rules; a loaded source for a real cast run",
   },
+  "/ant": {
+    category: "build",
+    name: "Send a background ant",
+    summary: "sends one sub-agent that works in the background while the chat stays free — a reading subtask, or a sandboxed code run.",
+    syntax: "/ant [ask:|code:] <task>",
+    example: "/ant who held this office in 1862?\n/ant code: python: count the rows in pasted.txt",
+    tutorial: "One ant is one scoped errand: ask (the default) reads your attached material and reports findings; code: has the model write code and runs it in the same sandboxed, network-severed Worker /run uses. The ant gets its own clickable card — click to check in, findings land there when it settles. The chat never waits for it. The model can also propose ants itself by writing [[ant: ...]] in an answer, but that is only ever a one-click approval button — nothing runs until you click.",
+    needs: "a model call per ant (background); attached material for ask ants to read",
+  },
+  "/swarm": {
+    category: "build",
+    name: "Fan out an eoSwarm",
+    summary: "fans one goal out into 2–8 ants, each reading through its own numbered lens, settling into one summary.",
+    syntax: "/swarm <2-8> [ask:|code:] <goal>",
+    example: "/swarm 3 who held these three offices, one lens per office?",
+    tutorial: "A swarm is a named group of ants from one goal: each ant gets one numbered lens and its own card, and when they all land the swarm settles into a single summary message. Same consent as /ant — a typed door is your own act, and every ant's findings stay check-in-able on its card.",
+    needs: "a model call per ant (background); attached material for ask ants to read",
+  },
+  "/ants": {
+    category: "build",
+    name: "List the ants",
+    summary: "lists this conversation's ants and swarms, newest first, with their standing and findings.",
+    syntax: "/ants\n/ants all",
+    example: "/ants",
+    tutorial: "Bare /ants shows this conversation's own ants and swarms — status, kind, task, and findings so far. /ants all shows every conversation's. Clicking an ant's card in the transcript opens its full findings. The automatic suggestion chips under an answer are separately governed by the composer's suggest switch — off silences the chips, never the doors.",
+    needs: "nothing — it reads state",
+  },
 
   "/self": {
     category: "self",
@@ -389,6 +416,11 @@ export function renderHelpIndex() {
   }
   const parts = [
     "The Fold — the doors",
+    "",
+    "I am an AI assistant — The Fold, a local reading-and-research instrument. This is what I can and cannot help with:",
+    "I can help with: questioning material you attach; building and revising code/text folds; running code in a sandboxed, network-severed terminal; checking claims against the material and, with your consent, the web.",
+    "I cannot help with: anything needing the live web while web checking is off; running anything on your machine outside the browser sandbox; recalling anything across browser tabs or sessions beyond this conversation's own record. I am not designed to do those things.",
+    "Limitations: I am not a human agent and there is no second human to hand off to — you are the operator. Nothing here is trapped: stop, switch the model, or type /help for the doors.",
     "",
     "Every door below is checked BEFORE any model call, so what you type is never hijacked. Most are mechanical (computed, never generated); the ones that call a model or reach the network say so in their card. Type /help <door> for the full walkthrough of any command.",
     "",

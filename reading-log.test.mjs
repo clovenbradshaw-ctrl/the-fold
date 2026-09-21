@@ -11,14 +11,14 @@ import { foldReading, readingIndexFromLog, mentionBookFromLog, stepChunks } from
 import { activate } from "./activation-retrieval.js";
 import { referentsOf } from "./dialogue.js";
 import { chunkSource } from "./source.js";
-import { createRecursiveReader } from "../eoreader7/kernel.js";
+import { createRecursiveReader } from "../eoreader7/native/kernel/index.js";
 import { createCausalTextPerceiver, textEncounters, surfaceIndex, surfacesIn } from "../eoreader7/native/adapters/text/recursive.js";
 import { reviseTextFold } from "../eoreader7/native/adapters/text/revision.js";
 import { namesCorefer, diaNorm } from "../eoreader7/native/adapters/text/surfaces.js";
 import { dmdWindow } from "../eoreader7/native/kernel/activation.js";
 import { reconstruct } from "../eoreader7/native/kernel/fold.js";
 
-const POS = JSON.parse(readFileSync(new URL("../eoreader7/legacy-eoreader6.1/bin/priors/pos/en-ud-ewt.json", import.meta.url), "utf8"));
+const POS = JSON.parse(readFileSync(new URL("../eoreader7/native/eval/the-fold/fixtures/pos-prior-eng.json", import.meta.url), "utf8"));
 // The reference assembly, as eval/read-cost.mjs builds it (P0: named) — refreshEvery 3 here instead of the reference 25, because a nine-sentence fixture never reaches a refresh and a referent is born at a refresh.
 const makeReader = () => createRecursiveReader({
   perceivers: [createCausalTextPerceiver({ minRelationSurfaces: 2, refreshEvery: 3, posPrior: POS, descriptorAnchoring: { minActivation: 0.05, minMargin: 0.2 } })],

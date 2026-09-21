@@ -219,13 +219,17 @@ export function makeGfpGround({
       }
     }
     const folded = notes.foldHyperlexicon(log);
-    // THE CELL, FROM THE METASTRUCTURE (relation-kinds.js, user: "the
-    // metastructure is the meaning"). Every arrangement's label resolves to
-    // one of the 27 cells via kindOf — so the reading compares CELLS, never
-    // label strings. This is what makes it omnilingual: a Hebrew copula, an
-    // English "is", a Russian inflection all land on SIG·Figure, because the
-    // cell is a place in the lattice, not a string. A note whose label no
-    // closed kind admits keeps the raw label and is honestly unclassed.
+    // THE CELL, FROM THE METASTRUCTURE (relation-kinds.js). The metastructure
+    // is not the meaning — meaning is what the giver intended; the
+    // metastructure is only the closed frame this apparatus uses to talk
+    // about that intent across any medium. Every arrangement's label resolves
+    // to one of the 27 cells via kindOf — so the reading compares CELLS,
+    // never label strings. This is what makes it omnilingual: a Hebrew
+    // copula, an English "is", a Russian inflection all land on SIG·Figure,
+    // because the cell is a place in the lattice, not a string — a shared
+    // frame for comparing what was meant, not a substitute for it. A note
+    // whose label no closed kind admits keeps the raw label and is honestly
+    // unclassed.
     const withCell = (n) => {
       const k = kindOf(n.label ?? n.verb);
       return k?.gap ? n : { ...n, cell: k.cell, kindFrom: k.from, terrain: k.terrain, stance: k.stance, domain: k.domain };

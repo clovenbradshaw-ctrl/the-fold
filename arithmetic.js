@@ -163,12 +163,23 @@ export function stripCasualPreamble(s) {
   return out;
 }
 
+/** A bare product of two integer literals whose combined significant digits
+ * exceed what a double holds exactly (~15-16 digits): the Number engine
+ * would truncate trailing digits (measured live: 123456789*987654321 →
+ * ...260, true ...269). This door declines so the product shape below can
+ * claim it with the engine's own BigNumber instead. Small products stay
+ * here, byte-identical. */
+const BIG_INT_PRODUCT_RE = /^(-?\d+)\s*\*\s*(-?\d+)$/;
+const digitsOf = (s) => String(s ?? "").replace(/[^0-9]/g, "").replace(/^0+/, "").length || 1;
+
 export function detectArithmetic(question, { math } = {}) {
   const normalized = normalizeArithmeticPhrase(question);
   if (!normalized) return null;
   const stripped = stripCasualPreamble(normalized).replace(WRAPPER_RE, "").replace(/[?!.]+\s*$/, "").trim();
   if (!HAS_DIGIT_RE.test(stripped) || !HAS_OPERATOR_RE.test(stripped)) return null;
   if (!PURE_EXPRESSION_RE.test(stripped)) return null;
+  const big = BIG_INT_PRODUCT_RE.exec(stripped);
+  if (big && digitsOf(big[1]) + digitsOf(big[2]) > 15) return null;
   if (!math || typeof math.parse !== "function") return { expression: stripped, parseable: null };
   try {
     const node = math.parse(stripped);
@@ -269,7 +280,35 @@ const HOW_MANY_UNITS_RE = new RegExp(`^how\\s+many\\s+([A-Za-z]+)\\s+(?:are|is)\
 const DERIVATIVE_RE = /^(?:the\s+)?derivative\s+of\s+(.+?)(?:\s+with\s+respect\s+to\s+([a-z]))?(?:\s+at\s+([a-z])\s*=\s*(-?\d+(?:\.\d+)?))?$/i;
 const CHOOSE_RE = new RegExp(`^(${SHAPE_NUM})\\s+choose\\s+(${SHAPE_NUM})$`, "i");
 const COMBINATIONS_RE = new RegExp(`^(?:number\\s+of\\s+)?(?:ways\\s+to\\s+choose|combinations\\s+of)\\s+(${SHAPE_NUM})\\s+(?:items?\\s+)?(?:from|out\\s+of)\\s+(${SHAPE_NUM})`, "i");
-const FACTORIAL_RE = new RegExp(`^(${SHAPE_NUM})\\s*(?:!|factorial)$`, "i");
+const FACTORIAL_RE = new RegExp(`^(${SHAPE_NUM})\\s*(?:!|factorial)(?:\\s*\\([^)]*\\))?(?:\\s+(?:as|is)\\s+an?\\s+(?:exact\\s+)?(?:integer|number|value))?[\\s.,]*$`, "i");
+// Exact products (× or "times"), read as literals and computed with BigNumber
+// so 123456789 × 987654321 is 121932631112635269, never the float's trailing
+// ...260 — measured live, model and Number engine alike losing the last
+// digits. Claimed as its own shape so the pure door never converts these
+// operands to float first.
+const PRODUCT_OF_RE = new RegExp(`^(?:the\\s+)?(?:exact\\s+)?product\\s+of\\s*:?\\s*(${SHAPE_NUM})\\s*(?:×|\\*|times|multiplied\\s+by)\\s*(${SHAPE_NUM})\\s*$`, "i");
+const TIMES_GLYPH_RE = new RegExp(`^(${SHAPE_NUM})\\s*×\\s*(${SHAPE_NUM})\\s*$`);
+const BIG_STAR_PRODUCT_RE = new RegExp(`^(${SHAPE_NUM})\\s*\\*\\s*(${SHAPE_NUM})$`);
+// N mod M — the modulo shape, computed with the engine's own `mod`.
+const MODULO_RE = new RegExp(`^(${SHAPE_NUM})\\s+mod(?:ulo)?\\s+(${SHAPE_NUM})\\s*$`, "i");
+// Nth Fibonacci number — computed by the engine's own matrix power, never a
+// hand-rolled loop. F(1)=1, F(2)=1 via [[1,1],[1,0]]^(n). "32nd fibonacci",
+// "25th fibonacci number", "fib of 10" — one whole-question regex each.
+const FIBONACCI_RE = /^(?:the\s+)?(\d+)(?:st|nd|rd|th)?\s+fib(?:onacci)?(?:\s+number)?(?:\s*,?\s+exactly)?\s*$/i;
+const FIB_OF_RE = /^fib(?:\s+of)?\s+(\d+)\s*$/i;
+// Roots beyond the square case: "cube root of 1728", "√529", "the 3rd root
+// of 27". SQUARE_ROOT_RE (words) lives in normalization; this reads the
+// spelled root words and the √ glyph that normalization leaves alone, both
+// with the engine's own nthRoot.
+const ROOTWORD_RE = /^(?:the\s+)?(cube|cubic|(\d+)(?:st|nd|rd|th)?)\s+root\s+of\s+(-?\d[\d,]*(?:\.\d+)?)\s*$/i;
+const SQRT_GLYPH_RE = /^√\s*(-?\d[\d,]*(?:\.\d+)?)\s*$/;
+// A compound: "X, and what about Y?" — each limb must independently claim as
+// one of this module's own shapes, or it does not claim at all.
+const COMPOUND_RE = /^\s*(.+?),?\s+(?:and\s+)?(?:what\s+about|then\s+what\s+is|what\s+is|then\s+what\s+about|and\s+then)\s+(.+?)\s*[?!.]*\s*$/i;
+// Percent word problem, measured live: "if 15% of 2000 is taken and then 8%
+// tax is added to the result, what is the final amount?" — read structurally,
+// computed as base·pct/100 then × (1 + tax/100), both engine ops.
+const PERCENT_TAX_RE = /if\s+(\d+(?:\.\d+)?)\s*%\s*of\s+(\d+(?:\.\d+)?)\s+is\s+taken(?:,|\.)?\s*(?:and\s+)?(?:then\s+)?(\d+(?:\.\d+)?)\s*%\s*(?:tax|interest)\s+is\s+added\s+to\s+the\s+result\s*,?\s*(?:what\s+is\s+the\s+final\s+amount)?\s*$/i;
 const STATISTIC_RE = /^(mean|average|median|standard\s+deviation|std|sum|total|variance|max|maximum|min|minimum)\s+of\s*:?\s*(.+)$/i;
 const STATISTIC_FN = Object.freeze({ mean: "mean", average: "mean", median: "median", "standard deviation": "std", std: "std", sum: "sum", total: "sum", variance: "variance", max: "max", maximum: "max", min: "min", minimum: "min" });
 const SOLVE_RE = /^(?:solve\s+)?(?:for\s+([a-z])\s*[:,]?\s*)?([^=]+)=([^=]+?)(?:\s+for\s+([a-z]))?$/i;
@@ -285,12 +324,53 @@ export function detectShaped(question, { math } = {}) {
   if (typeof question !== "string" || !question.trim()) return null;
   const q = shapeClean(question);
   let m;
+  // The percent word problem reads the whole cleaned question (its "if …
+  // taken … tax … result" frame is the shape), before any limb-splitting.
+  if (PERCENT_TAX_RE.test(q)) {
+    const pm = PERCENT_TAX_RE.exec(q);
+    return { kind: "percent-tax", pct: pm[1], base: pm[2], tax: pm[3] };
+  }
+  // A compound claims only when EVERY limb independently claims as one of
+  // this module's own single shapes — otherwise it is not claimed at all.
+  if ((m = COMPOUND_RE.exec(q))) {
+    const left = detectSingle(m[1], { math });
+    const right = detectSingle(m[2], { math });
+    if (left && right) return { kind: "compound", left, right };
+    return null;
+  }
+  return detectSingle(q, { math });
+}
+
+/** One whole-question shape after the shared wrapper strip. No computation. */
+function detectSingle(q, { math } = {}) {
+  let m;
   if ((m = HOW_MANY_UNITS_RE.exec(q))) return { kind: "units", value: m[2], from: m[3], to: m[1] };
   if ((m = UNIT_CONVERT_RE.exec(q))) return { kind: "units", value: m[1], from: m[2], to: m[3] };
   if ((m = DERIVATIVE_RE.exec(q))) return { kind: "derivative", expression: m[1].trim(), variable: (m[2] ?? m[3] ?? "x").toLowerCase(), at: m[4] != null ? Number(m[4]) : null };
   if ((m = CHOOSE_RE.exec(q))) return { kind: "combinations", n: m[1], k: m[2] };
   if ((m = COMBINATIONS_RE.exec(q))) return { kind: "combinations", n: m[2], k: m[1] };
   if ((m = FACTORIAL_RE.exec(q))) return { kind: "factorial", n: m[1] };
+  if ((m = PRODUCT_OF_RE.exec(q))) return { kind: "product", a: m[1].replace(/,/g, ""), b: m[2].replace(/,/g, "") };
+  if ((m = TIMES_GLYPH_RE.exec(q))) return { kind: "product", a: m[1].replace(/,/g, ""), b: m[2].replace(/,/g, "") };
+  // A bare `A * B` is the pure door's — claimed here ONLY when the pure
+  // door's own BIG_INT_PRODUCT_RE declines it (combined digits > 15), so
+  // the two doors never overlap and an exact BigNumber answer always wins
+  // over a truncated float. Same threshold constant, same reason.
+  if ((m = BIG_STAR_PRODUCT_RE.exec(q))) {
+    const a = m[1].replace(/,/g, "");
+    const b = m[2].replace(/,/g, "");
+    if (digitsOf(a) + digitsOf(b) > 15) return { kind: "product", a, b };
+  }
+  if ((m = MODULO_RE.exec(q))) return { kind: "modulo", a: m[1].replace(/,/g, ""), b: m[2].replace(/,/g, "") };
+  if ((m = FIBONACCI_RE.exec(q))) return { kind: "fibonacci", n: Number(m[1]) };
+  if ((m = FIB_OF_RE.exec(q))) return { kind: "fibonacci", n: Number(m[1]) };
+  if ((m = ROOTWORD_RE.exec(q))) {
+    const word = m[1].toLowerCase();
+    const index = word === "cube" || word === "cubic" ? 3 : Number(m[2]);
+    if (!Number.isInteger(index) || index < 2) return null;
+    return { kind: "root", index, radicand: m[3].replace(/,/g, "") };
+  }
+  if ((m = SQRT_GLYPH_RE.exec(q))) return { kind: "root", index: 2, radicand: m[1].replace(/,/g, "") };
   if ((m = STATISTIC_RE.exec(q))) {
     const nums = m[2].split(/[\s,;]+(?:and\s+)?/).filter(Boolean);
     if (nums.length < 2 || !nums.every((n) => /^-?\d+(?:\.\d+)?$/.test(n))) return null;
@@ -319,6 +399,27 @@ export function checkShaped(question, { math } = {}) {
   const found = detectShaped(question, { math });
   if (!found) return null;
   if (!math || typeof math.evaluate !== "function") return { ...found, expression: found.expression ?? null, gap: "the arithmetic engine is not available" };
+  try {
+    if (found.kind === "compound") {
+      const l = computeFound(found.left, { math });
+      const r = computeFound(found.right, { math });
+      if (!l || l.gap || !r || r.gap) return { ...found, expression: null, gap: "one limb of the compound question did not compute" };
+      return { ...found, expression: `${l.expression}; ${r.expression}`, value: [l.value?.toString?.() ?? l.value, r.value?.toString?.() ?? r.value], display: `${l.display}; ${r.display}`, tex: null };
+    }
+    if (found.kind === "percent-tax") {
+      const taken = math.evaluate(`((${found.base})*(${found.pct})/100)`);
+      const value = roundNoise(math.evaluate(`(${taken}) * (1 + (${found.tax})/100)`));
+      const expression = `${found.pct}% of ${found.base} then +${found.tax}%`;
+      return { ...found, expression, value, display: fmtValue(value), tex: null };
+    }
+    return computeFound(found, { math });
+  } catch (e) {
+    return { ...found, expression: found.expression ?? null, gap: e.message };
+  }
+}
+
+/** Compute one single (non-compound) shape with the engine's own operation. */
+function computeFound(found, { math } = {}) {
   try {
     switch (found.kind) {
       case "units": {
@@ -364,6 +465,47 @@ export function checkShaped(question, { math } = {}) {
         const expression = `factorial(${found.n})`;
         const value = math.evaluate(expression);
         return { ...found, expression, value, display: fmtValue(value), tex: texOf(math, expression) };
+      }
+      case "product": {
+        // The engine's own BigNumber multiplication — exact at any digit
+        // count, where the Number engine's float truncates trailing digits.
+        if (typeof math.bignumber !== "function") return { ...found, expression: `${found.a} * ${found.b}`, gap: "the engine's exact integers are not available" };
+        const expression = `${found.a} × ${found.b}`;
+        const exact = math.bignumber(found.a).mul(math.bignumber(found.b));
+        const display = exact.toString();
+        return { ...found, expression, value: exact, display, tex: texOf(math, `${found.a} * ${found.b}`) };
+      }
+      case "modulo": {
+        const expression = `mod(${found.a}, ${found.b})`;
+        const value = math.evaluate(expression);
+        return { ...found, expression, value, display: fmtValue(value), tex: texOf(math, expression) };
+      }
+      case "fibonacci": {
+        // The engine's own matrix power over its own BigNumbers — F(n) is
+        // entry [0][1] of [[1,1],[1,0]]^n, exact at any index the engine
+        // will raise. No loop is hand-rolled here; `pow` is mathjs's.
+        const n = found.n;
+        if (!Number.isInteger(n) || n < 0) return { ...found, expression: `fib(${found.n})`, gap: "the fibonacci index is not a non-negative integer" };
+        if (n > 10000) return { ...found, expression: `fib(${n})`, gap: "the fibonacci index is too large to raise exactly here" };
+        if (typeof math.bignumber !== "function" || typeof math.matrix !== "function" || typeof math.pow !== "function")
+          return { ...found, expression: `fib(${n})`, gap: "the engine's exact integers are not available" };
+        const one = math.bignumber(1);
+        const zero = math.bignumber(0);
+        const fib = math.pow(math.matrix([[one, one], [one, zero]]), n).get([0, 1]);
+        const display = fib.toString();
+        return { ...found, expression: `fib(${n})`, value: fib, display, tex: null };
+      }
+      case "root": {
+        // Index 3 goes through the engine's own `cbrt` (exact: cbrt(1728)
+        // is 12 where nthRoot(1728,3) is 11.999999999999998); other indices
+        // through its own `nthRoot`, float noise cleared, never the value.
+        const expression = found.index === 2 ? `sqrt(${found.radicand})` : `root(${found.radicand}, ${found.index})`;
+        const value = found.index === 3 && typeof math.evaluate === "function"
+          ? roundNoise(math.evaluate(`cbrt(${found.radicand})`))
+          : roundNoise(math.evaluate(`nthRoot(${found.radicand}, ${found.index})`));
+        if (typeof value !== "number" || !Number.isFinite(value))
+          return { ...found, expression, gap: "the engine did not return a plain root" };
+        return { ...found, expression, value, display: fmtValue(value), tex: texOf(math, found.index === 2 ? `sqrt(${found.radicand})` : `nthRoot(${found.radicand}, ${found.index})`) };
       }
       case "statistic": {
         const expression = `${STATISTIC_FN[found.statistic]}(${found.values.join(", ")})`;
@@ -548,7 +690,9 @@ export function checkClock(question, { now } = {}) {
 // text. This module never goes looking for numbers elsewhere, and never
 // invents one — if the question does not carry two comparable values, it
 // returns null and the turn proceeds exactly as before.
-const COMPARE_RE = /\b(?:which|what)\b[^?]{0,80}?\b(is|was|are|were)\b[^?]{0,40}?\b(earlier|later|earliest|latest|larger|largest|bigger|biggest|greater|greatest|smaller|smallest|lesser|least|higher|highest|lower|lowest|older|oldest|younger|youngest|more|fewer|less)\b/i;
+/** The closed class of comparatives a which-is-more question turns on — one list, shared with passage-comparison.js. */
+export const COMPARATIVE_WORDS = "earlier|later|earliest|latest|larger|largest|bigger|biggest|greater|greatest|smaller|smallest|lesser|least|higher|highest|lower|lowest|older|oldest|younger|youngest|more|fewer|less";
+const COMPARE_RE = new RegExp(String.raw`\b(?:which|what)\b[^?]{0,80}?\b(is|was|are|were)\b[^?]{0,40}?\b(${COMPARATIVE_WORDS})\b`, "i");
 const DISTANCE_RE = /\b(?:how (?:many|much|far)\b[^?]{0,40}?\b(?:apart|between|difference|older|younger|longer|shorter|more|less|bigger|smaller)|by (?:exactly )?how much|what (?:is|was) the difference)\b/i;
 /** The unit a distance is asked in, when the question names one. */
 const APART_UNIT_RE = /\b(\d[\d,.]*)\s*(years?|months?|days?|hours?|minutes?)\b/i;

@@ -44,8 +44,8 @@ import { tokenize } from "../source.js";
 import { admit, runMeasurement } from "../measure.js";
 import { makeGrid } from "../grid.js";
 
-import * as operators from "../../eoreader7/legacy-eoreader6.1/packages/engine/operators.js";
-import * as taskLog from "../../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
+import * as operators from "../../eoreader7/native/kernel/cube.js";
+import * as taskLog from "../../eoreader7/native/kernel/task-log.js";
 import * as nul from "../../eoreader7/legacy-eoreader6.1/nul/index.js";
 import { bindLinks } from "../../eoreader7/legacy-eoreader6.1/packages/engine/emergence/binding.js";
 

@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>language-relation-reader — live demo</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 14px/1.5 ui-monospace, "SF Mono", Menlo, monospace; max-width: 900px; margin: 2rem auto; padding: 0 1rem; background: #0e0e10; color: #e6e6e6; }
+  h1 { font-size: 1.1rem; margin-bottom: 0.2rem; }
+  .sub { color: #999; margin-bottom: 1.5rem; font-size: 0.85rem; }
+  fieldset { border: 1px solid #333; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+  legend { padding: 0 0.4rem; color: #9ad; }
+  label { display: block; margin: 0.5rem 0 0.2rem; color: #bbb; }
+  input, textarea, select { width: 100%; box-sizing: border-box; background: #1a1a1d; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 0.4rem; font: inherit; }
+  textarea { min-height: 3.2rem; }
+  .row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 140px; }
+  button { margin-top: 0.8rem; background: #274; color: #dfd; border: 1px solid #4a7; border-radius: 4px; padding: 0.5rem 1rem; font: inherit; cursor: pointer; }
+  button:hover { background: #385; }
+  .chip { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.8rem; margin-right: 0.3rem; }
+  .chip.ok { background: #163; color: #9f9; }
+  .chip.refused { background: #631; color: #fb9; }
+  .chip.gap { background: #333; color: #999; }
+  pre { background: #17171a; border: 1px solid #2c2c30; border-radius: 6px; padding: 0.7rem; overflow-x: auto; white-space: pre-wrap; }
+  table { width: 100%; border-collapse: collapse; margin-top: 0.4rem; }
+  td, th { text-align: left; padding: 0.25rem 0.4rem; border-bottom: 1px solid #2a2a2e; font-size: 0.85rem; }
+  th { color: #888; font-weight: normal; }
+  .lang-btn { display: inline-block; margin: 0.15rem; padding: 0.15rem 0.5rem; border: 1px solid #444; border-radius: 4px; cursor: pointer; font-size: 0.8rem; background: #1a1a1d; }
+  .lang-btn:hover { background: #26262a; }
+  #status { color: #999; font-size: 0.8rem; margin-top: 0.4rem; }
+</style>
+</head>
+<body>
+<h1>language-relation-reader — live demo</h1>
+<div class="sub">P227/P229: which SLOT-ORGAN STRATEGY a language needs (real WALS typology) → which real relation reader actually runs, or a typed refusal naming exactly what's missing. This page runs the real modules in your browser, no server crossing beyond the static files.</div>
+
+<fieldset>
+  <legend>registered languages (language-typology.js)</legend>
+  <div id="langButtons"></div>
+</fieldset>
+
+<fieldset>
+  <legend>route a language + a sentence</legend>
+  <div class="row">
+    <div>
+      <label for="lang">language code (ISO 639-1)</label>
+      <input id="lang" value="en" />
+    </div>
+    <div style="flex:2">
+      <label for="sentence">sentence (used only if the router reaches a live reader)</label>
+      <input id="sentence" value="Abraham Lincoln appointed Hannibal Hamlin." />
+    </div>
+  </div>
+  <button id="run">route it</button>
+  <div id="status"></div>
+</fieldset>
+
+<fieldset>
+  <legend>typology (received, WALS Online)</legend>
+  <pre id="typologyOut">—</pre>
+</fieldset>
+
+<fieldset>
+  <legend>routing result (language-relation-reader.js::relationReaderFor)</legend>
+  <div id="routeChip"></div>
+  <pre id="routeOut">—</pre>
+  <table id="edgesTable" style="display:none">
+    <thead><tr><th>end1</th><th>label</th><th>end2</th><th>span self-verifies (P5.2)</th></tr></thead>
+    <tbody id="edgesBody"></tbody>
+  </table>
+</fieldset>
+
+<script type="module">
+  import { LANGUAGE_TYPOLOGY, TYPOLOGY_GIVER, typologyFor } from "./language-typology.js";
+  import { relationReaderFor, STRATEGY_GAPS } from "./language-relation-reader.js";
+
+  const langButtons = document.getElementById("langButtons");
+  for (const code of Object.keys(LANGUAGE_TYPOLOGY)) {
+    const b = document.createElement("span");
+    b.className = "lang-btn";
+    b.textContent = `${code} — ${LANGUAGE_TYPOLOGY[code].name}`;
+    b.onclick = () => { document.getElementById("lang").value = code; run(); };
+    langButtons.appendChild(b);
+  }
+  const unregistered = document.createElement("span");
+  unregistered.className = "lang-btn";
+  unregistered.textContent = "xx — (unregistered, on purpose)";
+  unregistered.onclick = () => { document.getElementById("lang").value = "xx"; run(); };
+  langButtons.appendChild(unregistered);
+
+  // The ONE real, production-shaped organ this demo can load entirely in
+  // the browser: the native English positional reader. Built lazily, once,
+  // from the same real adapter files app.js itself imports at
+  // /eoreader7/native/adapters/text/ (spans.js, surfaces.js, relations.js,
+  // priors.js — all genuinely browser-safe). eoreader7's Latin case-marked
+  // reader is deliberately NOT loaded here: its own extractCaseMarkedRelation
+  // defaults to reading its case prior via node:fs, so it is Node/eval-only
+  // today (P229's own disclosure) — this page shows that strategy's real,
+  // typed refusal instead of faking a browser-side stand-in.
+  let englishReaderPromise = null;
+  async function englishReader() {
+    if (!englishReaderPromise) {
+      englishReaderPromise = (async () => {
+        const { makeRelationReader } = await import("./hypergraph.js");
+        const { splitSentences } = await import("/eoreader7/native/adapters/text/spans.js");
+        const { extractSurfaces, discoverReferents, namesCorefer, diaNorm } = await import("/eoreader7/native/adapters/text/surfaces.js");
+        const { discoverRelationVocab, extractRelations } = await import("/eoreader7/native/adapters/text/relations.js");
+        const P = await import("/eoreader7/native/adapters/text/priors.js");
+        return makeRelationReader({
+          splitSentences, extractSurfaces, discoverReferents, namesCorefer, diaNorm,
+          discoverRelationVocab, extractRelations,
+          determiners: new Set([...P.DEFINITE_DETERMINERS, ...P.INDEFINITE_DETERMINERS]),
+          negationWords: P.NEGATION_WORDS,
+        });
+      })();
+    }
+    return englishReaderPromise;
+  }
+
+  function setStatus(t) { document.getElementById("status").textContent = t; }
+
+  async function run() {
+    const lang = document.getElementById("lang").value.trim();
+    const sentence = document.getElementById("sentence").value;
+    document.getElementById("typologyOut").textContent = JSON.stringify(typologyFor(lang), null, 2);
+
+    const routeChip = document.getElementById("routeChip");
+    const routeOut = document.getElementById("routeOut");
+    const edgesTable = document.getElementById("edgesTable");
+    const edgesBody = document.getElementById("edgesBody");
+    edgesTable.style.display = "none";
+    edgesBody.innerHTML = "";
+
+    // Only "positional" gets a real reader registered — every other
+    // strategy is left unregistered on purpose so relationReaderFor's own
+    // typed refusal is what this page shows for it, honestly.
+    setStatus("loading the real organs (first run only)…");
+    let readers = {};
+    try {
+      readers = { positional: await englishReader() };
+      setStatus("");
+    } catch (e) {
+      setStatus(`could not load the live English reader: ${e.message}`);
+    }
+
+    const result = relationReaderFor(lang, readers);
+    if (result.refused) {
+      routeChip.innerHTML = `<span class="chip refused">refused — ${result.refused.reason}</span>${result.refused.strategy ? `<span class="chip gap">strategy: ${result.refused.strategy}</span>` : ""}`;
+      routeOut.textContent = result.refused.detail;
+      return;
+    }
+
+    routeChip.innerHTML = `<span class="chip ok">routed — strategy: ${result.strategy}</span>`;
+    const report = result.reader([{ ref: "demo.txt", text: sentence }]);
+    routeOut.textContent = `${report.edges.length} edge(s) extracted by the REAL reader, reached through the router.\n\n` + JSON.stringify(report.edges.map((e) => ({ end1: e.end1, label: e.label, end2: e.end2 })), null, 2);
+
+    if (report.edges.length) {
+      edgesTable.style.display = "";
+      for (const e of report.edges) {
+        const span = e.spans?.[0];
+        const verifies = span ? sentence.slice(span.start, span.end) === span.text : "no span";
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${e.end1 ?? "—"}</td><td>${e.label ?? "—"}</td><td>${e.end2 ?? "—"}</td><td>${verifies === true ? "✓ true" : verifies === false ? "✗ FALSE" : verifies}</td>`;
+        edgesBody.appendChild(tr);
+      }
+    }
+  }
+
+  document.getElementById("run").onclick = run;
+  run();
+</script>
+</body>
+</html>

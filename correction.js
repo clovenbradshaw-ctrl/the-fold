@@ -451,6 +451,31 @@ export function stripLeadingFraming(text) {
   return { text: rest[0].toUpperCase() + rest.slice(1), stripped: true };
 }
 
+/**
+ * stripTrailingFraming — the same scaffold FRAMING_RE names, found live at
+ * the OTHER end of the sentence: "...the current President of the United
+ * States, according to the sources provided." stripLeadingFraming refuses
+ * this by design (its own docstring: "a LEADING PREFIX ONLY, never anything
+ * in the middle" — and a trailing clause is neither). The mechanical
+ * citation apparatus already names the REAL source (crown.js's own address,
+ * shown separately in the ground-detail chip) — a trailing "according to
+ * the sources" in the model's own prose is a vaguer, redundant hedge on top
+ * of a citation that already exists; cutting it is not cutting attribution,
+ * it's cutting the ONE piece of attribution the model was never trusted to
+ * write honestly in the first place (L5: a compliance-critical fact — here,
+ * which source — is never left to the model's own words).
+ */
+const TRAILING_FRAMING_RE = /,?\s*(?:according to|based on|per)\s*(?:the|these|those|our|their)?\s*(?:text|sources?|passage|material|article|document)s?(?:\s+(?:provided|given|attached|above|cited))?\s*[.!?]?\s*$/i;
+export function stripTrailingFraming(text) {
+  const t = String(text ?? "").trim();
+  const m = t.match(TRAILING_FRAMING_RE);
+  if (!m) return { text: t, stripped: false };
+  let rest = t.slice(0, m.index).trim();
+  if (rest.length < 15) return { text: t, stripped: false };
+  if (!/[.!?]$/.test(rest)) rest += "."; // the clause we cut carried the sentence's own terminal punctuation
+  return { text: rest, stripped: true };
+}
+
 /** The snips a turn stands on, as the block handed above its material (P122's, for any turn). */
 export function turnSnipBlock(passages, question, terms = []) {
   const snips = snipsFor(passages, { obligations: contentWords(question), terms });

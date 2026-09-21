@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { foldReading, readingIndexFromLog, mentionBookFromLog, stepChunks } from "../reading-log.js";
 import { activate } from "../activation-retrieval.js";
 import { chunkSource } from "../source.js";
-import { createRecursiveReader } from "../../eoreader7/kernel.js";
+import { createRecursiveReader } from "../../eoreader7/native/kernel/index.js";
 import { createCausalTextPerceiver, textEncounters, surfaceIndex, surfacesIn } from "../../eoreader7/native/adapters/text/recursive.js";
 import { reviseTextFold } from "../../eoreader7/native/adapters/text/revision.js";
 import { namesCorefer, diaNorm } from "../../eoreader7/native/adapters/text/surfaces.js";
@@ -16,10 +16,10 @@ const ORG = { reconstruct, diaNorm, namesCorefer, surfaceIndex, surfacesIn };
 
 let POS = null;
 try {
-  POS = JSON.parse(readFileSync(new URL("../../eoreader7/legacy-eoreader6.1/bin/priors/pos/en-ud-ewt.json", import.meta.url), "utf8"));
+  POS = JSON.parse(readFileSync(new URL("../../eoreader7/native/eval/the-fold/fixtures/pos-prior-eng.json", import.meta.url), "utf8"));
 } catch {
   try {
-    POS = JSON.parse(readFileSync(new URL("../../priors-data/pos-prior-eng.json", import.meta.url), "utf8"));
+    POS = JSON.parse(readFileSync(new URL("../../eoreader7/native/eval/the-fold/fixtures/pos-prior-eng.json", import.meta.url), "utf8"));
   } catch {
     POS = null;
   }

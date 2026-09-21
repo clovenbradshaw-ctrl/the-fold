@@ -7,6 +7,7 @@ import {
   solveKnightsKnaves,
   detectLogicPuzzle,
   checkLogicPuzzle,
+  detectTypeWords,
 } from "./logic-puzzle.js";
 
 test("parseArchivists: splits speaker marks and their quoted statements", () => {
@@ -104,4 +105,62 @@ test("detectLogicPuzzle: refuses ordinary text with no Knight/Knave vocabulary, 
   assert.equal(detectLogicPuzzle("What is the capital of France?"), null);
   assert.equal(detectLogicPuzzle("A: \"the weather is nice\" B: \"I agree\""), null); // no Knight/Knave words
   assert.equal(detectLogicPuzzle("Section A: intro. Section B: methods."), null); // Knight/Knave absent entirely
+});
+
+// Two parser gaps found by trying new puzzles on 2026-09-16, each checked
+// against an independently written brute force before being pinned here.
+test("count phrased 'is a Knight' is parsed, and this puzzle has no solution", () => {
+  const found = checkLogicPuzzle(`Every inhabitant is a Knight or a Knave. P: "Q is a Knave." Q: "P and R are the same type." R: "Exactly one of us is a Knight."`);
+  assert.ok(found);
+  assert.equal(found.external.length, 0);
+  assert.equal(found.valid.length, 0);
+});
+
+test("plural 'Knights'/'Knaves' in the prose still claims the puzzle; underdetermined answers list every option", () => {
+  const found = checkLogicPuzzle(`Knights always tell the truth and Knaves always lie. X: "Y is a Knave." Y: "X and Z are different types." Z: "Exactly two of us are Knights."`);
+  assert.ok(found);
+  assert.deepEqual(found.valid, [{ X: true, Y: false, Z: true }, { X: false, Y: true, Z: true }]);
+});
+
+// Generality check (P71): a puzzle that renames the two types entirely, with
+// no "Knight"/"Knave" anywhere. Without detectTypeWords, detectLogicPuzzle's
+// literal Knight/Knave check would refuse this outright — a control that
+// proves the fix does something, not just that it doesn't break the old
+// vocabulary. The truth-value assignment is the SAME one this module's own
+// earlier test already proved correct for the identical statement shapes,
+// just under different type names, so the answer is known independently of
+// this code before the test is run.
+test("detectTypeWords: a puzzle renaming Knight/Knave to Truth-teller/Liar is solved by the SAME engine", () => {
+  const q = `On this island, Truth-tellers always tell the truth, and Liars always lie. X: "Y is a Liar." Y: "X and Z are different types." Z: "Exactly two of us are Truth-tellers."`;
+  const words = detectTypeWords(q);
+  assert.deepEqual(words, { truthWord: "Truth-teller", lieWord: "Liar" });
+  const found = checkLogicPuzzle(q);
+  assert.ok(found);
+  assert.deepEqual(found.types, words);
+  // Same statement shapes as the Knight/Knave case above (X:"Y is a knave"-
+  // equivalent, X/Z different types, exactly two truth-tellers) — same two
+  // consistent assignments, just relabeled.
+  assert.deepEqual(found.valid, [{ X: true, Y: false, Z: true }, { X: false, Y: true, Z: true }]);
+  assert.match(found.display, /Truth-teller\/Liar assignments/);
+  assert.match(found.display, /X:T Y:l Z:T {2}\| {2}X:l Y:T Z:T/);
+});
+
+// A second, independently-named pair (no rule sentence needed inside the
+// module's grammar beyond the one shape it already recognizes) — confirms
+// the generalization is the STRUCTURE (truth-teller/liar), not a special
+// case for "Truth-teller" specifically.
+test("detectTypeWords: a third naming (Sage/Fool) with a contradictory puzzle reports no solution, not a crash", () => {
+  const q = `Sages always tell the truth and Fools always lie. A: "A is a Sage." / "A is a Fool." B: "B is a Fool."`;
+  const found = checkLogicPuzzle(q);
+  assert.ok(found);
+  assert.equal(found.valid.length, 0);
+  assert.match(found.display, /Sage\/Fool assignments/);
+});
+
+// A puzzle with NEITHER vocabulary (no Knight/Knave, no rule sentence) is
+// still refused — the generalization must not turn this into a door that
+// claims arbitrary text.
+test("detectTypeWords: text with no type-pair rule and no Knight/Knave is refused, not guessed", () => {
+  assert.equal(detectTypeWords("A: \"B is happy.\" B: \"A is sad.\""), null);
+  assert.equal(checkLogicPuzzle("A: \"B is happy.\" B: \"A is sad.\""), null);
 });

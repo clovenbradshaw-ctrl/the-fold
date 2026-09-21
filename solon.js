@@ -34,6 +34,12 @@
 //   clippy      the clip — what is IN THE PRESENT (born + DMD + activation + discourse), under heimdall
 //   parmenides the Way — SAME vs OTHER, identity by the equivalence organs,
 //              never by appearance (II.7, P11, P79). Under kelsen.
+//   chomsky    the universal grammar — the arrangement is universal and
+//              medium-blind; a language's role grammar (SVO or any
+//              positional grammar) is DECLARED via a measured RoleConfig@1,
+//              never the default. Watches the language dispatch
+//              (relations-language.js): all cognition reads GFP-shaped;
+//              English-SVO comes online only when declared. (live)
 //   gary       the prompt — what the mouth is handed, in what order, and
 //              what never goes in: no address, no apparatus vocabulary, no
 //              JSON asked for in prose, a fact rather than a prohibition, a
@@ -47,6 +53,16 @@
 //              fits the window heimdall says the model is loaded at. Names
 //              the OWNER of every finding and never cuts a prompt herself
 //              (P186). Under heimdall. (live)
+//   elenchus   Socrates — the standing question: every non-AGREE crown
+//              carries one closed-bank question (elenchus.js), and no live
+//              claim in view refuses the oracle default (gary.js's
+//              no-oracle-mode). Keeps the mouth from being an oracle. (live)
+//   nagarjuna  the four corners — one lattice for every mechanical verdict
+//              (is/is-not/both/neither, hl.js's own Belnap-Dunn FDE), never
+//              a second one under a different name; a name reused across
+//              files for a different meaning must have each file's own
+//              header say so. Checked mechanically against hl.js's real
+//              values and involution, never asserted. (live)
 //
 // Amendment: an archon is added or removed by proposal — ratified by the
 // person, checked by the chorus — never by a session alone.

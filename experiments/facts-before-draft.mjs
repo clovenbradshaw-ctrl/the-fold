@@ -104,8 +104,8 @@ export const RECOMMENDED_ARM = "B";
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-import * as taskLog from "../../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
-import { discoverRelationVocab, extractRelations } from "../../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js";
+import * as taskLog from "../../eoreader7/native/kernel/task-log.js";
+import { discoverRelationVocab, extractRelations } from "../../eoreader7/native/adapters/text/relations.js";
 import { wordSet, hasWord, checkGrounding, corroborateAtoms } from "../grounding.js";
 
 // ── CLI ──────────────────────────────────────────────────────────────────

@@ -11,7 +11,7 @@ import { readFileSync, existsSync } from "node:fs";
 
 import { makeNetworkBinder, extentShape, surfaceShape, readDate, RECURRENCE_FLOOR } from "./network.js";
 
-const { extractSurfaces } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js");
+const { extractSurfaces } = await import("../eoreader7/native/adapters/text/surfaces.js");
 const binder = makeNetworkBinder({ shapes: [extentShape, surfaceShape({ extractSurfaces })] });
 
 const PAGE = new URL("./web/pages/31a113281ca5cffa.txt", import.meta.url);

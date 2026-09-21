@@ -1,7 +1,10 @@
 // relation-kinds.test.mjs — kindOf(connector) → one of the 27 cells (2026-09-15,
-// user direction: "the metastructure is the meaning; all the slots and word
-// order is just means to an end; if we keep our eyes on the metastructure, we
-// can be omnilingual"). Pure.
+// user direction: "all the slots and word order is just means to an end; if
+// we keep our eyes on the metastructure, we can be omnilingual"). Pure.
+// The metastructure is NOT the meaning (corrected 2026-09-16): meaning is
+// what the giver intended; the metastructure is only the closed frame this
+// apparatus uses to talk about that intent across any medium — the thing
+// that makes cognition omnimodal, never a stand-in for the giver's intent.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { kindOf, setSameAct } from "./relation-kinds.js";
@@ -18,7 +21,7 @@ test("a relationship's KIND is which of the 27 cells its label is — the closed
   assert.equal(kindOf("located in").cell, "CON·Ground", "spatial is a field — Structure·Ground");
 });
 
-test("OMNILINGUAL (user: 'if we keep our eyes on the metastructure, we can be omnilingual'): the same KIND lands on the same CELL across scripts — the cell is the meaning, never the string", () => {
+test("OMNILINGUAL (user: 'if we keep our eyes on the metastructure, we can be omnilingual'): the same KIND lands on the same CELL across scripts — the cell is the shared frame for comparing intent, never the string, and never the meaning itself", () => {
   const copulas = ["is", "היא", "является", "был", "была", "are"];
   for (const c of copulas) assert.equal(kindOf(c).cell, "SIG·Figure", `${c} is a copula -> SIG·Figure`);
   const possessives = ["has", "יש ל", "имеет"];

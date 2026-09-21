@@ -413,3 +413,13 @@ clean: Feynman, Diaconis, Dijkstra, Holmes, Pearl, Ostrom, Frankfurt, Greenberg,
 ## 2026-09-20 — the header identity chip carries the operator's copy: "AI Assistant. Not A Mind, Just an Extension of Yours." (main, staged — chip unit only, not the concurrent working tree)
 fast: 1 files · 16 affected tests pass · law: ok (citations resolve 0 distinct)
 clean: Holmes (one entity, framing reframed; the title keeps "you are the operator" reading — no alias merge)
+
+## 2026-09-20 — the reconciliation + Chomsky mint: engine-interface drift closed (moves/grid native), the stability ratchet held (floor never leaves, blastRadius bounds the arrival read, the AUX-after-head rule), the seam law pinned, the entropy null seeded, the .5 unified into one GRAMMAR_MIN_SHARE, and Chomsky minted as the language-universality archon with GFP as the fold's reader (main, working tree)
+fast: 96 files · 1363 affected tests, 1337 pass 0 fail · law: ok (pre-existing dup headers P115 P116 P117 P19 P233, S17 S96 unchanged)
+| lens | citation | file:line | verdict | one line |
+| Greenberg | relations-language.js dispatch | app.js:313 | fixed | the fold's reader hardwired the legacy English-SVO extractor while the dispatch declared GFP-default; now routes through relationExtractorsFor — GFP at boot, SVO only via a DECLARED (and demonstrated) RoleConfig@1, the measured eng config failing its own BECOMING |
+| Marshall | P76/P237, LAVAR §8 | holon.js:2647, stability-baseline.json | fixed | the mechanicallyConfident path dropped the verbatim floor entirely (Kondo's claims-arm then cut the fact block) — the floor never leaves now; the stability ratchet's 4 regressions were real, each fixed at its mechanism, none tuned |
+| Feynman | .5 boundary | grain-typing.js:29 | fixed | the verb/class share was six spellings of 0.5 across 14 files; one exported GRAMMAR_MIN_SHARE, the boundary's 162 exact-0.5 forms named; DMD+BORN boundary derivation tried and measured NEGATIVE (degenerate null, 0/36 recall) — the .5 stays as the received literal-majority floor |
+| Simon/Chekhov | — | chomsky.test.mjs | fixed | the minted archon is wired, not decoration: 4 pins scan the production wiring (mutation-falsified both ways), 1 BECOMING gates the eng SVO declaration |
+| Kondo | — | app.js roleConfig load | noted | the eng RoleConfig fetch is nascent (ready, gated by the BECOMING), not dead |
+clean: Diaconis, Dijkstra, Holmes, Pearl, Ostrom, Frankfurt, Alexander, Lévi-Strauss (routed on the prompt-work hunks; nothing new found)

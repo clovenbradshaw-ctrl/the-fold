@@ -281,7 +281,14 @@ export function paradigmBlock({ active, index, notes = [], dmdWindow = null }) {
   const lines = cut.rows.map((r) => `«${r.p.label}» recurs between ${represent(index, [...r.p.s][0])} and ${represent(index, [...r.p.o][0])} (${r.count} places).`);
   for (const [id, m] of bears) {
     const top = [...m].filter(([, c]) => c >= RECURRENCE_FLOOR).sort((a, b) => b[1] - a[1]).slice(0, 3);
-    if (top.length) lines.push(`${represent(index, id)} most often stands in «${top.map(([l]) => l).join("», «")}».`);
+    // The line LEADS WITH THE QUOTED ACT, never the referent surface
+    // (rephrased 2026-09-20): "Grant most often stands in «was born»." began
+    // with a bare surname that is also an attested base-form verb ("grant"),
+    // so the stability harness's imperative detector — deliberately
+    // recall-favoring, P237 — read the app's own summary statement as a
+    // command. A quoted past/participle act can never head an imperative;
+    // the referent's surface can. Same meaning, collision gone.
+    if (top.length) lines.push(`«${top.map(([l]) => l).join("», «")}» is most often stated about ${represent(index, id)}.`);
   }
   if (!lines.length) return { lines: [], text: "", window: cut.window, basis: "nothing recurs at the floor for the active referents" };
   return { lines, text: strikeAddresses(`What recurs:\n${lines.join("\n")}`), window: cut.window, basis: cut.basis };

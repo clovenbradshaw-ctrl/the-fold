@@ -118,8 +118,18 @@ export function reprefixOllamaTags(realTagsJson) {
 // reads the OpenAI-defined fields, and the only place the ladder's real
 // findings (refs/unsupported/unbacked/open/channels) can travel without
 // smearing them into the answer text itself.
+//
+// `thinking` rides the same way: the fold's OWN disclosure for the turn —
+// what was handed to the mouth, what was said with the material's verdict,
+// what nothing backs, and the verbatim messages every model call actually
+// sent (proxy-runner.mjs builds it from the real turn result; this file only
+// ever carries what it is given). It is the apparatus's record, computed
+// mechanically — deliberately never the model's own chain-of-thought, which
+// this fold does not use (the fold rejects reasoning models; the thinking is
+// unconscious on purpose). Omitted entirely when a caller never supplied it,
+// so nothing already built on the response's shape changes.
 
-export function openAIResponse({ id, model, text, created, usage, fold }) {
+export function openAIResponse({ id, model, text, created, usage, fold, thinking }) {
   return {
     id,
     object: "chat.completion",
@@ -132,6 +142,7 @@ export function openAIResponse({ id, model, text, created, usage, fold }) {
       total_tokens: (usage?.promptTokens ?? 0) + (usage?.completionTokens ?? 0),
     },
     fold,
+    ...(thinking ? { thinking } : {}),
   };
 }
 
@@ -146,18 +157,18 @@ export function openAIResponse({ id, model, text, created, usage, fold }) {
  * difference from a token-streamed answer; one that renders deltas live
  * sees the answer arrive as a single burst rather than word by word.
  */
-export function openAIStreamLines({ id, model, text, created, fold }) {
+export function openAIStreamLines({ id, model, text, created, fold, thinking }) {
   const base = { id, object: "chat.completion.chunk", created, model };
   return [
     `data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: text }, finish_reason: null }] })}\n\n`,
-    `data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], fold })}\n\n`,
+    `data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], fold, ...(thinking ? { thinking } : {}) })}\n\n`,
     "data: [DONE]\n\n",
   ];
 }
 
 // ── response shaping, Ollama-native wire ────────────────────────────────────
 
-export function ollamaChatResponse({ model, text, createdAt, usage, fold }) {
+export function ollamaChatResponse({ model, text, createdAt, usage, fold, thinking }) {
   return {
     model,
     created_at: createdAt,
@@ -167,13 +178,14 @@ export function ollamaChatResponse({ model, text, createdAt, usage, fold }) {
     prompt_eval_count: usage?.promptTokens ?? 0,
     eval_count: usage?.completionTokens ?? 0,
     fold,
+    ...(thinking ? { thinking } : {}),
   };
 }
 
 /** Same single-shot disclosure as openAIStreamLines: one NDJSON line
  * carrying the whole answer with done:false, one closing line with
  * done:true — valid Ollama streaming framing, not token-level delivery. */
-export function ollamaChatStreamLines({ model, text, createdAt, usage, fold }) {
+export function ollamaChatStreamLines({ model, text, createdAt, usage, fold, thinking }) {
   return [
     JSON.stringify({ model, created_at: createdAt, message: { role: "assistant", content: text }, done: false }) + "\n",
     JSON.stringify({
@@ -185,6 +197,7 @@ export function ollamaChatStreamLines({ model, text, createdAt, usage, fold }) {
       prompt_eval_count: usage?.promptTokens ?? 0,
       eval_count: usage?.completionTokens ?? 0,
       fold,
+      ...(thinking ? { thinking } : {}),
     }) + "\n",
   ];
 }

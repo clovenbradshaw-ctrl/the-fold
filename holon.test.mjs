@@ -1105,16 +1105,24 @@ test("material genuinely about a user keeps its non-narration sentences", async 
 });
 
 test("a prompt that matched no material gets one plain-chat reply, not a diagnosis", async () => {
+  // AMENDED 2026-09-18 (P244): a bare "hi" cold open — nothing attached,
+  // nothing said — no longer reaches the mouth at all; the oracle door
+  // refuses with zero calls and the fixed reply. The original intent stands
+  // untouched: no diagnosis, no echo on the record — a refusal is neither.
+  // The plain-chat path itself moved one step over: it is pinned below on a
+  // question carrying its own checkable claim.
   const calls = [];
   const call = async (messages) => {
     calls.push(messages[0].content);
-    // The execute call (material framing) restates the prompt; the plain-chat
-    // fallback answers like a person.
-    return messages[0].content === CHAT_SYSTEM_PROMPT
-      ? "Hi there! How can I help you today?"
-      : "The question is: hi.";
+    return "Hi there! How can I help you today?";
   };
-  const result = await runHolonicTask({ task: "hi", chunks: [], call, planMode: "flat" });
+  const refused = await runHolonicTask({ task: "hi", chunks: [], call, planMode: "flat" });
+  assert.equal(refused.oracleRefused, true);
+  assert.equal(calls.length, 0, "no model call spent on free association");
+  assert.match(refused.output, /What should I read\?/);
+  assert.ok(refused.open.every((o) => !o.includes("restates")), "no typed echo on the record");
+
+  const result = await runHolonicTask({ task: "hi there, what can you help me with today", chunks: [], call, planMode: "flat" });
   // The echo never ships: the part answered with a real greeting.
   assert.equal(result.output, "Hi there! How can I help you today?");
   assert.ok(calls.includes(CHAT_SYSTEM_PROMPT), "the chat fallback ran");
@@ -1482,7 +1490,11 @@ test("without priorPass, an ordinary turn is untouched — no phantom first pass
     seen = messages[0].content;
     return "Hey! What's up?";
   };
-  await runHolonicTask({ task: "hey", chunks: [], call, planMode: "flat" });
+  // P244 (2026-09-18): a bare "hey" cold open refuses at the oracle door
+  // before any prompt is built, so the no-phantom pin moved one step over
+  // to a checkable-but-materialless question — the same ordinary turn this
+  // always meant, minus the greeting the door now owns.
+  await runHolonicTask({ task: "hey, tell me about the harbor festival", chunks: [], call, planMode: "flat" });
   assert.ok(!seen.includes("faster, unchecked first pass"), "a turn with no S1 pass must never claim one existed");
 });
 
@@ -1576,7 +1588,9 @@ test("without now, an ordinary turn is untouched — no phantom date", async () 
     seen = messages[0].content;
     return "Hey! What's up?";
   };
-  await runHolonicTask({ task: "hey", chunks: [], call, planMode: "flat" });
+  // P244 (2026-09-18): same move as the no-phantom-first-pass pin above —
+  // a bare "hey" now refuses before any prompt exists.
+  await runHolonicTask({ task: "hey, tell me about the harbor festival", chunks: [], call, planMode: "flat" });
   assert.ok(!seen.includes("Today's date is"), "a turn with no declared date must never invent one");
 });
 
@@ -2548,6 +2562,16 @@ test("without sourcesAttached, a note from a source outside this turn's chunks s
   assert.match(sent.join("\n"), /Mars — orbits→ the sun/, "with nothing ever attached, a note from any source still stands (P84)");
 });
 
+test("a bare-label decomposed section (no piece object) is anchored to its own question's subject — a generic label like 'Collisions' must not drift to a physical-objects reading (live failure, 2026-09-17)", async () => {
+  const { buildExecutePrompt } = await import("./holon.js");
+  const task = "Explain, in your own words, what a hash table is and why collisions happen.";
+  const prompt = buildExecutePrompt({ label: "Collisions", description: "Explain hash collisions." }, "x", null, task);
+  assert.match(prompt, /This part belongs to a larger answer about: /, "an ordinary (non-piece) decomposed section must still get a subject anchor");
+  assert.ok(!prompt.includes(task), "the anchor must never be the full original task verbatim");
+  const noAnchor = buildExecutePrompt({ label: "Collisions", description: "Explain hash collisions." }, "x");
+  assert.ok(!noAnchor.includes("larger answer about"), "no topic supplied means no anchor line, unchanged from before");
+});
+
 test("P108: a piece's section is told its place, the outline, the previous tail and its word target; a short draft is continued once, measured, before any check", async () => {
   const { buildExecutePrompt, pieceLine, wordCount, CONTINUE_BELOW } = await import("./holon.js");
   const line = pieceLine({ topic: "the harbor", pages: 30, words: 650, index: 3, count: 5, outline: ["Origins", "Tides", "Trade", "Storms", "Legacy"], previousTail: "and the tide turned." });
@@ -2893,8 +2917,12 @@ test("P126: a correction already learned is handed back on the next turn, and a 
   assert.doesNotMatch(first, /1847/, "never the error it replaces (P126, measured)");
   assert.deepEqual(r.learnedUsed ?? r.sections[0].learnedUsed, ["c:x"]);
   const bare = [];
+  // P244 (2026-09-18): the control's "hello there" cold open now refuses at
+  // the oracle door before any prompt exists — so the no-blocks pin moved
+  // one step over to a checkable-but-materialless question, the same
+  // ordinary turn this always meant.
   const clean = await runHolonicTask({
-    task: "hello there", chunks: [], planMode: "flat",
+    task: "hello there, tell me about the harbor festival", chunks: [], planMode: "flat",
     call: async (m) => { bare.push(m); return "Hi."; },
   });
   const b = bare[0].map((m) => m.content).join("\n");
@@ -2985,9 +3013,12 @@ test("P127: the mouth's talk about the writing is cut from a plain grounded turn
   });
   assert.ok(r.metaCut?.length, "the scaffolding is cut from a plain turn");
   assert.match(r.output, /1841/, "the answer survives");
-  // Conversation, with nothing attached, is left alone.
+  // Conversation, with nothing attached, is left alone — P244 (2026-09-18):
+  // a bare greeting cold open now refuses at the oracle door, so this pin
+  // moved one step over to a checkable-but-materialless question; the
+  // passage-less voice it protects is unchanged.
   const chat = await runHolonicTask({
-    task: "hello there", chunks: [], planMode: "flat",
+    task: "hello there, what can you help me with today", chunks: [], planMode: "flat",
     call: async () => "Let me say hello back. How can I help you today?",
   });
   assert.equal(chat.metaCut, undefined, "a passage-less turn is conversation, not a piece to police");
@@ -3406,6 +3437,45 @@ test("the about call never fires on a decomposed (non-flat) task — it is scope
   assert.ok(sent.every((m) => !/Not the answer/i.test(m[0]?.content ?? "")), "no about-call fired on a decomposed task");
 });
 
+// ── P244 no-oracle-mode: the task door ───────────────────────────────────
+// No live claim, document, or task in view: the mouth is not called at all.
+// The refusal returns the answered-before-the-model door's own shape (zero
+// calls, the fixed reply as output), so the caller renders it the same way.
+test("oracle door: empty everything and an uncheckable question never reaches the mouth", async () => {
+  let called = 0;
+  const call = async () => { called += 1; return "free association"; };
+  const result = await runHolonicTask({ task: "hi", chunks: [], call, planMode: "flat" });
+  assert.equal(result.oracleRefused, true);
+  assert.equal(result.calls, 0);
+  assert.equal(called, 0, "no model call spent on free association");
+  assert.match(result.output, /What should I read\?/);
+  assert.deepEqual(result.sections, []);
+});
+
+test("oracle door stays shut with material, a claim, a task, or history in view", async () => {
+  let called = 0;
+  const call = async () => { called += 1; return "hello there"; };
+  // material in view
+  const withChunks = await runHolonicTask({ task: "hi", chunks, call, planMode: "flat" });
+  assert.ok(!withChunks.oracleRefused);
+  assert.ok(called > 0);
+  // a checkable claim in the question's own words, nothing attached
+  called = 0;
+  const withClaim = await runHolonicTask({ task: "What's the capital of France?", chunks: [], call, planMode: "flat" });
+  assert.ok(!withClaim.oracleRefused);
+  assert.ok(called > 0);
+  // a checked cycle result is a claim in view even for a bare question
+  called = 0;
+  const withCycle = await runHolonicTask({ task: "hi", chunks: [], call, planMode: "flat", oracleQuestionCycle: { cycle: ["a", "b"] } });
+  assert.ok(!withCycle.oracleRefused);
+  assert.ok(called > 0);
+  // transcript in view (an anaphoric follow-up's claim lives there)
+  called = 0;
+  const withHistory = await runHolonicTask({ task: "hi", chunks: [], call, planMode: "flat", transcript: [{ role: "user", content: "tell me about the harbor" }] });
+  assert.ok(!withHistory.oracleRefused);
+  assert.ok(called > 0);
+});
+
 test("the composition seam, armed, ships an unverifiable draft as itself with the gap said — never the bare coverage line (P244 amendment, 2026-09-19)", async () => {
   // The specimen this pins, found live: a plain question whose one drafted
   // sentence cleared no check answered with only "nothing composed — 1 draft
@@ -3427,7 +3497,19 @@ test("the composition seam, armed, ships an unverifiable draft as itself with th
   assert.ok(result.open.some((o) => o.includes("composition seam: nothing verified composed")), "the coverage stays on the record");
 });
 
-test("CHAT_SYSTEM_PROMPT names a friendly assistant, not a reading/research job — a small model handed the job answers a bare hello with it (measured 9/40 vs 0/40, 2026-09-19)", () => {
-  assert.match(CHAT_SYSTEM_PROMPT, /^You are The Fold, a friendly assistant having a conversation\./);
+test("CHAT_SYSTEM_PROMPT discloses an AI identity but no reading/research job to echo — a small model handed the job answers a bare hello with it (measured 9/40 vs 0/40, 2026-09-19)", () => {
+  assert.match(CHAT_SYSTEM_PROMPT, /^You are The Fold, an AI assistant having a conversation\./);
   assert.ok(!/reading and research|research assistant/i.test(CHAT_SYSTEM_PROMPT), "the no-material chat prompt carries no job to echo");
+  assert.ok(!/Do not repeat back what was just said/i.test(CHAT_SYSTEM_PROMPT), "the echo ban is scoped (verbatim echo), not a ban on confirmation repeat-back");
+});
+
+test("the composition seam ships plain words, never bookkeeping — and ordinary words like her/man/then no longer refuse the whole answer as 'harm class' (2026-09-19)", async () => {
+  const run = (draft) => runHolonicTask({ task: "What happened to Harbor Zeta?", chunks, call: async () => draft, shipExperiencer: { who: "test:reader", read: "conversation:test" } });
+  const BOOKKEEPING = /nothing composed|draft sentence|harm class|cleared no check|withheld/i;
+  // The false positive this pins: any one of the old law's patterns, anywhere in the draft, refused the WHOLE draft.
+  const draft = "Her office moved to the east quay, and then the man who owns the shop reopened it. Harbor Zeta closed in 1802 after the flood.";
+  const out = (await run(draft)).sections.map((s) => s.text ?? "").join("\n");
+  assert.ok(out.includes("Her office moved to the east quay") && out.includes("Harbor Zeta closed in 1802"), `the drafted words ship: ${out}`);
+  assert.ok(/unchecked/i.test(out), "with the gap said plainly");
+  assert.ok(!BOOKKEEPING.test(out), `and no bookkeeping reaches the person: ${out}`);
 });

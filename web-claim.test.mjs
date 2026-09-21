@@ -30,7 +30,7 @@ import {
   INFLECTIONAL_SUFFIXES,
   INTERROGATIVE_PRONOUNS,
   MANNER_REASON_PRONOUNS,
-} from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
+} from "../eoreader7/native/adapters/text/priors.js";
 
 const classes = {
   definiteDeterminers: DEFINITE_DETERMINERS,

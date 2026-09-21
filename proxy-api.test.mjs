@@ -146,6 +146,15 @@ test("openAIResponse carries the fold's own findings as a non-standard extra fie
   assert.deepEqual(r.fold.refs, ["wp:chunk-0#0-10"]);
 });
 
+test("thinking rides the OpenAI completion as a top-level field, and is omitted when never supplied", () => {
+  const thinking = { record: { schema: "EOAnswerRecord@1", claims: [], tally: {} }, prose: "It didn't make any checkable claims this turn.", sent: [{ call: 1, messages: [{ role: "user", content: "hi" }] }] };
+  const r = openAIResponse({ id: "x", model: "fold:m", text: "hi", created: 1, usage: { promptTokens: 1, completionTokens: 1 }, thinking });
+  assert.equal(r.thinking, thinking);
+  assert.deepEqual(r.choices[0].message.content, "hi");
+  const bare = openAIResponse({ id: "x", model: "fold:m", text: "hi", created: 1, usage: { promptTokens: 1, completionTokens: 1 } });
+  assert.equal("thinking" in bare, false);
+});
+
 test("openAIStreamLines: one content chunk, one stop chunk carrying fold, then [DONE] last", () => {
   const lines = openAIStreamLines({ id: "x", model: "fold:m", text: "hi", created: 1, fold: { refs: [] } });
   assert.equal(lines.length, 3);
@@ -156,6 +165,15 @@ test("openAIStreamLines: one content chunk, one stop chunk carrying fold, then [
   const second = JSON.parse(lines[1].slice("data: ".length));
   assert.equal(second.choices[0].finish_reason, "stop");
   assert.deepEqual(second.fold, { refs: [] });
+});
+
+test("thinking rides the stream's closing chunk, never the first content chunk", () => {
+  const thinking = { record: { claims: [] }, prose: "…", sent: [] };
+  const lines = openAIStreamLines({ id: "x", model: "fold:m", text: "hi", created: 1, fold: null, thinking });
+  const first = JSON.parse(lines[0].slice("data: ".length));
+  assert.equal("thinking" in first, false);
+  const second = JSON.parse(lines[1].slice("data: ".length));
+  assert.deepEqual(second.thinking, thinking);
 });
 
 test("ollamaChatResponse mirrors Ollama's own /api/chat shape with real counters", () => {
@@ -170,6 +188,13 @@ test("ollamaChatResponse mirrors Ollama's own /api/chat shape with real counters
   assert.equal(r.message.content, "hi");
   assert.equal(r.prompt_eval_count, 3);
   assert.equal(r.eval_count, 2);
+  assert.equal("thinking" in r, false);
+});
+
+test("ollamaChatResponse carries the fold's thinking as a top-level field", () => {
+  const thinking = { record: { schema: "EOAnswerRecord@1" }, prose: "…", sent: [] };
+  const r = ollamaChatResponse({ model: "fold:m", text: "hi", createdAt: "t", usage: { promptTokens: 1, completionTokens: 1 }, fold: null, thinking });
+  assert.equal(r.thinking, thinking);
 });
 
 test("ollamaChatStreamLines: two NDJSON lines, first not-done, second done with counters", () => {
@@ -187,4 +212,12 @@ test("ollamaChatStreamLines: two NDJSON lines, first not-done, second done with 
   const second = JSON.parse(lines[1]);
   assert.equal(second.done, true);
   assert.equal(second.eval_count, 1);
+  assert.equal("thinking" in second, false);
+});
+
+test("ollamaChatStreamLines carries the thinking on its closing line only", () => {
+  const thinking = { record: { claims: [] }, prose: "…", sent: [] };
+  const lines = ollamaChatStreamLines({ model: "fold:m", text: "hi", createdAt: "t", usage: { promptTokens: 1, completionTokens: 1 }, fold: null, thinking });
+  assert.equal("thinking" in JSON.parse(lines[0]), false);
+  assert.deepEqual(JSON.parse(lines[1]).thinking, thinking);
 });

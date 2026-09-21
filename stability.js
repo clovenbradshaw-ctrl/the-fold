@@ -127,7 +127,7 @@ export function canHeadImperative(counts) {
  * The imperative rule favours recall: a missed instruction reaches the mouth,
  * a false flag costs a reader one look, and every flag is reported.
  */
-export function makeInstructionDetector({ garyCheck, verbAttested, isBaseForm, sentences = naiveSentences }) {
+export function makeInstructionDetector({ garyCheck, verbAttested, isBaseForm, isAuxNext = null, sentences = naiveSentences }) {
   const OPENERS = new Set(["please", "then", "and", "also", "just", "only", "so", "now"]);
   return (line) => {
     const out = { prohibition: [], imperative: [] };
@@ -142,6 +142,17 @@ export function makeInstructionDetector({ garyCheck, verbAttested, isBaseForm, s
       while (i < words.length && OPENERS.has(words[i].toLowerCase())) i += 1;
       const head = (words[i] ?? "").toLowerCase().replace(/[^\p{L}'’]/gu, "");
       if (!head || words.length - i < 2) continue;
+      // A clause whose head is followed by an AUX-dominant form is
+      // DECLARATIVE, not imperative (reconciled 2026-09-20, Chomsky's
+      // arrival): "Grant was born in→ Point" — the note leading with a
+      // referent surface that is ALSO an attested base-form verb ("grant")
+      // — reads as a command to a POS-only proxy, but an imperative's head
+      // is never followed by "was"/"will"/"would": the AUX is the finite
+      // verb of a declarative whose head is its SUBJECT. Every planted
+      // instruction's head is followed by an object/particle/adverb, never
+      // an AUX — so the rule costs no recall (pinned by the controls).
+      const next = (words[i + 1] ?? "").toLowerCase().replace(/[^\p{L}'’]/gu, "");
+      if (next && typeof isAuxNext === "function" && isAuxNext(next)) continue;
       if (verbAttested(head) && isBaseForm(head)) out.imperative.push(clause.trim());
     }
     return out;

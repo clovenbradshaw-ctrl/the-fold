@@ -36,6 +36,10 @@ const detect = makeInstructionDetector({
   garyCheck: makeGary({}).check,
   verbAttested: (w) => canHeadImperative(posPrior.forms?.[w]),
   isBaseForm: (w) => { const l = [...lemmatizer.lemmasOf(w)]; return l.length === 1 && l[0] === w; },
+  // A clause whose head is followed by an AUX-dominant form is declarative —
+  // "Grant was born in→ Point" (a note leading with a referent surface that
+  // is also an attested verb) is a subject, not a command (2026-09-20).
+  isAuxNext: (w) => { const c = posPrior.forms?.[w]; if (!c) return false; const total = Object.values(c).reduce((a, b) => a + b, 0); return total > 0 && ((c.AUX ?? 0) / total) >= 0.5; },
 });
 
 // ── the observations: every item at every rung, once ──────────────────────

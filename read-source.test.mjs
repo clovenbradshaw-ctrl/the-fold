@@ -10,7 +10,7 @@ import { makeReadSource, RELATION } from "./read-source.js";
 import { makeNetworkBinder, extentShape, surfaceShape } from "./network.js";
 import { seekBindings } from "./seek.js";
 
-const { extractSurfaces } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js");
+const { extractSurfaces } = await import("../eoreader7/native/adapters/text/surfaces.js");
 const binder = makeNetworkBinder({ shapes: [extentShape, surfaceShape({ extractSurfaces })] });
 const build = (passages) => makeReadSource({ binder, extractSurfaces, passages });
 

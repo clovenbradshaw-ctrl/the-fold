@@ -1,0 +1,113 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "the-fold-vault-9931",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "serve.mjs",
+        "9931"
+      ],
+      "port": 9931
+    },
+    {
+      "name": "the-fold-8818",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "serve.mjs",
+        "8818"
+      ],
+      "port": 8818
+    },
+    {
+      "name": "the-fold-batch2-8923",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "serve.mjs",
+        "8923"
+      ],
+      "port": 8923
+    },
+    {
+      "name": "the-fold-bugtriage-8927",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "serve.mjs",
+        "8927"
+      ],
+      "port": 8927
+    },
+    {
+      "name": "the-fold-admission-negation-8958",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "serve.mjs",
+        "8958"
+      ],
+      "port": 8958
+    },
+    {
+      "name": "the-fold-isolation-9013",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "serve.mjs",
+        "9013"
+      ],
+      "port": 9013
+    },
+    {
+      "name": "the-fold-crash-triage-9271",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "serve.mjs",
+        "9271"
+      ],
+      "port": 9271
+    },
+    {
+      "name": "the-fold-anaphora-scoping-9512",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "serve.mjs",
+        "9512"
+      ],
+      "port": 9512
+    },
+    {
+      "name": "the-fold-input-repair-9614",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "serve.mjs",
+        "9614"
+      ],
+      "port": 9614
+    },
+    {
+      "name": "the-fold-coding-dest-9741",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "serve.mjs",
+        "9741"
+      ],
+      "port": 9741
+    },
+    {
+      "name": "the-fold-coding-chat-leak-9823",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "serve.mjs",
+        "9823"
+      ],
+      "port": 9823
+    },
+    {
+      "name": "the-fold-finish-wip-9917",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "serve.mjs",
+        "9917"
+      ],
+      "port": 9917
+    }
+  ]
+}

@@ -349,7 +349,19 @@ export function makeWidgetRouter(priors, pos = {}) {
   // real UD-treebank prior) is OPTIONAL and additive — see anaphoraTell,
   // below, for why it is needed at all. Absent it, behavior is exactly
   // what it was before this parameter existed.
-  const { classifyWord, dominantClass, posPrior } = pos;
+  const { classifyWord, dominantClass, posPrior, GRAMMAR_MIN_SHARE = null } = pos;
+  // The class-dominance floor is the ONE constant (grain-typing.js,
+  // Chomsky's language-universality pin): a caller that supplies the POS
+  // organs must supply the share with them — the hl-acquire lesson ("a
+  // threshold nobody chose on purpose is not safer for being smaller").
+  // The minShare calls below are POS-guarded, so a POS-less router never
+  // reaches them; a POS-ful router without the share is refused at its
+  // own first use rather than run with a silent default.
+  const shareOf = (c) => {
+    if (GRAMMAR_MIN_SHARE == null)
+      throw new TypeError("makeWidgetRouter: GRAMMAR_MIN_SHARE must ride the POS bundle — the one class-dominance constant, never a local 0.5");
+    return dominantClass(c, { minShare: GRAMMAR_MIN_SHARE });
+  };
 
   for (const [name, set] of Object.entries({ ANAPHORIC_PRONOUNS, NEGATION_WORDS, INFLECTIONAL_SUFFIXES, INDEFINITE_DETERMINERS, DEFINITE_DETERMINERS, SENTENCE_TERMINATORS })) {
     if (!(set instanceof Set) || !set.size)
@@ -583,7 +595,7 @@ export function makeWidgetRouter(priors, pos = {}) {
         const prior = typeof posPrior === "function" ? posPrior() : posPrior;
         if (next && classifyWord && dominantClass && prior) {
           const classified = classifyWord(next, { posPrior: prior });
-          const d = dominantClass(classified, { minShare: 0.5 });
+          const d = shareOf(classified);
           if (d && (d.upos === "NOUN" || d.upos === "PROPN")) continue; // determiner use — "this app", "that build"
           if (classified && classified.found === false) continue; // unknown word — read as a novel noun, not a novel verb
         }
@@ -794,7 +806,7 @@ export function makeWidgetRouter(priors, pos = {}) {
     const prior = typeof posPrior === "function" ? posPrior() : posPrior;
     if (!prior) return true;
     for (const w of [t, s]) {
-      const d = dominantClass(classifyWord(w, { posPrior: prior }), { minShare: 0.5 });
+      const d = shareOf(classifyWord(w, { posPrior: prior }));
       if (d && d.upos !== "NOUN" && d.upos !== "PROPN") return false;
     }
     return true;

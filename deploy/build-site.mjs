@@ -143,32 +143,72 @@ export function verifyExternalResolvable(graph, siblings) {
  * packages the page loads are themselves browser-targeted by decision.
  */
 export function verifyBrowserLoadable(graph, root, siblings) {
-  const visited = new Set();
   const problems = [];
+  const warnings = [];
   const read = (p) => { try { return readFileSync(p, "utf8"); } catch { return null; } };
-  const walk = (file, from) => {
+  // Two passes, because the page graph has two kinds of edge. STATIC imports
+  // are link-time: a node: built-in anywhere behind one aborts the WHOLE
+  // graph at load (the 2026-09-17 GitHub Pages boot-killer), so they are
+  // fatal. DYNAMIC import() is runtime: the engine organs that reach a
+  // node:-only module (canon-ground.mjs — fs/path/crypto/url) deliberately
+  // defer it under a `typeof process !== "undefined"` guard the browser
+  // never executes (grounding.js/self.js, eoreader7 3421baa), so a node:
+  // import found ONLY behind a dynamic edge is a warning, never a build
+  // failure — the walk cannot verify the guard, but the guard is the
+  // engine's own documented browser-safety convention, and failing the
+  // build on it makes the static build impossible (reconciled 2026-09-20).
+  // Resolution is still checked on both passes: a dynamic import to a
+  // missing file is a real broken feature, whatever its guard.
+  const collect = (src) => {
+    const out = [];
+    for (const m of src.matchAll(/from\s+(["'])([^"']+)\1/g)) out.push([m[2], "static"]);
+    for (const m of src.matchAll(/import\s*\(\s*(["'])([^"']+)\1\s*\)/g)) out.push([m[2], "dynamic"]);
+    for (const m of src.matchAll(/new URL\(\s*(["'])([^"']+)\1\s*,\s*import\.meta\.url\s*\)/g)) out.push([m[2], "dynamic"]);
+    return out;
+  };
+  const walk = (file, from, via, visited) => {
     if (visited.has(file)) return;
     visited.add(file);
     if (!existsSync(file)) { problems.push(`${relative(siblings, file)} — does not exist, imported from ${from}`); return; }
     const src = read(file);
     if (src == null) return;
     const rel = relative(siblings, file);
-    const specifiers = [];
-    for (const m of src.matchAll(/from\s+(["'])([^"']+)\1/g)) specifiers.push(m[2]);
-    for (const m of src.matchAll(/import\s*\(\s*(["'])([^"']+)\1\s*\)/g)) specifiers.push(m[2]);
-    for (const m of src.matchAll(/new URL\(\s*(["'])([^"']+)\1\s*,\s*import\.meta\.url\s*\)/g)) specifiers.push(m[2]);
-    for (const spec of specifiers) {
-      if (spec.startsWith("node:")) { problems.push(`${rel} imports ${spec} — a node built-in cannot load in a browser and would kill the whole page graph`); continue; }
+    for (const [spec, kind] of collect(src)) {
+      if (spec.startsWith("node:")) {
+        // A node: import is link-time-fatal only when a LINK-TIME member
+        // (this file reached via static edges) imports it STATICALLY. A
+        // dynamic import from a link-time file, or any import of a file
+        // reached only dynamically, is runtime — the engine's guarded-lazy-
+        // import convention (canon-ground under __isNode, eoreader7 3421baa)
+        // — and is a warning, never a build failure (reconciled 2026-09-20).
+        const fatal = via === "static" && kind === "static";
+        const line = `${rel} imports ${spec} — a node built-in cannot load in a browser`;
+        (fatal ? problems : warnings).push(`${line}${fatal ? " and would kill the whole page graph" : " (reached only at runtime — a guarded lazy import, never a link-time edge)"}`);
+        continue;
+      }
       if (!spec.startsWith(".")) continue; // bare specifier: import-mapped or vendored
       const base = dirname(file);
       const target = resolve(base, spec);
-      if (existsSync(target)) { walk(target, rel); }
+      if (existsSync(target)) { walk(target, rel, via === "static" && kind === "static" ? "static" : "dynamic", visited); }
       else {
         problems.push(`${rel} imports "./${relative(dirname(join(root, "the-fold")), target) || spec}" which does not resolve on disk — a browser's module resolver needs the exact path`);
       }
     }
   };
-  for (const f of graph.files) walk(join(root, f), "the page");
+  // Pass A: the link-time graph (static imports only). Fatal on node:.
+  const staticVisited = new Set();
+  for (const f of graph.files) walk(join(root, f), "the page", "static", staticVisited);
+  // Pass B: the runtime graph, skipping files the static pass already
+  // reached — a module is a link-time member once ANY static path touches
+  // it. Node: imports found only here are warnings.
+  const dynamicOnly = new Set(staticVisited);
+  for (const f of graph.files) walk(join(root, f), "the page", "dynamic", dynamicOnly);
+  if (warnings.length) {
+    // Printed for the build log, never fatal: a guarded lazy import is the
+    // engine's own browser-safety convention, and this build must stay
+    // shippable while it is in place.
+    console.warn(`verifyBrowserLoadable: ${warnings.length} node: import(s) reached only through dynamic imports (guarded, never a link-time edge):\n  ${warnings.slice(0, 10).join("\n  ")}`);
+  }
   if (problems.length) {
     throw new Error(
       `static build would ship a page that cannot boot: ${problems.length} browser-load problem(s) in the page's module graph.\n` +

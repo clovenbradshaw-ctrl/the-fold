@@ -69,7 +69,7 @@ export function stripEr7Prefix(modelId) {
  * reading (per-sentence surface, answer record, charter, archons, void), and
  * the session that produced it.
  */
-export async function er7ChatCompletion({ model, history = [], task, sessionId, attachments = [], discloseThinking = false, onRetry, timeoutMs = ER7_TURN_TIMEOUT_MS }) {
+export async function er7ChatCompletion({ model, history = [], task, sessionId, attachments = [], discloseThinking = false, web = false, onRetry, timeoutMs = ER7_TURN_TIMEOUT_MS }) {
   const messages = [...(history ?? []), { role: "user", content: task }];
   const headers = { "content-type": "application/json" };
   if (sessionId) headers["x-er7-session"] = sessionId;
@@ -78,6 +78,9 @@ export async function er7ChatCompletion({ model, history = [], task, sessionId, 
     messages,
     stream: false,
     discloseThinking,
+    // The person's own web switch, carried as PER-REQUEST consent: the engine's
+    // fact gate may run its declared web check only when the caller says so.
+    ...(web ? { web: true } : {}),
     ...(attachments?.length ? { attachments } : {}),
   };
   // One deadline for the whole call, retries included: a 429 backoff may

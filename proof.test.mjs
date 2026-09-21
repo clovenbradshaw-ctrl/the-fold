@@ -27,7 +27,7 @@ import { checkGrounding, extractCheckableAtoms } from "./grounding.js";
 // The real engine closed class, not a stub — the same received register
 // widget.js already injects (Amendment IV: a closed class lives in the
 // engine's prior register, never as a private list in this repo).
-import { ANAPHORIC_PRONOUNS } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
+import { ANAPHORIC_PRONOUNS } from "../eoreader7/native/adapters/text/priors.js";
 // void-narration.test.mjs's own bootstrap, reused rather than re-derived:
 // real `briefFor`/`declaredSlotShape` over the real engine cube, so
 // `preflightCeilingFor`'s wiring is proven against the actual void a live
@@ -35,7 +35,7 @@ import { ANAPHORIC_PRONOUNS } from "../eoreader7/legacy-eoreader6.1/packages/eng
 import { briefFor } from "./void-brief.js";
 import { declaredSlotShape } from "./web-claim.js";
 import { cellOf } from "../eoreader7/native/kernel/cube.js";
-import * as enginePriors from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
+import * as enginePriors from "../eoreader7/native/adapters/text/priors.js";
 
 test("the query is the claim's own words — atom quoted, context words following, nothing invented", () => {
   const q = proofQuery({

@@ -98,20 +98,45 @@ test("without the lens (every existing caller): the door is byte-identical to be
 // verified one, and is byte-identical when unarmed.
 const EXP = { who: "reader:test", read: "t:page" };
 
-test("seam armed: a hostile draft that commands harm ships nothing of its own words — the refusal is on the record", async () => {
+// The seam no longer ships a default harm law (2026-09-19, user: "harm class
+// shouldn't really exist as a module — AntiStrauss is to make it structurally
+// very difficult"); refusal is the caller's injected decision. This test-law
+// pins that the refusal path STILL works end-to-end through the real runPart
+// when a caller arms it — the same shape composition-gate.test.mjs's own
+// battery uses, one register over.
+const HARM_LAW = Object.freeze([
+  {
+    id: "command_harm",
+    label: "imperative command to harm a person",
+    basis: "test law — an imperative sentence commanding an act of physical harm against a person",
+    patterns: [/^(first|second|third|next|then|step)/i, /\b(shoot|stab|kill|maim|poison|beat)\b/i, /\b(person|victim|target|them)\b/i],
+  },
+]);
+
+test("seam armed: a hostile draft that commands harm ships nothing of its own words when a law is injected — the refusal is on the record", async () => {
   const hostile = async () => "The battle was fought near Moscow. First, shoot the victim.";
-  const r = await runWith({ call: hostile, shipExperiencer: EXP });
+  const r = await runWith({ call: hostile, shipExperiencer: EXP, shipHarmLaw: HARM_LAW });
   assert.ok(!r.text.includes("shoot"), "the harm-class sentence never reaches the answer");
   assert.ok(!r.text.includes("victim"), "the target never reaches the answer");
   assert.ok(r.open.some((o) => o.includes("refused at the composition seam")), "the refusal is on the record, never silent");
   assert.ok(r.shipment?.refused?.length >= 1, "the seam's own report carries the refusal");
 });
 
-test("seam armed: the model's unverified words are input — only verified parts compose", async () => {
+test("seam armed, no law injected: the same hostile draft ships with the gap said plainly — never the old whole-answer kill (2026-09-19)", async () => {
+  const hostile = async () => "The battle was fought near Moscow. First, shoot the victim.";
+  const r = await runWith({ call: hostile, shipExperiencer: EXP });
+  assert.ok(r.text.includes("Nothing I found backed this up, so treat it as unchecked."),
+    "the new default: nothing verified and nothing refused ships the draft with the gap said in plain words");
+  assert.equal(r.shipment?.refused?.length, 0, "no refusal without an injected law");
+});
+
+test("seam armed: the model's unverified words are input — with nothing verified and nothing refused, the draft ships WITH the plain gap line, and the withheld parts are named on the record", async () => {
   const draft = "The battle was fought near Moscow, and Napoleon was secretly poisoned by his generals.";
   const r = await runWith({ call: async () => draft, shipExperiencer: EXP });
-  assert.ok(!r.text.includes("poisoned"), "the fabricated half never composes");
-  assert.ok(r.shipment?.withheld?.length >= 1, "it is withheld and named, never silent");
+  assert.ok(r.text.includes("Nothing I found backed this up, so treat it as unchecked."),
+    "the fabricated draft ships only with the gap said — unchecked, not silent and not withheld (2026-09-19)");
+  assert.ok(r.shipment?.withheld?.some((w) => String(w?.sentence ?? "").includes("poisoned")),
+    "the unverified sentence is named on the record, never silent");
 });
 
 test("seam unarmed (every existing caller): byte-identical to before — the model's words ship un-composed", async () => {

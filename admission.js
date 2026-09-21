@@ -280,6 +280,18 @@ function randomSubset(n, count, rng) {
   return new Set(idx.slice(0, count));
 }
 
+/** The proper names a text carries: capitalized words that do not open a sentence (an opener is capitalized by grammar, not by being a name). `all` reads every capitalized word — for a line that is not prose (a discourse line of topic, flow, entities). */
+export function properNamesIn(text, { all = false } = {}) {
+  const out = [];
+  for (const m of String(text ?? "").matchAll(/[\p{L}][\p{L}'’-]*/gu)) {
+    if (!/^\p{Lu}[\p{Ll}'’-]+$/u.test(m[0])) continue;
+    const before = String(text).slice(0, m.index).trimEnd();
+    if (!all && (!before || /[.!?:]$/.test(before))) continue;
+    out.push(m[0]);
+  }
+  return [...new Set(out)];
+}
+
 export function makeAdmission({ tokenize, splitSentences, negationWords } = {}) {
   if (typeof tokenize !== "function") throw new TypeError("makeAdmission: tokenize is injected");
 
@@ -430,13 +442,28 @@ export function makeAdmission({ tokenize, splitSentences, negationWords } = {}) 
    * admitted as material for it? Returns a typed verdict, never a bare
    * boolean — the reason is what makes a refusal disclosable rather than a
    * silent drop (this codebase's own standing rule: a gap is a result). */
-  function sourceAdmits(question, sourceText, { floor = ADMISSION_FLOOR, draws, seed } = {}) {
+  function sourceAdmits(question, sourceText, { floor = ADMISSION_FLOOR, draws, seed, names } = {}) {
     const qTerms = questionTerms(question);
     if (!qTerms.length) {
       return { admitted: true, ungateable: true, shared: [], need: 0, qTermsCount: 0, reason: "the question has no content words to gate on" };
     }
     const sTerms = new Set(tokenize(String(sourceText ?? "")));
     const shared = qTerms.filter((t) => sTerms.has(t));
+    // A NAME IS NOT A COMMON WORD (Parmenides: same referent by evidence). The chance
+    // null below is a test of common words landing together; a proper name the
+    // question carries, found in the source, is not a coincidence of that kind — it is
+    // the referent itself. When every name the ask carries is in the source, the
+    // person's own material outranks having to clear a co-occurrence null it was
+    // never built to be judged by (a five-paragraph source cannot clear one, and a
+    // refused source hands the turn to the web, whose page about another "Vellmar"
+    // then becomes the present). `names` may be handed in by a caller that read them
+    // off the conversation (an anaphoric ask); omitted, they are the ask's own.
+    // A DENIED name is not an asserted one (this file's own header): "not Austin" names no referent the source must carry.
+    const deniedNow = deniedTerms(question);
+    const askedNames = (names ?? properNamesIn(question)).map((n) => tokenize(n)).filter((t) => t.length && !t.some((x) => deniedNow.has(x)));
+    if (askedNames.length && askedNames.every((t) => t.every((x) => sTerms.has(x)))) {
+      return { admitted: true, ungateable: false, shared: askedNames.flat(), need: 0, qTermsCount: qTerms.length, reason: `carries the name(s) the question carries: ${askedNames.flat().join(", ")}` };
+    }
     const need = Math.min(floor, qTerms.length);
     if (shared.length < need) {
       return {

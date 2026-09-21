@@ -1,0 +1,1081 @@
+{
+  "total": 100,
+  "pass": 100,
+  "results": [
+    {
+      "scenario": "single-fact",
+      "trial": 1,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 2,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 3,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 4,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 5,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 6,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 7,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 8,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 9,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 10,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 11,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 12,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 13,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 14,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 15,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 16,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 17,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 18,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 19,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 20,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 21,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 22,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 23,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 24,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "single-fact",
+      "trial": 25,
+      "ok": true,
+      "output": "Paris.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 1,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 2,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 3,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 4,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 5,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 6,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 7,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 8,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 9,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 10,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 11,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 12,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 13,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 14,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 15,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 16,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 17,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 18,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 19,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 20,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 21,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 22,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 23,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 24,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "two-fact recall",
+      "trial": 25,
+      "ok": true,
+      "output": "The Riverside Museum opens at 9 am and admission costs $12 for adults.",
+      "error": null,
+      "checks": [
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 1,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 2,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 3,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 4,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 5,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 6,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 7,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 8,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 9,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 10,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 11,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 12,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 13,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 14,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 15,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 16,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 17,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 18,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 19,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 20,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 21,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 22,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 23,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 24,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "three-fact recall",
+      "trial": 25,
+      "ok": true,
+      "output": "The Willowbrook Public Library was founded in 1932. It holds over 80,000 books and is led by head librarian Dana Ferris.",
+      "error": null,
+      "checks": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 1,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 2,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 3,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 4,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 5,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 6,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 7,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 8,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 9,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 10,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 11,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 12,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 13,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 14,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 15,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 16,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 17,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 18,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 19,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 20,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 21,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 22,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 23,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 24,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    },
+    {
+      "scenario": "genuine-absence (no fabrication)",
+      "trial": 25,
+      "ok": true,
+      "output": "Not mentioned.",
+      "error": null,
+      "checks": [
+        true
+      ]
+    }
+  ]
+}

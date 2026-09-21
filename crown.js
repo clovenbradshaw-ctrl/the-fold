@@ -64,6 +64,7 @@
 // consumes whatever `mergeTestimony` decided; it never re-derives standing.
 
 import { SELF_WITNESS } from "../eoreader7/native/organs/index.js";
+import { questionFor, gateCrown } from "./elenchus.js";
 
 // ── tokenize — the ONE word/punctuation splitter every render, every
 // witness name, and the trace-coverage veto all use. Never a second one:
@@ -430,9 +431,10 @@ function renderDisagree(merged) {
 }
 
 /**
- * `renderCrown(merged)` — the one public entry point. `merged` is
- * `mergeTestimony`'s own return value. Returns
- * `{text, trace, verified, violations, apparatus}` — `apparatus` is always
+ * `renderCrown(merged, { socrates, cycle } = {})` — the one public entry point.
+ * `merged` is `mergeTestimony`'s own return value. Returns
+ * `{text, trace, verified, violations, apparatus, socrates, socratesText,
+ * socratesRefused}` — `apparatus` is always
  * present and always carries `{case, standing, sources}`, the demoted
  * detail every case discloses even when the sentence itself doesn't name
  * sources inline (AGREE, CONTRADICTED's corroborated form). `sources` is
@@ -440,12 +442,25 @@ function renderDisagree(merged) {
  * included, verbatim, never filtered out of the disclosure even where
  * `mergeTestimony` excluded them from a COUNT.
  *
+ * SOCRATES (P244) rides every render and changes the sentence never: the
+ * crown sentence (`text`, under the trace-coverage wall exactly as before)
+ * is untouched by it; `socrates` is elenchus.js's own closed-bank question
+ * for this standing (null on AGREE — corroborated testimony needs no
+ * question back), `socratesText` its filled text ("" when null), and
+ * `socratesRefused` the gate's typed refusal when the carried question is
+ * missing or off-bank (null when the gate passes). Omitted, `socrates`
+ * defaults to the bank question for this standing — auto-attached, so no
+ * code path ships a non-AGREE render without one; pass `null` explicitly
+ * to carry none (the gate then refuses, honestly), or a question object to
+ * carry that one (a turn-level questionCycle result arrives as `cycle`).
+ * Callers that must not ship a refused render call `assertCrownShippable`.
+ *
  * Every case is covered; an unrecognized `merged.case` (a defensive floor,
  * never reachable from a real `mergeTestimony` call) renders exactly like
  * UNDETERMINED — nothing asserted is always the safe default direction to
  * fail in, matching this render's own whole reason for existing.
  */
-export function renderCrown(merged) {
+export function renderCrown(merged, { socrates = undefined, cycle = null } = {}) {
   const m = merged ?? {};
   let rendered = null;
   let fields = null;
@@ -492,8 +507,35 @@ export function renderCrown(merged) {
 
   const claimFields = { ...(fields ?? {}), witnesses: witnesses ?? [] };
   const verified = verifyOrFallback(rendered, claimFields);
+  // P244: the standing question, beside the sentence, never inside its
+  // trace wall. The question text is NOT part of `text` — `text` stays
+  // exactly what the trace wall verified, word for word — it ships
+  // alongside as `socratesText`, whose own wall is exact bank membership
+  // (gateCrown recomputes the fill rather than trusting the caller).
+  const carried = socrates === undefined ? questionFor(m, { cycle }) : socrates;
+  const gate = gateCrown(m, carried, { cycle });
   return {
     ...verified,
     apparatus: { case: m.case ?? "UNDETERMINED", standing: m.standing ?? null, sources },
+    socrates: carried ?? null,
+    socratesText: carried?.text ?? "",
+    socratesRefused: gate.ok ? null : gate.refused,
   };
+}
+
+/**
+ * `assertCrownShippable(crowned)` — the build-time gate (P244). Throws with
+ * the refusal named when a non-AGREE render carries no Socrates question
+ * (or a reworded one), or when the sentence failed its own trace wall.
+ * A caller that must never ship a confident-sounding SINGLE/DISAGREE/
+ * UNDETERMINED/CONTRADICTED answer without the question attached calls
+ * this before shipping; a caller that only discloses reads
+ * `socratesRefused` directly instead. Returns true when shippable.
+ */
+export function assertCrownShippable(crowned) {
+  const bad = [];
+  if (crowned?.socratesRefused) bad.push(`socrates-required — ${crowned.socratesRefused.detail}`);
+  if (crowned && !crowned.verified) bad.push(`trace-coverage — ${(crowned.violations ?? []).map((v) => v.type).join(", ") || "unverified render"}`);
+  if (bad.length) throw new Error(`crown render refused:\n  ${bad.join("\n  ")}`);
+  return true;
 }

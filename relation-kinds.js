@@ -5,16 +5,23 @@
 // end"; "if we keep our eyes on the metastructure, we can be omnilingual").
 // Pure.
 //
-// THE METASTRUCTURE IS THE MEANING. A relationship's KIND is which of the 27
-// cells (operator × grain, cube.js) its label is — the closed lattice, never
-// an open verb list. Slots and word order are the PROJECTION (a language's
-// own eigenvalue for getting from a sentence to {end1, label, end2}); the
-// cell is where the arrangement lands. This is what makes the reading
-// OMNILINGUAL: a Hebrew "היא", an English "is", a Russian copula all land on
-// the same cell, because the cell is not a string or an order — it is a place
-// in the metastructure. The standing face (standingOf, kernel/notes.js) grades
-// the same arrangement by how it is attested. A relationship =
-// (kind ∈ 27 cells, standing ∈ evidence lattice).
+// THE METASTRUCTURE IS NOT THE MEANING (corrected 2026-09-16 — an earlier
+// version of this header said it was). The MEANING of a communication is
+// what its GIVER intended; the metastructure — the 27-cell lattice
+// (operator × grain, cube.js) — is only the closed vocabulary this apparatus
+// uses to talk ABOUT that intent across any medium, the frame that makes
+// cognition OMNIMODAL, never a replacement for the giver's own intent. A
+// relationship's KIND is which of the 27 cells its label is — the closed
+// lattice, never an open verb list. Slots and word order are the PROJECTION
+// (a language's own eigenvalue for getting from a sentence to {end1, label,
+// end2}); the cell is where the arrangement lands. This is what makes the
+// reading OMNILINGUAL: a Hebrew "היא", an English "is", a Russian copula all
+// land on the same cell, because the cell is not a string or an order — it is
+// a place in the metastructure, the shared frame that lets what two givers
+// meant be COMPARED at all. The standing face (standingOf, kernel/notes.js)
+// grades the same arrangement by how it is attested. A relationship =
+// (kind ∈ 27 cells, standing ∈ evidence lattice) — and neither axis IS the
+// giver's meaning; both are this instrument's read on it.
 //
 // THE KIND FAMILIES (the user's "likely 27"). A label's cell is read off two
 // axes:

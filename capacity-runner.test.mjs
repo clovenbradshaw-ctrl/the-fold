@@ -5,13 +5,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import * as operators from "../eoreader7/legacy-eoreader6.1/packages/engine/operators.js";
-import * as taskLog from "../eoreader7/legacy-eoreader6.1/packages/engine/holon/task-log.js";
-import { splitSentences } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/spans.js";
-import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/surfaces.js";
-import { discoverRelationVocab, extractRelations } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/relations.js";
-import { tokenize } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/material.js";
-import { classifyWord, dominantClass } from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/wordclass.js";
+import * as operators from "../eoreader7/native/kernel/cube.js";
+import * as taskLog from "../eoreader7/native/kernel/task-log.js";
+import { splitSentences } from "../eoreader7/native/adapters/text/spans.js";
+import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "../eoreader7/native/adapters/text/surfaces.js";
+import { discoverRelationVocab, extractRelations } from "../eoreader7/native/adapters/text/relations.js";
+import { tokenize } from "../eoreader7/native/adapters/text/material.js";
+import { classifyWord, dominantClass } from "../eoreader7/native/adapters/text/wordclass.js";
 import { makeReferentIndex } from "./cast.js";
 import { makeRelationReader } from "./hypergraph.js";
 import { makeCapacityRunner, landAct, negationCandidates, perSourceReadings, mergeTestimony, SELF_WITNESS, isSelfWitness, readsNothing, landSelfAssertion } from "../eoreader7/native/organs/index.js";

@@ -192,8 +192,15 @@ test("the entropy null is measured: ciphertext sits in the band random bytes of 
   const key = generateChatKey();
   const entries = Array.from({ length: 40 }, (_, i) => ({ id: String(i), kind: "turn", role: i % 2 ? "assistant" : "user", content: `${CANARY} ${i}`, seq: i, ts: i }));
   const { bytes, plaintext } = await encodeBlock(key, { idx: 0, prev: null, entries });
+  // SEEDED DRAWS (2026-09-20): this test used crypto.getRandomValues, so the
+  // band was a fresh sample every run and a true member could fall below the
+  // sample min at the test's own disclosed rate (P(outside N draws' band) =
+  // 2/(N+1) ≈ 1% at N=200) — a ~1-in-100 flake, hit live. A fixed seed makes
+  // the band reproducible while keeping the same distribution-free claim.
+  const s = (seed) => () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const rand = s(20260920);
   const draws = 200; let lo = 8, hi = 0;
-  for (let d = 0; d < draws; d++) { const h = byteEntropy(globalThis.crypto.getRandomValues(new Uint8Array(bytes.length))); lo = Math.min(lo, h); hi = Math.max(hi, h); }
+  for (let d = 0; d < draws; d++) { const r = new Uint8Array(bytes.length); for (let i = 0; i < r.length; i++) r[i] = Math.floor(rand() * 256); const h = byteEntropy(r); lo = Math.min(lo, h); hi = Math.max(hi, h); }
   const ct = byteEntropy(bytes), pt = byteEntropy(plaintext);
   assert.ok(ct >= lo && ct <= hi, `ciphertext ${ct.toFixed(3)} within the random band [${lo.toFixed(3)}, ${hi.toFixed(3)}] over ${draws} draws`);
   assert.ok(pt < lo, `plaintext ${pt.toFixed(3)} below the band (the statistic resolves the two, II.23)`);

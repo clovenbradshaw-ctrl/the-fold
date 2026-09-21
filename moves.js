@@ -45,11 +45,18 @@
 
 /**
  * makeMoves({ operators }) — the move space, against the engine's own tables.
- * `operators` is `packages/engine/operators.js` injected (the cast.js pattern
- * every other organ here uses), so the cells can never drift from the algebra.
+ * `operators` is the native kernel cube injected (the cast.js pattern every
+ * other organ here uses) — `native/kernel/cube.js`'s `GRAINS`,
+ * `TERRAIN_BY_DOMAIN`, `OPERATOR_CHAIN` and `cellOf` — so the cells can never
+ * drift from the algebra. The legacy engine namespace this file originally
+ * consumed (`operatorOf`, a literal `OPERATOR_ORDER`) no longer exists there;
+ * `operatorOf` is synthesized from `cellOf` exactly as the engine's own
+ * capability-coverage driver does (`cellOf(op, "Ground")` — mode and domain
+ * do not vary with grain), and the order is `OPERATOR_CHAIN`.
  */
 export function makeMoves({ operators }) {
-  const { GRAINS, TERRAIN_BY_DOMAIN, OPERATOR_ORDER, operatorOf } = operators;
+  const { GRAINS, TERRAIN_BY_DOMAIN, OPERATOR_CHAIN, cellOf } = operators;
+  const specOf = (op) => cellOf(op, "Ground"); // {mode, domain} — grain-independent; gap-shaped like the legacy operatorOf
 
   /**
    * everyMove() — all 27 cells. Nine operators, three grains; the terrain is
@@ -59,8 +66,8 @@ export function makeMoves({ operators }) {
    */
   function everyMove() {
     const moves = [];
-    for (const op of OPERATOR_ORDER) {
-      const { mode, domain } = operatorOf(op);
+    for (const op of OPERATOR_CHAIN) {
+      const { mode, domain } = specOf(op);
       for (const grain of GRAINS) {
         moves.push({ op, grain, mode, domain, terrain: TERRAIN_BY_DOMAIN[domain][grain], cell: `${op}·${grain}` });
       }
@@ -85,7 +92,7 @@ export function makeMoves({ operators }) {
     const illegal = [];
     for (const cap of capabilities ?? []) {
       for (const op of String(cap?.op ?? "").split("+").map((s) => s.trim()).filter(Boolean)) {
-        const spec = operatorOf(op);
+        const spec = specOf(op);
         if (spec?.gap) { illegal.push({ ...cap, op, why: spec.reason }); continue; }
         const row = TERRAIN_BY_DOMAIN[spec.domain];
         const grain = GRAINS.find((g) => row[g] === cap.terrain);
@@ -122,7 +129,7 @@ export function makeMoves({ operators }) {
     const at = new Set((covered ?? []).map((m) => m.cell));
     return {
       sameActOtherGrain: GRAINS.filter((g) => g !== grain && at.has(`${op}·${g}`)).map((g) => `${op}·${g}`),
-      sameGrainOtherAct: OPERATOR_ORDER.filter((o) => o !== op && at.has(`${o}·${grain}`)).map((o) => `${o}·${grain}`),
+      sameGrainOtherAct: OPERATOR_CHAIN.filter((o) => o !== op && at.has(`${o}·${grain}`)).map((o) => `${o}·${grain}`),
     };
   }
 

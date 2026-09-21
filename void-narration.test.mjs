@@ -17,7 +17,7 @@ import { briefFor, observedFillers, possessorIn, ofObjectIn, extentFor } from ".
 import { declaredSlotShape } from "./web-claim.js";
 import { successionFillers } from "./succession.js";
 import { cellOf } from "../eoreader7/native/kernel/cube.js";
-import * as priors from "../eoreader7/legacy-eoreader6.1/packages/engine/perceiver/text/priors.js";
+import * as priors from "../eoreader7/native/adapters/text/priors.js";
 
 const shapeOf = (q) =>
   declaredSlotShape(q, {

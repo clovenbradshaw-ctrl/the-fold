@@ -18,7 +18,7 @@ const ROOT = new URL("../../", import.meta.url).pathname;
 const NATIVE = `${ROOT}eoreader7/native`;
 const KINDS = [
   ["prose", `${ROOT}the-fold/pg2600.txt`],
-  ["greek", `${ROOT}eoreader7/legacy-eoreader6.1/odyssey-greek.txt`],
+  ["greek", `${NATIVE}/eval/the-fold/fixtures/odyssey-greek.txt`],
   ["xml", `${ROOT}live_priors/14-holy-texts/sblgnt/Luke.xml`],
   ["code", `${ROOT}eopm/public/vendor/react-dom.js`],
   ["json", `${NATIVE}/eval/the-fold/fixtures/unimorph-eng-verb-forms.json`],

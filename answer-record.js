@@ -78,7 +78,7 @@ export const claimKey = (c) => `${String(c.end1 ?? c.subject ?? "").toLowerCase(
  * @param {object} turn — { question, answer, model, frame, recipe, sections, unsupported, unbacked, unread, sources, constitution, cursor }
  * @returns {object} the record
  */
-export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [], sameForm = null, satisfaction = null, logos = null, ledgerLint = null } = {}) {
+export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [], sameForm = null, satisfaction = null, logos = null, ledgerLint = null, ungrounded = null, expectation = null } = {}) {
   const claims = [];
   const retrieved = [];
   for (const s of sections ?? []) {
@@ -91,6 +91,10 @@ export function answerRecord({ question, answer = "", model = null, frame = null
         refs: [...new Set(c.refs ?? [])],
         spans: (c.spans ?? []).map((sp) => ({ ref: sp.ref ?? null, start: sp.start ?? null, end: sp.end ?? null })),
         ...(c.reason ? { reason: c.reason } : {}),
+        // THE SCOPE SLOT (scope.js): when the claim holds, and the date of the
+        // ground that backs it. Carried only when the caller typed them.
+        ...(c.scope ? { scope: c.scope } : {}),
+        ...(c.ground ? { ground: c.ground } : {}),
       });
     }
   }
@@ -102,6 +106,7 @@ export function answerRecord({ question, answer = "", model = null, frame = null
     cursor,
     question: String(question ?? ""),
     model, recipe, frame,
+    expectation,
     retrieved,
     // THE SOURCES OF WHAT WAS RETRIEVED (2026-09-10, user direction: "this
     // should disclose sources" — found live, a materialless preflight turn
@@ -142,6 +147,11 @@ export function answerRecord({ question, answer = "", model = null, frame = null
     // answer (P186). `null` when the caller never ran the check or none
     // was found; every pre-existing turn is byte-identical without it.
     ...(logos ? { logos } : {}),
+    // UNGROUNDED FACTS (scope.js::ungroundedFact): claims whose scope is
+    // open-now and whose ground is absent or undated. Disclosure only (P186):
+    // the composition seam appends plain words; nothing here edits the answer.
+    // Absent unless the caller ran the check (byte-identical otherwise).
+    ...(Array.isArray(ungrounded) ? { ungrounded: ungrounded.slice(0, 50) } : {}),
     // DEGREES KELSEN OVER THE LOG (logos.js::ledgerLint): the reasoning
     // linter read over the notes this instrument holds — not over the
     // mouth's words — with what this turn's own writing introduced kept

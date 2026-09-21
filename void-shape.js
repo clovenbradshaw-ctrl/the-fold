@@ -1,5 +1,18 @@
 // void-shape.js — zero the space, then see what is still empty.
 //
+// NAGARJUNA'S NOTE (2026-09-16): this file's `declareVoid` is NOT
+// eoreader7/native/kernel/notes.js's `declareVoid` — same name, different
+// meaning, the same shape this repo already disclosed for "hyperlexicon"
+// (CLAUDE.md, "Three modules share the name 'hyperlexicon'"). THIS ONE is
+// a SPACE: a single slot as an extent with dimensions (Lincoln's
+// presidency, 1861-1865), zeroed and then checked for what a filler still
+// leaves uncovered — read `spaceFrom`/`zeroSpace`/`fill`/`voidsOf` below.
+// notes.js's is a LEDGER ENTRY: "nothing heard for `<end1 —label→ ?>`" in
+// a declared scope, with its own timeline (declared/filled/conceded) on
+// the append-only record — no extent, no dimensions, no arithmetic. Import
+// the one you mean; a caller wanting "is this reader's own record missing
+// something" wants notes.js's, not this one.
+//
 // User direction, 2026-08-26: "we need to zero the space. define the VOID,
 // the shape that needs to be filled."
 //

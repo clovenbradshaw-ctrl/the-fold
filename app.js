@@ -11137,6 +11137,10 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   const traceSummary = document.createElement("summary");
   const traceDot = document.createElement("span");
   traceDot.className = "thinking-dot";
+  // Three breathing dots — the SAME cue the empty message body carries
+  // (.msg-thinking, below): one "someone is working on it" shape wherever
+  // it appears, not a pulse here and dots there (2026-09-20).
+  traceDot.innerHTML = "<span></span><span></span><span></span>";
   const traceVerb = document.createElement("span");
   traceVerb.className = "thinking-verb";
   traceVerb.textContent = "thinking…";
@@ -11509,12 +11513,18 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   const sentCalls = [];
 
   let phaseLabel = "planning";
+  let lastPhaseVerb = null;
   let phaseStart = performance.now();
   let phasePromptChars = 0;
   const setPhase = (label, promptChars = 0) => {
     phaseLabel = label;
     phaseStart = performance.now();
     phasePromptChars = promptChars;
+    // The message's own thinking line streams the same phase the ticker
+    // draws ("reading for the answer", "checking for material"…), faded on
+    // change — what this turn is iterating on, where the text is about to
+    // be (2026-09-20).
+    paintMessageThinking(label);
   };
   // Painted once immediately, not only on the first `setInterval` tick a
   // second later — the summary is now the one thing a reader sees without
@@ -11535,6 +11545,17 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     traceVerb.textContent =
       `${phaseLabel} · ${secs}s${expect}` +
       (pace.decodeTps ? ` · ${Math.round(pace.decodeTps)} tok/s` : " · pace unmeasured");
+    // THE FADING LINE (2026-09-20, user direction: "a single line that
+    // streams and fades"). The verb is the phase, and the phase is what
+    // changes when the work moves — so the fade fires only on a phase
+    // change, never on the per-second elapsed tick (which would strobe).
+    // The message body's own .msg-thinking label gets the same treatment
+    // through paintMessageThinking in setPhase.
+    if (phaseLabel !== lastPhaseVerb) {
+      lastPhaseVerb = phaseLabel;
+      traceVerb.classList.add("fading");
+      setTimeout(() => traceVerb.classList.remove("fading"), 160);
+    }
     // THE PACE GAUGE: the same `predictedMs` the text line just printed as
     // "~Ns expected", drawn — occupancy relative to what is NORMAL for this
     // call, not a raw percentage of nothing. Clamped at 100% so a call that
@@ -12952,9 +12973,53 @@ function addMessage(role, text) {
     if (role === "user" && text.trim()) noticeAboutUser(text.trim(), `turn:${turnSeq}`);
   }
   state.convos[state.active].el.append(el);
+  // THE THINKING ANIMATION, WHERE THE TEXT IS ABOUT TO BE (2026-09-20,
+  // user direction: "put the thinking animation where the text is about to
+  // be, and show what's iterating on" / "a single line that streams and
+  // fades"). An assistant message born EMPTY is a turn in flight — the
+  // answer text will land in this body. So the three breathing dots live
+  // here, not above the composer, and the label beside them is the current
+  // act/phase, driven by `paintMessageThinking` (setPhase's labels, and the
+  // status-line's act labels via the fold:live-thinking event). The element
+  // is wiped the instant the answer renders (renderAnswer's own
+  // `body.textContent = ""`), so it exists exactly as long as the text is
+  // still coming — "where the text is about to be" is a literal position,
+  // not a metaphor. Only the CURRENT turn's element is live (data-live set
+  // here, cleared on the previous one) so a stuck earlier turn cannot light
+  // a second animation.
+  if (role === "assistant" && !text) {
+    const thinking = document.createElement("div");
+    thinking.className = "msg-thinking live";
+    thinking.setAttribute("role", "status");
+    thinking.setAttribute("aria-label", "thinking");
+    thinking.innerHTML = "<span></span><span></span><span></span><b>thinking</b>";
+    el.querySelector(".body").append(thinking);
+    if (liveThinkingEl) liveThinkingEl.classList.remove("live");
+    liveThinkingEl = thinking;
+  }
   el.scrollIntoView({ block: "end" });
   return el;
 }
+
+// The single line that streams: the label of the current turn's thinking
+// element, faded out and swapped so a change reads as a change (2026-09-20).
+// `.fading` is a 160ms opacity transition (index.html) — the swap happens
+// after it, so the old word leaves before the new one arrives.
+let liveThinkingEl = null;
+let liveThinkingSwap = null;
+function paintMessageThinking(label) {
+  if (!liveThinkingEl || !liveThinkingEl.isConnected) return;
+  const b = liveThinkingEl.querySelector("b");
+  if (!b) return;
+  if (b.textContent === label) return;
+  clearTimeout(liveThinkingSwap);
+  b.classList.add("fading");
+  liveThinkingSwap = setTimeout(() => {
+    b.textContent = label;
+    b.classList.remove("fading");
+  }, 160);
+}
+window.addEventListener("fold:live-thinking", (e) => paintMessageThinking((e.detail ?? {}).label ?? "thinking"));
 
 /**
  * Render a finished answer as what it is. Prose stays prose; a table becomes a

@@ -771,27 +771,34 @@
       .thinking-live > summary::before { content: "▸"; font-size: 9px; transition: transform 0.15s; flex: none; }
       .thinking-live[open] > summary::before { transform: rotate(90deg); }
       .thinking-live > summary:hover { color: var(--accent); }
-      .thinking-live .thinking-verb { font-family: var(--mono); }
+      .thinking-live .thinking-verb {
+        font-family: var(--mono);
+        transition: opacity 160ms ease;
+      }
+      .thinking-live .thinking-verb.fading { opacity: 0; }
       .thinking-live-body { margin-top: 6px; }
-      /* The dot: the same pulsing vocabulary the header's model chip already
-         uses for "this is happening now" (chip-pulse, below) — the cue reads
-         identically whether a reader is looking at the header or at the
-         turn itself. It exists only while the turn this panel belongs to is
-         actually running (`.live`, removed by `stopPulse()` the instant the
-         turn lands or errors) — gone, not merely stopped, so nothing here
-         can read as "still working" once the work is over. */
-      .thinking-live .thinking-dot { display: none; }
-      .thinking-live.live .thinking-dot {
-        display: inline-block;
-        width: 6px;
-        height: 6px;
+      /* The thinking dots: the SAME breathing animation the empty message
+         body carries (.msg-thinking) — three dots, not one — so the live
+         line under the model tag reads as the same "someone is working on
+         it" cue wherever it appears (2026-09-20). Exists only while the
+         turn this panel belongs to is actually running (`.live`, removed
+         by `stopPulse()` the instant the turn lands or errors) — gone, not
+         merely stopped, so nothing here can read as "still working" once
+         the work is over. */
+      .thinking-live .thinking-dot { display: none; align-items: center; gap: 3px; flex: none; }
+      .thinking-live.live .thinking-dot { display: inline-flex; }
+      .thinking-live .thinking-dot span {
+        width: 5px;
+        height: 5px;
         border-radius: 999px;
         background: var(--accent);
-        flex: none;
-        animation: chip-pulse 1.4s ease-in-out infinite;
+        opacity: 0.25;
+        animation: thinking-wave 1.2s ease-in-out infinite;
       }
+      .thinking-live .thinking-dot span:nth-child(2) { animation-delay: 0.15s; }
+      .thinking-live .thinking-dot span:nth-child(3) { animation-delay: 0.3s; }
       @media (prefers-reduced-motion: reduce) {
-        .thinking-live.live .thinking-dot { animation: none; }
+        .thinking-live.live .thinking-dot span { animation: none; opacity: 0.7; }
       }
       /* THE PACE GAUGE (Problem 2, 2026-09-15): a visual read of how the
          call actually in flight is doing against pace.js's own measured
@@ -2940,6 +2947,37 @@
         font-size: 11px;
         color: var(--muted);
       }
+      /* THE THINKING ANIMATION, WHERE THE TEXT IS ABOUT TO BE (2026-09-20,
+         user direction: "put the thinking animation where the text is about
+         to be, and show what's iterating on"). It used to sit above the
+         composer; it now lives inside the empty assistant message that is
+         about to receive the answer — three dots that breathe in sequence
+         beside the label `paintMessageThinking` streams (what the turn is
+         iterating on: a phase, an act, a passage). Deliberately not a
+         spinner — a spinner says "loading", this says "someone is working
+         on it", and the label says WHAT. Shown while any turn is running
+         (body[data-busy], set by state.busy). The label fades between
+         updates (`.fading`, 160ms) so a change reads as a change, not as a
+         statically-replaced word. */
+      .msg-thinking {
+        display: none; align-items: center; gap: 5px;
+        padding: 6px 4px 2px; color: var(--accent); font-size: 12px;
+      }
+      body[data-busy="true"] .msg-thinking.live { display: flex; }
+      .msg-thinking span {
+        width: 7px; height: 7px; border-radius: 50%;
+        background: currentColor; opacity: 0.25;
+        animation: thinking-wave 1.2s ease-in-out infinite;
+      }
+      .msg-thinking span:nth-child(2) { animation-delay: 0.15s; }
+      .msg-thinking span:nth-child(3) { animation-delay: 0.3s; }
+      .msg-thinking b {
+        margin-left: 4px; font-weight: 500; color: var(--muted);
+        letter-spacing: 0.02em; transition: opacity 160ms ease;
+      }
+      .msg-thinking b.fading { opacity: 0; }
+      @keyframes thinking-wave { 0%, 60%, 100% { transform: translateY(0); opacity: 0.25; } 30% { transform: translateY(-5px); opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) { .msg-thinking span { animation: none; opacity: 0.7; } }
       .status-line[hidden] { display: none; }
       /* The collapsed row's own summary: the most recently finished act, a
          plain button so clicking it opens the same history list transcript
@@ -4677,9 +4715,12 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
              the text stays loaded and its addresses still re-open; retrieval
              just stops seeing it. -->
         <form class="composer" id="composer">
-          <!-- What the instrument is doing right now. It lives here, not in
-               the header, because it changes constantly and the header must
-               not re-measure every time it does. -->
+          <!-- The three-dot thinking animation used to live here, above the
+               composer. It moved into the message where the answer text is
+               about to be (addMessage appends .msg-thinking to an empty
+               assistant body, and the holonic trace summary carries its own
+               breathing dots) — one line, where the text will land, showing
+               what the turn is iterating on (2026-09-20, user direction). -->
           <p id="status-line" class="status-line" aria-live="polite" hidden></p>
           <!-- The transcript: every act this run has already superseded.
                Hidden unless transcript mode is on, or the summary line above
@@ -6255,6 +6296,10 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
           var label = ACT_LABEL[type] || type;
           if (payload.name) label += " \u00b7 " + payload.name;
           if (payload.fold != null) label += " \u00b7 fold " + payload.fold;
+          // The message's own thinking line (the element addMessage put
+          // where the answer text is about to be) streams the same act the
+          // status line just named — one cue, one wording (2026-09-20).
+          window.dispatchEvent(new CustomEvent("fold:live-thinking", { detail: { label: label } }));
           var terminal = TERMINAL_ACTS.indexOf(type) >= 0;
 
           // The act this event supersedes goes on the transcript before the

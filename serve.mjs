@@ -100,6 +100,10 @@ const PRIORS_DATA_SHIPPED = resolve(ROOT, "..", "live_priors", "derived-priors",
 const PRIORS_DATA_ALIASES = { "pos-prior-eng.json": "pos-prior-en.json" };
 const PRIORS_DATA_OWN = resolve(ROOT, "priors-data");
 const PORT = Number(process.argv[2] ?? 8811);
+// The heimdall fleet bridge (`heimdall up`): a phone's model, seen from this
+// computer as one more Ollama. The Heimdall sheet embeds its page.
+const HEIMDALL_FLEET_PORT = Number(process.env.HEIMDALL_PORT ?? 8790);
+const HEIMDALL_FLEET_URL = `http://127.0.0.1:${HEIMDALL_FLEET_PORT}`;
 
 // The heimdall corner (2026-09-13): when this process came up, how many page
 // loads it has served, and the latest /api/vitals report from a page's own
@@ -273,6 +277,43 @@ createServer((req, res) => {
       const { engine, matrix, watch, online } = params ?? {};
       latestVitals = { at: new Date().toISOString(), engine: engine ?? null, matrix: matrix ?? null, watch: watch ?? null, online: online ?? null };
       json(res, 200, { stored: true, at: latestVitals.at });
+    })();
+    return;
+  }
+
+  // GET /api/heimdall/fleet — is the heimdall fleet bridge (`heimdall up`,
+  // 127.0.0.1:8790) running on this computer, and what does it hold.
+  // POST /api/heimdall/fleet — start it (the sibling ../heimdall checkout,
+  // or the published package). The Heimdall sheet embeds the bridge's own
+  // page, so pairing a phone happens without leaving the Fold. Loopback only.
+  if (rel === "/api/heimdall/fleet" && (req.method === "GET" || req.method === "POST")) {
+    if (!isLoopback(req)) return json(res, 403, { error: "loopback only" });
+    (async () => {
+      const probe = async () => {
+        try {
+          const h = await fetch(`${HEIMDALL_FLEET_URL}/bridge/hello`, { signal: AbortSignal.timeout(1500) });
+          if (!h.ok) return null;
+          const s = await fetch(`${HEIMDALL_FLEET_URL}/status`, { signal: AbortSignal.timeout(1500) });
+          return { url: HEIMDALL_FLEET_URL, ...(await h.json()), status: s.ok ? await s.json() : null };
+        } catch { return null; }
+      };
+      let up = await probe();
+      if (req.method === "POST" && !up) {
+        const local = resolve(ROOT, "../heimdall/bin/heimdall.mjs");
+        const [cmd, args] = existsSync(local)
+          ? [process.execPath, [local, "up", "--no-open", "--port", String(HEIMDALL_FLEET_PORT)]]
+          : ["npx", ["--yes", "github:clovenbradshaw-ctrl/heimdall", "up", "--no-open", "--port", String(HEIMDALL_FLEET_PORT)]];
+        const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
+        child.unref();
+        for (let i = 0; i < 40 && !up; i++) {
+          await new Promise((r) => setTimeout(r, 500));
+          up = await probe();
+        }
+        // Still coming up (a first `npx` run downloads and builds): say so, and
+        // the sheet keeps polling the GET rather than calling it a failure.
+        if (!up) return json(res, 202, { up: false, starting: true });
+      }
+      json(res, 200, up ? { up: true, ...up } : { up: false });
     })();
     return;
   }

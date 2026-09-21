@@ -1878,8 +1878,64 @@ function heimdallSync() {
     ? `minting as ${st.user} on ${st.hs}`
     : "Sign in under Matrix (the room sheet) first — invites are minted under your own account.";
 }
+// The fleet on this computer (serve.mjs /api/heimdall/fleet): the heimdall
+// bridge is a loopback process; its own page is the controller, embedded
+// here so pairing a phone never leaves the Fold. The frame is mounted once
+// and kept — closing the sheet hides it, never stops it — because the
+// controller must stay open for the phone to stay linked.
+async function heimdallFleet(start = false) {
+  const note = $("heimdall-fleet-note");
+  const startBtn = $("heimdall-fleet-start");
+  if ($("heimdall-fleet-frame").dataset.mounted) return;
+  let j;
+  try {
+    if (start) { startBtn.disabled = true; note.textContent = "starting heimdall…"; }
+    const r = await fetch("/api/heimdall/fleet", { method: start ? "POST" : "GET" });
+    j = await r.json();
+  } catch {
+    startBtn.hidden = true;
+    note.textContent = "Connecting a phone needs the Fold running on this computer (./fold).";
+    return;
+  } finally {
+    startBtn.disabled = false;
+  }
+  if (!j.up && j.starting) {
+    startBtn.hidden = true;
+    note.textContent = "starting heimdall (the first run downloads it)…";
+    for (let i = 0; i < 90 && !j.up; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      try { j = await (await fetch("/api/heimdall/fleet")).json(); } catch {}
+    }
+  }
+  if (!j.up) {
+    startBtn.hidden = false;
+    note.textContent = start ? (j.error || "heimdall did not start — run `heimdall up` in a terminal to see why") : "";
+    return;
+  }
+  startBtn.hidden = true;
+  note.textContent = "";
+  const box = $("heimdall-fleet-frame");
+  const frame = document.createElement("iframe");
+  // Same scheme and host as this page (so the two are one site and share
+  // storage), the bridge's own port.
+  const src = new URL(location.href);
+  src.port = String(j.port);
+  src.pathname = "/";
+  src.search = "?embed";
+  src.hash = "";
+  frame.src = src.href;
+  frame.title = "heimdall — pair a phone";
+  frame.allow = "clipboard-write; screen-wake-lock";
+  frame.className = "heimdall-fleet-frame";
+  box.replaceChildren(frame);
+  box.dataset.mounted = "1";
+  box.hidden = false;
+}
+
 function initHeimdallInvite() {
-  $("heimdall-toggle").onclick = () => { heimdallSync(); $("heimdall").showModal(); };
+  $("heimdall-fleet-start").onclick = () => heimdallFleet(true);
+  heimdallFleet(false); // already running (a previous start, or `heimdall up`): mount it now so the phone stays linked
+  $("heimdall-toggle").onclick = () => { heimdallSync(); heimdallFleet(false); $("heimdall").showModal(); };
   $("heimdall-x").onclick = () => $("heimdall").close();
   $("heimdall-start").onclick = () => { $("heimdall").close(); $("room").showModal(); $("room-start")?.focus(); };
   $("heimdall-code").oninput = (e) => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6); heimdallSync(); };

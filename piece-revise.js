@@ -26,7 +26,7 @@
 // acceptance gate (groundOf) and prompt wording, so any other eoreader7
 // consumer can reuse the same organ (P69's own ratchet: the-fold owns the
 // surface, eoreader7 owns anything genuinely general).
-import { reviseAgainstLedger } from "../eoreader7/native/organs/index.js";
+import { reviseAgainstLedger, claimContestedByLedger } from "../eoreader7/native/organs/index.js";
 
 export const REVISION_ASKS = 12;   // model asks per piece for rewrites (P9: declared)
 export const REVISION_ROUNDS = 2;  // a rewrite can itself be contested by what it says; two rounds, then stop
@@ -111,11 +111,29 @@ export const revisionLine = (r) => r.kind === "rewrite" ? `revised in "${r.secti
  * This checks each sentence's ground ONCE — own claims only, no g0-vs-g1
  * comparison, because there is no "later reading" to converge against for
  * a flat turn or a decomposed non-piece turn — and rewrites a contested
- * sentence exactly once (P186's "one bounded re-ask, adopt-or-stand"
- * shape, matching runPart's own address-check and entity-substitution
- * blocks: never a loop of rounds). The candidate is adopted only if its
- * own fresh groundOf reading lands in the GROUNDED set and is not itself
- * "contested" — otherwise the original sentence stands, still marked.
+ * sentence exactly once: never a loop of rounds. The candidate is adopted
+ * only if its own fresh groundOf reading lands in the GROUNDED set, is not
+ * itself "contested", and — for the bare "recorded" rung specifically —
+ * the note it matches is independently corroborated, not merely single-
+ * witness (a real exploit found and closed the same day: a rewrite could
+ * otherwise trade one disputed-wrong value for a different, also-wrong,
+ * merely-undisputed one and ship it as settled).
+ *
+ * CORRECTED (found by this session's own adversarial falsification, which
+ * this file's earlier docstring did not survive): this does NOT match
+ * runPart's whole-fresh-completion blocks (address-check, entity-
+ * substitution — a full re-draft of `text`, adopted or discarded whole).
+ * It shares revisePiece's OWN, narrower REWRITE mechanism one register up —
+ * ask the mouth for exactly one sentence's replacement, splice it in via
+ * `.replace()`, adopt only if the candidate itself grounds. POLICIES.md
+ * P186 named that exact splice mechanism a deliberate, disclosed carve-out
+ * for "a separate, later, explicitly voluntary" stage (a piece the person
+ * asked to compose) — never authorized for ordinary, involuntary chat
+ * turns. Widening it to every grounded turn (Gap 2, this file) extends
+ * that carve-out past what P186 itself scoped, and was not reconciled in
+ * policy when it first landed — POLICIES.md's own Gap-2 entry records the
+ * extension and the reasoning for it, per this repo's standing rule that a
+ * tested fix gets drilled into policy, not left implicit in a docstring.
  */
 export async function reviseLedgerContested(sections, { groundOf, readAgainst, call, splitSentences, ctx, model = null, systemPrompt = "", asks = REVISION_ASKS } = {}) {
   const revisions = [];
@@ -131,8 +149,26 @@ export async function reviseLedgerContested(sections, { groundOf, readAgainst, c
     // before the refactor, now the caller-supplied gate reviseAgainstLedger
     // requires (it has no notion of "grounded enough" of its own).
     const accept = (cand) => {
-      const gc = groundOf(cand, { ...ctx, claims: (readAgainst(cand) ?? []).map((c) => ({ ...c, sentence: cand })), witness: null, model });
-      return Boolean(gc && GROUNDED.has(gc.tier) && gc.tier !== "contested");
+      const candClaims = (readAgainst(cand) ?? []).map((c) => ({ ...c, sentence: cand, end1: c.end1 ?? c.subject, label: c.label ?? c.verb, end2: c.end2 ?? c.object }));
+      const gc = groundOf(cand, { ...ctx, claims: candClaims, witness: null, model });
+      if (!gc || gc.tier === "contested" || !GROUNDED.has(gc.tier)) return false;
+      // A rewrite RESOLVING a genuine dispute must not simply trade one
+      // single-witness guess for another: "recorded" means "on the ledger
+      // from one source" (standingOf's own vocabulary), never "verified" —
+      // closes a real exploit found by adversarial falsification
+      // (2026-09-22): a sentence disputed against a wrong value could be
+      // rewritten to a DIFFERENT, also-wrong, merely-undisputed-so-far
+      // value and shipped as settled, because nothing required the
+      // replacement to be any more trustworthy than what it replaced.
+      // bound/witnessed (independently verified against real passages) and
+      // derived (a composed chain, a different mechanism) are untouched —
+      // only the bare ledger-match path is tightened.
+      if (gc.tier === "recorded") {
+        const matched = candClaims.map((c) => claimContestedByLedger(c, ctx?.notes ?? [])).find((r) => r.note);
+        const standing = matched?.note?.standing;
+        if (standing !== "corroborated" && standing !== "corroborated-independently") return false;
+      }
+      return true;
     };
     // eoreader7's own kernel check (claimContestedByLedger) reads ONLY
     // end1/label/end2, never subject/verb/object (fixed for its own

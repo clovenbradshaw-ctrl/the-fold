@@ -14024,3 +14024,193 @@ POLICIES.md **P250** is the law; this is the map. Of the 19 confirmed gaps in P2
 **`complete()` threads `jobKind`; the witness/select asks are tagged.** `completeOnce` already typed `JOB_KINDS.WITNESS` with the comment "the witness/select asks (buildWitnessMessages/buildSelectMessages)" — a seam built and never consumed, this file's own recurring shape. `complete()`'s options never forwarded a `jobKind` at all, so every one of the 7 witness/select call sites (`witnessProof`, `siblingSwap`'s select ask, and their P32-era and later duplicates) ran with `completeOnce`'s own `= JOB_KINDS.FLAT` default — meaning huginn.js's already-built hop disclosure (`huginnDecision` → `landHuginnDecision` → `mirrorTermRecord`, which already lands every hop's `jobKind`/`pick`/`from`/`order` on the append-only record) mislabeled a witness-serving hop as an ordinary flat chat turn. Fixed additively: `complete()` accepts an optional `jobKind` and forwards it unchanged to `completeOnce` (whose own default is untouched, so every other caller — the overwhelming majority, which pass nothing — is byte-identical); all 7 call sites now pass `jobKind: JOB_KINDS.WITNESS`. This does not gate or change which candidate serves a call — P247's in-tab fallback stays unconditional, correctly, per that policy's own stated design. Verified directly against the real `huginnDecision`: the identical hop record reads `jobKind: "flat"` before, `jobKind: "witness"` after.
 
 Both verified with `node --check` and the full `huginn.test.mjs`/`gary.test.mjs` suites (32/14, zero regressions) — app.js itself stays outside `node --test`'s reach per this repo's own standing DOM-coupling limit, so both fixes are additionally verified by direct reproduction of the extracted logic against real inputs, the same methodology the audit's own Fix-phase agents used.
+
+## P251 — Gap 1, Gap 2, and the exploit an adversarial falsification found the same day (added 2026-09-22)
+
+**Generality:** universal for the fix (the corroboration requirement is a
+property of `standingOf`'s own vocabulary, not a specimen); specimen-scoped
+for the still-open temporal-conflict gap, disclosed below rather than
+force-fixed.
+
+User direction, two turns apart: "be sure all content is going through the
+proper reasoning linting before it lands at the model... and that all
+assertions are falsified" (Gap 1); "yeah and if the model says something
+that contradicts what the holograph knows that needs to spawn a revision"
+(Gap 2); then, mid-implementation of Gap 2, "be sure what you're modifying
+is global and doesn't only affect The Fold as a surface but anything that
+uses eoreader7" — corrected the first cut of Gap 2 before it shipped, per
+below. Finally: "write a prompt for a coder to look into the entire
+grounding pipelines and falsify its theory and functionality", then "fix
+gaps" — commissioning, then acting on, the falsification workflow this
+entry's own fix rests on.
+
+**Gap 1 — ledger conflicts, landed before the mouth drafts.**
+`logos.js::functionalConflicts(log, {door, taskLog, functional})` calls
+`lintLedger` directly (not the `ledgerLint` wrapper app.js already runs
+post-hoc for disclosure, P236 — that wrapper's own `trimFinding` strips the
+`at` field this needs to recover which two notes conflict, found by a
+standalone mechanism test before this shipped), narrowed to
+`standing_contradiction` findings. `app.js::holonicTurn` runs it
+immediately before `runHolonicTask` and lands a dispute on BOTH conflicting
+notes via `hyperlexiconFor.dispute()`, each side disputed by the other's
+own witnessing source — so the ledger block's existing, unmodified
+`disputed(n)` render (holon.js) shows "disputed by X — not settled" on
+both sides while the mouth is still drafting, not only in the post-hoc
+disclosure. Verified with a standalone mechanism test against the real
+kernel (`hear → functionalConflicts → dispute → fold → disputedBy`) plus a
+negative control (an undeclared relation with two true, non-conflicting
+facts produces zero conflicts).
+
+**Gap 2 — a contested draft is revised, not only disclosed.** Widens
+`holon.js::runHolonicTask`'s piece-revision block (previously
+`piece && sections.length > 1`) to every grounded turn with output: a flat
+or decomposed non-piece turn now also gets a bounded, mechanical check
+against what the ledger already held BEFORE drafting — a case
+`revisePiece`'s own g0-vs-g1 "later reading" comparison structurally cannot
+catch, since a pre-existing dispute makes BOTH readings show "contested."
+A genuine multi-section piece still runs `revisePiece` exactly as before,
+byte-identical call. `runPart` itself is untouched.
+
+**The relocation, made mid-implementation on direct user instruction.** The
+first cut of Gap 2 put its entire mechanism in the-fold's own
+`piece-revise.js`, reusing only the-fold's own `groundOf` — a genuine
+violation of this repo's own standing rule that eoreader7 additions must be
+universal, never surface-scoped (this file's own "eoreader7 is
+general-purpose" history, stated by the user more than once). Corrected
+before committing: `kernel/notes.js::claimContestedByLedger(claim, notes)`
+(eoreader7) is the pure, medium-agnostic detection — does an arrangement
+`{end1, label, end2}` match a note this ledger already carries a live
+dispute against, keyed by the same `noteId` every note already uses.
+`organs/ledger-revision.js::reviseAgainstLedger` (eoreader7, new) is the
+injected-call orchestration, mirroring `witness-sentences.js`'s own
+injection/budget/typed-row conventions (a required, caller-declared `asks`
+budget, P9; a required `accept()` gate, since "grounded enough" is
+genuinely caller-specific and this organ has no notion of its own). The
+first attempt at `claimContestedByLedger` briefly put `subject`/`verb`/
+`object` aliasing directly in the kernel — caught by running
+`native/tests/notes.test.js`'s own OMNIMODAL conformance scan, which fails
+loudly on exactly this — and fixed to `end1`/`label`/`end2` only, with SVO
+translation pushed to the-fold's own calling boundary (the same
+translate-at-the-seam pattern `organs/hyperlexicon.js::hear()` already
+uses). The-fold's own `reviseLedgerContested` is now a thin adapter
+supplying only its own acceptance gate and prompt wording.
+
+**Two real bugs found and fixed by running `holon.test.mjs`, not assumed
+safe, before the first commit:** the return object's `revisions` field was
+conditionally omitted when empty, silently breaking
+`Array.isArray(r.revisions)`; and the pre-existing post-revision
+`admissible()`-gating block (P137, built for `revisePiece`'s own risk of
+"putting back what a part's finding forbade") ran for flat turns once the
+outer gate widened and, with nothing to put back, still stripped a
+sentence P186 says must ship unedited (reproduced live: "700 keepers"
+vanished from a flat turn's own output). Scoped back to
+`piece && sections.length > 1` specifically.
+
+**The falsification workflow (commissioned, not offered) — eight
+dimensions, falsify then adversarially verify, real organs only, zero files
+touched.** Confirmed, among findings across the whole grounding pipeline
+(most pre-existing, not from this pass — named below rather than silently
+folded in): a real, general exploit in Gap 2's own `accept()` gate. A
+sentence disputed against one wrong value could be rewritten to a SECOND,
+different, also-wrong value that was merely undisputed-so-far (nobody had
+contested IT specifically) and adopted, because `piece-revise.js`'s
+`GROUNDED` set trusted the bare "recorded" tier — `standingOf`'s own
+`single-witness`, "on the ledger from one source" — as much as `bound`/
+`witnessed` (real, independent verification against retrieved passages).
+The negative control (a symmetric dispute, both sides equally contested)
+correctly refused; only the asymmetric case (one side disputed, a
+different third value merely unchallenged) laundered a wrong claim into
+one that reads settled.
+
+**The fix.** `claimContestedByLedger` (eoreader7) now always returns the
+matched `note` (previously only on the `contested:true` branch) — strictly
+additive, every existing caller checking only `.contested`/`.disputedBy`
+is unaffected. `reviseLedgerContested`'s `accept()` gate, for the bare
+"recorded" tier specifically, now requires the matched note's own
+`standing` (`foldWithStanding`'s already-computed field) to be
+`corroborated` or `corroborated-independently`, never `single-witness`,
+before adopting a rewrite. `bound`/`witnessed` (independent verification)
+and `derived` (a composed chain, a different mechanism, not exploit-tested)
+are untouched. Verified with a new exploit-closure regression in the same
+standalone mechanism test: a single-witness, uncorroborated replacement for
+a disputed sentence is now refused — the original stands, still visibly
+disputed — while the original positive case (rewritten to a now-
+corroborated replacement) still succeeds.
+
+**A docstring inaccuracy the falsification also caught.**
+`reviseLedgerContested`'s own comment claimed to match `runPart`'s
+whole-fresh-completion blocks (address-check, entity-substitution — a full
+re-draft of `text`, adopted or discarded whole). It does not: it shares
+`revisePiece`'s own, narrower REWRITE mechanism — ask the mouth for one
+sentence's replacement, splice it in via `.replace()`, adopt only if the
+candidate grounds. P186 named that exact splice mechanism a deliberate,
+disclosed carve-out for "a separate, later, explicitly voluntary" stage —
+never authorized for ordinary, involuntary chat turns. Gap 2 widens it to
+every grounded turn; that extension was not reconciled in policy when it
+first landed. This entry is that reconciliation, and the docstring is
+corrected to point at it rather than at the wrong mechanism.
+
+**Disclosed, not fixed: Gap 1's own temporal-conflict false positive.**
+`app.js` never passes a `tags` argument to `functionalConflicts`/
+`ledgerLint`, so `regime.js::workingTag()` defaults every note to
+`validity:{open:true}, enactedAt:null`, and `precedence()` for two
+same-force, same-grain claims always falls to `reason:"tied"` — so two
+people who each genuinely held a functional office at DIFFERENT,
+non-overlapping times are disputed as though they conflict.
+`kernel/notes.js`'s own `DISPUTE_KINDS.INDIVIDUATION` already names this
+exact shape ("one referent standing for two things... disjoint tenures...
+decidable at n=1") but `app.js`'s landing loop hardcodes
+`kind: CONTEST` unconditionally. Confirmed real and general (two
+independent specimens) by the falsification workflow's own adversarial
+verification. Not fixed here: a principled fix needs real temporal-scope
+data threaded through notes this system does not yet widely carry, and this
+repo's own standing rule against hand-set thresholds rules out a heuristic
+patch — named as real, open, future work rather than guessed at.
+
+**Everything else the falsification workflow found is pre-existing, not
+introduced by Gap 1/Gap 2, and is reported — not fixed — here**, to keep
+this entry to what changed: `ground-ladder.js` tier 0/6 (a Vietnamese/
+Pinyin tone-mark fold collision; containment read as assertion; a
+John-Adams/John-Quincy-Adams subset-coreference merge; cross-section
+`checkGrounding` finding contamination through the pooled `groundingFindings`
+set); the relation tier (a contracted-negation gap in `NEGATION_WORDS`; the
+referent index merging distinct entities sharing a head noun, including
+against a wholly generic mention; a relative-clause/cleft construction
+binding "bound" to the wrong named entity, surviving `objectSpecificity`;
+nominalizations never reaching a checkable claim at all); the witness tier
+(`endsFor`'s anchor-pair search returning a decoy-favoring pair over the
+true-sentence pair; a single-candidate degenerate case where the sibling-swap
+arm cannot discriminate a witness's own fabrication); tier 4 "derived" (a
+bare single-word subject unconditionally, unfixably promoted regardless of
+any control passage; the file's own pinned "precision" test holds only
+against a synthetic mock, not the real coreference organ); and three
+confirmed gaps in `admission.js` (the corroboration null's true
+chance-agreement rate measured at ~14.3%, worse than an earlier ~8.5%
+estimate; the paragraph-exemption bypassed by collapsing blank lines with
+no length limit; a short, correct, single-witness document refused purely
+because it shares MORE vocabulary with the question, inverting the module's
+own stated "more corroboration helps" premise). Each is real, reproduced
+against real organs, and confirmed general by independent adversarial
+verification — named here as a punch list for a future pass, not
+force-fixed under this one's own time pressure.
+
+**Files.** the-fold: `logos.js` (`functionalConflicts`), `app.js`
+(the pre-dispatch landing block, Gap 1 only — not touched again this
+entry), `holon.js` (the widened revision gate, the two return-shape fixes),
+`piece-revise.js` (`reviseLedgerContested`, now a thin adapter; the
+corrected docstring; the corroboration check). eoreader7:
+`native/kernel/notes.js` (`claimContestedByLedger`, and its extension to
+always return the matched note), `native/organs/ledger-revision.js`
+(`reviseAgainstLedger`, new), `native/organs/index.js` (both re-exported at
+the one seam). Verified: standalone mechanism tests against the real
+native kernel and the real `ground-ladder.js`/`piece-revise.js` (including
+the new exploit-closure regression); `holon.test.mjs` 135/135 (was 129/135
+before the two return-shape fixes); `piece-revise.test.mjs` 2/2;
+`native/tests/notes.test.js` 27/27 (including the OMNIMODAL scan this
+entry's own first draft violated); every `organs/*.test.mjs` file
+importing `notes.js`/the seam directly (`bridge-witness`, `bridges`,
+`hypergraph`, `testimony`, `ranke`, `two-surface`, `voices`) clean; the
+full the-fold suite's pre-existing failure set unchanged by name. Both
+repos committed via the private-index technique (eoreader7 currently
+carries roughly 500 files of concurrent, unrelated WIP from other
+sessions; none of it touched).

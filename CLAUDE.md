@@ -8364,3 +8364,37 @@ keeps re-teaching from the other direction. Reconciled, tested (26/26 in
 committed via the private-index technique in both repos without
 disturbing the several other concurrent sessions' own uncommitted work
 sharing these checkouts.
+
+## Gap 1, Gap 2, and the exploit an adversarial falsification found (added 2026-09-22) — pointer
+
+POLICIES.md **P251** is the law; this is the short map. Gap 1
+(`logos.js::functionalConflicts` + a pre-dispatch dispute-landing block in
+`app.js::holonicTurn`) lands a declared-functional ledger conflict as a
+dispute on BOTH notes before the mouth drafts, so the existing ledger
+block's own `disputed(n)` render shows it while drafting, not only after.
+Gap 2 (`holon.js`'s widened revision gate + `piece-revise.js::
+reviseLedgerContested`) gives a drafted sentence that still contradicts
+what the ledger already held one bounded, adopt-or-stand rewrite attempt —
+generalized past its first, the-fold-only cut into eoreader7's
+`kernel/notes.js::claimContestedByLedger` + `organs/ledger-revision.js::
+reviseAgainstLedger` mid-implementation, on direct user instruction that an
+eoreader7 addition must be universal, not surface-scoped.
+
+A commissioned, eight-dimension falsification workflow (real organs, no
+mocks, falsify-then-adversarially-verify) then found a real, general
+exploit in Gap 2's own accept gate: a disputed-wrong sentence could be
+rewritten to a DIFFERENT, also-wrong, merely-undisputed value and shipped
+as though settled, because the bare "recorded" ledger-match tier was
+trusted as much as real, independently-verified tiers. Fixed by requiring
+the replacement's own matched note to be independently corroborated (2+
+sources), never merely single-witness, for that one tier — verified with a
+new exploit-closure regression. A second, real gap in Gap 1 (functionally-
+conflicting claims that are actually compatible at different times still
+get disputed, since no temporal scope is threaded through) is disclosed,
+not fixed — a principled fix needs real temporal data this system does not
+yet widely carry. The workflow's other confirmed findings (pre-existing,
+not from this pass) — tier 0/6 fold collisions and coreference merges, the
+relation tier's relative-clause/cleft false-bind and nominalization gap,
+the witness tier's anchor-selection bug, tier 4's unconditional bare-word
+promotion, and three confirmed `admission.js` bypasses — are named in
+P251 as a punch list, not force-fixed under this pass's own time pressure.

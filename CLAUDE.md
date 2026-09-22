@@ -8312,3 +8312,55 @@ not). `huginnPlanFor` appends the in-tab WebGPU rung (gated on the same
 never above a live Ollama or room mouth. Verified live: both Ollama and the
 engine mocked to fail, a real question asked, real OLMo 2 1B weights fetched
 and loaded, answered `ready · OLMo 2 1B · in this tab · 14 tok/s`.
+
+## dodgedASubstantiveQuestion's third door: an imperative naming a definite referent (added 2026-09-22) — pointer
+
+POLICIES.md **P248** is the law. Two doors already closed the same day —
+`INTERROGATIVE_RE` (a WH-word anywhere) and the polar complementizers
+"if"/"whether" — both require an embedded interrogative clause, so neither
+reaches "tell me about the seat she filled" (S1 fully hedged, zero checkable
+atoms): the requested clause is a bare definite noun phrase, not a WH- or
+polar question at all. Rather than enumerate request verbs (widget.js's own
+already-undone mistake, one register over), `IMPERATIVE_DEFINITE_RE` reads
+the imperative mood's structural signature — a clause-initial verb (any
+word, never enumerated) governing FIRST_PERSON's closed "me"/"us"
+(priors.js) — combined with the same "the X" definite-NP test
+`WH_DEFINITE_RE`/`WH_DEFINITE_ANY_VERB_RE` (gary.js) already run for a
+WH-headed clause. Verified against the real organs (`preflightQuery`,
+`extractCheckableAtoms`, `enginePriors`), not a stand-in: the reported
+specimen and both existing doors' specimens escalate; three negative
+controls do not. Full suite: same 28 pre-existing failures by name, zero
+regressions.
+
+## The escalation ladder's sibling gaps, closed (added 2026-09-22)
+
+POLICIES.md **P249** is the law; this is the map. A 50-agent zoom-out audit
+(task wxwhffxy5) confirmed 19 of 23 proposed gaps in the S1/S2
+checkable-claim escalation ladder beyond the original "who is the
+president" fix — `gary.js`'s `hasCheckableClaim` (contracted copulas,
+article-dropped unique-office phrasing, a non-copula WH-door),
+`app.js`'s `dodgedASubstantiveQuestion`/`chatStands` (an interrogative-class
+door, a same-day dead-regex bug caught before shipping, an anaphoric
+follow-up no longer exempted), and `grounding.js`'s `extractAtoms`/
+`extractCheckableAtoms` (ordinal/decade `NUMBER_RE` suffixes, a bare
+one-word-answer carve-out, an all-lowercase fallback, a polarity-question
+atom kind). Two real gaps stayed disclosed rather than force-fixed: a
+non-Latin WH-question with no capitalization convention, and `complete()`
+not yet forwarding `jobKind` to the serving ladder.
+
+**The reconciliation is its own lesson, worth not re-deriving.** The
+fan-out's Fix-phase agents used isolated worktrees for eoreader7 (this
+environment's primary repo) but had no such isolation for the-fold (a
+second, unrelated repo), so a the-fold fix landed directly in the shared
+checkout while an eoreader7 fix landed in one of seven separate, mutually
+unaware worktree branches nobody had merged back. Three of those seven
+independently rediscovered a fix another agent had already landed
+directly; one ("fixed: true" in the agent's own self-report) turned out
+to exist ONLY in its isolated worktree, invisible to a direct
+reproduction against the live file — a self-report is not itself
+evidence, the same lesson this file's own private-index-commit history
+keeps re-teaching from the other direction. Reconciled, tested (26/26 in
+`grounding.test.mjs`, six importing test files re-run clean), and
+committed via the private-index technique in both repos without
+disturbing the several other concurrent sessions' own uncommitted work
+sharing these checkouts.

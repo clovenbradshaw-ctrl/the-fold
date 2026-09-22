@@ -3215,7 +3215,7 @@ const modelName = model ?? state.model;
     try {
       const out = isRoom
         ? await completeViaRoom(messages, { onDelta, onThinking, maxTokens, json, temperature }, { user: cand.user, model: cand.model }, modelName, callSeq)
-        : await completeLocal(messages, { onDelta, onThinking, maxTokens, json, model: modelName, temperature }, callSeq);
+        : await completeLocal(messages, { onDelta, onThinking, maxTokens, json, model: cand.model ?? modelName, temperature }, callSeq);
       observeHuginn(cand, Date.now() - started, true, null, jobKind);
       if (plan.order.length > 1) {
         landHuginnDecision(huginnDecision({
@@ -3228,7 +3228,7 @@ const modelName = model ?? state.model;
       return out;
     } catch (err) {
       lastErr = err;
-      const kind = isRoom ? "machine" : localFailureKind(modelName, err);
+      const kind = isRoom ? "machine" : localFailureKind(cand.model ?? modelName, err);
       observeHuginn(cand, Date.now() - started, false, kind, jobKind);
       const hop = huginnHopAfter(kind, { order: plan.order, tried, selfServing: servingTurn ? foldMatrix.status().user : null });
       landHuginnDecision(huginnDecision({ act: hop.refused ? "hop-refused" : "hop", jobKind, pick: hop.hop, from: cand, order: plan.order, refused: hop.refused }));
@@ -3256,7 +3256,17 @@ function landHuginnDecision(entry) {
  *  answering badly and is NOT a hop reason — it is the caller's. */
 function localFailureKind(modelName, err) {
   if (isWebLLMModel(modelName)) return classifyWebLLMFailure(err, { online: navigator.onLine !== false }).kind ?? null;
-  return err?.machineFailure ? "machine" : null;
+  if (err?.machineFailure) return "machine";
+  // The box answered that it cannot serve this model (completeLocal types
+  // it): a 5xx, or Heimdall's own model_unavailable. Hop to the next rung.
+  if (err?.unserved) return "unserved";
+  // Busy is not failed — a 429 carries a real retry_after and the caller's
+  // humanized line says so. It becomes a hop ONLY when an in-tab engine is
+  // already warm in this page: a loaded model beats a queue; a cold one
+  // (a multi-GB first download) does not beat a fifteen-second wait. A
+  // structural rule, never a number.
+  if (err?.busy && (webllmClient.ready || tfChatClient.ready)) return "unserved";
+  return null;
 }
 /** The ordered candidate plan for one call: the routed local model plus
  *  every room mouth offering a model, ranked by Huginn. A device with no
@@ -3295,7 +3305,26 @@ async function huginnPlanFor(modelName, jobKind) {
     jobKind === JOB_KINDS.DEEP || jobKind === JOB_KINDS.S1 || jobKind === JOB_KINDS.S2 || jobKind === JOB_KINDS.WITNESS
       ? modelName
       : null;
-  return huginnPrioritize(jobKind, { candidates, pinned, prefer, inflight, meanMs, selfServing: servingTurn ? selfUser : null });
+  const plan = huginnPrioritize(jobKind, { candidates, pinned, prefer, inflight, meanMs, selfServing: servingTurn ? selfUser : null });
+  // THE LADDER'S BOTTOM RUNGS (2026-09-22, user direction: fall back to
+  // WebLLM if Ollama fails, "and a CPU fall back is better than nothing").
+  // Appended AFTER prioritisation, so they can never outrank a live Ollama
+  // or a room mouth: they are reached only when everything above them has
+  // failed with a hop-eligible kind (`machine`, `unserved`, a room
+  // fallback). The GPU rung is offered only where the page can run it
+  // (webgpuBlocker — the same gate the picker uses); the CPU rung runs in
+  // any browser. Whichever in-tab model is ALREADY warm is preferred to
+  // the roster's default, so a hop never unloads a model to load its
+  // sibling. A hop lands on the record and the mouth chip says "in this
+  // tab" / "in this tab (CPU)" — a person is never answered by a rung they
+  // did not know had spoken.
+  const inTab = [];
+  if (!isWebLLMModel(modelName) && !webgpuBlocker({ gpu: navigator.gpu, secureContext: window.isSecureContext })) {
+    inTab.push(candidateOf(webllmClient.ready && webllmClient.modelId ? webllmClient.modelId : WEBLLM_MODELS[0].id, CANDIDATE_KINDS.WEBLLM));
+  }
+  if (!isTfModel(modelName)) inTab.push(candidateOf(tfChatClient.ready && tfChatClient.model ? tfChatClient.model : TF_MODELS[0].id, CANDIDATE_KINDS.TF));
+  const already = new Set(plan.order.map((c) => c.id));
+  return { ...plan, order: [...plan.order, ...inTab.filter((c) => !already.has(c.id))] };
 }
 
 /** A request through the room: the prompt sealed to one member's mouth, the
@@ -3464,7 +3493,21 @@ async function completeLocal(messages, { onDelta, onThinking, maxTokens, json, m
     m.machineFailure = true;
     throw m;
   }
-  if (!res.ok) throw new Error(`ollama ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    const bodyText = await res.text();
+    const err = new Error(`ollama ${res.status}: ${bodyText}`);
+    let body = null;
+    try { body = JSON.parse(bodyText); } catch { /* a non-JSON refusal is typed by status alone */ }
+    // Typed for Huginn (localFailureKind): a 5xx or Heimdall's own
+    // model_unavailable is "this box cannot serve this model now"; a 429 is
+    // "busy", with the box's own retry_after kept on the error. `500` here
+    // is HTTP's own server-error class boundary (RFC 9110), not a tuned
+    // number — every 5xx Ollama or Heimdall could return means the box
+    // itself declined, never the model answering badly.
+    if (res.status >= 500 || body?.type === "model_unavailable" || body?.type === "memory_pressured") err.unserved = true;
+    else if (res.status === 429) { err.busy = true; err.retryAfter = body?.retry_after ?? null; }
+    throw err;
+  }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();

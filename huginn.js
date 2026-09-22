@@ -94,7 +94,16 @@ export const CANDIDATE_KINDS = Object.freeze({
  *  them: it is the caller's. `machine` is this repo's own typing for
  *  "the model was unreachable at all"; the rest are
  *  matrix.js::ROOM_FALLBACK_KINDS, reused rather than re-derived. */
-export const HOP_FAILURE_KINDS = Object.freeze(["machine", ...ROOM_FALLBACK_KINDS]);
+// `unserved` (2026-09-22, user: "develop a backup where it falls back to
+// webllm if the ollama fails … and a CPU fall back is better than nothing"):
+// the box answered, and its answer was that it cannot serve this call —
+// Heimdall's 503 model_unavailable / memory_pressured, any 5xx, or a 429
+// the caller has judged not worth waiting out. Distinct from `machine`
+// (nothing answered at all) and from a wrong answer (never a hop): the
+// machine is there, the model is not, so the next rung on the ladder —
+// a room mouth, then the in-tab GPU rung, then the in-tab CPU rung — is
+// asked, in that order, and every hop lands on the record.
+export const HOP_FAILURE_KINDS = Object.freeze(["machine", "unserved", ...ROOM_FALLBACK_KINDS]);
 export const hopEligible = (kind) => HOP_FAILURE_KINDS.includes(kind);
 
 /** The EWMA weight on a new wall-time observation, received (giver:

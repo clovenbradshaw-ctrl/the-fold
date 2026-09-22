@@ -8297,3 +8297,18 @@ error moves paint their text. `dialogueStateLine` no longer describes a
 exemption for a person's own attachment is bounded to RECENCY_WINDOW turns
 after the attach (`state.sourceAttachedTurn`) — the reach of the present, not
 a new number — so notes pasted on turn 1 stop dragging turn 30 back to them.
+
+## A busy or absent box falls to the in-tab rungs (added 2026-09-22) — pointer
+
+POLICIES.md **P247** is the law. User direction: fall back to WebLLM if Ollama
+fails, and a CPU fallback is better than nothing. Huginn's existing hop ladder
+(local candidate, then room mouths) had no bottom — a solo machine whose own
+Ollama declined had nowhere further to go. `completeLocal` now types a 5xx or
+Heimdall's own `model_unavailable`/`memory_pressured` as `unserved`
+(hop-eligible, distinct from a `busy` 429, which only hops when an in-tab
+engine is already warm — a loaded model beats a queue, a cold download does
+not). `huginnPlanFor` appends the in-tab WebGPU rung (gated on the same
+`webgpuBlocker` the picker uses) and the in-tab CPU rung after prioritisation,
+never above a live Ollama or room mouth. Verified live: both Ollama and the
+engine mocked to fail, a real question asked, real OLMo 2 1B weights fetched
+and loaded, answered `ready · OLMo 2 1B · in this tab · 14 tok/s`.

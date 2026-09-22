@@ -135,6 +135,7 @@ test("the requester's own serving mouth is never a candidate", () => {
 
 test("a wrong answer never hops; only machine-shaped failures do", () => {
   assert.ok(hopEligible("machine"));
+  assert.ok(hopEligible("unserved"), "a box that answered 'I cannot serve this model' is hop-eligible — the in-tab rungs are the ladder below it");
   for (const k of ROOM_FALLBACK_KINDS) assert.ok(hopEligible(k), `${k} is hop-eligible`);
   assert.ok(!hopEligible(null), "a null outcome is the caller's");
   assert.ok(!hopEligible("wrong"), "a wrong answer is not a missing machine");

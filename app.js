@@ -3479,9 +3479,16 @@ async function completeLocal(messages, { onDelta, onThinking, maxTokens, json, m
   // RESPONSE is not: the model answered, badly, and that is the caller's.
   let res;
   try {
+    // An in-tab engine already WARM in this page is a fallback the box can
+    // count on: Heimdall's channel then tells this page at once when its
+    // measured wait is past the promise, instead of holding it the whole
+    // promise first, and the 429 below hops in-tab (localFailureKind). A
+    // cold in-tab engine is never declared — a first download is not faster
+    // than a queue.
+    const inTabWarm = !!(webllmClient.ready || tfChatClient.ready);
     res = await fetch(`${ollamaBase()}/api/chat`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(inTabWarm ? { "x-er7-in-tab": "warm" } : {}) },
       body: JSON.stringify({
         model: sendName,
         messages,
@@ -3537,6 +3544,13 @@ async function completeLocal(messages, { onDelta, onThinking, maxTokens, json, m
     else if (res.status === 429) { err.busy = true; err.retryAfter = body?.retry_after ?? null; }
     throw err;
   }
+  // WHO ANSWERED (2026-09-22): Heimdall's channel may serve this call from a
+  // warm on-device model instead of loading a cold one, and says so in its
+  // exposed headers. The mouth line names the model that actually spoke,
+  // never the one this page asked for.
+  const servedBy = res.headers.get("x-heimdall-served-by");
+  const spokeAs = servedBy && servedBy !== sendName && servedBy !== modelName ? servedBy : modelName;
+  const spokeWhere = spokeAs !== modelName ? `on this machine, standing in for ${modelName}` : "on this machine";
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -3636,12 +3650,12 @@ async function completeLocal(messages, { onDelta, onThinking, maxTokens, json, m
         } catch {
           // already closed — nothing to do
         }
-        noteMouth("on this machine", modelName, Date.now() - ollamaStarted, callSeq);
+        noteMouth(spokeWhere, spokeAs, Date.now() - ollamaStarted, callSeq);
         return { text: out, thinking, doneReason: "cancelled" };
       }
     }
   }
-  noteMouth("on this machine", modelName, Date.now() - ollamaStarted, callSeq);
+  noteMouth(spokeWhere, spokeAs, Date.now() - ollamaStarted, callSeq);
   return { text: out, thinking, doneReason };
 }
 
@@ -10126,6 +10140,16 @@ async function er7Turn(question) {
   const fg = out.reading?.factGate ?? null;
   if (fg?.open) $("status").textContent = fg.grounded ? "checked against the web" : (fg.searched ? "checked the web — nothing backed this up" : (state.webProof ? "not checked" : "web checking is off — not checked"));
   const answer = out.text;
+  // WHO ANSWERED (2026-09-22): the engine's own draws take whichever
+  // on-device mouth answers soonest (Heimdall's mouthFor) and report it as
+  // `reading.served` — named in this turn's mouth line, a stand-in marked as
+  // one, never left looking like the model this page asked for.
+  for (const m of out.reading?.served?.mouths ?? []) {
+    const where = m.tier === "full" ? "on this machine, through eoreader7" : `${m.tier === "device" ? "on your phone" : "on this machine"}, standing in for ${m.asked}`;
+    noteMouth(where, m.servedBy, null, turnSeq);
+    const last = turnMouths.at(-1);
+    if (last && Number.isFinite(m.draws) && m.draws > 1) last.calls = m.draws;
+  }
   state.history.push({ role: "user", content: question }, { role: "assistant", content: stripComputedCaption(answer) });
   const turn = state.summary.turnCount + 1;
   logAct("asked", { text: question });
@@ -19376,7 +19400,10 @@ function renderFold(node, { sent, record = null } = {}) {
     const secs = mouths.reduce((n, x) => n + (x.ms ?? 0), 0) / 1000;
     const m = document.createElement("span");
     m.className = "turn-mouths";
-    m.textContent = `${calls} model call${calls === 1 ? "" : "s"}${secs ? ` · ${secs.toFixed(1)}s` : ""}`;
+    // A stand-in is said in plain sight, not only on hover: the person asked
+    // one model and another answered (Heimdall's fastest on-device mouth).
+    const stoodIn = mouths.find((x) => /standing in for /.test(x.where ?? ""));
+    m.textContent = `${calls} model call${calls === 1 ? "" : "s"}${secs ? ` · ${secs.toFixed(1)}s` : ""}${stoodIn ? ` · answered by ${stoodIn.model}` : ""}`;
     m.title = `${spoke} — which model answered each call, and on whose machine, measured at the call`;
     costParts.push(m);
   }

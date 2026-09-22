@@ -243,6 +243,17 @@ export const ARCHON_CANON = Object.freeze([
     },
     noPrior: "the handle's own namesake is not stated in either repo; the charter's first law is the canonical text",
   },
+  {
+    who: "Pāṇini", term: "tulya-āsya-prayatnaṃ savarṇam", gloss: "of equal mouth-effort is same-letter — the sound is defined by how it is made, not what it is written as",
+    module: { line: "pronunciation is a property of a REFERENT, never of a surface string (P11/P38)", cite: "panini.js:1" },
+    canon: {
+      lang: "sa", text: "tulya-āsya-prayatnaṃ savarṇam",
+      en: "Equal mouth-effort is same-letter: sounds that share how they are made are one class.",
+      prior: "11-multi-language/sanskrit-originals/panini-ashtadhyayi.txt", loc: "Aṣṭādhyāyī 1.1.8",
+      fix: [["tulya-āsya-prayarnaṃ savarṇam", "tulya-āsya-prayatnaṃ savarṇam"]],
+    },
+    noPrior: null,
+  },
 ]);
 
 /**

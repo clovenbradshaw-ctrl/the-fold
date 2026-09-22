@@ -40,6 +40,14 @@
 //              never the default. Watches the language dispatch
 //              (relations-language.js): all cognition reads GFP-shaped;
 //              English-SVO comes online only when declared. (live)
+//   panini     the pronunciation — the sound a REFERENT carries, never a
+//              surface string (P11/P38). Watches the heard stratum
+//              (PronunciationPrior@1, live_priors): homophones flagged
+//              (two distinct referents, near-identical sound — measured
+//              one/was at 0.014), heteronyms refused unless the reading
+//              names which referent it heard (READ present /ɹiːd/ vs past
+//              /ɹɛd/ — the engine holds one sense, the dictionary holds
+//              both). Under chomsky, beside him. (live)
 //   gary       the prompt — what the mouth is handed, in what order, and
 //              what never goes in: no address, no apparatus vocabulary, no
 //              JSON asked for in prose, a fact rather than a prohibition, a

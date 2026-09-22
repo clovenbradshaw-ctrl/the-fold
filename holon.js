@@ -43,7 +43,7 @@ import { editPiece } from "./piece-edit.js";
 import { isCodeSource, topicTerms } from "./longform.js";
 import { snipsFor, snipBlock, checkSection, reviseAsk, applyRewrite, atomsOf } from "./snip-check.js";
 import { traceReading } from "./reading-trace.js";
-import { REVISION_ASKS, REVISION_ROUNDS, revisePiece } from "./piece-revise.js";
+import { REVISION_ASKS, REVISION_ROUNDS, revisePiece, reviseLedgerContested } from "./piece-revise.js";
 import { budgetsFor, depthLine } from "./depth.js";
 import { checkPremises, correctTurn, cutProcessTalk, premiseFacts, premiseGuard, repeatsAbsentPremise, stripLeadingFraming, turnSnipBlock } from "./correction.js";
 // The conversation's own loops (dialogue.js, 2026-09-07): anaphora across turns, the reader's restatement graded, the address check with one re-ask on facts, self-consistency against this conversation's own record, the expectation before the draft and its diff.
@@ -4615,7 +4615,19 @@ export async function runHolonicTask({
   // sentence a later reading denies is rewritten once, and a rewrite lands
   // only if it grounds. Bounded asks, bounded rounds, every act returned.
   let revisions = [];
-  if (piece && sections.length > 1 && piece.revise !== false && budgets.revisionRounds > 0) {
+  // Gap 2 (2026-09-22, user direction: "if the model says something that
+  // contradicts what the holograph knows that needs to spawn a revision"):
+  // widened from "a multi-section piece" to any turn with output at all —
+  // a flat single-part turn or a decomposed non-piece turn now also gets a
+  // bounded, mechanical check against what the ledger already held BEFORE
+  // this turn drafted anything (Gap 1's own pre-dispatch disputes, or an
+  // earlier turn's contest), via reviseLedgerContested below — a genuine
+  // multi-section PIECE still runs revisePiece exactly as before, byte-
+  // identical call, since its "a later section's reading denies an earlier
+  // one" comparison is a real, different question this widening does not
+  // touch. runPart itself is unchanged; both branches live entirely here,
+  // after every part has already returned.
+  if (sections.length && budgets.revisionRounds > 0 && (!piece || piece.revise !== false)) {
     try {
       const seen = new Set();
       const allPassages = sections.flatMap((s) => s.passages ?? []).filter((p) => p?.ref && !seen.has(p.ref) && seen.add(p.ref));
@@ -4623,15 +4635,28 @@ export async function runHolonicTask({
       const readAgainst = (sent) => (reader ? (reader.read(sent)?.claims ?? []) : []);
       const notes = hyperlexicon && sharedHyperlexiconLog && hyperlexicon.foldWithStanding ? hyperlexicon.foldWithStanding(sharedHyperlexiconLog) : [];
       const disputes = hyperlexicon?.disputesOf && sharedHyperlexiconLog ? hyperlexicon.disputesOf(sharedHyperlexiconLog) : null;
-      const index = piece.referentIndexFor && allPassages.length ? piece.referentIndexFor(allPassages) : null;
+      const index = piece?.referentIndexFor && allPassages.length ? piece.referentIndexFor(allPassages) : null;
       const ctx = { notes, disputes, derived: hyperlexiconDerived ?? [], passages: allPassages, resolveName: index ? (n) => index.resolve(n) : null };
       // a claim knows its sentence by the sentence that carries its first end and its label (sentenceForClaim, shared with the flat path)
-      const rv = await revisePiece(sections.map((s) => ({ label: s.part.label, text: s.text ?? "", claims: (s.relations?.claims ?? []).map((c) => ({ ...c, sentence: c.sentence ?? sentenceForClaim(s.text, c) })), witnessRows: s.witness?.rows ?? [], _s: s })), { groundOf, readAgainst, call, splitSentences, ctx, model: piece.model ?? null, systemPrompt: EXECUTE_SYSTEM_PROMPT, rounds: budgets.revisionRounds, asks: budgets.revisionAsks });
+      const secInput = sections.map((s) => ({ label: s.part.label, text: s.text ?? "", claims: (s.relations?.claims ?? []).map((c) => ({ ...c, sentence: c.sentence ?? sentenceForClaim(s.text, c) })), witnessRows: s.witness?.rows ?? [], _s: s }));
+      const rv = piece && sections.length > 1
+        ? await revisePiece(secInput, { groundOf, readAgainst, call, splitSentences, ctx, model: piece.model ?? null, systemPrompt: EXECUTE_SYSTEM_PROMPT, rounds: budgets.revisionRounds, asks: budgets.revisionAsks })
+        : await reviseLedgerContested(secInput, { groundOf, readAgainst, call, splitSentences, ctx, model: null, systemPrompt: EXECUTE_SYSTEM_PROMPT, asks: budgets.revisionAsks });
       // THE REVISION IS A LATER CELL (P137). It runs after every part's own
       // gate and could put back what a part's finding forbade — the same
       // shape P133 had at EVA, one level up. Bound here by everything the
-      // parts established, since findings now leave runPart.
-      if (allFindings.length) {
+      // parts established, since findings now leave runPart. Scoped to the
+      // PIECE branch specifically (real regression, found by this file's
+      // own P126 test running against the widened gate below): a flat
+      // turn's own findings/guard mechanism already ships its draft
+      // unedited per P186 (holon.test.mjs's own "neither detection cuts it
+      // from what ships anymore"), and this admissible() re-scan — built
+      // for revisePiece's OWN risk of putting back what a part's finding
+      // forbade — has never been exercised on a flat turn and, run there,
+      // silently stripped a sentence P186 says must ship. reviseLedgerContested
+      // never "puts back" anything forbidden; it only ever moves a sentence
+      // TOWARD what the ledger establishes, gated by groundOf itself.
+      if (piece && sections.length > 1 && allFindings.length) {
         for (const sec of rv.sections ?? []) {
           const gated = admissible(sec.text ?? "", allFindings, { splitSentences, from: "REC" });
           if (gated.refused.length) { sec.text = gated.text || sec.text; sec.inadmissible = gated.refused; }
@@ -4676,7 +4701,17 @@ export async function runHolonicTask({
   const channels = [...new Set(sections.flatMap((s) => s.channels))];
 
   return {
-    ...(piece ? { edits, revisions, pieceLog: { drafted: draftedText, edited: editedText } } : {}), depth: sections.find((x) => x.strain)?.strain?.recruited ?? budgets.level, budgets, depthLine: depthLine(budgets, { piece: Boolean(piece) }),
+    ...(piece ? { edits, pieceLog: { drafted: draftedText, edited: editedText } } : {}),
+    // Disclosed regardless of piece (P54/P186's disclosure-never-silent
+    // discipline): a flat or decomposed turn's own Gap 2 revisions are as
+    // real as a piece's, and were silently dropped here before this widening
+    // — only a piece's own edits/pieceLog stay piece-specific. Unconditional,
+    // never gated on revisions.length: `revisions` is always a real array
+    // (initialized above, whether or not the block ran), and a caller
+    // (holon.test.mjs's own P116) asserts Array.isArray(r.revisions) — a
+    // conditional spread on an empty-but-valid array silently drops the key.
+    revisions,
+    depth: sections.find((x) => x.strain)?.strain?.recruited ?? budgets.level, budgets, depthLine: depthLine(budgets, { piece: Boolean(piece) }),
     // What this whole turn learned (P126), deduped by content identity across
     // its parts — the caller appends these to its durable store, and the room
     // makes them permanent (matrix.js seals them into the same hash-linked

@@ -187,8 +187,12 @@ sharing one common word was answered against them (retrieve() has no
 relevance floor by design). Bounded to RECENCY_WINDOW turns after the
 attach — the declared reach of the present — after which the source is
 judged like anything else; anaphoric asks still carry the discourse names.
-The recency bound is verified by code reading only: six sequential model
-turns were not drivable on the saturated box.
+Both proven before/after (P246 carries the runs): the pre-fix build served
+from a worktree beside the fixed one, model calls intercepted at the
+request so nothing waited on the queue. Pre-fix, the walked-away claim
+rode the system prompt of two later unrelated turns and a seven-turns-old
+attachment was handed to the model on one coincidental word; fixed,
+neither happened, same script.
 
 ## Investigated, not code-fixed: "boiling point of tungsten" → "not stated"
 

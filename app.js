@@ -2959,8 +2959,31 @@ function populateServerModels(sel, models, base) {
   const byName = new Map((models ?? []).map((m) => [stripEr7(m?.name), m]));
   state.availableModels = new Set(byName.keys());
   const offered = MODEL_PICKER.map((name) => byName.get(name)).filter(Boolean);
+  // offeredModels stays the curated, small-instruct-only rungs — the axis
+  // AUTOMATIC routing reads (routeModel/S1/S2/witness in model-routing.js,
+  // whose whole point, user-directed, is no thinking-mode/oversized model
+  // ever gets picked FOR a turn). Widening this set would leak that choice
+  // into turns nobody explicitly asked to run on a 16B model.
   state.offeredModels = offered.map((m) => m.name);
   for (const m of offered) {
+    const opt = document.createElement("option");
+    opt.value = m.name;
+    opt.textContent = `${m.name} · ${((m.size ?? 0) / 1e9).toFixed(1)}GB`;
+    sel.append(opt);
+  }
+  // Every OTHER real pulled model — found live, 2026-09-22, user direction:
+  // "show the real models loaded not this random assortment" (the picker's
+  // "this machine — ollama" group only ever showed MODEL_PICKER's four
+  // curated rungs, silently hiding whatever else was actually pulled, e.g.
+  // a real deepseek-v2/qwen2.5vl this machine had loaded). Appended AFTER
+  // the curated rungs so `sel.options[0]` — and therefore the default
+  // below — is unchanged; each becomes an ordinary <option> the model menu
+  // already renders generically off `sel.options`, so picking one is the
+  // SAME explicit pin `/model <name>` already grants access to (state
+  // already carries every one of these in `availableModels`) — this only
+  // makes the door visible rather than opening a new one.
+  const extra = [...byName.values()].filter((m) => !offered.includes(m));
+  for (const m of extra) {
     const opt = document.createElement("option");
     opt.value = m.name;
     opt.textContent = `${m.name} · ${((m.size ?? 0) / 1e9).toFixed(1)}GB`;
@@ -2972,7 +2995,7 @@ function populateServerModels(sel, models, base) {
   // cost. Degrades to the next offered rung if the smallest isn't pulled,
   // the same graceful-degradation model-routing.js already documents.
   sel.value = state.offeredModels[0] ?? MODEL_PICKER[0];
-  if (!offered.length) $("status").textContent = isHeimdallBase(base) ? `eoreader7's proxy answered on ${base} but has no models pulled` : "ollama has no models pulled";
+  if (!offered.length && !extra.length) $("status").textContent = isHeimdallBase(base) ? `eoreader7's proxy answered on ${base} but has no models pulled` : "ollama has no models pulled";
 }
 
 async function fillModels() {
@@ -15323,6 +15346,18 @@ function taggedProse(text, offered, classified = [], marks = []) {
     const sent = document.createElement("span");
     sent.className = `sent${entry.absent.length ? " claims" : ""}`;
     sent.dataset.ground = entry.ground;
+    // `entry.ground` is classifySentences' own coarse, pre-ladder read — did
+    // the model bracket-cite this sentence, yes or no. The real per-sentence
+    // ladder (groundOf, below) runs AFTER this and can independently find a
+    // verbatim/named match the model never cited — so a "model's own voice,
+    // no address stands behind this" title set here must not survive past
+    // the point a real numbered mark-ref is about to be attached for the
+    // SAME sentence (found live, 2026-09-22: exactly that contradiction, two
+    // adjacent elements on one sentence disagreeing about whether it's
+    // grounded). `modelVoiceTitle` marks it provisional; the dispatch below
+    // clears it the moment a real mark supersedes it. The absent-facts title
+    // is a different, tier-independent warning and is never cleared this way.
+    let modelVoiceTitle = false;
     if (entry.absent.length) {
       sent.title = `States facts the material does not back: ${entry.absent.join("; ")}. You are trusting the model here. Click to search the material yourself.`;
       sent.onclick = () => groundHunt(entry.absent.join(" ") || entry.text);
@@ -15330,6 +15365,7 @@ function taggedProse(text, offered, classified = [], marks = []) {
       sent.title =
         "The model's own voice — no address stands behind this sentence. Click to search the material for ground.";
       sent.onclick = () => groundHunt(entry.text);
+      modelVoiceTitle = true;
     }
     sent.append(...refNodes(matched, known));
     // THE GROUND, off the whole cube (P115): one chip per sentence naming
@@ -15552,6 +15588,14 @@ function taggedProse(text, offered, classified = [], marks = []) {
         sent.title = "The model's own voice — nothing here points at a source. Click for detail.";
       }
     } else if (sentMarks.length) {
+      // A real mark supersedes the coarse "model's own voice" title staged
+      // above — the numbered marker itself carries the accurate, tiered
+      // story now, and leaving the stale title in place is what produced
+      // the contradiction (a sentence saying "no address stands behind
+      // this" one hover over from a marker saying exactly which address
+      // does). The absent-facts title (a different, tier-independent
+      // warning) is deliberately left alone.
+      if (modelVoiceTitle) { sent.title = ""; sent.onclick = null; }
       const ref = markRef(marks, { sentence: entry.text, tier, items: sentMarks });
       // proofTargets locates a live-updatable node by walking the DOM for
       // this exact key (see its own caller) — carried forward from the old
@@ -19335,7 +19379,7 @@ function section(text) {
  * and a silent truncation would claim completeness it doesn't have. */
 const REOPEN_CONTEXT_CHARS = 1500;
 
-function reopen(ref) {
+async function reopen(ref) {
   // The structural name carries the heading; the byte address stays
   // visible underneath — the one place both belong together, since this
   // dialog exists to show exactly which bytes back a claim.
@@ -19397,10 +19441,54 @@ function reopen(ref) {
   // itself shipped.
   const fromSources = isSelfRef(ref) ? null : refContext(state.sources, ref);
   const archived = !isSelfRef(ref) && !fromSources ? refContext(state.citedMaterial, ref) : null;
-  const ctx = isSelfRef(ref) ? selfRefContext(state.reflexLog, ref) : (fromSources ?? archived);
+  let ctx = isSelfRef(ref) ? selfRefContext(state.reflexLog, ref) : (fromSources ?? archived);
   if (archived) {
     $("reopen-address").textContent +=
       " — turn-scoped page kept for audit; cited this conversation, never attached";
+  }
+  // A source can leave both buckets above — removed after attaching
+  // (removeSource never touched citedMaterial, since addSource never wrote
+  // it either), or swept on conversation close (forgetPreflightSources) —
+  // while its own page face (the fetched text's disk address,
+  // rememberPageFace) survives workspace-wide, same as the RESEARCHED
+  // panel's own re-fetch already relies on (openResearchedPage). Tried
+  // third and only on a genuine miss, since it costs a real fetch neither
+  // of the first two lookups do.
+  //
+  // Found live, 2026-09-22: a citation into a still-visible RESEARCHED page
+  // reported "no longer loaded" though its bytes were one click away in
+  // that same panel. This fallback does NOT close that specific case,
+  // disclosed rather than silently assumed — instrumented and confirmed
+  // live that `state.pageFaces` holds nothing for a name resolved straight
+  // out of the RESEARCHED corpus (that panel reads `/api/web/history`
+  // directly and never calls `rememberPageFace`/`keepPreflightSource` at
+  // all, so a citation into it never enters any of the three buckets this
+  // function checks). What IS fixed, verified by code reading of both real
+  // call sites: a source removed after attaching (removeSource) or swept on
+  // conversation close (forgetPreflightSources) while its page face
+  // survives — the two gaps traced to exact lines above. The RESEARCHED-
+  // corpus case is real, open, and unfixed — the next lever is wiring a
+  // fourth lookup against `/api/web/history` by name/title, not attempted
+  // here.
+  let refetched = false;
+  if (!ctx && !isSelfRef(ref)) {
+    const face = state.pageFaces[String(ref).split("#")[0]];
+    if (face?.textPath) {
+      try {
+        let res;
+        try { res = await fetch(pageFaceUrl(EXPLORE_BASE, face.textPath)); }
+        catch { res = await fetch(pageFaceUrl(location.origin, face.textPath)); }
+        if (res.ok) {
+          const text = await res.text();
+          ctx = refContext({ [String(ref).split("#")[0]]: text }, ref);
+          refetched = !!ctx;
+        }
+      } catch { /* ctx stays null; the outlived message below is honest */ }
+    }
+  }
+  if (refetched) {
+    $("reopen-address").textContent +=
+      " — refetched from the page this instrument saved; no longer held as a live source";
   }
   if (!ctx) {
     pre.textContent = isSelfRef(ref)
@@ -19433,10 +19521,11 @@ function reopen(ref) {
   }
 
   const explore = $("reopen-explore");
-  // Archived turn-scoped material has no Explore deposit — the button would
-  // be a dead door, so it is withheld, a typed absence rather than a caught
-  // failure.
-  explore.hidden = isSelfRef(ref) || !!archived;
+  // Archived turn-scoped material and a refetched page face both leave
+  // `state.sources` empty for this name — openInExplore's own lookup would
+  // find nothing and throw, a dead door, so both are withheld the same way,
+  // a typed absence rather than a caught failure.
+  explore.hidden = isSelfRef(ref) || !!archived || refetched;
   explore.onclick = () =>
     openInExplore(state.sources, ref).catch((err) => {
       $("status").textContent = `explore: ${err.message || err}`;
@@ -22152,7 +22241,16 @@ function renderModelMenu() {
   const ollama = opts.filter((o) => !isWebLLMModel(o.value) && !isTfModel(o.value) && !isRoomModel(o.value));
   const webgpu = opts.filter((o) => isWebLLMModel(o.value));
   const cpu = opts.filter((o) => isTfModel(o.value));
-  if (ollama.length) { group("this machine — ollama"); for (const o of ollama) row(o.value, o.textContent, () => pickLocal(o)); }
+  // Split ollama into curated-first / everything-else-second (found live,
+  // 2026-09-22, user direction: the flat 14-model list this section grew to
+  // once every real pulled model became visible is "too many to choose
+  // from") — nothing is hidden, MODEL_PICKER's own rungs just stay the
+  // first, smallest thing a person sees, with the rest one scroll away and
+  // still reachable by name via the search box above.
+  const curated = ollama.filter((o) => MODEL_PICKER.includes(stripEr7(o.value)));
+  const alsoOllama = ollama.filter((o) => !MODEL_PICKER.includes(stripEr7(o.value)));
+  if (curated.length) { group("this machine — ollama"); for (const o of curated) row(o.value, o.textContent, () => pickLocal(o)); }
+  if (alsoOllama.length) { group("also pulled here"); for (const o of alsoOllama) row(o.value, o.textContent, () => pickLocal(o)); }
   if (webgpu.length) { group("this device — webgpu"); for (const o of webgpu) row(o.value, o.textContent, () => pickLocal(o)); }
   if (cpu.length) { group("this device — cpu"); for (const o of cpu) row(o.value, o.textContent, () => pickLocal(o)); }
   // The room's mouths (P119): every model a member offers through the open

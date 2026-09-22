@@ -423,3 +423,13 @@ fast: 96 files · 1363 affected tests, 1337 pass 0 fail · law: ok (pre-existing
 | Simon/Chekhov | — | chomsky.test.mjs | fixed | the minted archon is wired, not decoration: 4 pins scan the production wiring (mutation-falsified both ways), 1 BECOMING gates the eng SVO declaration |
 | Kondo | — | app.js roleConfig load | noted | the eng RoleConfig fetch is nascent (ready, gated by the BECOMING), not dead |
 clean: Diaconis, Dijkstra, Holmes, Pearl, Ostrom, Frankfurt, Alexander, Lévi-Strauss (routed on the prompt-work hunks; nothing new found)
+
+## 2026-09-22 — preflight pages kept per conversation, gated on the query that fetched them (agent-aa07326b96cb5bfdd, working)
+fast: 3 files · 10 affected test files, 174 pass 0 fail · law: ok (9 citations resolve; P245 carries Generality) — WARN pre-existing dup headers P115 P116 P117 P19 P233 / S17 S96, untouched here
+| lens | citation | file:line | verdict | one line |
+| Ostrom | P245, P54 | app.js:10949 | noted | the set-aside is named page by page in the turn's own trace ("set aside N page(s) found earlier for a different question"), never reported as "there was nothing"; admission's two notes are kept apart so an instrument's own fetch is not described as the person's attachment. |
+| Frankfurt | P4, P234 | app.js:10963 | noted | the new gate introduces no constant: its bar is a non-empty intersection with the recorded query — structural, declared as the LOW bar, with admission's floor/company/null unchanged as the high one. |
+| Alexander | P245 | app.js:9036 | already-fixed-in-main (hunk dropped on merge) | the composition seam was silently defaulting to "don't compose": `er7Turn(question) ?? twoPassTurn(question)` can never fall through (an async call is a Promise, never nullish), so with the proxy down the fold's own engine never ran and the composer stayed busy — now awaited. |
+| Kondo | — | app.js | clean | nothing left unwired: `keepPreflightSource`, `forgetPreflightSources` (2 call sites) and `preflightStillOnTopic` all have live callers, and `state.preflightSources` is read by the gate, the admission note, the sources row and `removeSource`. |
+| Marshall | IV.1, P220 | POLICIES.md:13886 | noted | P245 is a new entry, not an amendment; its enforcement is the live run recorded in it plus the affected suite, since app.js is DOM-coupled and no `node --test` can import it — the same standing exception P220 records for a fix in this file. |
+clean: Kondo

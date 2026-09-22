@@ -8209,3 +8209,75 @@ work still waiting to be sealed under whatever passphrase comes next.
 Still not built: the actual "forgot passphrase?" button/dialog in the UI —
 the same deferred first-run-UI gap this section already named, now with
 its copy and its primitive both ready rather than either.
+
+## The preflight's pages are kept for the conversation, and asked to stay on topic (added 2026-09-22) — pointer
+
+POLICIES.md **P245** is the law; this is the map. Found live, twice over in
+one session: asking the SAME factual question twice in one conversation
+re-ran the whole preflight — a recorded search, three page fetches, the
+chunking, the reading pass — against pages this instrument had already
+fetched, read and cited minutes earlier. `gatherPreflightMaterial`'s own
+header said why: "nothing here is written to state.sources ... nothing
+persists past this turn's `chunks:` array." Turn-scoping was right when P23
+landed; what it cost was paying full price every time for a fact already on
+the record with real provenance — P30's own efficiency argument, one
+register over.
+
+**A fetched page is now material for the rest of THAT conversation**
+(`keepPreflightSource`): the bytes in `sources`, the page's OWN passages —
+the ones this turn actually read, never a second differently-cut copy, so
+the addresses this turn cited and the addresses the next turn holds cannot
+disagree — and a `state.preflightSources` row carrying url, host, title,
+retrieval date, the conversation, and **the query that went and got it**.
+Three absences carry the design: no `sourceOrigin` entry (so admission
+gates it like any other material rather than exempting it the way P235
+exempts what a PERSON handed this conversation), no OPFS write (a page
+nobody chose to keep is not a document — P206 should not have to answer for
+it), and no re-read on arrival (the preflight has just read it). Dropped on
+every exit from the conversation; disclosed in the Sources row as *"found
+while answering — not attached by you"*.
+
+**The gate that keeping needs, and the specimen that earned it.** The first
+cut let admission alone decide, and measured live it did not hold: with
+three Les Misérables pages held, *"what is the boiling point of tungsten?"*
+CLEARED admission on a 69,000-character Wikipedia article — a page that long
+carries almost any ordinary pair of English words together in two separate
+paragraphs, which is the recurrence admission trusts outright and never puts
+to its own null (P234). `live` was not empty, the preflight never fired, and
+a question one search would have answered came back "not stated in the
+sources I looked at". **A kept page must never cost a later question its own
+search.** `preflightStillOnTopic` is the low bar of a two-tier gate: a page
+fetched for an earlier question is a candidate only if this question shares
+one content word with the QUERY that fetched it; the high bar (floor,
+company, the null) is admission's, unchanged, and still runs after. Asked of
+the recorded query, never of the page — a long page's own text is exactly
+what cannot discriminate here.
+
+**Two pre-existing bugs, found by running it, fixed in the same pass.**
+`er7Turn(question) ?? twoPassTurn(question)` could never fall through — an
+async call is a Promise and a Promise is never nullish — so with the
+eoreader7 proxy unreachable an ordinary question resolved to `null`: no
+message, no error, `state.busy` left set for the rest of the page load and
+every later message queued behind a turn that had already ended — found in a
+worktree branched before 2026-09-19, where main had already landed the same
+await; nothing for it shipped here. And the
+named-URL branch's `live = liveChunks()` re-read discarded every scoping
+decision made earlier in the turn — its own comment already recorded that
+happening once to a piece's scope; here it was also discarding admission's
+own refusals, which is P190/P200/P234 silently undone on any turn that
+reaches that branch. The set-aside names are held at function scope and
+re-applied there now, never re-derived.
+
+**Measured live** (real page, real local gemma2:2b, real DuckDuckGo, the
+preflight gate's own inputs read off the running page): turn 1 fires
+(`live: 0`), 3 calls, 21.3s; the same question again does not fire
+(`live: 787`), 1–2 calls, **2.6–6.6s**, cited to the page it kept with a
+working address; an off-topic question sets the held pages aside by name and
+searches again. Suite: the same six pre-existing failures by name, zero
+regressions.
+
+**Disclosed:** a kept page carries its retrieval date on every chunk and
+that is the whole of its staleness story — no TTL, no re-check, so a
+volatile fact asked twice inside one conversation is answered from the first
+fetch. Bounding that means measuring how fast a claim's own kind of material
+moves; it is a pass of its own, not a constant to pick here.

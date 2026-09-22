@@ -96,6 +96,72 @@ and write its own CLAUDE.md/POLICIES.md entry in this repo's own style.
     to render. Committed (eoreader7 `524c7aa`, private-index commit — see
     below for why).
 
+## Item 8 fixed: a read page is a stable sub-assembly (the watchmaker reading)
+
+User direction: "think deeper on how to make this a good watchmaker so
+that it fails least problematically; each level needs to create useful
+enough info." Simon's two watchmakers — Hora builds from stable
+sub-assemblies and loses only the current one to an interruption; Tempus
+builds each watch in one piece and loses everything. Read level by level,
+the turn is mostly Hora already, with one Tempus joint:
+
+- **Void declared** (question alone) — lands on the record before any
+  material (P105). Survives everything downstream. Useful alone: the
+  shape of the answer that was needed.
+- **Search** — the snippet digest is mirrored to the record, and it is a
+  chunk in the turn even when every page fetch fails. Survives a fetch
+  failure. Not kept past the turn (a skim, not a reading; left that way).
+- **Hunt / fetch / read** — each page's bytes are kept server-side
+  (web/pages), and the page is chunked and read into the turn. THIS was
+  the Tempus joint: the reading was turn-scoped, so a failure one step
+  later (the model 429'd after "settled after 2 page(s)", measured live)
+  threw the search and the reading away, and the retry redid both; and
+  the identical question asked twice searched twice — the second search
+  drawing a different, off-topic page ("Chateaubriand Les Premières
+  Années" for "qui a écrit Les Misérables ?").
+- **Retrieve / draft / check / AnswerRecord** — the record is durable
+  (P100) but only exists if the draft succeeded.
+
+**The fix (POLICIES.md P245 — the recall subagent's version, reconciled
+into main over my own narrower draft):** `keepPreflightSource` keeps each
+fetched page as a source the moment it is read (the sub-assembly is
+committed when complete, not at the end), with the page's OWN passages —
+the chunks this turn actually read, so cited addresses and later-held
+addresses cannot disagree — and a `state.preflightSources` row carrying
+url, host, title, retrieval date, the conversation, and the QUERY that
+fetched it. What a kept page is NOT: no `sourceOrigin` (no P235
+exemption), no OPFS write (a cache, not a document), no read-on-arrival
+(the preflight just read it). Dropped on `switchConvo`/`closeConvo`;
+disclosed in the Sources row as "found while answering — not attached by
+you"; names keyed to the URL so a page re-ranked by a later search is
+recognised as already held.
+
+**The part my draft was missing, found by the agent running it live:**
+admission alone does NOT hold. With three Les Misérables pages kept,
+"what is the boiling point of tungsten?" CLEARED admission against a
+69,000-char Wikipedia article — a page that long carries almost any
+ordinary word pair together in two paragraphs, the recurrence admission
+trusts outright and never nulls (P234) — so `live` was non-empty, the
+preflight never fired, and the answer was "not stated in the sources I
+looked at". That is exactly the tungsten shape in the screenshot above.
+`preflightStillOnTopic` is the low bar of a two-tier gate: a page fetched
+for an earlier question is a candidate only if this question shares one
+content word with the QUERY that fetched it (asked of the query, never of
+the page — a long page's own text is what cannot discriminate);
+admission's floor/company/null stays the high bar and still runs after.
+
+Also fixed in the same pass (pre-existing): the named-URL branch's
+`live = liveChunks()` re-read discarded admission's own refusals — P190/
+P200/P234 silently undone on any turn reaching it; set-aside names are
+held at function scope and re-applied there now.
+
+**Measured live by the agent** (real page, real DuckDuckGo, real
+gemma2:2b): turn 1 fires (`live: 0`), 3 calls, 21.3s; the same question
+again does not fire (`live: 787`), 1–2 calls, 2.6–6.6s, cited to the kept
+page with a working address; the tungsten question sets the three held
+pages aside by name and searches again. Disclosed limit: a kept page's
+only staleness signal is its retrieval date — no TTL, no re-check.
+
 ## Investigated, not code-fixed: "boiling point of tungsten" → "not stated"
 
 Live specimen: checking+web on, real Wikipedia sources cited in the

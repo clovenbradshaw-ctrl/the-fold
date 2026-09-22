@@ -1596,7 +1596,8 @@ import {
 } from "./source.js";
 import { makeAdmission, properNamesIn } from "./admission.js";
 import { makeAletheia } from "./aletheia.js";
-import { questionCycle, ledgerLint as lintNotesInLog } from "./logos.js";
+import { questionCycle, ledgerLint as lintNotesInLog, functionalConflicts } from "./logos.js";
+import { sourceOfWitness } from "../eoreader7/native/organs/index.js";
 // The discourse-admission gate (admission.js): should a whole ATTACHED
 // SOURCE even be treated as material for THIS question, before retrieve()
 // ever sees it? retrieve() itself keeps its declared no-relevance-floor
@@ -13588,6 +13589,54 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // (its own fact wins) and only over material that exists.
     const absentAsked = state.grounded && !opts.longForm && !seekFillers.length && live.length ? absentAskFor(task, live.map((c) => c.text).filter(Boolean)) : null;
     if (absentAsked) logAct("absent", { relation: absentAsked.absent.join(", ") });
+    // Ledger conflicts, landed BEFORE the mouth drafts (Gap 1: "be sure all
+    // content is going through the proper reasoning linting before it lands
+    // at the model"). The SAME strict ledgerLint reading run post-hoc for
+    // disclosure below (P236) is run here too, narrowed to
+    // standing_contradiction findings (logos.js::functionalConflicts), and
+    // every conflicting pair is landed as a dispute on BOTH notes through
+    // hyperlexiconFor.dispute() — so the ledger block's own, pre-existing
+    // disputed(n) render (holon.js, unmodified) shows "disputed by X — not
+    // settled" on both sides while the mouth is still drafting, not only in
+    // the post-hoc disclosure. Disclosure only (P186): this never edits or
+    // withholds anything the mouth says, it only makes a conflict the
+    // ledger already knows about visible sooner. Wrapped non-fatally, like
+    // every other disclosure-only computation in this function.
+    if (state.grounded) {
+      try {
+        const decl = foldDeclarations(state.declarations);
+        const conflicts = functionalConflicts(state.hyperlexiconLog, {
+          door: hyperlexiconFor,
+          taskLog: { projectTasks: nativeTaskLog.projectTasks },
+          functional: { given: decl.given, candidates: decl.candidates },
+        });
+        if (conflicts.length) {
+          const byId = new Map(nativeTaskLog.projectTasks(state.hyperlexiconLog).map((t) => [t.task_id, t]));
+          let log = state.hyperlexiconLog;
+          for (const { aId, bId } of conflicts) {
+            const a = byId.get(aId), b = byId.get(bId);
+            if (!a || !b) continue;
+            const aSrc = (a.witnesses ?? []).map(sourceOfWitness).find(Boolean);
+            const bSrc = (b.witnesses ?? []).map(sourceOfWitness).find(Boolean);
+            if (bSrc) {
+              const d = hyperlexiconFor.dispute(log, aId, {
+                source: bSrc, kind: hyperlexiconFor.DISPUTE_KINDS.CONTEST,
+                because: `declared functional: conflicts with "${b.end1} ${b.label} ${b.end2}" (${bId})`,
+              });
+              if (!d.refused) log = d.log;
+            }
+            if (aSrc) {
+              const d = hyperlexiconFor.dispute(log, bId, {
+                source: aSrc, kind: hyperlexiconFor.DISPUTE_KINDS.CONTEST,
+                because: `declared functional: conflicts with "${a.end1} ${a.label} ${a.end2}" (${aId})`,
+              });
+              if (!d.refused) log = d.log;
+            }
+          }
+          if (log !== state.hyperlexiconLog) { state.hyperlexiconLog = log; syncRecords(); }
+        }
+      } catch (e) { console.warn("functional conflicts:", e?.message ?? e); }
+    }
     result = await runHolonicTask({
       mouthModel: turnModel,
       mouthWindowOf: (name) => loadedWindows.get(name) ?? null,

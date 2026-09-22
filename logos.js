@@ -93,6 +93,38 @@ export function ledgerLint(log, { door, taskLog, fromSeq = null, functional = { 
 }
 
 /**
+ * functionalConflicts(log, { door, taskLog, functional }) — the SAME strict
+ * ledgerLint reading `app.js` already runs post-hoc for disclosure (P236),
+ * run BEFORE the mouth drafts and narrowed to just the pairs a reader must
+ * know about going in: `standing_contradiction` findings, where a declared
+ * `/declare … functional` relation holds two different values at rest. The
+ * finding's own `at` field concatenates the two note ids as `"idA+idB"`
+ * (reasoning-lint.js's `pairCtx`, no `a`/`b` fields survive on the finding
+ * itself) — split once here so callers never re-parse it.
+ *
+ * Disclosure only (P186): this returns which pairs conflict; it lands
+ * nothing and edits nothing. A caller that wants the conflict VISIBLE to
+ * the mouth before it drafts still has to land it (dispute()) itself.
+ */
+export function functionalConflicts(log, { door, taskLog, functional } = {}) {
+  // lintLedger DIRECTLY, never through ledgerLint above: ledgerLint's own
+  // trimFinding strips a finding's `at` field (built for the post-hoc
+  // disclosure surface, which only ever shows counts/detail, never re-opens
+  // which ids conflicted) — going through it here would always report zero
+  // conflicts. Found by a standalone mechanism test before this shipped.
+  if (!log?.entries?.length || !door || typeof taskLog?.projectTasks !== "function") return [];
+  const whole = lintLedger(log, { door, taskLog, strictness: LEDGER_LINT_STRICTNESS, functional });
+  if (!whole) return [];
+  const out = [];
+  for (const f of whole.findings) {
+    if (f.kind !== "standing_contradiction" || typeof f.at !== "string") continue;
+    const [aId, bId] = f.at.split("+");
+    if (aId && bId) out.push({ aId, bId, detail: f.detail });
+  }
+  return out;
+}
+
+/**
  * Does the QUESTION's own claims already form a cycle, independent of any
  * answer? Treats the question as its own material — the one place this
  * repo's checking apparatus never looks, since every other check compares

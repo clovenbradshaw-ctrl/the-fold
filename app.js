@@ -3307,17 +3307,22 @@ async function huginnPlanFor(modelName, jobKind) {
       : null;
   const plan = huginnPrioritize(jobKind, { candidates, pinned, prefer, inflight, meanMs, selfServing: servingTurn ? selfUser : null });
   // THE LADDER'S BOTTOM RUNGS (2026-09-22, user direction: fall back to
-  // WebLLM if Ollama fails, "and a CPU fall back is better than nothing").
-  // Appended AFTER prioritisation, so they can never outrank a live Ollama
-  // or a room mouth: they are reached only when everything above them has
-  // failed with a hop-eligible kind (`machine`, `unserved`, a room
-  // fallback). The GPU rung is offered only where the page can run it
-  // (webgpuBlocker — the same gate the picker uses); the CPU rung runs in
-  // any browser. Whichever in-tab model is ALREADY warm is preferred to
-  // the roster's default, so a hop never unloads a model to load its
-  // sibling. A hop lands on the record and the mouth chip says "in this
-  // tab" / "in this tab (CPU)" — a person is never answered by a rung they
-  // did not know had spoken.
+  // WebLLM if Ollama fails, a CPU fall back is better than nothing, and —
+  // after a consent-button cut was tried and refused — "this should mostly
+  // all be invisible" / "I don't want to have to select". A button is for
+  // choosing a MODEL on a given harness (the `/model` door, unchanged and
+  // untouched by this); hopping BETWEEN harnesses because one can't serve
+  // at all is the ladder's own job, same as a room-mouth hop already is,
+  // and stays silent the same way. Appended AFTER prioritisation, so
+  // in-tab rungs can never outrank a live Ollama or a room mouth — reached
+  // only once everything above has failed with a hop-eligible kind. The
+  // GPU rung is offered only where the page can run it (webgpuBlocker —
+  // the same gate the picker uses); the CPU rung runs in any browser.
+  // Whichever in-tab model is ALREADY warm is preferred to the roster's
+  // default, so a hop never unloads a model to load its sibling — "keep
+  // them as stable as possible" (user, same day). A hop lands on the
+  // record and the mouth chip says "in this tab" / "in this tab (CPU)" —
+  // disclosed after the fact, never interrupting the turn to ask first.
   const inTab = [];
   if (!isWebLLMModel(modelName) && !webgpuBlocker({ gpu: navigator.gpu, secureContext: window.isSecureContext })) {
     inTab.push(candidateOf(webllmClient.ready && webllmClient.modelId ? webllmClient.modelId : WEBLLM_MODELS[0].id, CANDIDATE_KINDS.WEBLLM));
@@ -11659,8 +11664,18 @@ async function runFastPass(question, model) {
     text = stripSelfCitations(raw).text;
   } catch (e) {
     text = "";
-    body.textContent = `(fast pass failed: ${e?.message ?? e})`;
-    return { node, text: "", sent };
+    // Humanized, not the raw engine body (found live, 2026-09-22 — the
+    // fourth already-fixed `[engine error: ...]` sites had a fifth,
+    // unfixed sibling right here: "(fast pass failed: ollama 503:
+    // {\"error\":...,\"type\":\"model_unavailable\",...})" reached the
+    // person verbatim). `shown` is returned too — the caller must never
+    // record an EMPTY answer (arcs.js's observeArc refuses one outright,
+    // by design: a voice that was never heard cannot be absorbed into the
+    // arc), so a failed pass still gives every later bookkeeping step a
+    // real, honest string to record instead of silently crashing on "".
+    const shown = `(fast pass failed: ${humanizeEngineError(e)})`;
+    body.textContent = shown;
+    return { node, text: "", shown, sent };
   }
   // Classified like every other turn (P100): nothing was handed to S1, so
   // every sentence is model-ground and wears the dotted underline — a
@@ -11672,7 +11687,7 @@ async function runFastPass(question, model) {
       renderMarksStrip(body, fastMarks);
     } catch { body.textContent = text; }
   } else body.textContent = "(no reply)";
-  return { node, text, sent };
+  return { node, text, shown: text || "(no reply)", sent };
 }
 
 // The orchestrator: S1 renders first and fast; S2 (the FULL existing
@@ -11802,7 +11817,7 @@ async function twoPassTurn(question) {
     });
   }
 
-  const { node, text: s1Text, sent } = await runFastPass(question, s1Model);
+  const { node, text: s1Text, shown: s1Shown, sent } = await runFastPass(question, s1Model);
   // Even on the trivial path, S1 is never trusted to be unfalsifiable: if
   // it volunteers something checkable while answering "hi", the grounded
   // pass still runs. The gate only ever adds a pass here.
@@ -11843,11 +11858,21 @@ async function twoPassTurn(question) {
   // the same shape again) — a turn's bookkeeping (history, the ledger, the
   // fold, the record, releasing busy) is not optional just because no
   // deep pass ran; every turn gets one, per FOLD-CONSTITUTION I.5.
-  state.history.push({ role: "user", content: question }, { role: "assistant", content: s1Text });
+  // NEVER AN EMPTY ANSWER ON THE RECORD (found live, 2026-09-22): a failed
+  // or textless fast pass used to push `s1Text` (`""`) straight into
+  // history and observeExchange, and arcs.js::observeArc refuses an empty
+  // answer by design ("observeArc requires the answer — the voice that
+  // was heard") — a genuine crash, "this turn threw before answering",
+  // on top of the already-shown failure text. `s1Shown` is the SAME
+  // honest string every exit of runFastPass already rendered into the
+  // message body; recording it (never a blank) is the one fix every
+  // downstream consumer of "the answer" needs.
+  const answerText = s1Text || s1Shown;
+  state.history.push({ role: "user", content: question }, { role: "assistant", content: answerText });
   const turn = state.summary.turnCount + 1;
   logAct("answered-from-state", { what: "fast-pass-only", gate: "no checkable claim" });
-  observeExchange(turn, question, s1Text);
-  const fold = mechanicalFoldLine(question, s1Text);
+  observeExchange(turn, question, answerText);
+  const fold = mechanicalFoldLine(question, answerText);
   state.turnFolds.push(fold);
   state.summary = advanceSummaryFold(state.summary, fold);
   renderFold(node, { sent });

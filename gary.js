@@ -107,9 +107,30 @@ export function oracleContentWords(text) {
   return [...new Set(wordsOf(text).filter((t) => (t.length > 2 || isNumeral(t)) && !ORACLE_STOPWORDS.has(t)))];
 }
 
+// A WH-interrogative naming a DEFINITE role or value ("who is the
+// president", "what is the capital", "when is the deadline") presupposes a
+// single, real, currently-true answer exists — a definite description,
+// checkable on its own grammar regardless of how many content words
+// survive stopword stripping. Found live, 2026-09-22: "who is the
+// president" strips to ONE content word ("president"; "who"/"is"/"the" are
+// all in ORACLE_STOPWORDS) — below ORACLE_MIN_CONTENT_WORDS — so
+// hasCheckableClaim said false, the fast-pass-only gate stood unchecked,
+// and S1 answered confidently and WRONG with nothing to catch it: the
+// exact failure this whole grounding ladder exists to prevent, on the
+// canonical shape it was built for. The floor is the right test for an
+// ordinary sentence; it was never the right test for a bare definite
+// description, so this is a second, independent door, never a lowered
+// number — errs toward checking on purpose (the same asymmetry
+// triviallyChatty's own header already argues: a false positive here costs
+// one grounded pass, a false negative is a time-sensitive fact answered
+// from a small model's stale memory with nothing behind it).
+const WH_DEFINITE_RE = /\b(?:who|what|when|where)\s+(?:is|are|was|were)\s+the\b/i;
+
 /** Whether the person's own words carry anything an elenchus could hold against. */
 export function hasCheckableClaim(text) {
-  return oracleContentWords(text).length >= ORACLE_MIN_CONTENT_WORDS;
+  const t = String(text ?? "");
+  if (WH_DEFINITE_RE.test(t)) return true;
+  return oracleContentWords(t).length >= ORACLE_MIN_CONTENT_WORDS;
 }
 
 /**

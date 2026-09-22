@@ -57,9 +57,9 @@ export function stripEr7Prefix(modelId) {
 }
 
 /**
- * POST /v1/chat/completions, non-streaming (the same single-shot posture the
- * TUI's proxy-client.mjs documents: a draft must never be shown before the
- * engine's reading has run against it).
+ * POST /v1/chat/completions. Single-shot unless `onDelta` is given, in which
+ * case the draft and the engine's progress notes stream to it live and the
+ * checked text still arrives last (see readStream).
  *
  * `attachments` — [{name, text}] — is the browser's material: pasted/dropped
  * sources ride the request BODY (the ONE-ENGINE-PLAN's material-intake port),
@@ -69,14 +69,61 @@ export function stripEr7Prefix(modelId) {
  * reading (per-sentence surface, answer record, charter, archons, void), and
  * the session that produced it.
  */
-export async function er7ChatCompletion({ model, history = [], task, sessionId, attachments = [], discloseThinking = false, web = false, onRetry, timeoutMs = ER7_TURN_TIMEOUT_MS }) {
+/**
+ * Read an SSE body from the engine's streaming `/v1/chat/completions`,
+ * calling `onDelta({ content, reasoning })` as chunks land. Returns the same
+ * `{ text, reading, sessionId }` the non-streaming body gives: the engine's
+ * final chunk carries the CHECKED text (the deltas are the live draft plus
+ * any appended replacement) and the reading.
+ */
+async function readStream(res, onDelta, sessionId, kick) {
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "", streamed = "", final = null;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    kick();
+    buf += dec.decode(value, { stream: true });
+    let cut;
+    while ((cut = buf.indexOf("\n\n")) >= 0) {
+      const event = buf.slice(0, cut);
+      buf = buf.slice(cut + 2);
+      for (const line of event.split("\n")) {
+        if (!line.startsWith("data:")) continue;
+        const data = line.slice(5).trim();
+        if (!data || data === "[DONE]") continue;
+        let chunk;
+        try { chunk = JSON.parse(data); } catch { continue; }
+        const delta = chunk?.choices?.[0]?.delta ?? {};
+        if (delta.content) streamed += delta.content;
+        if (delta.content || delta.reasoning_content) {
+          try { onDelta({ content: delta.content ?? "", reasoning: delta.reasoning_content ?? "" }); } catch { /* a render slip never breaks the read */ }
+        }
+        if (chunk?.reading) final = chunk.reading;
+      }
+    }
+  }
+  return {
+    text: final?.text ?? streamed,
+    reading: final,
+    sessionId: final?.sessionId ?? sessionId ?? null,
+  };
+}
+
+export async function er7ChatCompletion({ model, history = [], task, sessionId, attachments = [], discloseThinking = false, web = false, onRetry, onDelta, timeoutMs = ER7_TURN_TIMEOUT_MS }) {
   const messages = [...(history ?? []), { role: "user", content: task }];
   const headers = { "content-type": "application/json" };
   if (sessionId) headers["x-er7-session"] = sessionId;
   const payload = {
     model: model?.startsWith(MODEL_PREFIX) ? model : `${MODEL_PREFIX}${model}`,
     messages,
-    stream: false,
+    // Streaming when the caller can draw it (user direction, 2026-09-22:
+    // "make sure it streams results in real time"). The draft shows as it is
+    // written and the engine's progress notes show as they happen; the
+    // checked text from the final chunk replaces the draft when the reading
+    // lands, so nothing unchecked is left standing as the answer.
+    stream: Boolean(onDelta),
     discloseThinking,
     // The person's own web switch, carried as PER-REQUEST consent: the engine's
     // fact gate may run its declared web check only when the caller says so.
@@ -87,7 +134,11 @@ export async function er7ChatCompletion({ model, history = [], task, sessionId, 
   // spend from it, but nothing may extend it. Past it the engine is
   // stalled, not slow (see the header), and the caller falls back.
   const ctrl = new AbortController();
-  const deadline = setTimeout(() => ctrl.abort(), timeoutMs);
+  let deadline = setTimeout(() => ctrl.abort(), timeoutMs);
+  // While streaming, the ceiling is an IDLE ceiling: every chunk that lands
+  // proves the engine is alive, so a long answer that is still being written
+  // is never cut off — only silence past timeoutMs is a stall.
+  const kick = () => { clearTimeout(deadline); deadline = setTimeout(() => ctrl.abort(), timeoutMs); };
   const stalled = () => new Error(`er7 engine stalled past ${timeoutMs}ms on ${BASE} — falling back`);
   try {
     let attempt = 0;
@@ -95,6 +146,8 @@ export async function er7ChatCompletion({ model, history = [], task, sessionId, 
       let res, body;
       try {
         res = await fetch(`${BASE}/v1/chat/completions`, { method: "POST", headers, body: JSON.stringify(payload), signal: ctrl.signal });
+        if (res.ok && onDelta && /event-stream/.test(res.headers.get("content-type") ?? ""))
+          return await readStream(res, onDelta, sessionId, kick);
         body = await res.json().catch(() => ({}));
       } catch (err) {
         throw ctrl.signal.aborted ? stalled() : new Error(`er7 engine not answering on ${BASE}: ${err?.message ?? err}`);

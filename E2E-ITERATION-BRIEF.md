@@ -1,40 +1,86 @@
-# Drive the iterative-fold machine end to end, and fix what breaks — brief for a fresh session
+# E2E conversation drive — live findings log
 
-Paste this into a new session started in `/Users/mlacy/Documents/3.0`. You are the test driver and the mechanic: run the REAL page against REAL local models, in a visible browser, one scenario at a time; when a scenario fails, stop, diagnose with a minimal mechanical repro, fix it in an isolated worktree, pin the fix with a conformance test, and land it as a PR before moving on. Do not batch defects; the standing rule from the user is **test e2e each phase** — verify live per phase, never chase architecture tangents.
+Started 2026-09-22. Driving extended back-and-forth conversation against
+the real running page (real engine, real gemma2:2b), logging every real
+weirdness found — fixed same-session where the fix is small and clean,
+named as open debt otherwise. Each entry: symptom → cause → fix (or why
+not fixed yet).
 
-Read `the-fold/CLAUDE.md` and `the-fold/POLICIES.md` first — they are binding. Also binding, from the user directly: **keep the local model small** (gemma2:2b-class; a failure is fixed mechanically or scoped smaller, never by a bigger model); **no hand word-lists or hand thresholds** (closed classes come from the engine's prior register with a named giver; numbers are measured or declared with a duty); **the model is the mouth** (never instruct a model to comply — compute the fact mechanically outside it); **the nine operators are the primitives**; **provenance is forever** (outweighs definitive license signals); **EO canon stays backstage in UIs**.
+## Fixed this session (before this log started)
 
-## Where things stand (verify, don't trust — this directory has multiple concurrent sessions and files revert)
+1. **Canned greeting fired on real first questions, not just chit-chat**
+   — removed entirely per user direction (`app.js`, `send()`).
+2. **Socratic subject-extraction produced broken grammar** on comparative
+   claims ("...move someone on remote work is more productive than office
+   work") — `topicOf` generalized to split on the copula rather than a
+   closed adjective list; a raw-clause fallback now wraps as "the claim
+   that ..." (`socratic-epistemic.js`).
+3. **Stale Socratic dialogues hijacked unrelated later turns** — a
+   dialogue with no closing event stayed "active" through any number of
+   disengaged turns, so "tell me a story about a lighthouse keeper" got
+   answered as if it were replying to an old diet-claim examination.
+   Fixed: any turn that reaches the end of `socraticRoute` without
+   engaging the open dialogue marks it `resolving`; a resolving dialogue
+   can never claim a later non-question turn as its answer (`app.js`).
+4. **The engine now streams** (draft text + live progress notes) instead
+   of a static "thinking" — `er7-client.js`, `proxy.mjs`.
+5. **Small model fabricated personal experience** ("I've read 73 books...",
+   a fake weekend) when asked ordinary personal-shaped questions —
+   `PERSONAL_EXPERIENCE_RE` in `proxy-runner.mjs` now answers these
+   mechanically, never generated.
+6. **The boot-time "restored source" disclosure was an unprompted chat
+   message** — removed per user direction; the underlying `meta.legacy`
+   tag is untouched.
 
-- Repo: `the-fold/` on github `clovenbradshaw-ctrl/the-fold`. Run `git -C the-fold fetch origin && gh pr list --repo clovenbradshaw-ctrl/the-fold` before assuming anything below.
-- As of 2026-08-17 evening: PR #18 (operator-typed patch deltas + INS birth + the SIG/DEF/EVA/NUL loop) is MERGED to main. Open PRs: **#22** (one-sentence asks never decompose — the fix for the "model keeps restarting" pathology), **#23** (build-turn claim-chip suppression, fold-membership framing), **#25** (CRISPR seed/ingest + provenance-forever + resolution router + runtime cube wall — two commits, `be9f148` and `fb967e6`). If any are now merged, test against main; if still open, test in the worktree below, which has all of them.
-- Worktrees (siblings of `eoreader6.1/` on purpose — the test files import `../eoreader6.1/` by relative path, so a worktree elsewhere breaks the suite): `the-fold-diff/` (branch `claude/crispr-seed-provenance`, carries #22+#25 content), `the-fold-chips/` (branch for #23). The shared `the-fold/` checkout is other sessions' territory: do not run servers from it, do not kill servers you did not start (port 8812 in particular belongs to another session).
-- Engine: `eoreader6.1/` (its own repo, pushed to main directly by precedent). Its prior register `packages/engine/perceiver/text/priors.js` now carries `INDEFINITE_DETERMINERS`, `DEFINITE_DETERMINERS`, `ANAPHORIC_PRONOUNS`, `INFLECTIONAL_SUFFIXES` (commit `566d190`). Constitutional boundary (read `../eo-constitution/CONSTITUTION.md` if in doubt): language-specific LISTS are priors and go to the register with a giver; routing/session DECISIONS are the fold's; a language-free mechanism the lineage converges on may be re-earned engine-side, never smuggled.
-- Servers, from the worktree only: `node serve.mjs 8817` (chat page) and `node explore-server.mjs 8819` (web/seed egress + record). The page reaches its explore host via `http://localhost:8817/?explore=http://localhost:8819` — the `?explore=` override exists precisely for multi-session work. Symlink deps before running suites: `ln -s ../the-fold/node_modules node_modules` (and remove it before committing; it slipped into a commit once already).
-- Ollama on :11434 with `gemma2:2b` and `qwen2.5-coder:1.5b` — use those two.
-- Known environmental test failures, NOT yours to fix unless asked: `measure.test.mjs` (import path), `webllm-rung.test.mjs` (weights not on this disk), and `constitution.test.mjs` II.13 if `pyodide` is missing from the shared checkout's `node_modules` (another session removed it; `npm -C ../the-fold install pyodide` restores). Everything else green is the bar: ~115 tests across `build-log/widget/seed/holon/constitution` suites.
+## In progress
 
-## The machine under test — what SHOULD happen, stated so deviation is measurable
+Driving further now. New entries appended below as found.
 
-A build is an append-only log on the engine's task-log, EO-typed from the act: birth = `INS · Figure · produced` (with a `NUL · Ground` ask entry landing first when an instruction exists), revision = `SUPERSEDE · SYN` in two carriages (FULL code, or PATCH — the entry carries only `{op, find, add}` ops, operator derived from the bytes by `deriveOp`, and `foldBuild` compiles every cursor's whole from the last full entry plus the patch stack), complaint = `REC` concession in its own micro-thread + amended `NUL` ask + rebirth on a new ground, attention = `SIG` scout entries (span the ops apply `within`), refusals = `DEF` entries the next ask quotes, witnesses = `EVA` entries (witness.js: script compile-checks, dangling-id referential integrity, root closure) that aim the next ask. `checkCubeProgression` — the engine's own no-X-before-Y referee — runs at `persistBuilds` as a runtime wall. Routing is a READING: a message routes to a build when a content word resolves into the build's own bytes through retrieval's fold plus the register's `INFLECTIONAL_SUFFIXES` (colors↔color:), or by anaphora; no determiner ever vetoes. The seed scrub (`/api/seed/search`) runs before a model builds a demanded artifact; `/ingest owner/name` lands a repo's admissible files as folds; provenance (`received`: url, repo, path, license-as-found-or-null, retrievedAt) rides birth, re-carries across every re-zero, and stamps exports as a comment header.
+7. **The streaming thinking-line note was hand-cut to 90 chars, mid-word**
+   ("Still learning from … (135 salient, 41 no…") — the client's own
+   client-side slice for the thinking DISPLAY, not the header status
+   strip (which has its own CSS ellipsis and stays short by design). Fixed:
+   `paintMessageThinking` now gets the full line; only `$("status")`, the
+   one-line header strip, keeps the short form (`app.js`).
 
-## The scenarios, in order — each names its expected outcome
+8. **Asking the identical question twice in one conversation re-spends the
+   whole web preflight** (a fresh search, a fresh fetch, a fresh "learning
+   from…" read of the same page) instead of reusing what was already
+   established with provenance moments earlier. Traced to a real, EXPLICIT
+   design decision in `gatherPreflightMaterial`'s own comment ("The digest
+   is turn-scoped and was never kept") — a preflight fetch is deliberately
+   never written to `state.sources`, so there is nothing durable for a
+   later identical question to find. This is not a bug in `admission.js`
+   or the hyperlexicon (both would gladly reuse an already-loaded source —
+   there's genuinely nothing loaded to reuse). **Not fixed this pass** —
+   this is a real, disclosed architectural gap, not a quick patch: closing
+   it means deciding whether a preflight-fetched page should become a
+   durable, reusable source (with the follow-on questions that raises —
+   staleness, per-conversation vs per-workspace scope, how it interacts
+   with the ~2% corroboration ceiling this codebase has already measured
+   and extensively documented under P73/P74/P83/P182) rather than staying
+   turn-scoped by design. Flagged for a dedicated pass, not rushed here.
 
-Drive the real page (claude-in-chrome or CDP against :8817 with the `?explore=` param), gemma2:2b selected unless stated. After each turn also check: the Log tab's newest record rows, the fold card's cursor scrub (every position must render, byte-stable), and the browser console for errors.
+## Dispatched to background subagents (2026-09-22, isolated worktrees)
 
-1. **Flat build.** "Make me a counter widget in html, with a plus button, a minus button, and a number in between." Expect: NO decomposition (one part — if you see `plan: N part(s)` with N>1 and parts restarting the whole widget, PR #22's gate regressed), one fold born, `ask ·` entry visible in its timeline, widget renders in the panel.
-2. **The canonical complaint.** "I don't like the colors on the counter widget, make the buttons bigger with some color." Expect: routed BEFORE any model call (no plain-chat reply — if you get conversational prose, the resolution router broke); chip reading `fold N · ground 2 · re-zeroed from your words · 1 edit (…) [· within "…"] · witness …`; the SAME fold at a new ground; the visible widget changed. ~200–500 tokens total.
-3. **Iterate again, patch carriage.** "make the plus button blue too." Expect: revision (not re-zero) landing as a PATCH entry — open the timeline and confirm a `v2 · patch/revision` row and that scrubbing back one step restores the prior bytes exactly. If the model's edit doesn't apply, expect a `refused · unlocated/ambiguous` DEF row and the NEXT identical ask to include "already tried and refused" — send it twice to verify the quote appears.
-4. **Witness catches a break.** Ask for something likely to clobber ("rename the counter id to score"). If the landing breaks `getElementById` coherence, expect `witness: N finding(s)` in the chip and a repair on the next complaint. A dirty witness that renders as "clean" is a defect.
-5. **Ingest.** `/ingest mdn/beginner-html-site-scripted`. Expect: ~6 folds, note naming license `CC0-1.0`, admitted counts stated; each fold's export (⤓) carries the `<!-- seeded from … -->` header; `seed-ingest` row on the record. Then complain at the ingested `index.html` fold and confirm it iterates in place with provenance intact at ground 2.
-6. **Seed scrub + navigation under physics.** "make me a pomodoro timer widget in html" (web toggle ON). Expect either a splice ("found an existing … the model wrote nothing", provenance chip) or candidates → an enum-constrained model pick → splice/offer — and on the record: `seed-search`, plus `seed-splice` only when licensed+unambiguous. A GitHub 403 must surface as a typed `refused-upstream` note, never a silent fall-through.
-7. **Non-hijack checks.** "what does the counter widget teach about html?" (a question — must NOT route to the fold or the seed scrub; interrogatives are exempt); "What's 17 times 24?" (arithmetic door); a `/task` multi-sentence ask (still plans). The claim-chip wall from #23: a build turn must not render a chip strip of the model's own code labels.
-8. **Regression harness.** `node eval/iterate-eval.mjs` from the worktree — expect landing 6/6 per model, clean-after-repair 12/12 (the recorded baseline). Any drop is a defect to fix before proceeding.
+Three larger investigations spun off rather than rushed inline, each with
+its own worktree so it doesn't collide with the live drive above:
 
-## When something breaks
+- **Instant recall from provenance** — item 8 above (the same question
+  re-spends a full web preflight every time; `gatherPreflightMaterial`'s
+  digest is turn-scoped and never kept).
+- **Broken grounding chips** — user report, live: the citation/grounding
+  marks on answer sentences aren't appearing/working right now, on the
+  running app. Needs its own reproduction + `git log` check for a recent
+  concurrent regression in this exact rendering path.
+- **Prompt growth across a conversation** — user report, live, watching
+  Heimdall's own monitor: the actual prompt hitting the model appears to
+  grow with every turn rather than staying bounded. `app.js`'s own
+  `chatHistory` slice is capped at 8 (checked), so if real, the growth is
+  elsewhere — most likely the ever-growing hyperlexicon ledger block or
+  an engine-side prompt-assembly path P232's Kondo tidy-pass doesn't
+  reach everywhere.
 
-Reproduce mechanically first (a node one-liner against the pure module, or `curl` against the server route) — the browser is where you FIND defects, never where you diagnose them. Fix in the worktree, pin with a conformance test in the matching `*.test.mjs` (against the REAL engine modules, never stubs), run the suites, and land per the boundary: engine-register knowledge → `eoreader6.1` (commit to main, named giver); everything decision-shaped → the fold branch (update PR #25 if in its scope, else a fresh branch + PR). Commit messages in the house style: what was measured, what it cost, what is disclosed. If a defect belongs to another session's open PR (#22/#23), comment on the PR rather than colliding.
-
-## Known residues — expected, not defects (verify they still hold, don't "fix" silently)
-
-Styling one button when two were asked (the loop's job, one complaint away). "Make me another one, I don't like the colors on this" routes to the EXISTING build (disclosed doctrine flip: resolution beats introduction-by-article). `colours` does not resolve against `color:` (dialect spelling needs a received prior with its own giver — a missing giver is a wall). `/ingest` is root-level files only. `skills.js` is still unreachable from chat; CON binding between folds doesn't exist yet; python witnesses via the P18 sandbox (run-as-EVA) are the named next capability. If you finish everything above with time left, python witnesses are the highest-leverage build: `witnessCode("python", …)` currently returns `unexamined` — wire a compile/run check through the sandbox the way html got referential integrity, and feed it to the same EVA loop.
+Each agent was told to reproduce live (not just reason from the code),
+measure before assuming a bug, fix narrowly, run the real test suites,
+and write its own CLAUDE.md/POLICIES.md entry in this repo's own style.

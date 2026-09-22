@@ -110,12 +110,29 @@ export function socraticTurn(question) {
  *  legislation". Falls back to the claim itself. */
 function topicOf(question, claim) {
   const t = String(claim ?? "");
-  // "gun safety legislation is important" → take up to the copula
-  const m = t.match(/^(.+?)\s+(?:is|are|was|were)\s+(?:important|necessary|right|good|best|essential)\b/);
-  if (m) return m[1].trim();
-  const first = t.match(/^(.{4,60}?)(?:[,.]|\s+that\s+)/);
+  // "gun safety legislation is important" → take up to the copula. Found
+  // live, 2026-09-22: this used to require the predicate to be one of a
+  // closed adjective list (important/necessary/right/good/best/essential),
+  // so "remote work is MORE PRODUCTIVE than office work" and "vaccines are
+  // SAFE" both missed it, fell through to the raw-clause fallback below,
+  // and were inserted bare into the frames' "on ${t}" slot — "...move
+  // someone on remote work is more productive than office work" is not a
+  // sentence. The predicate can be anything; what matters is the copula.
+  const copula = t.match(/^(.+?)\s+(?:is|are|was|were)\b/);
+  if (copula) return copula[1].trim();
+  // No copula (a verb-first claim, e.g. "this diet works better than that
+  // one"): split on a clear clause boundary. The lookbehind is load-
+  // bearing — a comparative's "than that" contains the bare word "that"
+  // and is not the complementizer this is hunting for; without it, "works
+  // better than that one" truncated to "works better than" (found live,
+  // same date).
+  const first = t.match(/^(.{4,60}?)(?:[,.]|(?<!than)\s+that\s+)/);
   if (first && first[1].split(" ").length >= 2) return first[1].trim();
-  return t.slice(0, 80);
+  // Nothing extracted a clean noun-phrase subject — the claim is being
+  // carried whole. Naming it as a claim, rather than inserting it bare,
+  // keeps every frame's "${t}" slot grammatical no matter the claim's own
+  // shape.
+  return `the claim that ${t.slice(0, 80)}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

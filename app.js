@@ -3287,6 +3287,32 @@ async function completeViaRoom(messages, { onDelta, onThinking, maxTokens, json,
   return { text: a.text, thinking: "", doneReason: "stop", via: { room: state.matrixRoom, by: a.by, model: a.model, ms: a.ms, fallback: true } };
 }
 
+/** A thrown call-engine error, made fit for a reader. Found live, 2026-09-22:
+ *  a saturated Heimdall queue threw `Error("ollama 429: {\"error\":\"a slot
+ *  is free but it is not your turn — you are #3 in line. Heimdall keeps
+ *  your place...\",\"type\":\"not_your_turn\",\"retry_after\":15,\"queue\":
+ *  {...},\"zipper\":null}")`, and every one of this file's four
+ *  `[engine error: ${err.message}]` display sites shipped that raw JSON —
+ *  status code, braces, and the apparatus's own internal name ("Heimdall")
+ *  included — straight into the chat. The same firewall rule P55/Gary
+ *  already hold for a SUCCESSFUL turn's prompt (apparatus vocabulary is
+ *  never model- or reader-facing) applies just as much to a failed one.
+ *  This does not change what `err.message` IS — every catch/retry/logAct
+ *  site that reads it for CONTROL FLOW keeps reading the real thing; only
+ *  the four sites that show text to a person go through this first. */
+function humanizeEngineError(err) {
+  const raw = String(err?.message ?? err ?? "").trim();
+  const m = raw.match(/^ollama (\d+): (\{[\s\S]*\})$/);
+  if (m) {
+    let body = null;
+    try { body = JSON.parse(m[2]); } catch { /* not real JSON — fall through */ }
+    if (body?.retry_after) return `The local model is busy right now — try again in about ${body.retry_after}s.`;
+    if (m[1] === "429") return "The local model is busy right now — try again shortly.";
+  }
+  const firstLine = raw.split("\n")[0];
+  return firstLine.length > 160 ? `${firstLine.slice(0, 159)}…` : firstLine;
+}
+
 /** The local rungs — the in-tab engine, the on-device CPU rung, and Ollama —
  *  one request, with the device-shaped failures left typed for the caller to
  *  roll over. */
@@ -9172,17 +9198,14 @@ function guardedSend(question) {
 async function send(question) {
   state.busy = true;
   turnSeq += 1;
-  // Greeting door — a short, warm greeting and an invitation. One line of
-  // honest identity, never a capabilities wall: the full capability/limits
-  // statement lives in /help where it belongs, not in the first breath.
-  // Deterministic, rendered once per conversation (L5), no model call.
-  if (state.history.length === 0 && !state.greeted) {
-    state.greeted = true;
-    const greeting =
-      "Hey. I'm an AI — I don't come with answers, I come with a way of checking them. " +
-      "So what's on your mind? (Type /help if you want the full picture of what I can do.)";
-    return usageTurn(question, greeting, { what: "greeting" });
-  }
+  // The greeting door is GONE (user direction, 2026-09-22: "i dont like the
+  // auto response on first message"). It used to answer any first turn with
+  // a fixed line before the question was ever read — even a real opening
+  // question, briefly, until the triviallyChatty gate above narrowed it to
+  // chat-shaped openers only. The user does not want the canned line at
+  // all: "hi" and every other first message now fall straight through to
+  // the same doors and engine every later turn uses. `state.greeted` is
+  // left declared elsewhere but nothing sets it true anymore.
   // Deliberately NOT `$("send").disabled = true` (found live, QA battery
   // 2026-09-09): `$("composer").onsubmit` already branches on `state.busy`
   // to QUEUE a message rather than send it immediately — `state.queue`,
@@ -9713,7 +9736,7 @@ function socraticRoute(question) {
   if (!active && claim) {
     state.dialogue = newDialogue(question);
     state.dialogue.startedAt = turnSeq;
-    return renderSocratic(question, claim.text, { claim: claim.subject });
+    return renderSocratic(question, claim.text, { claim: claim.subject, user: true });
   }
 
   // Case 4: a NEW claim while a dialogue is open — close the old one first.
@@ -9723,13 +9746,29 @@ function socraticRoute(question) {
     logAct("socratic-closed", { claim: state.dialogue.subject, reason: "subject pivot" });
     state.dialogue = newDialogue(question);
     state.dialogue.startedAt = turnSeq;
-    return renderSocratic(question, claim.text, { claim: claim.subject });
+    return renderSocratic(question, claim.text, { claim: claim.subject, user: true });
   }
 
   // Case 2: an answer while a dialogue is open — fill the cell, classify the
   // answer, and let the classification pick the next move dynamically (the
   // real Socratic pathways), not a fixed script.
-  if (active && isAnswer(question)) {
+  //
+  // STALENESS (found live, 2026-09-22): a dialogue with no closing event
+  // stayed "active" through any number of turns that engaged with NEITHER
+  // its claim (case 4) nor its own actionable-pivot word list (case 3,
+  // which only recognizes write/draft/build/make/fix/send/code/email/
+  // create — "tell me a story about a lighthouse keeper" matches none of
+  // them). Those turns used to fall through this whole function untouched,
+  // leaving the stale dialogue standing; several turns later an unrelated
+  // creative request — no question mark, so isAnswer's own rule reads it
+  // as a statement — got vacuumed in as the "answer" to a claim from long
+  // before ("...the claim that this diet works better than that one",
+  // dragged into a reply about a lighthouse keeper). `state.dialogue.stage`
+  // is now marked "resolving" the moment a turn reaches the end of this
+  // function without engaging the dialogue at all (below); case 2 refuses
+  // to fire once a dialogue is resolving — a thread that has already been
+  // walked away from is not reopened by a bare non-question next.
+  if (active && state.dialogue.stage !== "resolving" && isAnswer(question)) {
     const last = lastAskedCell(state.dialogue.cells);
     const { cells, assigned } = assignAnswer(state.dialogue.cells, question, turnSeq);
     state.dialogue.cells = cells;
@@ -9756,6 +9795,16 @@ function socraticRoute(question) {
     return renderSocratic(question, text, { claim: state.dialogue.subject, user: true });
   }
 
+  // Reached the end with an open dialogue and none of the above engaged it
+  // — the turn was neither a pivot (case 3/4) nor an answer to the cell
+  // just asked (case 2). That is disengagement, same as case 3's own
+  // "pause, don't block": mark it so a later, unrelated non-question turn
+  // is never mistaken for picking the thread back up (see case 2's own
+  // comment above).
+  if (active && state.dialogue.stage !== "resolving") {
+    state.dialogue.stage = "resolving";
+    logAct("socratic-paused", { claim: state.dialogue.subject, reason: "turn did not engage the open dialogue" });
+  }
   return false;
 }
 
@@ -9781,6 +9830,11 @@ function subjectsOverlap(dialogue, subject) {
 }
 
 /** Render a composed Socratic turn (register text) with the shared bookkeeping. */
+// `user: true` draws the person's own bubble — every caller must pass it,
+// because the composer draws nothing itself. Found live, 2026-09-22: the two
+// dialogue-OPENING calls omitted it, so a claim-carrying message ("help me
+// write an essay arguing that taxes are necessary") vanished on submit and
+// only the model's reply appeared.
 function renderSocratic(question, text, { claim = null, user = false } = {}) {
   if (user) addMessage("user", question);
   logAct("asked", { text: question });
@@ -9835,7 +9889,7 @@ async function er7Turn(question) {
   $("status").textContent = "writing: through eoreader7…";
   const history = state.history.filter((m) => m?.role === "user" || m?.role === "assistant").slice(-8);
   const attachments = liveSources().map((s) => ({ name: s.name, text: s.text }));
-  let out;
+  let out, draftEl = null, streamedDraft = "";
   try {
     out = await er7ChatCompletion({
       model: stripEr7Prefix(state.model),
@@ -9845,7 +9899,48 @@ async function er7Turn(question) {
       attachments,
       discloseThinking: true,
       web: Boolean(state.webProof),
-      onRetry: (info) => { $("status").textContent = `eoreader7 busy (${info.type}) — retrying in ${info.retryAfterS}s…`; },
+      onRetry: (info) => {
+        $("status").textContent = `eoreader7 busy (${info.type}) — retrying in ${info.retryAfterS}s…`;
+        paintMessageThinking(`waiting for a free model — retrying in ${info.retryAfterS}s`);
+      },
+      // LIVE (user direction, 2026-09-22: "make sure it streams results in
+      // real time" / "more feedback than just 'thinking' while it's doing
+      // things"). The engine's own progress notes (reasoning_content: what
+      // it is reading, searching, checking) stream onto the thinking line
+      // where the answer will land; the draft's words stream into the body
+      // as they are written. renderAnswer below replaces the draft with
+      // the engine's CHECKED text once the reading lands.
+      onDelta: ({ content, reasoning }) => {
+        if (reasoning) {
+          const line = reasoning.split("\n").map((l) => l.trim()).filter(Boolean).pop();
+          if (line) {
+            // The thinking LINE, in the message body, gets the full note —
+            // found live, 2026-09-22 ("dont have this cut off, lets see
+            // more"): a hand-picked 90-char cut was chopping a genuinely
+            // informative progress note ("Still learning from … (135
+            // salient, 41 no…") mid-word. `.msg-thinking` carries no CSS
+            // truncation of its own, so nothing there needed the cut. Only
+            // the header's `#status` strip is a real single fixed-width
+            // line (`.status-line .act`'s own `text-overflow: ellipsis`)
+            // and still gets a short form, so it never wraps the header.
+            const short = line.length > 90 ? `${line.slice(0, 89)}…` : line;
+            paintMessageThinking(line);
+            $("status").textContent = short;
+          }
+        }
+        if (content) {
+          streamedDraft += content;
+          if (!draftEl) {
+            draftEl = document.createElement("div");
+            draftEl.className = "streaming-draft";
+            draftEl.style.whiteSpace = "pre-wrap";
+            body.append(draftEl);
+            paintMessageThinking("writing");
+          }
+          draftEl.textContent = streamedDraft;
+          node.scrollIntoView({ block: "end" });
+        }
+      },
     });
   } catch (err) {
     node.remove();
@@ -10386,7 +10481,7 @@ async function foldTurn(n, instruction, typed, { rezero = false, trigger = null,
         },
       });
     } catch (err) {
-      answer = `[engine error: ${err.message || err}]`;
+      answer = `[engine error: ${humanizeEngineError(err)}]`;
       logAct("errored", { where: "fold-revision", message: String(err.message || err) });
     }
     seg = pickRevisionSegment(parseSegments(answer), lang);
@@ -10618,7 +10713,7 @@ async function boundTurn(question, typed) {
     sentCalls.push({ n: sentCalls.length + 1, messages: freeMessages });
     free = await complete(freeMessages, { model: state.model, autoContinue: true });
   } catch (err) {
-    free = `[engine error: ${err.message || err}]`;
+    free = `[engine error: ${humanizeEngineError(err)}]`;
   }
   // Scrubbed before anything downstream reads it — same discipline as
   // holonicTurn's own `call` wrapper (2026-08-18): the model is never
@@ -10802,7 +10897,7 @@ async function reflectTurn(question, typed) {
     sentCalls.push({ n: sentCalls.length + 1, messages });
     answer = await complete(messages, { onDelta: (out) => { body.textContent = out; }, model: state.model, autoContinue: true });
   } catch (err) {
-    answer = `[engine error: ${err.message || err}]`;
+    answer = `[engine error: ${humanizeEngineError(err)}]`;
   }
   // Same scrub as the material plane's turns (2026-08-18): whatever the
   // model wrote is neutralized of any bracket shaped like this
@@ -13400,7 +13495,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     stopPulse();
   } catch (err) {
     stopPulse();
-    const answer = `[engine error: ${err.message || err}]`;
+    const answer = `[engine error: ${humanizeEngineError(err)}]`;
     body.textContent = answer;
     state.history.push(
       { role: "user", content: typed },
@@ -20193,12 +20288,13 @@ $("not-served")?.remove();
         if (meta?.legacy) legacyNames.push(name);
       }
     }
-    if (legacyNames.length && state.convos?.length) {
-      addMessage(
-        "assistant",
-        `${legacyNames.length} restored source${legacyNames.length === 1 ? "" : "s"} came from this browser's shared, origin-wide storage rather than this tab's own: ${legacyNames.join(", ")}. They predate per-tab isolation, or were saved by a different tab that shares this address — still usable as material, but nothing this session attached itself.`,
-      );
-    }
+    // The legacy-provenance FACT still rides each source's own metadata
+    // (`meta.legacy`, above) — a source's origin panel or citation can
+    // still say where it came from. What's removed is dropping that as an
+    // unprompted assistant chat message on boot (user direction,
+    // 2026-09-22: "don't show stuff like this") — a reader opening the
+    // page to ask a question should not first read a paragraph about this
+    // browser's own storage layout.
     // The Folds panel (a /facts table's Source/Citation controls, its
     // References' real APA/MLA) may have already drawn once, synchronously,
     // BEFORE this async restore landed — a render that read state.sources/

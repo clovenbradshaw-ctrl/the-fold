@@ -10179,6 +10179,22 @@ async function er7Turn(question) {
       return {
         claims,
         passages: sentences.map((s) => ({ ref: s.addresses?.[0] ?? "", text: s.sentence })),
+        // The engine already ran the real groundOf, server-side, against
+        // REAL retrieved passages (reading-surface.js::sentenceSurface) —
+        // each row here is that honest, already-computed verdict. Carried
+        // forward so the render path below can use it directly instead of
+        // re-deriving one client-side. Re-deriving was the actual bug,
+        // found live 2026-09-22: `passages` above is one "passage" per
+        // answer sentence whose own text IS that sentence, so a client-side
+        // groundOf(sentence, {passages}) call always self-matches on the
+        // verbatim rung (fold(s).includes(fold(s)) is tautologically true),
+        // silently promoting every engine-cited sentence to "verbatim"
+        // regardless of the engine's real, often weaker, tier.
+        sentenceRows: new Map(sentences.map((s) => [s.sentence, {
+          tier: s.tier, cell: s.cell, addresses: s.addresses ?? [], label: null,
+          phrase: s.phrase ?? null, detail: s.detail ?? null, reached: s.reached ?? null,
+          fedSources: s.fedSources ?? [], fedRefs: s.fedRefs ?? [], supplied: s.supplied ?? [],
+        }])),
         notes: rd?.notes ?? [],
         derived: [],
         disputes: null,
@@ -15418,7 +15434,14 @@ function taggedProse(text, offered, classified = [], marks = []) {
       // the ladder reads — a claim knows its sentence only there.
       const own = (entry.edges ?? []).map((c) => ({ ...c, sentence: entry.text }));
       const sentenceClaims = [...own, ...(state.lastGround.claims ?? []).filter((c) => c.sentence === entry.text)];
-      const g = groundOf(entry.text, { ...state.lastGround, claims: sentenceClaims, witness: wrow, leadingNames: true });
+      // An engine-sourced turn (er7Turn) already ran the real ladder
+      // server-side, against real passages — that verdict is used verbatim
+      // here rather than re-derived, since re-deriving from this sentence's
+      // OWN text as its "passage" tautologically self-matches the verbatim
+      // rung (found live, 2026-09-22). Absent for every ordinary in-browser
+      // turn, so groundOf runs exactly as it always did there.
+      const g = state.lastGround.sentenceRows?.get(entry.text)
+        ?? groundOf(entry.text, { ...state.lastGround, claims: sentenceClaims, witness: wrow, leadingNames: true });
       sent.dataset.groundTier = g.tier;
       tier = g.tier;
       // The action: open the real bytes when we already have a real

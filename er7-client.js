@@ -98,7 +98,10 @@ async function readStream(res, onDelta, sessionId, kick) {
         const delta = chunk?.choices?.[0]?.delta ?? {};
         if (delta.content) streamed += delta.content;
         if (delta.content || delta.reasoning_content) {
-          try { onDelta({ content: delta.content ?? "", reasoning: delta.reasoning_content ?? "" }); } catch { /* a render slip never breaks the read */ }
+          // `move`/`url` ride beside an engine note (proxy.mjs::emitNote) so
+          // the caller can name the PHASE in its own words instead of
+          // painting the engine's diagnostic prose on the live line.
+          try { onDelta({ content: delta.content ?? "", reasoning: delta.reasoning_content ?? "", move: delta.move ?? null, url: delta.url ?? null }); } catch { /* a render slip never breaks the read */ }
         }
         if (chunk?.reading) final = chunk.reading;
       }

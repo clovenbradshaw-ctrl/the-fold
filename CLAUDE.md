@@ -8281,3 +8281,19 @@ that is the whole of its staleness story — no TTL, no re-check, so a
 volatile fact asked twice inside one conversation is answered from the first
 fetch. Bounding that means measuring how fast a claim's own kind of material
 moves; it is a pass of its own, not a constant to pick here.
+
+## The live line speaks the fold's words; a topic lets go when the person does (added 2026-09-22) — pointer
+
+POLICIES.md **P246** is the law. Three small things, all found by reading what
+the same day's earlier changes had done. The streaming thinking line painted
+`proxy-api.mjs::humanizeNote`'s prose verbatim — the engine's diagnostic
+register ("Gore's gather boundary…", "Referent index: 192 referent(s)…") on
+the one line a person reads while waiting; `emitNote` now carries the note's
+`move`, and `app.js::enginePhaseFor` maps a closed table of moves to the
+phase vocabulary the in-browser path already speaks ("searching the web",
+"reading en.wikipedia.org", "checking"); unmapped moves repaint nothing,
+error moves paint their text. `dialogueStateLine` no longer describes a
+`resolving` dialogue as the claim being examined. And P235's admission
+exemption for a person's own attachment is bounded to RECENCY_WINDOW turns
+after the attach (`state.sourceAttachedTurn`) — the reach of the present, not
+a new number — so notes pasted on turn 1 stop dragging turn 30 back to them.

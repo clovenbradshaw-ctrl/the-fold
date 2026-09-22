@@ -2259,6 +2259,9 @@ const state = {
    * comment (holonicTurn) for why this matters and what it does not change.
    */
   sourceOrigin: {},
+  /** name → the conversation's turn count when it was attached; bounds the
+   *  admission exemption to the reach of the present (holonicTurn). */
+  sourceAttachedTurn: {},
   /**
    * name → full text, for TURN-SCOPED material the instrument cited and then
    * unloaded (preflight-fetched pages). Never an attachment: no pill, and
@@ -2548,6 +2551,7 @@ const PER_WORKSPACE = [
   // The material, and everything addressed into it.
   "sources",
   "sourceOrigin",
+  "sourceAttachedTurn",
   "citedMaterial",
   "preflightSources",
   "provenance",
@@ -2575,6 +2579,7 @@ function newWorkspace(name) {
     active: 0,
     sources: {},
     sourceOrigin: {},
+    sourceAttachedTurn: {},
     citedMaterial: {},
     preflightSources: {},
     provenance: {},
@@ -9877,7 +9882,14 @@ function renderSocratic(question, text, { claim = null, user = false } = {}) {
  *  a state report, never a persona instruction. */
 function dialogueStateLine() {
   const d = state.dialogue;
-  if (!d || d.stage === "closed") return null;
+  // Only a dialogue still being EXAMINED (or held at aporia) is a fact
+  // about the conversation now. A `resolving` one — the person walked away
+  // from it (socraticRoute's own staleness rule, 2026-09-22) — used to
+  // keep saying "The operator is examining the claim: <old claim>" in
+  // every later prompt's discourse line, one more way the last topic
+  // refused to let go of the next one (user: "when we can't toggle
+  // topics").
+  if (!d || d.stage === "closed" || d.stage === "resolving") return null;
   const answered = VOID_CELLS.filter((c) => d.cells[c]?.answered).map((c) => `${c}: "${d.cells[c].answered.text.slice(0, 60)}"`);
   const remaining = VOID_CELLS.filter((c) => d.cells[c]?.asked == null);
   const parts = [`The operator is examining the claim: "${d.claim}".`];
@@ -9885,6 +9897,39 @@ function dialogueStateLine() {
   if (remaining.length) parts.push(`Remaining void: ${remaining.join(", ")}.`);
   if (d.stage === "aporia") parts.push("The operator has hit a declared aporia — the honest move now is the renewed question, not a verdict.");
   return parts.join(" ");
+}
+
+/** The engine's note moves, read as the fold's own phases — a closed table.
+ *  Everything the engine says about itself is still recorded in the turn's
+ *  disclosure; this decides only what the live thinking line says while a
+ *  person waits. `null` means "say nothing new". */
+const ENGINE_PHASES = Object.freeze({
+  // the search and the hunt
+  web_searched: "searching the web", gore: "searching the web", gore_boundary: "searching the web",
+  gore_tier: "searching the web", gore_landed: "reading a page", competency: "reading a page",
+  wiki_lookup: "looking up background",
+  // the question's own shape, before any material
+  void_defined: "working out what an answer needs", void_declared: "working out what an answer needs",
+  void_questions: "working out what an answer needs", answer_shape: "working out what an answer needs",
+  // reading what came back
+  reading: "reading what came back", referent_index: "reading what came back", resolutions: "reading what came back",
+  surfaced: "reading what came back", composed: "reading what came back", conversation_folded: "reading what came back",
+  eot_ized: "reading what came back", lavar_reading: "reading what came back",
+  // writing
+  composing_section: "writing", code_gist: "writing", outline_evolved: "writing", murch: "writing",
+  murch_applied: "writing", pacing: "writing", long_continued: "writing",
+  // checking
+  double_check: "checking", kelsen: "checking", section_eva: "checking", strain: "checking",
+  citation_ledger: "checking", strike_revision: "checking", shape_check: "checking", shape_recheck: "checking",
+  fisher: "checking", redundancy: "checking", mechanical: "checking", ranke: "checking the sources it cites",
+});
+const ENGINE_ERROR_MOVES = new Set(["upstream_down", "model_missing", "web_blocked", "web_error", "web_no_results", "read_error", "post_timeout", "file_missing", "file_unreadable", "agent_gap", "resolutions_failed"]);
+function enginePhaseFor(move, url, reasoning) {
+  if (!move) return null;
+  if (ENGINE_ERROR_MOVES.has(move)) return String(reasoning ?? "").split("\n").map((l) => l.trim()).filter(Boolean).pop() ?? null;
+  const phase = ENGINE_PHASES[move];
+  if (!phase) return null;
+  return phase === "reading a page" && url ? `reading ${hostOf(url)}` : phase;
 }
 
 /** The flat-chat turn routed through eoreader7's proxy engine, or null to
@@ -9932,22 +9977,28 @@ async function er7Turn(question) {
       // where the answer will land; the draft's words stream into the body
       // as they are written. renderAnswer below replaces the draft with
       // the engine's CHECKED text once the reading lands.
-      onDelta: ({ content, reasoning }) => {
+      onDelta: ({ content, reasoning, move, url }) => {
         if (reasoning) {
-          const line = reasoning.split("\n").map((l) => l.trim()).filter(Boolean).pop();
-          if (line) {
-            // The thinking LINE, in the message body, gets the full note —
-            // found live, 2026-09-22 ("dont have this cut off, lets see
-            // more"): a hand-picked 90-char cut was chopping a genuinely
-            // informative progress note ("Still learning from … (135
-            // salient, 41 no…") mid-word. `.msg-thinking` carries no CSS
-            // truncation of its own, so nothing there needed the cut. Only
-            // the header's `#status` strip is a real single fixed-width
-            // line (`.status-line .act`'s own `text-overflow: ellipsis`)
-            // and still gets a short form, so it never wraps the header.
-            const short = line.length > 90 ? `${line.slice(0, 89)}…` : line;
-            paintMessageThinking(line);
-            $("status").textContent = short;
+          // THE LIVE LINE SPEAKS THE FOLD'S OWN WORDS, NOT THE ENGINE'S
+          // (user, 2026-09-22: "a bunch of chrome"). Earlier today this
+          // painted every engine note verbatim — "Gore's gather boundary:
+          // kept 2 of 10 result(s) — no tokenizer injected — declared cap
+          // 2.", "Referent index: 192 referent(s) from 950 encounter(s)
+          // (113ms)", "Prompt: system 896c + chat 0c…" — the engine's own
+          // diagnostic register, which is apparatus vocabulary by P55's
+          // definition, on the one line a person reads while waiting. The
+          // note's MOVE (proxy.mjs::emitNote carries it beside the prose)
+          // picks a phase from the closed table below, phrased the way the
+          // in-browser path's own setPhase/onStep lines already are
+          // ("reading en.wikipedia.org", "searching the web", "checking").
+          // A move the table does not name repaints nothing — the prose is
+          // still in the turn's disclosure, where a diagnostic belongs. An
+          // error-class move paints its humanized text, because a failure
+          // is the one note a reader needs verbatim.
+          const phase = enginePhaseFor(move, url, reasoning);
+          if (phase) {
+            paintMessageThinking(phase);
+            $("status").textContent = phase.length > 90 ? `${phase.slice(0, 89)}…` : phase;
           }
         }
         if (content) {
@@ -12027,7 +12078,23 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // this, so exempting a source from admission never forces an
     // irrelevant PASSAGE of it into the prompt — it only lets retrieve()
     // take a fair, per-passage look at material the person just gave us.
-    const ownNames = new Set([...bySource.keys()].filter((name) => state.sourceOrigin[name] === convoNo));
+    // …AND ONLY WHILE THE ATTACHMENT IS STILL THE PRESENT (2026-09-22,
+    // user: "when we can't toggle topics"). The exemption above was
+    // unbounded: notes pasted on turn 1 were exempt on turn 30, so a
+    // question about something else entirely was still answered against
+    // them wherever it shared a common word (retrieve() has no relevance
+    // floor by design, P4). P235's own specimen was the IMMEDIATE
+    // follow-up — "pull out the action items" right after the paste — so
+    // the exemption is scoped to that: RECENCY_WINDOW turns after the
+    // attach (the declared reach of the present, P1 — not a new number),
+    // after which a person's own source is judged by the same floor,
+    // company and null as anything else. An anaphoric ask still carries
+    // the discourse's names into admitNames below, so "summarise the
+    // notes" ten turns later is not cut off by this.
+    const nowTurn = state.summary?.turnCount ?? 0;
+    const ownNames = new Set([...bySource.keys()].filter((name) =>
+      state.sourceOrigin[name] === convoNo &&
+      (state.sourceAttachedTurn?.[name] == null || nowTurn - state.sourceAttachedTurn[name] <= RECENCY_WINDOW)));
     // The names the ask carries — and, when it points back ("that ceremony", "him"),
     // the names the conversation's present carries (discourse entities): the same
     // anaphor door proof.js::preflightQuery already uses. A source holding every one
@@ -19175,7 +19242,13 @@ function addSource(name, text, { fromBoot = false, passages = null, kind = null,
   // from "whatever else is sitting in the workspace's shared pool" — never
   // recorded at boot (`fromBoot`), since a restored source was not handed
   // to any conversation just now, it was already there.
-  if (!fromBoot) state.sourceOrigin[name] = convoNow();
+  if (!fromBoot) {
+    state.sourceOrigin[name] = convoNow();
+    // …and WHEN, in this conversation's own turns — the admission
+    // exemption's reach (holonicTurn) is measured from here.
+    if (!state.sourceAttachedTurn) state.sourceAttachedTurn = {};
+    state.sourceAttachedTurn[name] = state.summary?.turnCount ?? 0;
+  }
   // WHAT KIND OF THING this is, computed once and carried on every chunk —
   // the ONE choke-point every attachment/paste/upload/library pull already
   // passes through, so this needs no per-caller change to reach any of
@@ -19257,6 +19330,7 @@ function removeSource(name) {
   // which is the honest failure for an address whose material is gone.
   delete state.sources[name];
   delete state.sourceOrigin[name];
+  delete state.sourceAttachedTurn?.[name];
   delete state.preflightSources[name];
   delete state.provenance[name];
   state.muted.delete(name);

@@ -162,6 +162,34 @@ page with a working address; the tungsten question sets the three held
 pages aside by name and searches again. Disclosed limit: a kept page's
 only staleness signal is its retrieval date — no TTL, no re-check.
 
+## Chrome on the live line, and a topic that would not let go (P246)
+
+User: "i am most concerned with when we cant toggle topics, when we get a
+bunch of chrome." The chrome was mine from earlier today: the streaming
+pass painted every engine note verbatim on the thinking line ("Gore's
+gather boundary: kept 2 of 10 result(s) — no tokenizer injected — declared
+cap 2.", "Referent index: 192 referent(s) from 950 encounter(s) (113ms)",
+"Prompt: system 896c + chat 0c…"), then stopped truncating them on
+direction. Fixed at the right seam: the engine now sends each note's MOVE
+beside the prose; the fold maps a closed table of moves to its own phase
+words ("searching the web", "reading en.wikipedia.org", "working out what
+an answer needs", "reading what came back", "writing", "checking") and
+repaints nothing for a move it does not name. The prose stays in the
+disclosure panel.
+
+Topic stickiness had two mechanisms. (1) A `resolving` Socratic dialogue
+(the stage my own staleness fix sets when the person walks away) was still
+injecting "The operator is examining the claim: <old claim>" into every
+later prompt's discourse line — fixed, only examining/aporia speak. (2)
+P235's admission exemption for a person's own attachment was unbounded:
+notes pasted on turn 1 were exempt on turn 30, and any later question
+sharing one common word was answered against them (retrieve() has no
+relevance floor by design). Bounded to RECENCY_WINDOW turns after the
+attach — the declared reach of the present — after which the source is
+judged like anything else; anaphoric asks still carry the discourse names.
+The recency bound is verified by code reading only: six sequential model
+turns were not drivable on the saturated box.
+
 ## Investigated, not code-fixed: "boiling point of tungsten" → "not stated"
 
 Live specimen: checking+web on, real Wikipedia sources cited in the

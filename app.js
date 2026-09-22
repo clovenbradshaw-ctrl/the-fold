@@ -3650,7 +3650,24 @@ const MAX_AUTO_CONTINUATIONS = 6;
  * `MAX_AUTO_CONTINUATIONS` so a model that never naturally stops costs a
  * finite, disclosed number of calls rather than an unbounded one.
  */
-async function complete(messages, { onDelta, onThinking, maxTokens, json, model, temperature, autoContinue = false } = {}) {
+// AMENDED 2026-09-22 (escalation-ladder audit, jobKind threading): complete()
+// never accepted or forwarded a jobKind, so every witness/select ask below —
+// the 7 buildWitnessMessages/SELECT_SCHEMA call sites — ran with jobKind
+// silently defaulted to completeOnce's own JOB_KINDS.FLAT. This does not
+// change which candidate serves a call (P247's in-tab fallback stays
+// unconditional, correctly, per that policy's own stated design — "a CPU
+// fallback is better than nothing... stays silent the same way") — it makes
+// huginn.js's ALREADY-BUILT hop disclosure ("a hop is always recorded, never
+// a silent re-run" — huginnDecision -> landHuginnDecision -> mirrorTermRecord,
+// which already lands every hop's jobKind/pick/from/order on the append-only
+// record) correctly label a witness-serving hop as "witness" instead of
+// mislabeling it "flat". completeOnce's own `jobKind = JOB_KINDS.FLAT`
+// default is untouched, so every caller that says nothing (the overwhelming
+// majority) is byte-identical.
+async function complete(
+  messages,
+  { onDelta, onThinking, maxTokens, json, model, temperature, jobKind, autoContinue = false } = {},
+) {
   let fullText = "";
   let convo = messages;
   for (let i = 0; ; i++) {
@@ -3665,6 +3682,7 @@ async function complete(messages, { onDelta, onThinking, maxTokens, json, model,
       json,
       model,
       temperature,
+      jobKind,
     });
     fullText += text;
     if (!autoContinue || json || doneReason !== "length" || i >= MAX_AUTO_CONTINUATIONS) break;
@@ -6048,9 +6066,9 @@ const witnessTestimony = () => ({ witnessSlice, siblingSwap, foldTestimony, buil
 const witnessModelFor = () => resolveNamedModel(WITNESS_MODEL, { available: state.availableModels, offered: state.offeredModels });
 
 const witnessAskOrganFor = (modelOf) => async (s, slice) =>
-  readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0, model: modelOf() }));
+  readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0, model: modelOf(), jobKind: JOB_KINDS.WITNESS }));
 const witnessSelectOrganFor = (modelOf) => async (messages) => {
-  try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0, model: modelOf() })); } catch { return {}; }
+  try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0, model: modelOf(), jobKind: JOB_KINDS.WITNESS })); } catch { return {}; }
 };
 const witnessAskOrgan = witnessAskOrganFor(witnessModelFor);
 const witnessSelectOrgan = witnessSelectOrganFor(witnessModelFor);
@@ -6104,8 +6122,8 @@ async function rankeChase({ maxFetches, maxSearches, consult = 3, show = null })
   // same witness protocol /corroborate uses, over the lead's face, and
   // only the model's own "states" lands a primary: witness. Reads are
   // capped by the SAME declared fetch budget — one lead, one read.
-  const ask = async (sen, sl) => readTestimony(await complete(buildWitnessMessages(sen, sl), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0, model: witnessModelFor() }));
-  const selectAsk = async (messages) => { try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0, model: witnessModelFor() })); } catch { return {}; } };
+  const ask = async (sen, sl) => readTestimony(await complete(buildWitnessMessages(sen, sl), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0, model: witnessModelFor(), jobKind: JOB_KINDS.WITNESS }));
+  const selectAsk = async (messages) => { try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0, model: witnessModelFor(), jobKind: JOB_KINDS.WITNESS })); } catch { return {}; } };
   const byId = new Map(notes.map((n) => [n.id, n]));
   let reads = 0;
   const verdicts = { states: 0, refused: 0, other: 0 };
@@ -6729,7 +6747,7 @@ async function corroborateTurn(argstr, typed) {
   logAct("asked", { text: typed });
 
   const ask = async (s, slice) =>
-    readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0, model: witnessModelFor() }));
+    readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0, model: witnessModelFor(), jobKind: JOB_KINDS.WITNESS }));
   // SELECT is the default protocol: the model POINTS at a mechanically
   // gathered stating sentence by index and never writes a because. Measured
   // at full budget on one real two-page ledger (2026-09-02): select attested
@@ -6738,7 +6756,7 @@ async function corroborateTurn(argstr, typed) {
   // generate path stays as witnessNote's own fallback when no co-present
   // candidate can be offered.
   const selectAsk = async (messages) => {
-    try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0, model: witnessModelFor() })); } catch { return {}; }
+    try { return JSON.parse(await complete(messages, { json: SELECT_SCHEMA, maxTokens: 120, temperature: 0, model: witnessModelFor(), jobKind: JOB_KINDS.WITNESS })); } catch { return {}; }
   };
   let report;
   try {
@@ -11373,9 +11391,52 @@ const INTERROGATIVE_RE = new RegExp(
 // "could you" is not this door's shape yet -- closed against the real
 // specimen that forced it, not guessed wide.
 const IMPERATIVE_DEFINITE_RE = /^\s*\S+\s+(?:to\s+|for\s+)?(?:me|us)\b[^.?!]*\bthe\s+\S/i;
+// AMENDED 2026-09-22 (fourth door, closing the escalation-ladder audit's
+// serving-ladder-interaction specimen): a fourth shape reaches this
+// function with none of the three doors above matching -- "capital of
+// kazakhstan". Not a clause at all, WH-headed or otherwise: a bare,
+// verb-less noun phrase, the terse search-engine-style ellipsis of "what
+// IS the capital OF Kazakhstan" with the WH-word AND the copula both
+// dropped, leaving only the genitive/partitive construction that made the
+// full question checkable in the first place (gary.js's own
+// WH_DEFINITE_RE targets exactly the WH+copula+definite-NP shape this
+// specimen elides down to the bare definite NP). Verified live:
+// dodgedASubstantiveQuestion("capital of kazakhstan") was false
+// unconditionally -- hasCheckableClaim/oracleContentWords already clears
+// the ordinary floor on "capital"/"kazakhstan" alone, so this question
+// already reaches needsSystem2, and looksLikeAQuestion was the only
+// closed door, so a hedge with zero checkable atoms shipped as the whole
+// turn with nothing behind it.
+//
+// "of" is an unambiguous English genitive/partitive marker -- never a
+// verb, and (unlike "'s") never also a contracted copula -- so testing
+// for it needs no closed list of relational nouns (capital, president,
+// ceo, population...), which would just reopen this one noun at a time,
+// the exact mistake WH_DEFINITE_ANY_VERB_RE's own header already refuses
+// to repeat. unimorphVerbForms -- the same real UD-treebank verb-form set
+// already loaded above for the connector lens -- is consulted so an
+// ordinary verb-bearing sentence that merely happens to contain "of" ("I
+// read a lot of it yesterday") does not match; absent or not-yet-loaded
+// data (it loads asynchronously after boot) narrows nothing yet --
+// data-gated (P73), the same fail-safe direction this file's other UniMorph
+// consults already take -- and never turns a real match into a miss. Same
+// asymmetry as every door above: a false positive here costs one grounded
+// pass; a false negative ships a live fact from a small model's stale
+// memory with nothing behind it.
+function bareOfDescription(question) {
+  const words = String(question ?? "")
+    .trim()
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}']+/u)
+    .filter(Boolean);
+  const ofIndex = words.indexOf("of");
+  if (ofIndex <= 0 || ofIndex >= words.length - 1) return false; // real words on both sides of "of"
+  return !words.some((w) => unimorphVerbForms.has(w));
+}
 function dodgedASubstantiveQuestion(question) {
   const q = String(question ?? "").trim();
-  const looksLikeAQuestion = q.endsWith("?") || INTERROGATIVE_RE.test(q) || IMPERATIVE_DEFINITE_RE.test(q);
+  const looksLikeAQuestion =
+    q.endsWith("?") || INTERROGATIVE_RE.test(q) || IMPERATIVE_DEFINITE_RE.test(q) || bareOfDescription(q);
   return looksLikeAQuestion && preflightQuery(q, "").length > 0;
 }
 
@@ -17661,7 +17722,7 @@ async function witnessProof(target, out, faces, onStep = null) {
     // sampling, which is not a defect this instrument's checking ladder
     // should tolerate on its own witness.
     const ask = async (s) =>
-      readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0, model: witnessModelFor() }));
+      readTestimony(await complete(buildWitnessMessages(s, slice), { json: WITNESS_SCHEMA, maxTokens: 200, temperature: 0, model: witnessModelFor(), jobKind: JOB_KINDS.WITNESS }));
     const real = await ask(sentence);
     // The swap is half the measurement, not an optional calibration: a
     // contradiction is only ever DERIVED from the page affirming the

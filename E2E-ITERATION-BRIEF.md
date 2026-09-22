@@ -84,3 +84,46 @@ its own worktree so it doesn't collide with the live drive above:
 Each agent was told to reproduce live (not just reason from the code),
 measure before assuming a bug, fix narrowly, run the real test suites,
 and write its own CLAUDE.md/POLICIES.md entry in this repo's own style.
+
+## Fixed and committed (2026-09-22, second wave)
+
+9. **`humanizeEngineError`** — a saturated-queue 429 (or any other engine
+   failure) shipped its raw JSON body straight into the chat at all four
+   `[engine error: ...]` display sites. Fixed, committed (the-fold `fceedf6`).
+
+10. **proxy-runner.mjs's streaming final chunk** now carries `text`/`factGate`
+    so a mechanically-answered turn (no content deltas) still has something
+    to render. Committed (eoreader7 `524c7aa`, private-index commit — see
+    below for why).
+
+## Investigated, not code-fixed: "boiling point of tungsten" → "not stated"
+
+Live specimen: checking+web on, real Wikipedia sources cited in the
+disclosure (`web:en.wikipedia.org-1`, `web:fr.wikipedia.org-0`), yet the
+final answer was "That is not stated in the sources I looked at." — a false
+absence on a fact that's plainly in both fetched pages.
+
+Ruled OUT by direct reproduction against the real production code (no
+model needed): `chunkSource`/`retrieve()` run against the REAL fetched
+`en.wikipedia.org/wiki/Tungsten` text (via `/api/web/fetch`, the exact
+pipeline the app uses) correctly surfaces the boiling-point sentence as
+retrieve()'s #1 pick at the real `limit=3` — cross-page competition with
+a second fetched page (French Wikipedia) does not push it out. Retrieval
+is not the bug.
+
+Ruled OUT (partially): a small local model CAN correctly extract this
+number from the exact retrieved passage — OLMo-2-1B, given the passage
+directly, answered "5,930 °C" cleanly and correctly on the first try.
+
+Could not pin down further: `gemma2:2b` specifically was unreachable on
+this box for the whole remaining investigation window (`"gemma2:2b is not
+answering on this box right now (Heimdall dropped it)"`, four retries,
+all 503) — this shared machine is under heavy concurrent load from the
+background agents and other sessions right now. The live failure is most
+likely either (a) gemma2:2b specifically behaving worse than OLMo on this
+exact material/full-noise prompt (not isolated), or (b) an artifact of
+gemma2:2b being flaky/degraded under the SAME resource contention that
+made it unreachable for this investigation. Not enough evidence to safely
+change any check/gate — a fix aimed at the wrong cause here (e.g.
+loosening a grounding check) would be worse than no fix. Flagged for
+re-investigation once the shared box is quieter.

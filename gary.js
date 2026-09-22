@@ -124,12 +124,73 @@ export function oracleContentWords(text) {
 // triviallyChatty's own header already argues: a false positive here costs
 // one grounded pass, a false negative is a time-sensitive fact answered
 // from a small model's stale memory with nothing behind it).
-const WH_DEFINITE_RE = /\b(?:who|what|when|where)\s+(?:is|are|was|were)\s+the\b/i;
+//
+// AMENDED, same day: the fix above still missed the contracted form of the
+// identical shape. wordsOf splits on the apostrophe ("what's" -> "what",
+// "s"), so "what's the score" strips to ONE content word exactly the same
+// way "who is the president" did, and the regex above requires literal
+// whitespace between the WH-word and the copula — "what" immediately
+// followed by "'s" never matches it. Confirmed live: hasCheckableClaim
+// ("what's the score") === false, before this amendment. This is not a
+// new case to patch one at a time (a third contraction would fail
+// tomorrow) — 's/'re are English's own contracted spellings of is/are, so
+// the fix is admitting the contraction into the SAME grammar, never a
+// second regex or a lowered word count. was/were have no standard WH
+// contraction ("what'd the score" reads as "what did", a different
+// question) and are deliberately not matched here.
+//
+// AMENDED again, same day, adversarially verified live against the two
+// amendments above rather than assumed fixed by either: both still
+// require the LITERAL word "the" immediately after the copula, and
+// English just as idiomatically drops the article entirely for a
+// unique-office title — "who is chairman", "who is president", "who is
+// CEO" are as ordinary as their article-bearing twins, never a rarer or
+// less grammatical phrasing. Confirmed live against the running
+// functions: oracleContentWords("who is chairman") = ["chairman"], one
+// word, below ORACLE_MIN_CONTENT_WORDS, and hasCheckableClaim("who is
+// chairman") === false — the identical bug both amendments above set out
+// to fix, reproduced under a third, equally common phrasing they did not
+// cover. "the" is now OPTIONAL rather than required: the bare WH+copula
+// shape already presupposes a single, currently-true answer (Strawson's
+// definite description) whether or not the speaker bothers to mark it
+// with an article, so dropping "the" never turns a definite description
+// into an open-ended one — it only ever narrows which office/role/value
+// is being asked after. Same asymmetry as every amendment above: a false
+// positive here still costs one grounded pass, never a wrong answer
+// shipped unchecked.
+const WH_DEFINITE_RE = /\b(?:who|what|when|where)(?:'s|'re|\s+(?:is|are|was|were))\s+(?:the\s+)?\S/i;
+
+// AMENDED again, 2026-09-22: every amendment above still requires the WH-
+// word to be followed DIRECTLY by a copula (is/are/was/were, or its
+// contraction) — a WH-question built on any OTHER main verb ("who leads
+// the EU", "who runs the committee", "when did the treaty end") never
+// matched at all, because the regex was anchored to a fixed, closed verb
+// list rather than to the grammatical shape that actually makes a
+// WH-question checkable: a WH-word introducing a clause that names a
+// definite ("the X") referent. Confirmed live: hasCheckableClaim("who
+// leads the EU") === false — oracleContentWords reduces it to one word
+// ("leads"; "EU" lowercases to two characters and fails the length floor
+// with no acronym exemption, same as ORACLE_STOPWORDS already drops
+// who/the). This is the SAME class of gap the copula amendments above
+// closed, on a different piece of the same grammar — enumerating verbs
+// (leads, runs, chairs, heads, governs, presides over, commands...) would
+// just reopen this one verb at a time forever, so the test moves to the
+// SHAPE instead: any WH-word, followed ANYWHERE in the clause (any verb,
+// any number of words between) by a definite article introducing a noun
+// phrase, is a definite description regardless of which verb sits between
+// them. A second, independent door beside WH_DEFINITE_RE, never a
+// replacement for it (the copula form still needs no "the" at all —
+// "who is chairman" — which this shape does not cover). Same asymmetry as
+// every amendment above: a false positive here costs one grounded pass
+// ("who told you to clean the room" now also escalates, harmlessly); a
+// false negative ships a live institutional fact from a small model's
+// stale memory with nothing behind it.
+const WH_DEFINITE_ANY_VERB_RE = /\b(?:who|what|when|where|which)\b[^.?!]*\bthe\s+\S/i;
 
 /** Whether the person's own words carry anything an elenchus could hold against. */
 export function hasCheckableClaim(text) {
   const t = String(text ?? "");
-  if (WH_DEFINITE_RE.test(t)) return true;
+  if (WH_DEFINITE_RE.test(t) || WH_DEFINITE_ANY_VERB_RE.test(t)) return true;
   return oracleContentWords(t).length >= ORACLE_MIN_CONTENT_WORDS;
 }
 

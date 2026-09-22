@@ -11265,14 +11265,118 @@ const NAMED_URL_MAX = 3;
 // reduces to nothing, and "good morning" has content but is not a question.
 //
 // This clause only ever ADDS a pass, never suppresses one, so it cannot
-// make the gate quieter than it was. Disclosed limit: a factual question
-// typed without a question mark ("tell me lincoln's vp") that S1 also
-// dodges still slips through. That case is strictly rarer than the one
-// this closes, and closing it properly needs an interrogative class earned
-// in the engine rather than guessed at here.
+// make the gate quieter than it was. Disclosed limit, closed 2026-09-22:
+// a factual question typed without a question mark ("tell me lincoln's
+// vp") that S1 also dodges used to slip through -- the terminator test
+// below was the ONLY door, so any imperative phrasing ("tell me who
+// leads nato") was categorically unreachable, not merely a rarer miss.
+// Verified live: hasCheckableClaim("tell me who leads nato") === true
+// (the original content-word floor clears on three real content words),
+// so this question already reaches needsSystem2 -- and
+// dodgedASubstantiveQuestion returned false unconditionally on the
+// missing "?" alone, regardless of what preflightQuery would have found.
+//
+// The fix is the interrogative class this function's own comment above
+// already named as the correct door and left unbuilt: INTERROGATIVE_RE
+// is built from the engine's own closed class (INTERROGATIVE_PRONOUNS +
+// MANNER_REASON_PRONOUNS, priors.js, giver lang/en -- the SAME register
+// `interrogatives`/`mannerReasonPronouns` are already read from a few
+// hundred lines below). A WH-word from that class, anywhere in the text,
+// is the grammatical shape a trailing "?" was only ever standing in for:
+// "tell me who leads NATO" is an INDIRECT question headed by "who",
+// exactly as "who leads NATO?" is a direct one -- never a replacement
+// for the terminator door above, an ADDITIONAL one, so a "?"-terminated
+// question keeps exactly the test it already had. Same asymmetry as
+// every amendment in this file: a false positive here costs one
+// grounded pass ("I wonder what happens next" now also escalates,
+// harmlessly, if S1 dodges it); a false negative ships a live
+// institutional fact from a small model's stale memory with nothing
+// behind it, unchecked, however the question was phrased.
+// AMENDED 2026-09-22 (second occurrence, same day): the RegExp above was
+// built from a TEMPLATE LITERAL containing a bare `\b`. Inside a template
+// literal, string escapes are the SAME as an ordinary string's -- `\b` is
+// the backspace CONTROL CHARACTER (U+0008), never the two characters "\"
+// and "b", so the string handed to `new RegExp(...)` never carried a
+// word-boundary anchor at all. Confirmed live: `` `\b(?:who|why)\b` ``
+// has length 13, not the 15 its printed form suggests, and the compiled
+// regex failed to match this very comment's own worked example --
+// `INTERROGATIVE_RE.test("tell me who leads nato")` === false. The WH-word
+// fix immediately above landed and never actually ran: dead code from the
+// moment it shipped, and `dodgedASubstantiveQuestion` was still, silently,
+// exactly `q.endsWith("?")` for every caller. Rebuilt below with explicit
+// "\\b" string concatenation, which has no such trap.
+//
+// A second, independent gap, found chasing a sibling specimen with no
+// question mark AND no WH-word: "let me know if the treaty was ratified"
+// (S1: "I think it was probably ratified, though I am not entirely
+// certain."). Verified live: hasCheckableClaim/oracleContentWords clears
+// the floor on "treaty"/"ratified" alone, so this question already reaches
+// needsSystem2 the same way the WH case does -- and extractCheckableAtoms
+// on S1's fully-hedged reply returns [] (both "I" tokens are
+// CLAIM_STOPWORDS; no name or digit survives the hedge), so
+// dodgedASubstantiveQuestion was the only remaining door, and even a fixed
+// INTERROGATIVE_RE would not open it: "if"/"whether" head an INDIRECT
+// yes/no question exactly as "who"/"what"/"when"/"where" head an indirect
+// WH-question ("tell me whether the vote passed" is to "did the vote
+// pass?" as "tell me who leads NATO" is to "who leads NATO?") -- the polar
+// counterpart of the same grammatical shape, not a different one. Both are
+// already members of enginePriors.CLAUSE_OPENERS (lang/en, received) --
+// but that class is deliberately broader (it also opens an ordinary
+// non-interrogative subordinate clause: "because", "although", "while",
+// "since"...), so it cannot be read wholesale as "this is a question"
+// without also treating a causal or concessive clause as one. This splits
+// out just the two CLAUSE_OPENERS members that are ALSO interrogative
+// complementizers -- the identical move MANNER_REASON_PRONOUNS already
+// makes off INTERROGATIVE_PRONOUNS one class up: a real, closed
+// grammatical subclass (English has exactly two yes/no-question
+// complementizers), never a hand-picked word list for one specimen.
+const POLAR_INTERROGATIVE_COMPLEMENTIZERS = Object.freeze(new Set(["if", "whether"]));
+const INTERROGATIVE_RE = new RegExp(
+  "\\b(?:" + [...enginePriors.INTERROGATIVE_PRONOUNS.keys(), ...enginePriors.MANNER_REASON_PRONOUNS, ...POLAR_INTERROGATIVE_COMPLEMENTIZERS].join("|") + ")\\b",
+  "i",
+);
+// A third, independent door, found chasing a sibling specimen with NEITHER
+// a WH-word nor a polar complementizer: "tell me about the seat she
+// filled" (S1, fully hedged and un-checkable: "It was an important
+// role."). Verified live: hasCheckableClaim clears the floor on
+// "seat"/"filled" alone, so this question already reaches needsSystem2 --
+// and extractCheckableAtoms on S1's reply returns [] (no name, no digit),
+// so dodgedASubstantiveQuestion is again the only remaining door, and
+// neither INTERROGATIVE_RE nor the polar door opens it: the clause this
+// question requests is not an embedded question at all, WH- or polar --
+// it is a bare definite noun phrase ("the seat she filled"). Enumerating
+// the request verb ("tell", "explain", "describe"...) would be exactly
+// the mistake this file's own history already names and undoes elsewhere
+// (widget.js's header, on a 90-word hand-listed verb string: "not a
+// simplification of English, it was a sample of it standing in for the
+// whole") -- verbs are an open class, so a list fit to this specimen
+// would leave the next phrasing exactly as unreachable as "tell" alone
+// left "explain" and "describe". The shape that generalizes is the
+// imperative mood itself, which English marks structurally rather than
+// lexically: a subjectless clause OPENS directly on its bare verb, never
+// enumerated here (the verb slot matches any word at all), immediately
+// governing the addressee -- FIRST_PERSON's own closed "me"/"us" members
+// (priors.js, lang/en), directly or through "to"/"for" ("tell me",
+// "explain to me", "describe for me", "let us know"). A directive built
+// this way, whose object names a definite ("the X") referent anywhere in
+// the clause, is asking to be told about a definite thing exactly as "who
+// is the X" is with a WH-word standing in the imperative's place -- the
+// SAME "the X" test WH_DEFINITE_RE/WH_DEFINITE_ANY_VERB_RE (gary.js) test
+// for a WH-headed clause, one door over for an imperative-headed one.
+// Same asymmetry as every door above: a false positive here costs one
+// grounded pass ("tell me the plan for tonight" now also escalates,
+// harmlessly, if S1 dodges it); a false negative ships a live
+// institutional fact from a small model's stale memory with nothing
+// behind it, however the question was phrased. Disclosed limit, narrower
+// than the WH doors on purpose: a benefactive placed at the CLAUSE'S END
+// ("explain the situation to me") or a directive softened with "please"/
+// "could you" is not this door's shape yet -- closed against the real
+// specimen that forced it, not guessed wide.
+const IMPERATIVE_DEFINITE_RE = /^\s*\S+\s+(?:to\s+|for\s+)?(?:me|us)\b[^.?!]*\bthe\s+\S/i;
 function dodgedASubstantiveQuestion(question) {
   const q = String(question ?? "").trim();
-  return q.endsWith("?") && preflightQuery(q, "").length > 0;
+  const looksLikeAQuestion = q.endsWith("?") || INTERROGATIVE_RE.test(q) || IMPERATIVE_DEFINITE_RE.test(q);
+  return looksLikeAQuestion && preflightQuery(q, "").length > 0;
 }
 
 // The measurement this function's own docstring asked for before its
@@ -11832,7 +11936,37 @@ async function twoPassTurn(question) {
   // against, so S1's reply stands. A question WITH content ("tell me
   // lincoln's vp") is untouched and still escalates.
   const ownMaterial = Object.keys(state.sources ?? {}).some((n) => state.sourceOrigin?.[n] === convoNow());
-  const chatStands = !hasCheckableClaim(question) && !ownMaterial;
+  // ANAPHORIC FOLLOW-UP, NEVER TRIVIAL (found live, 2026-09-22 — a mapping
+  // pass's predicted gap, confirmed by actually running hasCheckableClaim):
+  // "where did she go" mid-conversation strips to ZERO content words, the
+  // exact same floor "hi" clears — 'where'/'did'/'she' are all
+  // ORACLE_STOPWORDS and 'go' is dropped by the length>2 rule — so
+  // chatStands used to read true and S1's unchecked answer stood with
+  // needsSystem2 never even consulted, on the single worst-case input for
+  // Gary's structural floor. The oracle-refusal gate above already treats
+  // prior turns as material for exactly this shape ("an anaphoric
+  // follow-up's claim lives there" — its own comment, via priorTurns
+  // folding into materialEmpty); chatStands read no such signal at all.
+  // A question carrying a received THIRD-PERSON pronoun ("she"/"he"/"him"/
+  // "her"/"his"/"hers"/…, THIRD_PERSON_SINGULAR — priors.js's own closed
+  // class, disclosed above as "not wired here" for the referent-bar
+  // mechanism, wired here for a narrower, cheaper purpose: not resolving
+  // WHO the pronoun names, only noticing that the question names nobody
+  // of its own and must be pointing at the conversation) or a demonstrative
+  // (ANAPHORIC_PRONOUNS — "it"/"this"/"that"/"these"/"those", the same door
+  // admission.js/proof.js already use), WITH a real prior turn to point
+  // at, is never trivial chat-standing — it may still clear needsSystem2
+  // with nothing checkable in S1's own answer, but it must REACH that
+  // check rather than being exempted from it by the floor's own worst
+  // case. ANAPHORIC_PRONOUNS alone is not enough: it is demonstrative-only
+  // by design (priors.js's own header — number-ambiguous and gendered
+  // third-person forms are deliberately absent from it), so "she"/"he"
+  // would otherwise never trip this at all.
+  const priorTurns = (state.history ?? []).length > 1;
+  const questionWords = String(question ?? "").toLowerCase().split(/[^\p{L}\p{N}'’]+/u).filter(Boolean);
+  const anaphoric = priorTurns && questionWords.some((w) =>
+    enginePriors.ANAPHORIC_PRONOUNS?.has(w) || Object.prototype.hasOwnProperty.call(enginePriors.THIRD_PERSON_SINGULAR ?? {}, w));
+  const chatStands = !hasCheckableClaim(question) && !ownMaterial && !anaphoric;
   if (!chatStands && needsSystem2(question, s1Text)) {
     // The gate firing means S1's own draft is superseded, not kept beside
     // its replacement: `node` (S1's assistant bubble, already rendered by

@@ -156,6 +156,11 @@ test("REFUSED: nothing in view and nothing checkable in the person's own words",
   assert.ok(!hasCheckableClaim("hi"));
   assert.ok(!hasCheckableClaim("prove it"), "one content word is not a claim");
   assert.ok(hasCheckableClaim("What's the capital of France?"), "two content words are");
+  assert.ok(hasCheckableClaim("who is the chairman"), "a WH-definite description with the article");
+  assert.ok(hasCheckableClaim("who is chairman"), "the identical shape with the article dropped — idiomatic for a unique office, found live 2026-09-22");
+  assert.ok(hasCheckableClaim("who is president"), "another unique-office title, article-less");
+  assert.ok(hasCheckableClaim("what's chairman"), "the contracted copula, article-less, still a definite description");
+  assert.equal(checkOracleMode({ materialEmpty: true, text: "who is chairman" }), null, "an article-less definite description in view never fires REFUSE");
 
   const hit = checkOracleMode({ materialEmpty: true, text: "hi" });
   assert.ok(hit, "fires");

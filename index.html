@@ -1300,8 +1300,8 @@
          list/cards switch. The bar filters a rendering — the logs beneath
          never change, and what a filter hides is counted next to the pane's
          own heading. */
-      .folds-bar { display: flex; gap: 8px; margin: 0 0 12px; }
-      .folds-bar input[type="search"] { flex: 1; min-width: 0; font-size: 13px; }
+      .folds-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+      .folds-bar input[type="search"] { flex: 1 1 100%; min-width: 0; font-size: 13px; }
       .folds-bar select,
       .folds-bar button { font-size: 12px; color: var(--muted); white-space: nowrap; }
       .folds-new-folder-input { width: 130px; font-size: 12px; }

@@ -13853,8 +13853,12 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
             why: info.why ?? null,
           });
         } else if (phase === "execute") {
-          setPhase(`writing ${part.label}`, info.promptChars ?? 0);
-          $("status").textContent = `writing: ${part.label}…`;
+          // "writing" read as a claim already settled — user direction,
+          // 2026-09-22, live: "let's not say 'writing that question' but
+          // 'thinking about that question'". The mouth has not spoken yet at
+          // this phase; "thinking about" says only that, honestly.
+          setPhase(`thinking about ${part.label}`, info.promptChars ?? 0);
+          $("status").textContent = `thinking about: ${part.label}…`;
           if (opts.longForm) mirrorTermRecord("longform-part", { topic: opts.longForm.topic, part: part.label, via: "chat" });
         } else if (phase === "draft") {
           // No live draft (see the block comment above `traceDetails`'s own
@@ -15309,6 +15313,15 @@ function renderMarksStrip(container, marks) {
     const chip = document.createElement("button");
     chip.className = `mark-chip${warn ? " warn" : ""}`;
     chip.textContent = `${i + 1} · ${tierChipLabel(entry)}`;
+    // The chip's own label is a raw tier word (`named`, `bound`, …) — the
+    // strip's deliberate `tier:source` convention (2026-09-15) — with no
+    // hint at a glance what it means; a reader had to click through to the
+    // full modal just to learn that. `tierWord` already exists for exactly
+    // this ("the one place a tier gets a plain phrase for those two spots"
+    // — the modal's own title is the other) and was already imported and
+    // used there; this is the same phrase, one hover away, on the spot
+    // that was still missing it. Found live, 2026-09-22, user direction.
+    chip.title = tierWord(entry.tier);
     chip.onclick = () => openMarkDetail(entry);
     strip.append(chip);
   });

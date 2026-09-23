@@ -149,12 +149,40 @@ const isStructuralLine = (s) =>
 
 const ANCHOR_RE = /(\d+)(?:st|nd|rd|th)\s+vice president/i;
 
+// A THIRD-PERSON SUBJECT PRONOUN STANDING IN THE ORDINAL PHRASE'S OWN
+// SUBJECT SLOT means this sentence never names its own referent at all —
+// whatever OTHER capitalized name happens to sit in the same sentence (an
+// object, a genitive, someone else's fate) is not evidence of who the
+// anchor refers to, and trusting it is a mis-attribution, not a coverage
+// gap. Found live, 2026-09-23, on a real Wikipedia specimen: "The 16th vice
+// president, he assumed the presidency following the assassination of
+// Abraham Lincoln." names Johnson (the true office-holder) only as "he";
+// Lincoln is the sentence's one capitalized name, sitting as the object of
+// "assassination of" — and the old rule ("exactly one candidate name
+// licenses the anchor") trusted it anyway, anchoring ordinal 16 to Lincoln.
+// Checked in both of English's two ordinary ways to coreference an ordinal
+// phrase with a pronoun — the appositive ("the Nth X, he …") and the
+// predicate nominal ("He was the Nth X …") — each in a TIGHT window right
+// against the ordinal-phrase match, not a scan of the whole sentence: a
+// pronoun elsewhere in a long sentence (referring to something else
+// entirely) must not veto a genuinely name-bearing anchor. Refused, never
+// guessed — the same posture a 2+-candidate sentence already gets.
+const THIRD_PERSON_SUBJECT_RE = /^(?:he|she|it|they|this|that)$/i;
+const pronounStandsForOrdinal = (sentence, matchIndex, matchEnd) => {
+  const after = sentence.slice(matchEnd, matchEnd + 24).match(/^[\s,;—-]*([\p{L}']+)/u);
+  if (after && THIRD_PERSON_SUBJECT_RE.test(after[1])) return true;
+  const before = sentence.slice(Math.max(0, matchIndex - 24), matchIndex).match(/([\p{L}']+)\s+(?:was|is|became|served as|serves as)\s+(?:the\s+)?$/iu);
+  if (before && THIRD_PERSON_SUBJECT_RE.test(before[1])) return true;
+  return false;
+};
+
 const buildDirectAnchors = (text) => {
   const anchors = new Map();
   for (const sentence of splitSentences(String(text ?? ""))) {
     if (isStructuralLine(sentence)) continue;
     const m = ANCHOR_RE.exec(sentence);
     if (!m) continue;
+    if (pronounStandsForOrdinal(sentence, m.index, m.index + m[0].length)) continue;
     const names = candidateNamesIn(sentence);
     // Exactly one candidate name licenses the anchor; zero or two-or-more
     // both refuse it — never a guess among several.

@@ -197,3 +197,50 @@ test("successionFillers: a text with no succession-box shape at all yields zero 
   const plainProse = "Hamlin was Lincoln's vice president. Johnson later held the office too.";
   assert.deepEqual(successionFillers("Abraham Lincoln", [plainProse]), []);
 });
+
+// A REAL, REPRODUCED MIS-ATTRIBUTION (found live, 2026-09-23, on Andrew
+// Johnson's actual Wikipedia page): the box's own subject (Johnson) is
+// never named directly on his own page — the one sentence stating "16th
+// vice president" refers to him only as "he", and names Lincoln instead,
+// as the object of "the assassination of". Before the fix, the old rule
+// ("exactly one candidate name licenses the anchor") trusted Lincoln as
+// the box's subject. This specimen has no ordinal-15 box for the chain
+// rule to fall back on either (Hamlin's own box lives on Hamlin's own
+// page, never fetched here) — so the correct behavior is REFUSAL, not a
+// second guess: subject stays null rather than becoming anyone at all.
+const MISATTRIBUTION_SPECIMEN = `16th Vice President of the United States
+In office
+March 4, 1865 – April 15, 1865
+President Abraham Lincoln
+Preceded by Hannibal Hamlin
+Succeeded by Schuyler Colfax
+
+The 16th vice president, he assumed the presidency following the assassination of Abraham Lincoln.`;
+
+test("resolveBoxSubjects refuses rather than mis-attributes when the ordinal sentence names its subject only by pronoun", () => {
+  const boxes = parseSuccessionBoxes(MISATTRIBUTION_SPECIMEN);
+  const resolved = resolveBoxSubjects(boxes, MISATTRIBUTION_SPECIMEN);
+  const box16 = resolved.find((b) => b.ordinal === 16);
+  assert.notEqual(box16.subject, "Abraham Lincoln", "Lincoln is the object of \"assassination of\", never this box's own subject");
+  assert.equal(box16.subject, null, "with no direct anchor and no ordinal-15 box to chain from, this is an honest gap, not a guess");
+});
+
+// The positive control for the SAME check: a genuine appositive naming the
+// real subject right where the bug's specimen has only a pronoun must
+// still resolve normally — the veto is scoped to the pronoun case, never a
+// blanket refusal of every appositive-shaped sentence.
+const NAME_BEARING_APPOSITIVE = `16th Vice President of the United States
+In office
+March 4, 1865 – April 15, 1865
+President Abraham Lincoln
+Preceded by Hannibal Hamlin
+Succeeded by Schuyler Colfax
+
+The 16th vice president, Andrew Johnson assumed the presidency following Lincoln's assassination.`;
+
+test("resolveBoxSubjects still anchors directly when the ordinal sentence names its subject by name, not by pronoun", () => {
+  const boxes = parseSuccessionBoxes(NAME_BEARING_APPOSITIVE);
+  const resolved = resolveBoxSubjects(boxes, NAME_BEARING_APPOSITIVE);
+  const box16 = resolved.find((b) => b.ordinal === 16);
+  assert.equal(box16.subject, "Andrew Johnson");
+});

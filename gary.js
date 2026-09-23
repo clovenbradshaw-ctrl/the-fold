@@ -96,7 +96,7 @@ export const ORACLE_MIN_CONTENT_WORDS = 2;
 const ORACLE_STOPWORDS = new Set(
   ("a an and are as at be but by for from had has have he her his i in into is it its of on or " +
     "our she that the their them there these they this to was were what when where which who why " +
-    "will with would you your do does did can could should about not no if then than so " +
+    "will with would you your do does did can could should about would're not no if then than so " +
     "how me my we us been being over under after before also just like more most some such only").split(" "),
 );
 

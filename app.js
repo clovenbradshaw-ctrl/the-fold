@@ -20537,18 +20537,6 @@ async function openPriorDoc(rel, find = null) {
   renderPriorsFromData();
 }
 
-// The chat's archon card (archon-card.js) quotes works this corpus holds; its
-// citation opens the work here, at the passage it quotes, so "read from your
-// priors" is something a reader can check rather than take on the card's word.
-window.addEventListener("fold:open-prior", (e) => {
-  const { path, find } = e.detail ?? {};
-  if (typeof path !== "string" || !path) return;
-  showView("explore");
-  setExploreView("priors");
-  openPriorDoc(path, typeof find === "string" ? find : null);
-  window.dispatchEvent(new CustomEvent("fold:prior-opened", { detail: { path } }));
-});
-
 /**
  * Where a quoted passage sits in a document's text: the quote's own words in
  * order, any whitespace (or a verse divider the quote writes as " / ") between

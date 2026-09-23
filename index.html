@@ -2408,21 +2408,12 @@
       }
       .thread { display: none; }
       .thread.on { display: flex; flex-direction: column; min-height: 100%; }
-      /* A brand-new conversation has no .msg children yet. This USED to
-         reserve the whole column's height and draw its own placeholder text
-         here — measured live, mobile: 700+px of stark white above the
-         composer otherwise — because `.chat-empty` (the richer hero further
-         down this file: the archon quote card, its Clippy-GIF drop slot,
-         the explanatory prose, the starter-prompt buttons) keyed off a
-         `:only-child` test that could never actually be true (newConvo()
-         always appends this very `.thread` div alongside it, even for the
-         very first conversation), so it could never show and this was the
-         only empty-state affordance there was. Fixed 2026-09-23 to key off
-         this exact `:empty` condition instead, so `.chat-empty` is now
-         reliably reachable and fully owns this state — left showing
-         alongside it, this rule's own min-height:100% and placeholder text
-         reproduced live as a large blank gap followed by a second, redundant
-         "start here" message beneath the real hero. :empty still needs no
+      /* A brand-new conversation has no .msg children yet, so the active
+         thread renders as nothing at all — dead simple, by direct user
+         instruction 2026-09-23 ("delete this entirely"), after two earlier
+         empty-state affordances (a plain placeholder sentence, then a
+         richer prose-and-starter-buttons hero with a since-removed archon
+         quote card) were each tried and rejected in turn. :empty needs no
          JS: addMessage's first append removes it structurally. */
       .thread.on:empty { display: none; }
 
@@ -2847,8 +2838,6 @@
          rail and need .tabs-secondary to stay display:contents. */
       /* (the rule itself lives in its own <style> at the end of <head> — see
          the note there: this sheet is 190KB and the fix has to win last.) */
-      /* (.chat-empty* rules live in the trailing <style> at the end of <head>,
-         with the tab-row fix.) */
       /* The Sources pane: a file-manager view of imported documents. */
       #pane-explore { display: none; height: 100%; flex-direction: column; gap: 0; overflow: hidden; }
       #pane-explore.on { display: flex; }
@@ -4110,15 +4099,6 @@
         content: "> ";
         color: var(--muted);
       }
-      /* Ground mode draws every turn's standings at once — the per-turn
-         ground toggle's own .show-ground, applied conversation-wide by
-         this page's inline pivot script, so no rule here re-derives it. The marks-off
-         hiding rules keep winning by specificity: hiding the drawing still
-         hides it, even here. */
-      /* An ordinary turn has its own empty state; a build has the other. */
-      .chat-empty-code { display: none; }
-      body[data-mode="build"] .chat-empty-prose { display: none; }
-      body[data-mode="build"] .chat-empty-code { display: flex; flex-direction: column; gap: inherit; }
       /* Steps is a build-mode door only. */
       .tabs .code-only { display: none; }
       body[data-mode="build"] .tabs .code-only { display: block; }
@@ -4181,138 +4161,19 @@
          block — while the block is alone, it goes back. */
       /* #chat carries top padding as CLEARANCE for #chat-panel-switches — the
          opaque checking/web pill floating at top:61px, ~31px tall, z-index 3.
-         Reading it as mere headroom and cutting it to 20px put the centred
-         empty state under the pill at two of the three text sizes. The band is
-         reserved from the pill's own numbers, and the centring then happens in
-         the space below it. */
-      /* The pill and the block were competing for a box that shrinks as zoom
-         grows: at 1.18 a fixed 104px band plus 16px bottom ate 46% of a 259px
-         content box, leaving 139px for a 217px block, which no font size can
-         fix. So while the empty state is the only thing in the chat, the pill
-         stops floating and takes a row of its own — same corner, same control,
-         but now it occupies space instead of covering it, and the band it
-         needed disappears. It goes back to floating the moment a turn renders. */
+         While the active thread is empty the pill stops floating and takes a
+         row of its own instead — same corner, same control, but now it
+         occupies space instead of covering it. It goes back to floating the
+         moment a turn renders. (2026-09-23: this used to also centre a rich
+         empty-state hero — a quote card, explanatory prose, starter buttons —
+         removed the same day at direct user instruction as unwanted clutter;
+         what's left is just the panel-switch clearance, which still matters
+         with nothing else in #chat.) */
       #col-chat:has(#chat > .thread.on:empty) #chat-panel-switches {
         position: static;
         align-self: flex-end;
         margin: 8px 12px 0;
       }
-      #chat:has(> .thread.on:empty) {
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-        padding: 10px 20px 0;
-        /* A size container, so the empty state can respond to the box it
-           actually got rather than to the window. The Chat/Build row above the
-           scroller costs it 40px, and at the large text size that left a 231px
-           block in a 191px box — the same competing-for-a-shrinking-box failure
-           as the floating pill, one row higher. */
-        container-type: size;
-        container-name: chatbox;
-      }
-      /* Too short for all three parts: the quote and the starters stay (one
-         names what the instrument is, the other is the way in), the
-         explanatory paragraph goes. Never a scrollbar over a clipped chip. */
-      @container chatbox (max-height: 340px) {
-        .chat-empty-body { display: none; }
-      }
-      /* Shorter still: the starters go before the placeholder does — the
-         placeholder is the point of this pass, and /help lists the same doors. */
-      @container chatbox (max-height: 300px) {
-        /* The module's sentence is the first thing to go: it is this codebase
-           talking about the archon, and the source line already names it. */
-        .chat-empty .chat-empty-module { display: none; }
-      }
-      /* On the Clippy entry the slot IS the content: the prose block stands
-         down entirely rather than competing with it at any height. */
-      .chat-empty:has(#chat-motto-gif:not([hidden])) .chat-empty-prose { display: none; }
-      @container chatbox (max-height: 240px) {
-        /* Tightest tier: the starter chips stay — they are the way in — and the
-           prior-request placeholder is the thing that goes. It is a work-note
-           about missing documents, not an affordance a new conversation needs.
-           `.chat-empty` prefix because a container query adds no specificity
-           and the base display rules sit later in this sheet. */
-        .chat-empty .chat-empty-need,
-        .chat-empty .chat-empty-need-said { display: none; }
-      }
-      /* flex-start, not center: a centred flex child that outgrows its box
-         spills at BOTH ends, so at the large text size the block's first line
-         climbed back up behind the pill even with the band reserved. Anchored
-         below the band, any overflow goes one way and the scroller takes it. */
-      /* Fits the window on both axes at any size: the column can never exceed
-         its container, and the type sizes and gaps ride vh so a short window
-         shrinks the block instead of clipping it. */
-      .chat-empty {
-        max-width: min(46ch, 100%);
-        margin: 0 auto;
-        padding: 0 4px;
-        display: flex;
-        flex-direction: column;
-        gap: clamp(6px, calc(1.4vh / var(--zoom, 1)), 12px);
-      }
-      /* Was `:not(:only-child)` — app.js's newConvo() always appends a
-         `.thread` div alongside `.chat-empty` (one per conversation, even
-         the very first), so `.chat-empty` could never actually BE the only
-         child and this whole hero (and the two #chat-panel-switches rules
-         above/below that key off the same condition) never rendered; only
-         the older `.thread.on:empty::before` placeholder text ever showed.
-         The real signal is whether the ACTIVE thread has anything in it. */
-      #chat:has(> .thread.on:not(:empty)) > .chat-empty { display: none; }
-      /* The vh terms are divided by --zoom: without it the large text size
-         scales an already vh-sized block a second time and it outgrows the
-         scroller. */
-      /* A placeholder that cannot be mistaken for a quotation: dashed, marked,
-         and it names the work rather than pretending to quote it. */
-      .chat-empty-need {
-        margin: 2px 0 0;
-        font-family: var(--mono);
-        font-size: 10.5px;
-        line-height: 1.5;
-        color: var(--muted);
-        border-left: 2px dashed var(--line);
-        padding-left: 8px;
-        text-wrap: pretty;
-      }
-      .chat-empty-need:empty { display: none; }
-      /* Clickable, because the placeholder names a document that should be in
-         the priors corpus (user, 2026-09-15: "make it clickable and load the
-         documents that should be there as priors"). */
-      button.chat-empty-need { display: block; width: 100%; text-align: left; cursor: pointer; background: none; font: inherit; font-family: var(--mono); font-size: 10.5px; }
-      button.chat-empty-need:hover { color: var(--ink); border-left-color: var(--accent); }
-      button.chat-empty-need[disabled] { cursor: default; opacity: 0.75; }
-      .chat-empty-need-said { margin: 2px 0 0; font-family: var(--mono); font-size: 10.5px; color: var(--accent); }
-      .chat-empty-need-said:empty { display: none; }
-      /* Three short lines, not one chain of interpuncts (user, 2026-09-15:
-         "tidy this"). The expression reads as language — script, an em dash,
-         the English — and the source drops to its own quiet line. The
-         transliteration is omitted whenever it only repeats the archon's name,
-         which was half the clutter. */
-      .chat-empty-cite { margin: -2px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--ink); text-wrap: pretty; }
-      .chat-empty-src { margin: 0; font-family: var(--mono); font-size: 10.5px; line-height: 1.5; color: var(--muted); }
-      .chat-empty-src:empty { display: none; }
-      /* The module's own sentence, demoted and labelled — it is this codebase
-         talking about the archon, never the archon talking. */
-      .chat-empty-module { margin: 0; font-size: 12px; line-height: 1.5; color: var(--muted); text-wrap: pretty; }
-      .chat-empty-module:empty { display: none; }
-      /* The headline in its waiting state: the canonical quotation is missing,
-         and the line says so instead of promoting a substitute. */
-      .chat-empty-title[data-waiting="true"] { color: var(--muted); font-weight: 500; font-style: italic; }
-      .chat-empty-gif[hidden] { display: none; }
-      .chat-empty-gif { margin: 2px 0 0; }
-      .chat-empty-cite:empty { display: none; }
-      .chat-empty-title { margin: 0; font-size: clamp(16px, calc(2.4vh / var(--zoom, 1)), 21px); font-weight: 600; color: var(--ink); letter-spacing: -0.01em; text-wrap: balance; }
-      .chat-empty-body { margin: 0; font-size: clamp(12.5px, calc(1.7vh / var(--zoom, 1)), 14.5px); line-height: 1.5; color: var(--muted); text-wrap: pretty; }
-      .chat-empty-starters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
-      .chat-empty-starters button {
-        border: 1px solid var(--line);
-        background: var(--bg);
-        color: var(--muted);
-        border-radius: 999px;
-        padding: 6px 12px;
-        font-size: clamp(12px, calc(1.5vh / var(--zoom, 1)), 13px);
-      }
-      .chat-empty-starters button:hover { color: var(--ink); border-color: var(--accent); }
-      @media (max-width: 900px) { .chat-empty { max-width: 34ch; } }
 
       /* NARROW, REBUILT AGAINST A COMP (2026-09-15, user: "the narrow view is
          weird and bad … think harder about the layout, find a comp"). Measured
@@ -4486,14 +4347,17 @@
       :is(.composer-declare, #chat-panel-switches) > .switch:has(input:checked) { background: var(--accent-soft); border-color: var(--accent); }
       :is(.composer-declare, #chat-panel-switches) > .switch:has(input:checked) .ph { color: var(--accent); }
       :is(.composer-declare, #chat-panel-switches) > .switch:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
-      /* Checking, right under the top bar's right-hand control (user,
-         2026-09-15: "put the check feature in top right of the top, right under
-         'reading'"). It floats, so the bar keeps its height. */
-      #chat-panel-switches > #checking-switch { position: absolute; top: calc(100% + 6px); right: 6px; z-index: 4; }
+      /* Checking, on the SAME link as Chat/Build (2026-09-23, user: "remove
+         ground and put the checking thing on same link" — removing Ground
+         freed the slot it occupied). Was its own floating pill a row below
+         (2026-09-15: "put the check feature in top right of the top, right
+         under 'reading'") — that positioning is gone; #checking-switch is
+         already an ordinary flex-item sibling of .mode-pivot inside
+         #chat-panel-switches, so removing its position:absolute is the
+         whole change. */
       #chat-panel-switches > #checking-switch:not(:has(input:checked)) { background: var(--panel); border-color: var(--line); }
       #col-chat:has(#chat > .thread.on:empty) #chat-panel-switches { position: relative; inset: auto; }
       @media (max-width: 900px) {
-        #col-chat > #chat-panel-switches > #checking-switch { right: 10px; }
         #col-chat > #chat.scroll { padding-top: 50px; }
       }
       /* THE GROUND PANEL, ALL OF IT (user, 2026-09-15: "no need for a more, but
@@ -4745,7 +4609,6 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
           <div class="mode-pivot" role="radiogroup" aria-label="How this conversation is shown">
             <button type="button" class="mode-opt" id="mode-answer" role="radio" aria-checked="true" title="An ordinary turn. What comes back is typed by its own shape — prose, a fenced block, a pipe table — and anything it makes is kept as a fold.">Chat</button>
             <button type="button" class="mode-opt" id="mode-build" role="radio" aria-checked="false" title="The code pipeline: a skeleton first, then one function at a time, each run in the sandbox and witnessed, repairs shown. Lands a fold you can ask for changes to.">Build</button>
-            <button type="button" class="mode-opt" id="mode-ground" role="radio" aria-checked="false" title="Where every sentence stands: the ground chips drawn over all turns at once, instead of one turn's ground toggle at a time.">Ground</button>
           </div>
           <span class="iterating" id="iterating-fold" hidden></span>
           <!-- The panel's door on a narrow screen, where the panel is its own
@@ -4768,61 +4631,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
              .thread div alongside this markup, even for the very first
              conversation) — no JS, and nothing for app.js's render path to
              know about. -->
-        <div class="scroll" id="chat">
-          <div class="chat-empty">
-            <!-- THE ARCHON, IN ITS OWN WORDS (user, 2026-09-15: "the quote needs
-                 to be canonical from the real them", "put the original language
-                 with the english translation"; 2026-09-16: "be sure all the
-                 priors are loaded for stuff like this, and also, use better
-                 quotes than this and better layout"). archon-card.js draws one
-                 entry of archon-canon.js on every new tab: the namesake's own
-                 line in the language it was written in, the English under it,
-                 and the citation — the locus and the translator are doors into
-                 the priors corpus at the quoted passage. Every quoted line is
-                 read back out of its file by archon-canon.test.mjs. The module's
-                 own sentence is the footnote: this codebase talking about the
-                 archon, never the archon talking. Hidden until drawn — a card
-                 with nothing behind it would be text nothing checked.
-                 Clippy's canonical form is not a sentence but the assistant
-                 itself: that entry shows a drop slot for the GIF instead. -->
-            <figure class="archon" id="archon" hidden>
-              <p class="archon-name"><span class="archon-who" id="archon-who"></span><span class="archon-term" id="archon-term"></span><span class="archon-gloss" id="archon-gloss"></span></p>
-              <div class="chat-empty-gif" id="chat-motto-gif" hidden>
-                <image-slot id="clippy-gif" shape="rounded" radius="10" style="width:140px;height:92px" placeholder="drop the Clippy GIF — the one asking if you need help attaching something"></image-slot>
-              </div>
-              <blockquote class="archon-orig" id="archon-orig" hidden></blockquote>
-              <blockquote class="archon-en" id="archon-en" lang="en" hidden></blockquote>
-              <figcaption class="archon-caption">
-                <p class="archon-cite">
-                  <button type="button" class="archon-src" id="archon-src" hidden></button>
-                  <button type="button" class="archon-tr" id="archon-tr" hidden></button>
-                  <span class="archon-held" id="archon-held" data-held="unknown"></span>
-                </p>
-                <p class="archon-note" id="archon-note" hidden></p>
-                <p class="archon-module" id="archon-module"></p>
-              </figcaption>
-            </figure>
-            <div class="chat-empty-prose">
-              <p class="chat-empty-body">Every answer is read back against your own material. What nothing backs is looked up, and when the lookup comes up empty it says so instead of filling the gap. Drop a file anywhere to give it something to stand on.</p>
-              <div class="chat-empty-starters">
-                <button type="button" data-starter="Summarise what's in my sources and tell me what they disagree about.">Summarise my sources</button>
-                <button type="button" data-starter="Which claims in this material have nothing backing them?">What nothing backs</button>
-                <button type="button" data-starter="Answer from my attached material only, and say plainly where it doesn't cover the question.">Sources only</button>
-              </div>
-            </div>
-            <!-- The same conversation, pivoted. Code turns land as runnable
-                 folds with every step on the record, so this half talks about
-                 what gets built rather than what gets cited. -->
-            <div class="chat-empty-code">
-              <p class="chat-empty-body">A build is a skeleton first, then one function at a time — each run in a severed sandbox and witnessed, every repair shown, the model's share of the characters counted. It lands as a fold: an append-only log you ask for changes to, where the file is a projection of the log and every revision keeps the one before it.</p>
-              <div class="chat-empty-starters">
-                <button type="button" data-starter="Read my attached data and plot the distribution of each numeric column.">Chart my data</button>
-                <button type="button" data-starter="Build a parser for the log format in my material and show me what it witnesses on the first hundred lines.">Parse my format</button>
-                <button type="button" data-starter="Ask for a change to fold 1: handle the rows with a missing year instead of dropping them.">Iterate a fold</button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <div class="scroll" id="chat"></div>
         <!-- Everything that decides what the next question is asked WITH sits
              on the composer: the attachments themselves, the door that adds
              more, and the two switches. Silencing one is not removing it —
@@ -5998,7 +5807,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
         // nothing else. Per-conversation persistence belongs in app.js beside
         // `grounded` — this keeps the last pivot so a reload does not silently
         // put you back in prose.
-        var modeBtns = { answer: document.getElementById("mode-answer"), build: document.getElementById("mode-build"), ground: document.getElementById("mode-ground") };
+        var modeBtns = { answer: document.getElementById("mode-answer"), build: document.getElementById("mode-build") };
         function setMode(mode) {
           if (!modeBtns[mode]) mode = "answer";
           document.body.dataset.mode = mode;
@@ -6012,33 +5821,14 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
               modeBtns[k].removeAttribute("aria-selected");
             }
           });
-          // Ground sits at the same level as Chat and Build: it draws every
-          // turn's standings at once by applying each turn's own
-          // .show-ground, flagged so leaving lifts only what the mode added
-          // — never a standing the reader opened by hand. app.js's
-          // addMessage flags messages born under the mode the same way.
-          document.querySelectorAll("#chat .msg").forEach(function (el) {
-            if (mode === "ground") {
-              if (!el.classList.contains("show-ground")) {
-                el.classList.add("show-ground");
-                el.dataset.groundAuto = "1";
-              }
-            } else if (el.dataset.groundAuto) {
-              el.classList.remove("show-ground");
-              delete el.dataset.groundAuto;
-            }
-          });
           var input = document.getElementById("input");
-          if (input) input.placeholder = mode === "build" ? "Describe what to build…" : (mode === "ground" ? "Ask what the material backs…" : "Message the fold…");
+          if (input) input.placeholder = mode === "build" ? "Describe what to build…" : "Message the fold…";
           // THE PANEL FOLLOWS WHAT IS BEING WORKED ON (user: "like claude code,
           // with the side panel showing the relevant folds as the artifacts
           // being iterated on"). A build's artifact is a fold, so Build puts
           // Folds beside the conversation and Chat puts the reading there.
           // Neither touches column WIDTH — that is the divider's, and which
-          // surface goes full screen is the header button's. Ground leaves
-          // the panel wherever it is: it is a way of reading the
-          // conversation, not a different artifact beside it.
-          if (mode !== "ground") {
+          // surface goes full screen is the header button's.
           var wanted = mode === "build" ? "builds" : "explore";
           var tab = document.querySelector('.tabs [role="tab"][data-pane="' + wanted + '"]');
           if (tab) {
@@ -6046,7 +5836,6 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
               t.setAttribute("aria-selected", t === tab ? "true" : "false");
             });
             showPane(wanted);
-          }
           }
           localStorage.setItem("fold.mode", mode);
         }
@@ -6639,7 +6428,7 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
         }
         seedDemo();
         document.body.dataset.view = document.body.dataset.view || "chat";
-        setMode((function () { var saved = null; try { saved = localStorage.getItem("fold.mode"); } catch (e) {} return (saved === "build" || saved === "ground") ? saved : "answer"; })());
+        setMode((function () { var saved = null; try { saved = localStorage.getItem("fold.mode"); } catch (e) {} return saved === "build" ? saved : "answer"; })());
         setLayout(localStorage.getItem("fold.layout") || "split");
         applyLayout();
         // If a tab row ever does overflow (a future pane, a very narrow
@@ -6676,14 +6465,5 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
       <script type="module" src="log-pane.js"></script>
       <script type="module" src="github-pane.js"></script>
       <script type="module" src="coding-pane.js"></script>
-      <!-- archon-card.js draws the empty-state quote card (#archon) onto
-           every new tab, self-initializing on import — the same
-           "standalone, owns its own pane" pattern as the three scripts
-           above. Never actually loaded until 2026-09-23: the module, its
-           data file (archon-canon.js), and the #archon markup all existed
-           and worked, but nothing in this file ever ran the script, so the
-           card stayed permanently `hidden` and the empty-conversation hero
-           only ever showed its prose and starter buttons. -->
-      <script type="module" src="archon-card.js"></script>
   </body>
 </html>

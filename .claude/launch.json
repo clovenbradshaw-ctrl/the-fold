@@ -108,6 +108,15 @@
         "9917"
       ],
       "port": 9917
+    },
+    {
+      "name": "the-fold-basic-af-9433",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "serve.mjs",
+        "9433"
+      ],
+      "port": 9433
     }
   ]
 }

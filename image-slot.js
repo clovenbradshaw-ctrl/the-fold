@@ -12,13 +12,19 @@
  * image persists across reloads via a .image-slots.state.json sidecar —
  * same read-via-fetch / write-via-window.omelette pattern as
  * design_canvas.jsx, so the filled slot shows on share links, downloaded
- * zips, and PPTX export. Outside the omelette runtime the slot is read-only.
+ * zips, and PPTX export. Outside the omelette runtime — no window.omelette,
+ * no server route for the sidecar — the slot falls back to the browser's
+ * own Origin Private File System for the identical read/write (see "OPFS
+ * fallback" below), so a drop still persists with no host bridge at all.
+ * The slot is read-only only where OPFS itself is unavailable too.
  *
  * The sidecar is a SIBLING of the HTML file that uses this component: the
  * read is a document-relative fetch, and the host resolves the bridge's
  * sidecar writes into the previewed file's directory to match (same
  * contract as design_canvas.jsx). Pages in the same directory share one
- * sidecar; keep slot ids distinct across them.
+ * sidecar; keep slot ids distinct across them. The OPFS fallback has no
+ * such per-directory sharing — one sidecar per origin, since OPFS has no
+ * notion of "the previewed file's directory".
  *
  * Attributes:
  *   id           Persistence key. REQUIRED for the drop to survive reload —
@@ -167,10 +173,54 @@
   let loaded = false;
   let loadP = null;
 
+  // ── OPFS fallback ────────────────────────────────────────────────────────
+  // window.omelette is only ever present in the omelette runtime this
+  // component was written for; The Fold (and any other page that merely
+  // loads this file for the custom element) has neither that global nor a
+  // server route for STATE_FILE, so the fetch below always 404s and every
+  // write below was already a silent no-op — a drop rendered for one
+  // session and vanished on the next reload. mirrors sources-store.js's own
+  // OPFS shape (cached root-directory promise, try/catch, console.warn
+  // rather than throw) one file over, kept self-contained here since this
+  // file loads as a plain classic <script>, not a module, and is meant to
+  // stay a single drop-in file. One flat file at the OPFS root — a dropped
+  // decorative image is page-wide, like a theme choice, not per-workspace
+  // material (source-store.js's own PER_WORKSPACE isolation is for
+  // attached documents, not this).
+  const hasOpfs = () => !!(navigator.storage && navigator.storage.getDirectory);
+  let _opfsRootP = null;
+  function opfsRoot() {
+    if (!_opfsRootP) _opfsRootP = navigator.storage.getDirectory();
+    return _opfsRootP;
+  }
+  function readSidecar() {
+    if (window.omelette && window.omelette.writeFile) {
+      return fetch(STATE_FILE).then((r) => (r.ok ? r.json() : null));
+    }
+    if (!hasOpfs()) return Promise.resolve(null);
+    return opfsRoot()
+      .then((root) => root.getFileHandle(STATE_FILE))
+      .then((h) => h.getFile())
+      .then((f) => f.text())
+      .then((t) => JSON.parse(t))
+      .catch(() => null);
+  }
+  // Returns a promise so save()/flushNow() can still chain a completion
+  // handler exactly as they did against window.omelette.writeFile's own
+  // return value.
+  function writeSidecar(json) {
+    const w = window.omelette && window.omelette.writeFile;
+    if (w) return Promise.resolve(w(STATE_FILE, json));
+    if (!hasOpfs()) return Promise.resolve();
+    return opfsRoot()
+      .then((root) => root.getFileHandle(STATE_FILE, { create: true }))
+      .then((h) => h.createWritable())
+      .then((ws) => ws.write(json).then(() => ws.close()));
+  }
+
   function load() {
     if (loadP) return loadP;
-    loadP = fetch(STATE_FILE)
-      .then((r) => (r.ok ? r.json() : null))
+    loadP = readSidecar()
       .then((j) => {
         // Merge: sidecar loses to any in-memory change that raced ahead of
         // the fetch (drop or clear) so neither is clobbered by hydration.
@@ -213,16 +263,20 @@
   // cannot happen in an unloading document anyway).
   function flushNow() {
     if (!loaded) return;
-    const w = window.omelette && window.omelette.writeFile;
-    if (!w) return;
-    try { Promise.resolve(w(STATE_FILE, JSON.stringify(slots))).catch(() => {}); } catch (e) {}
+    if (!(window.omelette && window.omelette.writeFile) && !hasOpfs()) return;
+    // The OPFS path is multi-step (getFileHandle → createWritable → write →
+    // close) unlike window.omelette.writeFile's own one-shot postMessage, so
+    // an unload racing this can still lose the write where the omelette
+    // path wouldn't — a real, disclosed, narrower-than-before gap (today
+    // NOTHING here ever persists, so any completion rate is a strict
+    // improvement), not attempted to be closed further.
+    try { writeSidecar(JSON.stringify(slots)).catch(() => {}); } catch (e) {}
   }
   function save() {
     if (saving) { saveDirty = true; return; }
-    const w = window.omelette && window.omelette.writeFile;
-    if (!w) return;
+    if (!(window.omelette && window.omelette.writeFile) && !hasOpfs()) return;
     saving = true;
-    Promise.resolve(w(STATE_FILE, JSON.stringify(slots)))
+    writeSidecar(JSON.stringify(slots))
       .catch(() => {})
       .then(() => { saving = false; if (saveDirty) { saveDirty = false; save(); } });
   }
@@ -1083,7 +1137,11 @@
       this._ring.style.display = mask ? 'none' : '';
 
       // Controls and reframe entry gate on this so share links stay read-only.
-      const editable = !!(window.omelette && window.omelette.writeFile);
+      // The OPFS fallback is a real persistence path too (see "OPFS
+      // fallback" above), so it earns the same editable affordances as
+      // window.omelette — a share link opened with neither present is the
+      // only case that stays read-only.
+      const editable = !!((window.omelette && window.omelette.writeFile) || hasOpfs());
       this.toggleAttribute('data-editable', editable);
       this._sub.style.display = editable ? '' : 'none';
 

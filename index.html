@@ -2408,22 +2408,23 @@
       }
       .thread { display: none; }
       .thread.on { display: flex; flex-direction: column; min-height: 100%; }
-      /* A brand-new conversation has no .msg children yet — left as plain
-         block layout, the whole height of #chat sat blank (measured live,
-         mobile: 700+px of stark white above the composer, read as broken
-         rather than empty). :empty needs no JS: addMessage's first append
-         removes it structurally, no separate "clear the placeholder" call
-         to keep in sync. */
-      .thread.on:empty { align-items: center; justify-content: center; }
-      .thread.on:empty::before {
-        content: "a fresh conversation — ask something, paste material, or attach a source";
-        color: var(--muted);
-        font-size: 13px;
-        text-align: center;
-        max-width: 34ch;
-        line-height: 1.5;
-        padding: 0 24px;
-      }
+      /* A brand-new conversation has no .msg children yet. This USED to
+         reserve the whole column's height and draw its own placeholder text
+         here — measured live, mobile: 700+px of stark white above the
+         composer otherwise — because `.chat-empty` (the richer hero further
+         down this file: the archon quote card, its Clippy-GIF drop slot,
+         the explanatory prose, the starter-prompt buttons) keyed off a
+         `:only-child` test that could never actually be true (newConvo()
+         always appends this very `.thread` div alongside it, even for the
+         very first conversation), so it could never show and this was the
+         only empty-state affordance there was. Fixed 2026-09-23 to key off
+         this exact `:empty` condition instead, so `.chat-empty` is now
+         reliably reachable and fully owns this state — left showing
+         alongside it, this rule's own min-height:100% and placeholder text
+         reproduced live as a large blank gap followed by a second, redundant
+         "start here" message beneath the real hero. :empty still needs no
+         JS: addMessage's first append removes it structurally. */
+      .thread.on:empty { display: none; }
 
       .composer {
         border-top: 1px solid var(--line);
@@ -4191,12 +4192,12 @@
          stops floating and takes a row of its own — same corner, same control,
          but now it occupies space instead of covering it, and the band it
          needed disappears. It goes back to floating the moment a turn renders. */
-      #col-chat:has(#chat > .chat-empty:only-child) #chat-panel-switches {
+      #col-chat:has(#chat > .thread.on:empty) #chat-panel-switches {
         position: static;
         align-self: flex-end;
         margin: 8px 12px 0;
       }
-      #chat:has(> .chat-empty:only-child) {
+      #chat:has(> .thread.on:empty) {
         display: flex;
         flex-direction: column;
         justify-content: flex-start;
@@ -4249,7 +4250,14 @@
         flex-direction: column;
         gap: clamp(6px, calc(1.4vh / var(--zoom, 1)), 12px);
       }
-      #chat > .chat-empty:not(:only-child) { display: none; }
+      /* Was `:not(:only-child)` — app.js's newConvo() always appends a
+         `.thread` div alongside `.chat-empty` (one per conversation, even
+         the very first), so `.chat-empty` could never actually BE the only
+         child and this whole hero (and the two #chat-panel-switches rules
+         above/below that key off the same condition) never rendered; only
+         the older `.thread.on:empty::before` placeholder text ever showed.
+         The real signal is whether the ACTIVE thread has anything in it. */
+      #chat:has(> .thread.on:not(:empty)) > .chat-empty { display: none; }
       /* The vh terms are divided by --zoom: without it the large text size
          scales an already vh-sized block a second time and it outgrows the
          scroller. */
@@ -4338,7 +4346,7 @@
           background: var(--panel);
         }
         #col-chat > #chat-panel-switches,
-        #col-chat:has(#chat > .chat-empty:only-child) > #chat-panel-switches {
+        #col-chat:has(#chat > .thread.on:empty) > #chat-panel-switches {
           grid-column: 2;
           grid-row: 1;
           position: relative;
@@ -4483,7 +4491,7 @@
          'reading'"). It floats, so the bar keeps its height. */
       #chat-panel-switches > #checking-switch { position: absolute; top: calc(100% + 6px); right: 6px; z-index: 4; }
       #chat-panel-switches > #checking-switch:not(:has(input:checked)) { background: var(--panel); border-color: var(--line); }
-      #col-chat:has(#chat > .chat-empty:only-child) #chat-panel-switches { position: relative; inset: auto; }
+      #col-chat:has(#chat > .thread.on:empty) #chat-panel-switches { position: relative; inset: auto; }
       @media (max-width: 900px) {
         #col-chat > #chat-panel-switches > #checking-switch { right: 10px; }
         #col-chat > #chat.scroll { padding-top: 50px; }
@@ -4753,9 +4761,13 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
         </div>
         <!-- #chat is empty until a conversation starts, and an empty
              conversation column read as an unfinished app (user, 2026-09-15).
-             Static markup inside the scroller, hidden by CSS the moment
-             anything else is rendered into it (:only-child) — no JS, and
-             nothing for app.js's render path to know about. -->
+             Static markup inside the scroller, hidden by CSS the moment the
+             active .thread actually holds a message (:has(.thread.on:not
+             (:empty)), corrected 2026-09-23 from a `:only-child` test that
+             could never be true — newConvo() always appends a persistent
+             .thread div alongside this markup, even for the very first
+             conversation) — no JS, and nothing for app.js's render path to
+             know about. -->
         <div class="scroll" id="chat">
           <div class="chat-empty">
             <!-- THE ARCHON, IN ITS OWN WORDS (user, 2026-09-15: "the quote needs
@@ -6664,5 +6676,14 @@ node explore-server.mjs   # Sources, on :8812</code></pre>
       <script type="module" src="log-pane.js"></script>
       <script type="module" src="github-pane.js"></script>
       <script type="module" src="coding-pane.js"></script>
+      <!-- archon-card.js draws the empty-state quote card (#archon) onto
+           every new tab, self-initializing on import — the same
+           "standalone, owns its own pane" pattern as the three scripts
+           above. Never actually loaded until 2026-09-23: the module, its
+           data file (archon-canon.js), and the #archon markup all existed
+           and worked, but nothing in this file ever ran the script, so the
+           card stayed permanently `hidden` and the empty-conversation hero
+           only ever showed its prose and starter buttons. -->
+      <script type="module" src="archon-card.js"></script>
   </body>
 </html>

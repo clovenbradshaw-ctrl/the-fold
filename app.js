@@ -296,7 +296,7 @@ import { createLemmatizer as nativeLemmatizer, morphologyFromPrior } from "/engi
 // furniture, never an engine notion) — imported below alongside this
 // file's other source.js symbols and bound with declared numbers at the
 // hypergraph.js injection site.
-import { extractSurfaces, extractLeadingSurfaces, discoverReferents, namesCorefer, diaNorm } from "/engine-v7/adapters/text/surfaces.js";
+import { extractSurfaces, extractLeadingSurfaces, discoverReferents, namesCorefer, diaNorm, opticalReferentForm, isNearMissSpelling } from "/engine-v7/adapters/text/surfaces.js";
 import { resolvePronouns } from "/engine-v7/adapters/text/pronouns.js";
 import { makeCastResolver, makeCastHandles, makeReferentIndex } from "./cast.js";
 import { makeShapeFallback } from "./shape-fallback.js";
@@ -752,7 +752,15 @@ const isCommonNoun = (word) => {
   const d = dominantClass(classifyWord(word, { posPrior: posPriorCache }), { minShare: GRAMMAR_MIN_SHARE });
   return Boolean(d && d.upos === "NOUN");
 };
-const namesCoreferGated = (a, b) => namesCorefer(a, b, { commonNoun: isCommonNoun });
+// Forwards any options a caller supplies (fold/sameStem — cast.js's
+// resolve() calls namesCorefer(a, b, { fold }) to fold case/leetspeak
+// before comparison) while always attaching commonNoun, never letting a
+// caller silently drop the P31 containment-refusal gate. Found live,
+// 2026-09-23: the old (a, b) => ... signature discarded any third argument
+// entirely — JavaScript's own calling convention — which would have
+// silently defeated the nameFold/nameVariant wiring below at every one of
+// this wrapper's four call sites, not only referentIndexFor's.
+const namesCoreferGated = (a, b, opts) => namesCorefer(a, b, { ...opts, commonNoun: isCommonNoun });
 // The constitutional reading's own referent index (reading-client.js) is a
 // SEPARATE projection from the presence index built just below — it needs
 // the identical gate or the same bug survives through the one path this
@@ -798,6 +806,19 @@ const castFor = makeCastResolver({
 // referent INDEX itself (identities, not a boolean), which is what
 // capacity-runner.js's one wired capacity (`cast`) needs. One
 // implementation of "the same name" either way; no second discovery pass.
+//
+// nameFold/nameVariant (2026-09-23): capitalisation is a differentiator,
+// never the primary signal (L2) — resolve() now folds through
+// opticalReferentForm (case, NFKC, cross-script confusables, and the
+// MEASURED visual-glyph table — surfaces.js's own header has the real
+// rendered-pixel measurement, kept separate from referentForm's broader
+// convention-based fold, which stays the jailbreak-detection battery's
+// alone) rather than bare diaNorm, so "Johnson"/"johnson"/"j0hnson" resolve
+// to one referent. isNearMissSpelling is the fallback-only, refuse-on-
+// ambiguity rescue for a genuine spelling typo ("Jonson") — cast.js's own
+// header carries the full safety argument (measured live: "Reed"/"Reid" are
+// simultaneously edit-distance-1 and exact homophones, so this can never be
+// an unconditional fold).
 const referentIndexFor = makeReferentIndex({
   splitSentences: engineSentences,
   extractSurfaces,
@@ -806,6 +827,8 @@ const referentIndexFor = makeReferentIndex({
   diaNorm,
   blankFurniture: castBlankFurniture,
   leadingSurfaces: extractLeadingSurfaces,
+  nameFold: opticalReferentForm,
+  nameVariant: isNearMissSpelling,
 });
 
 // shape-fallback.js's tie-triggered re-rank for source.js::retrieve() (built

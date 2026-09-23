@@ -2190,6 +2190,23 @@ const state = {
   grounded: localStorage.getItem("fold-marks") !== "off",
 
   /**
+   * Developer mode (2026-09-23, user direction: "make a developer mode that
+   * shows the actual pipeline"): OFF by default, a person's own standing
+   * choice, not per-conversation. When on, a grounded turn's "thinking"
+   * disclosure gains an extra section surfacing the engine's own diagnostic
+   * trace for the er7Turn path — the fact-gate verdict, each sentence's
+   * witness/relation/ledger reached flags and the plain-language detail
+   * already computed server-side, and the ordered log of the engine's own
+   * streamed reasoning notes — all of which er7Turn already receives and,
+   * without this, only paints transiently to the status line before
+   * discarding. Named because it found a real gap this way: a checking
+   * toggle showing "on" while a turn answered from the model's own
+   * unexamined voice, with nothing in the ordinary disclosure explaining
+   * why.
+   */
+  devMode: localStorage.getItem("fold-dev-mode") === "on",
+
+  /**
    * Which style a composed document's References section prints in
    * (citation-style.js) — a pure display choice over the SAME underlying
    * byte-addressed anchors either way, never a re-compose. App-level, not
@@ -3966,6 +3983,21 @@ function usageTurn(question, usage, { what = "usage" } = {}) {
   renderThreads();
   $("status").textContent = readyLine();
   releaseBusy();
+}
+
+/**
+ * /dev — toggles state.devMode (2026-09-23, user direction: "make a
+ * developer mode that shows the actual pipeline"). A standing preference,
+ * not per-conversation, persisted the same way the checking toggle is
+ * (localStorage, read once at boot). Mechanical — no model call, same
+ * shape as every other bare-state toggle door.
+ */
+function devTurn(question) {
+  state.devMode = !state.devMode;
+  try { localStorage.setItem("fold-dev-mode", state.devMode ? "on" : "off"); } catch { /* private window: a repeat is harmless */ }
+  return usageTurn(question, state.devMode
+    ? "developer mode on. A grounded answer's \"about\" disclosure now includes an \"Engine pipeline (dev)\" section: the fact gate's own verdict, each sentence's reached/detail breakdown, and the engine's own reasoning notes, all as the engine actually returned them. Type /dev again to turn it off."
+    : "developer mode off.");
 }
 
 /**
@@ -9435,6 +9467,12 @@ async function send(question) {
   if (/^\/self\s*$/.test(question)) {
     return usageTurn(question, selfOverview({ ...state, pace: foldPace(state.paceLog, state.model) }));
   }
+
+  // Developer mode's own door (2026-09-23): toggles state.devMode, a
+  // standing (not per-conversation) preference, mechanical — no model call,
+  // same shape as every other bare-state toggle door in this file.
+  if (/^\/dev\s*$/.test(question)) return devTurn(question);
+
   const reflectQ = question.match(/^\/reflect\s+(\S[\s\S]*)/)?.[1];
   if (reflectQ) return reflectTurn(reflectQ, question);
   if (/^\/reflect\s*$/.test(question)) return usageTurn(question, "/reflect <question> — answers about how this instrument has been working, retrieving from its own act ledger instead of the material. The record such a turn earns is typed as self-knowledge, never as a check against the world.");
@@ -10061,6 +10099,13 @@ async function er7Turn(question) {
   const history = state.history.filter((m) => m?.role === "user" || m?.role === "assistant").slice(-8);
   const attachments = liveSources().map((s) => ({ name: s.name, text: s.text }));
   let out, draftEl = null, streamedDraft = "";
+  // Dev mode's own copy of the engine's reasoning stream (2026-09-23) — the
+  // raw notes the block below deliberately keeps OFF the live status line
+  // (P55: apparatus vocabulary does not belong on the one line an ordinary
+  // reader watches). Accumulated regardless of state.devMode (cheap — a
+  // push per note) so a person who flips dev mode on mid-conversation still
+  // sees this turn's own trace, not just later ones.
+  const engineMoves = [];
   try {
     out = await er7ChatCompletion({
       model: stripEr7Prefix(state.model),
@@ -10083,6 +10128,7 @@ async function er7Turn(question) {
       // the engine's CHECKED text once the reading lands.
       onDelta: ({ content, reasoning, move, url }) => {
         if (reasoning) {
+          engineMoves.push({ move: move ?? null, text: reasoning, url: url ?? null, t: Date.now() });
           // THE LIVE LINE SPEAKS THE FOLD'S OWN WORDS, NOT THE ENGINE'S
           // (user, 2026-09-22: "a bunch of chrome"). Earlier today this
           // painted every engine note verbatim — "Gore's gather boundary:
@@ -10238,7 +10284,7 @@ async function er7Turn(question) {
   }
   try { offerAntProposals(answer, body); } catch { /* advisory, never fatal */ }
   try { offerSuggestions({ task: question, claims, findings: [], voidsOpen: 0, planParts: 0, tabularFile: liveSources().map((s) => s.name).find((n) => TABULAR_RE.test(n)) ?? null, handbookAsk: HOW_IT_WORKS_RE.test(question), outputChars: String(answer ?? "").length, livePassages: liveChunks().length }, body); } catch { /* advisory, never fatal */ }
-  renderFold(node, { sent: [], record: record ?? null });
+  renderFold(node, { sent: [], record: record ?? null, engineTrace: { factGate: fg, sentences: rd?.sentences ?? [], moves: engineMoves } });
   renderThreads();
   $("status").textContent = readyLine();
   releaseBusy();
@@ -10247,7 +10293,7 @@ async function er7Turn(question) {
 
 /** Every door the composer routes, read off the dispatch above — kept as one
  * list so the refusal for an unknown slash names all of them. */
-const DOORS = Object.freeze(["/act", "/ant", "/ants", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/essay", "/facts", "/fold", "/gateways", "/help", "/ingest", "/join", "/learn", "/look", "/matrix", "/measure", "/must", "/opencode", "/pool", "/preserve", "/priors", "/ranke", "/reading", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/source", "/swarm", "/task", "/transcribe", "/visual", "/void"]);
+const DOORS = Object.freeze(["/act", "/ant", "/ants", "/bound", "/concede", "/corroborate", "/declare", "/derive", "/dev", "/essay", "/facts", "/fold", "/gateways", "/help", "/ingest", "/join", "/learn", "/look", "/matrix", "/measure", "/must", "/opencode", "/pool", "/preserve", "/priors", "/ranke", "/reading", "/reflect", "/reopen", "/routes", "/run", "/self", "/serve", "/share", "/source", "/swarm", "/task", "/transcribe", "/visual", "/void"]);
 
 /**
  * /ingest — a repo becomes folds, mechanically. Every admissible file (the
@@ -19353,7 +19399,49 @@ function callTreeFor(sent, modelName) {
  * A turn that
  * spent no model call still says so honestly.
  */
-function renderFold(node, { sent, record = null } = {}) {
+/**
+ * Dev mode's own section (2026-09-23) — the engine's already-computed
+ * diagnostic trace for an er7Turn answer, otherwise thrown away (the fact
+ * gate's own verdict; each sentence's witness/relation/ledger reached flags
+ * and plain-language detail, already returned server-side; the ordered log
+ * of the engine's own reasoning notes, normally painted only transiently to
+ * the status line per P55). Plain, technical rendering on purpose — this
+ * section exists ONLY for a reader who explicitly asked to see the
+ * apparatus, so it is exempt from P55's ordinary-reader register the rest
+ * of this disclosure holds to.
+ */
+function engineTraceSection(trace) {
+  const sec = foldSection("Engine pipeline (dev)", "the engine's own diagnostic trace for this turn — see /dev to turn this off");
+  const fg = trace.factGate;
+  if (fg) {
+    const p = document.createElement("p");
+    p.className = "fold-step-note";
+    p.textContent = `fact gate — open: ${fg.open}, searched: ${fg.searched}, grounded: ${fg.grounded}, basis: "${fg.basis ?? "—"}"`;
+    sec.append(p);
+  }
+  for (const s of trace.sentences ?? []) {
+    const p = document.createElement("p");
+    p.className = "fold-step-note";
+    const r = s.reached ?? {};
+    p.textContent = `"${s.sentence}" — tier: ${s.tier}, reached: relation=${r.relation} witness=${r.witness} ledger=${r.ledger} index=${r.index}. ${s.detail ?? ""}`;
+    sec.append(p);
+  }
+  if (trace.moves?.length) {
+    const pre = document.createElement("pre");
+    pre.className = "fold-step-note";
+    pre.style.whiteSpace = "pre-wrap";
+    pre.textContent = trace.moves.map((m) => `[${m.move ?? "note"}] ${m.text}`.trim()).join("\n");
+    sec.append(pre);
+  } else {
+    const p = document.createElement("p");
+    p.className = "fold-step-note";
+    p.textContent = "no reasoning notes streamed for this turn.";
+    sec.append(p);
+  }
+  return sec;
+}
+
+function renderFold(node, { sent, record = null, engineTrace = null } = {}) {
   // Scoped to the turn-meta: the body can contain anything an answer wants,
   // including things that happen to share a class name, and the fold box must
   // not be findable through it.
@@ -19446,6 +19534,8 @@ function renderFold(node, { sent, record = null } = {}) {
   }
   const claimsList = recordClaimsList(record);
   if (claimsList) out.append(claimsList);
+
+  if (state.devMode && engineTrace) out.append(engineTraceSection(engineTrace));
 
   meta.querySelector(".fold-copy")?.remove();
   if (record || sent?.length) {

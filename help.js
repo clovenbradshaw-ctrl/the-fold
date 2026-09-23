@@ -158,6 +158,15 @@ export const HELP = {
     needs: "nothing — it reads state",
   },
 
+  "/dev": {
+    category: "system",
+    name: "Developer mode",
+    summary: "toggles a standing preference that shows the engine's own diagnostic trace under a grounded answer's disclosure.",
+    syntax: "/dev  (toggles on/off)",
+    example: "/dev",
+    tutorial: "On, a grounded answer's \"about\" disclosure gains an \"Engine pipeline (dev)\" section: the fact gate's own verdict (why a live check did or didn't run), each sentence's witness/relation/ledger reached flags with the plain-language detail the engine already computed, and the ordered log of the engine's own reasoning notes — the same apparatus vocabulary this instrument otherwise keeps off the ordinary reader's screen, shown here because you asked for it. A standing preference (not per-conversation), persisted across reloads. Off by default.",
+    needs: "nothing — it reads and writes a local preference",
+  },
   "/self": {
     category: "self",
     name: "The instrument's own cognition",

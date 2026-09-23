@@ -1719,6 +1719,36 @@ test("a slot with competing SUBJECTS (not objects) trips the completeness gate t
   );
 });
 
+// ── notes over mouth (user direction, 2026-09-23): the completeness gate's
+// ONE "incomplete" retry can itself fabricate rather than merely omit — the
+// real, measured 2026-08-20 specimen this file's own comment names ("also
+// invented Schuyler Colfax"). maxCorrections=1 means there is no second
+// model retry to catch that; mechanicalCompetingAnswer (holon.js) must ship
+// the material's own verbatim, addressed sentences instead.
+test("when the completeness gate's one retry fabricates a name, the shipped answer is the mechanical fallback — both real subjects, never the invention", async () => {
+  const relationsFor = makeRelationReader(await relationOrgans());
+  const call = async (messages) => {
+    if (messages[0]?.content === PLAN_SYSTEM_PROMPT) return "irrelevant";
+    const user = messages[1]?.content ?? "";
+    if (user.includes("the material confirms exactly")) {
+      // The retry itself is the failure: it drops Johnson (a real,
+      // confirmed subject) and invents a name the material never states.
+      return "Hannibal Hamlin was Lincoln's vice president. Schuyler Colfax was Lincoln's vice president too.";
+    }
+    return "Hannibal Hamlin was Lincoln's vice president in 1861.";
+  };
+  const result = await runHolonicTask({
+    task: "who was Lincoln's vice president?",
+    chunks: chunkSource("lincoln-vp-fabricated.txt", COMPETING_SUBJECT_TEXT),
+    call,
+    planMode: "flat",
+    makeRelationReader: relationsFor,
+  });
+  assert.match(result.output, /Hamlin/, "the mechanical fallback must still name the first real subject");
+  assert.match(result.output, /Johnson/, "the mechanical fallback must recover the subject the fabricated retry dropped");
+  assert.doesNotMatch(result.output, /Colfax/, "the fabricated name must never reach the shipped answer");
+});
+
 // ── the correction loop must hand a rewrite the SAME mechanically-computed
 // material the first draft already had, not a narrower one (live failure,
 // 2026-09-15). A real Panama Canal turn's "incomplete" correction was

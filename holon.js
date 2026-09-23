@@ -1144,6 +1144,70 @@ export function mechanicalAnswer(question, passages) {
   return lines.join("\n\n");
 }
 
+// mechanicalCompetingAnswer — the same "the model has had its chances,
+// assemble it ourselves" posture as mechanicalAnswer above, aimed at a
+// different failure: a competing-subjects slot (queryReferents' own
+// confirmed multi-subject cluster, hypergraph.js, 2026-09-23) that survives
+// the completeness gate's ONE "incomplete" retry (maxCorrections=1) still
+// wrong. Measured live, 2026-08-20 (this file's own comment at the
+// competingSubjectsOf call site): that one retry can not just OMIT a
+// confirmed subject but FABRICATE one ("invented Schuyler Colfax") — a
+// second model call is not the fix for a model that invents under pressure
+// to "add more." User direction, 2026-09-23: "we should really try as much
+// as possible to answer without the model in it. This should be a pretty
+// extractable factoid."
+//
+// Deliberately NEVER composes a new sentence out of a subject name plus the
+// claim's own label/end2 (e.g. "Hamlin and Johnson became vice president
+// under Lincoln.") — a synthesized compound-subject sentence risks the
+// relation extractor re-parsing it differently from the material's own TWO
+// separate real edges on re-inspection, which could re-flag a confirmed-
+// correct answer as unbound. Instead, for each confirmed subject, it finds
+// and quotes the material's own best real sentence naming that subject, in
+// one of the passages queryReferents already resolved it against — the
+// same declared method (verbatim, addressed, computed not generated) as
+// mechanicalAnswer, scoped per subject rather than per passage.
+export function mechanicalCompetingAnswer(findings, passages) {
+  const byRef = new Map((passages ?? []).map((p) => [p.ref, p]));
+  const lines = [];
+  const seen = new Set();
+  for (const f of findings ?? []) {
+    for (const s of f.competingSubjects ?? []) {
+      // A "competing subject" this instrument never actually resolved to a
+      // referent (queryReferents' own `resolution: "none"`, e.g. a bare
+      // unresolved pronoun sitting in the material) is not a real, nameable
+      // entity — composing a sentence "about" it would be naming a pronoun
+      // as though it were a person. Defensive here too, not only at the
+      // caller: this function's own contract is real, addressed names.
+      if (s?.resolution === "none") continue;
+      const name = String(s?.subject ?? "").trim();
+      if (!name || seen.has(name)) continue;
+      const nameTokens = new Set(tokenize(name));
+      if (!nameTokens.size) continue;
+      let best = null;
+      for (const ref of s.refs ?? []) {
+        const p = byRef.get(ref);
+        if (!p) continue;
+        for (const sentence of splitSentences(String(p.text ?? ""))) {
+          const t = String(sentence).trim();
+          if (!t) continue;
+          const n = tokenize(t).filter((w) => nameTokens.has(w)).length;
+          if (!n) continue;
+          const isSentence = SENTENCE_END_RE.test(t);
+          if (!best || (isSentence && !best.isSentence) || (isSentence === best.isSentence && n > best.n)) {
+            best = { t, n, isSentence, ref };
+          }
+        }
+      }
+      if (best) {
+        lines.push(`“${best.t}”${best.ref ? ` [${best.ref}]` : ""}`);
+        seen.add(name);
+      }
+    }
+  }
+  return lines.join("\n\n");
+}
+
 /**
  * Pull the first balanced JSON array out of a reply. Constrained decoding
  * makes this trivial for Ollama; a prose-mode model may wrap the array in
@@ -3232,6 +3296,13 @@ export async function runPart({
   // claim does not hold" — true regardless of how the redefine round's
   // own draft turns out, so recording it does not wait on that outcome.
   let beliefLog = gridLog;
+  // Captured at the moment the FIRST "incomplete" retry is driven (below),
+  // from the PRE-retry check — the specific competing-subjects slot(s) that
+  // actually caused this correction, never re-derived from whatever the
+  // retried draft's own possibly-different claim set happens to contain
+  // post-loop (the mechanical-fallback gate after the loop reads this, not
+  // a fresh query — see its own comment for why).
+  let competingAtTrigger = [];
 
   while (
     mode &&
@@ -3263,7 +3334,8 @@ export async function runPart({
       // side with their own real, independently-computed verdicts, not a
       // single collapsed guess at which subject the question "really"
       // meant.
-      for (const claim of competingSubjectsOf(check)) {
+      competingAtTrigger = competingSubjectsOf(check);
+      for (const claim of competingAtTrigger) {
         for (const filler of claim.competingSubjects) {
           beliefLog = landCompletenessBelief(grid, beliefLog, runCapacity, landAct, {
             // filler.subject: queryReferents' own open-subject cluster shape
@@ -3363,6 +3435,78 @@ export async function runPart({
   let mechanical = false;
   if ((verdict.echoed || verdict.reproduced || verdict.narrated) && passages.length) {
     const assembled = mechanicalAnswer(question, passages);
+    if (assembled) {
+      draft = assembled;
+      check = inspect(draft);
+      mechanical = true;
+    }
+  }
+
+  // NOTES OVER MOUTH (user direction, 2026-09-23): the competing-subjects
+  // slot ("who was Lincoln's vice president?", this section's own history)
+  // is exactly the class of question this instrument already knows the
+  // answer to mechanically, once queryReferents has confirmed the slot's
+  // subject set from the material's own edges. The completeness gate's ONE
+  // "incomplete" retry, above, has already had its chance; if the retried
+  // draft's own check STILL reports the slot unresolved (mode is still
+  // "incomplete" once the while-loop exits, because maxCorrections=1 leaves
+  // no second retry), a third model call is not the fix — the measured
+  // specimen this file's own comment above names shows a retry can
+  // FABRICATE, not just omit. Gated on competingSubjectsOf specifically
+  // (not the broader verdict.incomplete, which also covers
+  // incompleteClaimsOf's different multi-OBJECT shape and
+  // successionIncompleteFindings — both untouched, out of scope here), so
+  // this is a no-op whenever the persisting incompleteness is some other
+  // shape.
+  //
+  // Reads `competingAtTrigger` — the slot(s) captured at the moment the
+  // FIRST retry was actually driven, from the PRE-retry check — never a
+  // fresh `competingSubjectsOf(check)` on the POST-retry check. Caught by a
+  // real regression (this file's own succession-box test, a DIFFERENT
+  // material from the plain Hamlin/Johnson specimen): re-querying fresh
+  // against the retried draft's own recomputed claims can surface an
+  // UNRELATED competing-subjects slot the material happens to also contain
+  // (a different office/name entirely), which this instrument then
+  // "corrected" by assembling an answer about the wrong thing — worse than
+  // doing nothing, because the original retry may already have been
+  // correct. Scoping to the trigger's own slot(s) means this can only ever
+  // fire on the specific gap that actually caused the correction.
+  //
+  // FURTHER: a real second bug, found via that same test, once the above
+  // was in place and the test STILL failed. queryReferents' own open-
+  // subject cluster can include an UNRESOLVED PRONOUN as one of a slot's
+  // "competing subjects" (`resolution: "none"` — the succession-box
+  // material's own real edges produced {"Hannibal Hamlin", "He"} for one
+  // slot, "He" being a genuinely unresolved surface, never a second,
+  // distinct, nameable entity). `competingSubjectsOf`'s own "uncovered"
+  // computation does not filter this out, so a slot can look "incomplete"
+  // when the only thing supposedly missing is a bare pronoun — nothing a
+  // reader could ever be told to add. Filtering to `resolution !== "none"`
+  // both here and inside `mechanicalCompetingAnswer` (a subject this
+  // instrument would try to name must be one it actually resolved) closes
+  // it without touching `competingSubjectsOf`/`incompleteFindings`
+  // themselves — a real, disclosed, separate latent gap in the CORRECTION
+  // PROMPT's own wording (which still lists an unresolved pronoun as if it
+  // were a real missing name) that is out of this fix's scope.
+  //
+  // FINALLY gated on the shipped DRAFT TEXT itself, not just
+  // competingSubjectsOf's own "named" claim-label match — a subject this
+  // instrument already covers in what shipped needs no fallback, and
+  // checking the draft's own text directly is conservative in the safe
+  // direction: it can only skip firing (leaving an already-correct draft
+  // alone), never wrongly fire on one.
+  const stillCompeting =
+    mode === "incomplete"
+      ? competingAtTrigger
+          .map((f) => ({ ...f, competingSubjects: (f.competingSubjects ?? []).filter((s) => s?.resolution !== "none") }))
+          .filter((f) =>
+            f.competingSubjects.some(
+              (s) => !foldTypography(String(draft)).toLowerCase().includes(foldTypography(String(s?.subject ?? "")).toLowerCase()),
+            ),
+          )
+      : [];
+  if (stillCompeting.length && passages.length) {
+    const assembled = mechanicalCompetingAnswer(stillCompeting, passages);
     if (assembled) {
       draft = assembled;
       check = inspect(draft);

@@ -645,3 +645,112 @@ test("the null is deterministic under its own default seed — a pure function, 
     assert.equal(admissionWithCompany.sourceAdmits("Who designed the Zorbek bridge?", DOC).admitted, false);
   });
 }
+
+// ── P251(b): the paragraph-exemption bypass via blank-line collapse
+// (fixed 2026-09-23) ─────────────────────────────────────────────────────
+// Confirmed real by the 2026-09-22 falsification workflow (POLICIES.md
+// P251) and live-reproduced against the real mechanism before this fix:
+// collapsing the P204/P234 canonical STALE_OFFICE_NEWSLETTER fixture's
+// blank lines (or stripping newlines entirely) made `text.split(/\n\s*\n/)`
+// return length 1, unconditionally exempting the already-null-rejected
+// "team"/"cost" hit from the paragraph tier's own coincidence test and
+// admitting the whole document outright, regardless of the source's real
+// length. See `hasCompany`'s own header, "THE PARAGRAPH TIER'S OWN
+// SINGLE-UNIT EXEMPTION IS DENIED...", for the fix (a measured `spread` —
+// how many real sentences touch the shared vocabulary at all — not a
+// hand-picked character count).
+test("P251(b): collapsing the stale newsletter's blank lines no longer bypasses the null — still refused", () => {
+  const collapsed = STALE_OFFICE_NEWSLETTER.replace(/\n\s*\n/g, "\n");
+  const v = admissionWithCompany.sourceAdmits(CLUB_UPDATE_MESSAGE, collapsed);
+  assert.equal(v.admitted, false, `expected refusal; got ${JSON.stringify(v)}`);
+  assert.match(v.reason, /indistinguishable from a chance collision/);
+});
+
+test("P251(b): stripping the stale newsletter's newlines entirely (no paragraph structure survives at all) still refuses — no length limit was needed", () => {
+  const flattened = STALE_OFFICE_NEWSLETTER.replace(/\s*\n\s*/g, " ");
+  const v = admissionWithCompany.sourceAdmits(CLUB_UPDATE_MESSAGE, flattened);
+  assert.equal(v.admitted, false, `expected refusal; got ${JSON.stringify(v)}`);
+  assert.match(v.reason, /indistinguishable from a chance collision/);
+});
+
+test("P251(b) negative control: the fix never touches genuinely single-paragraph, cohesive prose — P216's own cider specimen is still admitted", () => {
+  const v = admissionWithCompany.sourceAdmits(CIDER_QUESTION, CIDER_SOURCE);
+  assert.equal(v.admitted, true, `expected admission via paragraph company; got reason=${v.reason}`);
+});
+
+test("P251(b) negative control: a short, single-paragraph, genuinely on-topic source whose shared vocabulary is spread across ALL of its sentences (not isolated to one) still gets its paragraph-tier exemption — this is the P216 shape, not the exploit", () => {
+  const GARDEN_SOURCE = "Maple Street Community Garden - End of Season Report. There are 24 plots across 19 households. The season fee was $35, and total plot fees collected came to $840.";
+  const GARDEN_QUESTION = "how many total plots does the garden have, and how much was collected in plot fees?";
+  const v = admissionWithCompany.sourceAdmits(GARDEN_QUESTION, GARDEN_SOURCE);
+  assert.equal(v.admitted, true, `expected admission; got reason=${v.reason}`);
+});
+
+// ── P251(c): the inversion — more shared vocabulary refused MORE often
+// (fixed 2026-09-23) ─────────────────────────────────────────────────────
+// Confirmed real by the same falsification workflow: holding a document's
+// own length and structure fixed (9 paragraphs: 8 unrelated filler + one
+// fact-bearing paragraph), the ONLY thing varied is how many of the
+// question's words overlap with the fact paragraph. Pre-fix, the redeal's
+// hit criterion (`>= need`, the bare structural floor) let MORE shared
+// vocabulary open MORE candidate need-sized subsets that could
+// coincidentally collide, so refusal got MORE likely as relevance grew —
+// inverting the module's own "more corroboration helps" premise. See
+// `coincidenceRate`'s own header, "THE OBSERVED MATCH'S OWN STRENGTH," for
+// the fix (test the redeal against `foundCount`, the actually-observed
+// overlap, not the bare floor).
+const OVERLAP_FILLER_PARAS = [
+  "The library extended its weekend hours starting this month, adding two more open hours on Saturdays.",
+  "A new mural was painted along the community center's east wall by local art students.",
+  "The recycling program added glass collection to its weekly pickup schedule.",
+  "Sidewalk repairs on Birch Avenue are expected to wrap up by the end of the month.",
+  "The farmers market will relocate to the north parking lot for the summer season.",
+  "Streetlight upgrades to LED fixtures continued on the west side of downtown.",
+  "The historical society opened a new exhibit on the town's founding families.",
+  "A blood drive is scheduled at the fire station next Tuesday afternoon.",
+];
+const OVERLAP_FACT_PARA = "The cooperative finished installing its new battery storage array using solar panels rated for peak capacity, and the crew completed testing before the scheduled deadline.";
+const OVERLAP_DOC = [...OVERLAP_FILLER_PARAS, OVERLAP_FACT_PARA].join("\n\n");
+const OVERLAP_WORDS = ["battery", "storage", "array", "solar", "panels", "capacity", "crew", "testing"];
+
+test("P251(c): the bare two-word-floor minimum overlap is still correctly scrutinized (unaffected by the fix — foundCount degenerates to need here)", () => {
+  const q = `describe the ${OVERLAP_WORDS.slice(0, 2).join(" ")} work that was done`;
+  const v = admissionWithCompany.sourceAdmits(q, OVERLAP_DOC);
+  assert.deepEqual(v.shared.sort(), ["battery", "storage"]);
+  assert.equal(v.admitted, false, `expected refusal at the bare floor; got reason=${v.reason}`);
+});
+
+test("P251(c): the fix — a document sharing MORE of the question's own vocabulary (same document, same structure) is admitted, not refused more often", () => {
+  const q4 = `describe the ${OVERLAP_WORDS.slice(0, 4).join(" ")} work that was done`;
+  const v4 = admissionWithCompany.sourceAdmits(q4, OVERLAP_DOC);
+  assert.equal(v4.admitted, true, `expected admission with 4 shared words; got reason=${v4.reason}`);
+
+  const q8 = `describe the ${OVERLAP_WORDS.slice(0, 8).join(" ")} work that was done`;
+  const v8 = admissionWithCompany.sourceAdmits(q8, OVERLAP_DOC);
+  assert.equal(v8.admitted, true, `expected admission with 8 shared words (near-verbatim, the MOST relevant phrasing); got reason=${v8.reason}`);
+});
+
+test("P251(c) negative control: the pre-fix inversion is real — reproduced directly against the OLD hit criterion (need, not foundCount), showing refusal grows MORE likely as shared vocabulary grows, the opposite of the fixed behaviour above", () => {
+  const sentences = splitSentences(OVERLAP_DOC).map((s) => (typeof s === "string" ? s : s.text));
+  const tokenSets = sentences.map((s) => new Set(tokenize(s)));
+  // A bare re-implementation of the pre-this-pass coincidenceRate: hit
+  // threshold pinned at `need` regardless of how much of `shared` actually
+  // co-occurred — pinned here, once, so the fix above is legible as a fix.
+  function oldRate(shared, need) {
+    const counts = shared.map((w) => tokenSets.reduce((c, set) => c + (set.has(w) ? 1 : 0), 0));
+    let hits = 0;
+    const draws = 400;
+    for (let d = 0; d < draws; d++) {
+      const perUnit = new Array(tokenSets.length).fill(0);
+      for (const count of counts) {
+        if (count === 0) continue;
+        const idx = Array.from({ length: tokenSets.length }, (_, i) => i).sort(() => Math.random() - 0.5).slice(0, count);
+        for (const i of idx) perUnit[i]++;
+      }
+      if (perUnit.some((c) => c >= need)) hits++;
+    }
+    return hits / draws;
+  }
+  const rate4 = oldRate(OVERLAP_WORDS.slice(0, 4), 2);
+  const rate8 = oldRate(OVERLAP_WORDS.slice(0, 8), 2);
+  assert.ok(rate8 > rate4, `expected the OLD criterion's own inversion to reproduce (more shared words -> higher refusal rate); got rate4=${rate4} rate8=${rate8}`);
+});

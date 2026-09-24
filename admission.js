@@ -213,6 +213,36 @@
 // corroborated and is no more special than any other unit the redeal
 // could have landed it in.
 //
+// MEASURED, NOT ASSUMED (added 2026-09-23, P251(a)). This limit was named
+// above by argument alone when it shipped; it is now measured directly
+// against the real mechanism, not guessed at. Re-running the canonical
+// P204/P234 fixture (STALE_OFFICE_NEWSLETTER, "team"/"cost", the exact
+// two-word-floor minimum case) at production settings (`NULL_DRAWS` = 200)
+// gives a redeal rate of 14% on the shipped default seed, and averages
+// ~12.4% across 30 independent seeds — matching an independent adversarial
+// falsification workflow's own re-measurement (~14.3%) closely. A wider
+// battery of 400 single-collision two-word-floor specimens built from real
+// prose averaged ~28.8%, and NONE fell below `NULL_ALPHA` (= 0.05). `NULL_ALPHA`
+// is a SIGNIFICANCE THRESHOLD applied to a per-specimen redeal p-value, not
+// a claimed average chance-agreement rate, so it is not "miscalibrated" by
+// this measurement in the sense of needing a different number — there is no
+// honest way to derive a replacement from this data (P4: no hand-picked
+// threshold), and changing it to track a measured AVERAGE would itself be
+// exactly that. What the measurement DOES establish, honestly: for the
+// two-word-floor minimum case specifically, the redeal rate is essentially
+// NEVER close to `NULL_ALPHA` in practice (it is either far below, when the
+// source is long enough relative to the two singleton words that a chance
+// same-unit landing is itself rare, or far above, as here) — meaning this
+// null functions, for that minimum case, closer to a near-binary "is the
+// source long enough for two singleton words to coincide by 1-in-n chance"
+// test than a finely calibrated 5% tolerance. Every pinned P204/P216/P234
+// decision is unchanged by this measurement (12–30% and the file's own
+// disclosed limit both already refuse), so nothing here was "wrong" in the
+// sense of shipping a bad verdict — it was under-quantified. The inversion
+// this measurement helped surface in a DIFFERENT, more common case (shared
+// vocabulary ABOVE the two-word minimum) is fixed below, in
+// `coincidenceRate`'s own header — see "THE OBSERVED MATCH'S OWN STRENGTH."
+//
 // COMPANY WIDENED FROM SENTENCE TO SENTENCE-OR-PARAGRAPH (added 2026-09-15;
 // Generality: universal — the paragraph unit is reused from source.js's own
 // `chunkProse` convention, never hand-picked, and only ever ADMITS more than
@@ -351,12 +381,33 @@ export function makeAdmission({ tokenize, splitSentences, negationWords } = {}) 
 
   /** How often would a redeal of `shared`'s own real per-unit occurrence
    * pattern — same words, same total spread, different unit assignment —
-   * STILL land `need` of them together in one unit, purely by chance? Every
-   * word in `shared` is redealt AT ONCE (search-aware, `signal.js`'s own
-   * rule), so a coincidence among any combination of `shared`'s words
-   * counts, not only the specific pair that happened to be found. See this
-   * file's own header, "A TWO-WORD FLOOR HAS A STRUCTURAL BLIND SPOT." */
-  function coincidenceRate(unitTokenSets, shared, need, { draws = NULL_DRAWS, seed = 0 } = {}) {
+   * STILL land `hitThreshold` of them together in one unit, purely by
+   * chance? Every word in `shared` is redealt AT ONCE (search-aware,
+   * `signal.js`'s own rule), so a coincidence among any combination of
+   * `shared`'s words counts, not only the specific pair that happened to be
+   * found. See this file's own header, "A TWO-WORD FLOOR HAS A STRUCTURAL
+   * BLIND SPOT."
+   *
+   * `hitThreshold` IS THE OBSERVED MATCH'S OWN STRENGTH, NOT THE BARE
+   * STRUCTURAL FLOOR (fixed 2026-09-23, P251(c)). Testing the redeal
+   * against `need` alone asks only "would SOME need-sized subset of
+   * `shared` coincidentally land together" — and as `shared` grows past
+   * `need` (a source sharing MORE of the question's vocabulary, not just
+   * the bare minimum), the number of candidate need-sized subsets that
+   * could coincidentally collide grows combinatorially, inflating the
+   * measured rate regardless of whether the extra overlap is genuine,
+   * concentrated relevance. That inverted the module's own premise ("more
+   * corroboration helps"): a short, correct, highly relevant document
+   * sharing MORE of the question's words was refused MORE often than one
+   * sharing fewer, live-reproduced with a fixed-length, fixed-structure
+   * document varying only vocabulary overlap. Testing against the OBSERVED
+   * count instead — how many of `shared` actually co-occurred together in
+   * the one qualifying unit — asks the honest question: would a redeal
+   * reproduce THIS MUCH overlap by chance, not merely the bare minimum.
+   * When `shared.length === need` (the disclosed two-word-floor case this
+   * file's own header already names as a residual limit), `hitThreshold`
+   * degenerates to `need` and nothing here changes from before. */
+  function coincidenceRate(unitTokenSets, shared, hitThreshold, { draws = NULL_DRAWS, seed = 0 } = {}) {
     const n = unitTokenSets.length;
     const counts = shared.map((w) => unitTokenSets.reduce((c, set) => c + (set.has(w) ? 1 : 0), 0));
     const rng = mulberry32(seed);
@@ -367,7 +418,7 @@ export function makeAdmission({ tokenize, splitSentences, negationWords } = {}) 
         if (count === 0) continue;
         for (const i of randomSubset(n, count, rng)) perUnit[i]++;
       }
-      if (perUnit.some((c) => c >= need)) hits++;
+      if (perUnit.some((c) => c >= hitThreshold)) hits++;
     }
     return hits / draws;
   }
@@ -380,15 +431,33 @@ export function makeAdmission({ tokenize, splitSentences, negationWords } = {}) 
    * this file's own base floor already reuses); a source with fewer than
    * two units at this grain is exempt from the null by construction — there
    * is nowhere else the company could have been, so testing it would be
-   * degenerate. */
-  function unitsCompany(units, shared, need, opts) {
+   * degenerate.
+   *
+   * `opts.exempt` (default true) gates that single-unit exemption alone —
+   * see `hasCompany`, below, for why the paragraph tier must sometimes be
+   * denied it (P251(b)): the "nowhere else it could have been" premise is
+   * false once a FINER grain already established there WAS somewhere else,
+   * and already put it to this same null. The `qualifying >= 2` corroboration
+   * branch above is checked first and is never affected by `opts.exempt`.
+   *
+   * `spread` (always attached, every return path) is how many of `units`
+   * contain ANY of `shared`'s words at all — not just the ones carrying
+   * full company together. This is what `hasCompany` reads to decide
+   * whether collapsing to a coarser grain is safe (see its own header). */
+  function unitsCompany(units, shared, need, opts = {}) {
     const tokenSets = units.map((u) => new Set(tokenize(u)));
-    const qualifying = tokenSets.filter((set) => shared.filter((t) => set.has(t)).length >= need).length;
-    if (qualifying === 0) return { ok: false };
-    if (qualifying >= 2) return { ok: true, corroborated: true, count: qualifying };
-    if (units.length < 2) return { ok: true, corroborated: false, count: 1 };
-    const rate = coincidenceRate(tokenSets, shared, need, opts);
-    return { ok: rate < NULL_ALPHA, corroborated: false, count: 1, coincidenceRate: rate };
+    const perUnitFound = tokenSets.map((set) => shared.filter((t) => set.has(t)).length);
+    const qualifying = perUnitFound.filter((c) => c >= need).length;
+    const spread = perUnitFound.filter((c) => c > 0).length;
+    if (qualifying === 0) return { ok: false, spread };
+    if (qualifying >= 2) return { ok: true, corroborated: true, count: qualifying, spread };
+    if (units.length < 2 && opts.exempt !== false) return { ok: true, corroborated: false, count: 1, spread };
+    // The observed strength of the one qualifying unit's own match — see
+    // `coincidenceRate`'s own header (P251(c)) for why the redeal is tested
+    // against this, not the bare `need`.
+    const foundCount = Math.max(...perUnitFound);
+    const rate = coincidenceRate(tokenSets, shared, foundCount, opts);
+    return { ok: rate < NULL_ALPHA, corroborated: false, count: 1, coincidenceRate: rate, foundCount, spread };
   }
 
   /** Do at least `need` of `shared`'s words appear together in one SENTENCE
@@ -425,7 +494,49 @@ export function makeAdmission({ tokenize, splitSentences, negationWords } = {}) 
    * DIFFERENT paragraphs, so they still never qualify as company. Sentence
    * is checked FIRST and remains the tighter, more specific signal (its own
    * disclosed reason when it fires); paragraph is the fallback that widens
-   * admission only when sentence-level company genuinely is not there. */
+   * admission only when sentence-level company genuinely is not there.
+   *
+   * THE PARAGRAPH TIER'S OWN SINGLE-UNIT EXEMPTION IS DENIED WHEN THE
+   * SHARED VOCABULARY IS ISOLATED TO ONE SENTENCE OF THE WHOLE SOURCE
+   * (fixed 2026-09-23, P251(b)/P216). `unitsCompany`'s "fewer than two
+   * units → exempt by construction" rule assumes there is nowhere else the
+   * company could have been. That premise is measured, not assumed, via
+   * `spread` — how many of the source's own SENTENCES (a structural unit
+   * `splitSentences` derives from grammar, not blank lines, so it survives
+   * formatting an adversary destroys) contain ANY of `shared`'s words at
+   * all, not just the one sentence carrying full company together. A
+   * genuinely short, cohesive single-paragraph source (cider: 4 sentences,
+   * "cider"/"year"/"five" each present in at least one; observatory: 4
+   * sentences, "observatory"/"reflector" each present in one; garden: 3
+   * sentences, ALL THREE mention at least one of the question's own words)
+   * has `spread >= 2` — real topical engagement spread across the source,
+   * not an isolated coincidence — and keeps its exemption exactly as
+   * before. A stale, mostly irrelevant source whose shared vocabulary sits
+   * in exactly ONE sentence and nowhere else (`spread === 1` — the
+   * P204/P234 STALE_OFFICE_NEWSLETTER fixture: "team"/"cost" together in
+   * paragraph three's own sentence, and in NO other of the source's 8
+   * sentences) has its exemption denied, because collapsing its blank
+   * lines (`text.split(/\n\s*\n/)` then returns length 1 regardless of how
+   * long the source actually is) would otherwise re-ask the IDENTICAL
+   * already-rejected sentence-level question at a degenerate single-unit
+   * paragraph grain and be exempted by construction — defeating P216's own
+   * fix (meant to widen admission for genuinely short, cohesive prose,
+   * never to let an unbounded, mostly-irrelevant document count as "one
+   * sentence's company" once its formatting is destroyed). No length limit
+   * was invented to close this: `spread` is derived from grammar-level
+   * sentence structure the mechanism already computes (`unitsCompany`'s
+   * own `perUnitFound`), reused here via `opts.exempt` rather than a fresh
+   * character count, and it is immune to blank-line stripping because
+   * `splitSentences` never depended on blank lines in the first place. When
+   * the paragraph tier's own exemption is denied this way, it still runs
+   * the SAME null it always would have — a degenerate single-unit redeal
+   * always redeals every shared word into the one remaining unit, so
+   * `coincidenceRate` returns exactly 1.0 (every redeal "hits"), which is
+   * >= `NULL_ALPHA` and is therefore refused, not silently exempted. This
+   * never touches the `qualifying >= 2` genuine-corroboration branch
+   * (checked first, in `unitsCompany`, before `opts.exempt` is even read),
+   * so a document that genuinely shows the company in TWO OR MORE real
+   * paragraphs is trusted outright exactly as before. */
   function hasCompany(sourceText, shared, need, opts) {
     if (typeof splitSentences !== "function" || need < 2) return { ok: true };
     const text = String(sourceText ?? "");
@@ -433,7 +544,8 @@ export function makeAdmission({ tokenize, splitSentences, negationWords } = {}) 
     const bySentence = unitsCompany(sentences, shared, need, opts);
     if (bySentence.ok) return { ...bySentence, grain: "sentence" };
     const paragraphs = text.split(/\n\s*\n/);
-    const byParagraph = unitsCompany(paragraphs, shared, need, opts);
+    const paragraphOpts = { ...opts, exempt: (bySentence.spread ?? 0) >= 2 };
+    const byParagraph = unitsCompany(paragraphs, shared, need, paragraphOpts);
     if (byParagraph.ok) return { ...byParagraph, grain: "paragraph" };
     return { ok: false, bySentence, byParagraph };
   }

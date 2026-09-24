@@ -1,6 +1,30 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { groundOf, groundLine, namesIn, TIERS } from "./ground-ladder.js";
+// P251's own real-organ requirement (never a mock standing in for the real
+// coreference/referent-index organ): the REAL production bundle app.js
+// wires at app.js:822-831 — cast.js's makeReferentIndex over the REAL
+// eoreader7 surfaces/spans adapters — imported here so the tier-4 bare-
+// pronoun-subject regression below runs against genuine coreference, not a
+// hand-written resolveName stand-in.
+import { extractSurfaces, extractLeadingSurfaces, discoverReferents, namesCorefer, diaNorm } from "../eoreader7/native/adapters/text/surfaces.js";
+import { splitSentences as engineSentences } from "../eoreader7/native/adapters/text/spans.js";
+import { makeReferentIndex } from "./cast.js";
+
+// Real production wiring, minus the POS-prior fetch (falls open exactly as
+// app.js's own isCommonNoun does before posPriorCache is populated).
+const isCommonNoun = () => false;
+const namesCoreferGated = (a, b, opts) => namesCorefer(a, b, { ...opts, commonNoun: isCommonNoun });
+const castBlankFurniture = (text) => text; // no infobox furniture in this specimen
+const referentIndexFor = makeReferentIndex({
+  splitSentences: engineSentences,
+  extractSurfaces,
+  discoverReferents,
+  namesCorefer: namesCoreferGated,
+  diaNorm,
+  blankFurniture: castBlankFurniture,
+  leadingSurfaces: extractLeadingSurfaces,
+});
 
 const passages = [{ ref: "a.txt#0-60", text: "Amelia Hartley founded the Northgate Observatory in 1887." }, { ref: "b.txt#0-40", text: "The observatory opened in 1889." }];
 const ctx = { passages, model: "gemma2:2b", resolveName: (n) => (/hartley|northgate/i.test(n) ? new Set(["r1"]) : new Set()) };
@@ -119,6 +143,50 @@ test("tier 4 (derived) compares referent identity when the index is available, n
   // regresses.
   const noIndex = groundOf("Rowan Vale preceded Owen Blythe.", { passages, model: "gemma2:2b", resolveName: () => new Set(), derived: [{ subject: "Rowan Vale", verb: "preceded", object: "Owen Blythe", premises: ["p1", "p2"] }] });
   assert.equal(noIndex.tier, "derived", "with no resolvable identity either side, the token check still applies");
+});
+
+test("tier 4 (derived): a bare-pronoun subject can never be unconditionally promoted, against the REAL coreference organ, not a mock (P251)", () => {
+  // This is the falsification workflow's own reproduction (2026-09-22),
+  // ported in: the REAL cast.js::makeReferentIndex, wired over the REAL
+  // eoreader7 adapters/text/surfaces.js and spans.js exactly as
+  // app.js:822-831 wires referentIndexFor — never a hand-written
+  // resolveName stand-in. The pinned "precision" test above (built before
+  // this fix) only ever exercised two multi-word proper names through a
+  // hand-written regex mock, so it could not have caught this: a bare
+  // pronoun never reaches namesIn's resolution path at all (L2's own
+  // function-word exclusion), and the old fallback — bare token
+  // containment — was vacuously true for ANY candidate sentence whenever a
+  // subject/object folded to zero tokens. No control specimen, however
+  // constructed, could make the old code refuse it.
+  const passages2 = [
+    { ref: "report.txt#0-140", text: "Harold Whitfield joined Meridian Bank in 2001. He resigned from the position of treasurer after the scandal broke." },
+    { ref: "report.txt#141-260", text: "Sandra Kowalski was hired by Meridian Bank in 2010 as an auditor. She stayed with the firm for a decade before retiring." },
+  ];
+  const index = referentIndexFor(passages2);
+  const resolveName = (n) => index.resolve(n);
+
+  // A "derived" fact on the record whose SUBJECT is a bare, unresolved
+  // pronoun — exactly the shape a real coreference-promotion step would
+  // leave behind for "Harold Whitfield ... He resigned ...". Two premises,
+  // matching this repo's own reused corroboration floor — deliberately, so
+  // this specimen also proves a d.premises.length >= 2 bypass would NOT
+  // have closed the hole (see ground-ladder.js's own comment on sideMatches
+  // for why that bypass was measured and rejected rather than shipped).
+  const derived = [{ subject: "He", verb: "resigned", object: "the position", premises: ["note:1", "note:2"] }];
+
+  // CONTROL: a sentence about the OTHER, unrelated, genuinely-indexed real
+  // person, sharing the verb/object vocabulary by construction so only the
+  // subject side can possibly discriminate true from false.
+  const control = groundOf("Sandra Kowalski resigned from the position at Meridian Bank.", { derived, resolveName, passages: passages2 });
+  assert.notEqual(control.tier, "derived", "a bare-pronoun-subject derived fact must never promote onto a sentence about a different, real, indexed referent");
+
+  // The true specimen, about the fact's own actual real subject, is held to
+  // the identical standard: this fix refuses the vacuous match altogether
+  // (never reopens it on a corroboration count), so it too must fall
+  // through rather than being credited — an honest, disclosed recall cost,
+  // not a second bug.
+  const trueSpecimen = groundOf("Harold Whitfield resigned from the position after the scandal.", { derived, resolveName, passages: passages2 });
+  assert.notEqual(trueSpecimen.tier, "derived", "a bare pronoun subject is never trusted through the vacuous token-containment fallback, even for the fact's own true referent — this fix refuses unconditionally rather than by identity, since no real coreference resolution is wired into this ctx");
 });
 
 test("passageHolding prefers a real, reopenable page over the search-results digest when both contain the needle (live bug, 2026-09-10: 'See original source' on a real 'named' citation opened an address that had already outlived the turn)", () => {

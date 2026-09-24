@@ -14202,7 +14202,20 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       // elsewhere in the source while THIS sentence's claim about him was
       // checkGrounding-flagged, and the ladder had no way to know — the
       // two checks ran, but only one of them ever reached the chip).
-      return { claims, passages, notes, derived: derivedNow(), disputes, resolveName: index ? (n) => index.resolve(n) : null, model: modelLabel(turnModel), turnSeq, groundingFindings: findings };
+      //
+      // splitSentences/negationWords (P251, closed): the tier-0 "verbatim"
+      // rung's own containment check (ground-ladder.js::passageHolding) used
+      // to credit ANY passage whose folded bytes happened to contain a
+      // claim's own words, even a passage that was DENYING the claim ("there
+      // is no evidence that the bridge collapsed... it remained sound"
+      // certified "the bridge collapsed" as the material's own verbatim
+      // words). The same received organs this file already injects
+      // elsewhere for this exact class of guard (`negationWords` at
+      // RELATION_READER_OPTIONS, `splitSentences: engineSentences` at
+      // admission.js's own COMPANY check) let the ladder refuse a
+      // containment hit whose own sentence denies it, rather than reading
+      // mere occurrence as assertion.
+      return { claims, passages, notes, derived: derivedNow(), disputes, resolveName: index ? (n) => index.resolve(n) : null, model: modelLabel(turnModel), turnSeq, groundingFindings: findings, splitSentences: engineSentences, negationWords: NEGATION_WORDS_WITH_NO };
     } catch (e) { console.warn("ground ladder:", e?.message ?? e); return null; }
   })();
   // The instruction is the model's own plan — task + plan parts, mechanically

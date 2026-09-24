@@ -45,7 +45,49 @@ import { kindOf } from "./relation-kinds.js";
 // added later inherits both halves: it must respect every rung already
 // below it as a possibility floor, and its own reliability against the
 // rungs above it is something to measure, never assume.
-const fold = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+// TONE-MARK COLLISION (P251, closed here): the blanket combining-mark strip
+// below (U+0300-U+036F, "the entire Combining Diacritical Marks block") is
+// right for the accent-decoration languages it was built for (French,
+// Spanish, German, Portuguese...) and WRONG for a tonal language, where the
+// identical codepoint (e.g. U+0301 acute) is the phonemic distinction
+// itself, not a decoration on it — Vietnamese's five tone marks (grave
+// U+0300, acute U+0301, tilde U+0303, hook-above U+0309, dot-below U+0323)
+// and Pinyin's four (U+0300/U+0301/U+0304 macron/U+030C caron) all sit
+// inside the stripped range, so "Nguyễn" and "Nguyên" folded to the same
+// string — a different-toned name read as the material's own verbatim
+// words. eoreader7's own referent-identity fold (adapters/text/
+// surfaces.js::diaNorm) already drew this exact line and stated why in its
+// own header: it folds only five NAMED Latin-vowel accent characters,
+// deliberately never touches Vietnamese tone marks "because they carry
+// phonemic/grammatical content rather than accent decoration," and records
+// that a blanket combining-mark strip was tried there and reverted for the
+// same reason. A codepoint-only blacklist cannot resolve this alone (the
+// same U+0301 is safe to fold in French and unsafe in Vietnamese/Pinyin),
+// so the exclusion is LANGUAGE-scoped: `TONAL_LANGUAGES` is a small,
+// giver-named registry (mirroring eoreader7 S39's `PRONOUN_PRIORS`
+// per-language pattern) of which languages carry load-bearing tone marks
+// in this exact codepoint range; a declared `language` in `groundOf`'s ctx
+// consults it, and everything is byte-identical to before when no language
+// is declared (today's callers all omit it). Generality: the underlying
+// principle (tone is phonemic, not decorative, in these languages) is
+// universal; the mechanism needs the declared signal this repo already
+// requires for this class of gap (S39) — no organ in this codebase
+// auto-detects Vietnamese/Pinyin from bare text, so detection is not
+// invented here either.
+const TONAL_LANGUAGES = Object.freeze({
+  vi: { giver: "ISO 639-1 vi — Vietnamese", marks: new Set(["̀", "́", "̃", "̉", "̣"]) },
+  "zh-pinyin": { giver: "Hanyu Pinyin tone diacritics", marks: new Set(["̀", "́", "̄", "̌"]) },
+});
+const fold = (t, language = null) => {
+  const s = String(t ?? "").normalize("NFD");
+  const tonal = language ? TONAL_LANGUAGES[language] : null;
+  // Strip every combining mark EXCEPT the ones this language's own tone
+  // register says are load-bearing — never a blanket pass-through, so a
+  // Vietnamese/Pinyin sentence still folds its ordinary accent decoration
+  // (if any) exactly as before; only its own tone marks survive the fold.
+  const stripped = tonal ? s.replace(/[̀-ͯ]/g, (c) => (tonal.marks.has(c) ? c : "")) : s.replace(/[̀-ͯ]/g, "");
+  return stripped.toLowerCase();
+};
 const toks = (t) => fold(t).replace(/[^\p{L}\p{N}]+/gu, " ").trim().split(" ").filter((w) => w.length > 2);
 const sourceOf = (w) => String(w ?? "").split("~")[0];
 const claimKey = (c) => `${fold(c.end1 ?? c.subject)}|${fold(c.label ?? c.verb)}|${fold(c.end2 ?? c.object)}`;
@@ -147,10 +189,51 @@ export function namesIn(sentence, { leading = false } = {}) {
  * where the address is actually chosen from every match rather than only
  * the first.
  */
-function passageHolding(needle, passages) {
-  const f = fold(needle);
+// CONTAINMENT READ AS ASSERTION (P251, closed here). `passageHolding` backs
+// the ladder's own STRONGEST rung — tier 0, "verbatim", "the material's own
+// bytes state this sentence" — and until now it was a bare substring test:
+// a claim's own words being a literal run inside a passage's bytes said
+// nothing about whether the passage ASSERTS them. A denying passage
+// ("There is no evidence that the bridge collapsed in 1998...") contains
+// the exact bytes of the claim it is denying, so the claim was certified
+// "stated verbatim in" the very source that says the opposite. This is
+// P31's own "company, not bare occurrence" law (grounding.js's numbers)
+// and P43's own "polarity nothing measured decides nothing" (hypergraph.js's
+// edges), neither of which this file's own SEPARATE containment check ever
+// inherited — both are already-generalized, already-proven mechanisms in
+// this codebase; the fix here is reusing them, not inventing a third. A
+// candidate match is credited only when the REAL SENTENCE of the passage
+// that actually holds the matched bytes (found via the received
+// `splitSentences` organ, never a local regex — this file's own P238/S125
+// lesson) carries no token from a received `negationWords` closed class.
+// Both organs are OPTIONAL and INJECTED (cast.js pattern): omitted, this
+// degrades to the exact substring test that shipped before — a passage
+// whose own sentence boundaries this fold cannot locate (a multi-passage
+// digest, a stray fragment) falls back to the unguarded check rather than
+// manufacturing a false refusal from an absent sentence split. Generality:
+// universal — negation scoping a clause is not an English-specific fact,
+// and `negationWords`/`splitSentences` are both received, giver-named,
+// per-language organs already (S39's own per-language registry pattern);
+// this file supplies neither vocabulary, only the wiring.
+function sentenceDenies(sentenceText, negationWords) {
+  if (!negationWords || !negationWords.size) return false;
+  const words = fold(String(sentenceText ?? "")).replace(/[^\p{L}\p{N}]+/gu, " ").trim().split(" ").filter(Boolean);
+  return words.some((w) => negationWords.has(w));
+}
+
+function passageHolding(needle, passages, { language = null, splitSentences = null, negationWords = null } = {}) {
+  const f = fold(needle, language);
   if (!f) return null;
-  const matches = (passages ?? []).filter((p) => fold(p.text ?? "").includes(f));
+  const matches = (passages ?? []).filter((p) => {
+    const text = fold(p.text ?? "", language);
+    if (!text.includes(f)) return false;
+    if (typeof splitSentences !== "function" || !negationWords) return true;
+    let sentences;
+    try { sentences = splitSentences(String(p.text ?? "")) ?? []; } catch { sentences = []; }
+    const holding = sentences.filter((s) => fold(String(s?.text ?? s ?? ""), language).includes(f));
+    if (!holding.length) return true; // the split found no sentence spanning the match — fall back rather than refuse on an absence
+    return !holding.some((s) => sentenceDenies(s?.text ?? s, negationWords));
+  });
   if (!matches.length) return null;
   const real = matches.find((p) => !String(p.ref ?? "").startsWith("web:search-results"));
   return (real ?? matches[0]).ref ?? null;
@@ -185,7 +268,17 @@ function fedDetail(fedSources) {
  * ctx: { claims, witness, notes, derived, disputes, passages, resolveName, model, groundingFindings }
  */
 export function groundOf(sentence, ctx = {}) {
-  const { claims = [], witness = null, notes = [], derived = [], disputes = null, passages = [], resolveName = null, model = null, groundingFindings = [], leadingNames = false } = ctx;
+  const {
+    claims = [], witness = null, notes = [], derived = [], disputes = null, passages = [], resolveName = null, model = null,
+    groundingFindings = [], leadingNames = false,
+    // Declared, giver-named organs (byte-identical when omitted — every
+    // existing caller omits all three today): `language` picks a tonal
+    // language's own load-bearing tone marks out of `fold`'s combining-mark
+    // strip (P251 finding a); `splitSentences`/`negationWords` let tier 0's
+    // containment check refuse a passage that DENIES the claim it merely
+    // contains (P251 finding b).
+    language = null, splitSentences = null, negationWords = null,
+  } = ctx;
   const mine = claims.filter((c) => c.sentence === sentence);
   const reached = { relation: mine.length > 0, witness: Boolean(witness && witness.witness !== "skipped"), ledger: notes.length > 0, index: typeof resolveName === "function" };
   // HUMAN-READABLE SECTIONS (user direction, 2026-09-15: "when we ground
@@ -211,8 +304,8 @@ export function groundOf(sentence, ctx = {}) {
   // script-neutral the way the fold itself is. A folded sentence shorter
   // than a real claim (a stray "It was." contained in both) is never
   // mistaken for a claim the material states as such.
-  if (fold(sentence).replace(/[^\p{L}\p{N}]+/gu, "").length >= 8) {
-    const vref = passageHolding(sentence, passages);
+  if (fold(sentence, language).replace(/[^\p{L}\p{N}]+/gu, "").length >= 8) {
+    const vref = passageHolding(sentence, passages, { language, splitSentences, negationWords });
     if (vref) {
       const vlabel = labelOf(vref);
       return { tier: "verbatim", cell: CELL_OF.verbatim, addresses: [vref], label: vlabel, phrase: "stated verbatim in", detail: `the material's own bytes contain this sentence, word for word (${vref}${vlabel ? ` — ${vlabel}` : ""})`, reached };
@@ -230,10 +323,36 @@ export function groundOf(sentence, ctx = {}) {
   // not promote past. Folded once here rather than per-rung because only
   // rung 6 currently reads it, but the set is cheap and the sentence is
   // fixed for the whole call.
-  const foldName = (t) => fold(String(t ?? "")).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const foldName = (t) => fold(String(t ?? ""), language).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  // SCOPED BY THE FINDING'S OWN SENTENCE, NOT A BARE SUBSTRING TEST (P251,
+  // closed here). checkGrounding (grounding.js) already carries `sentence`
+  // on every finding it raises — the exact sentence (plus the turn's own
+  // question, appended after a space) its atom scan actually ran against —
+  // because it is called ONCE PER SECTION of a multi-section answer
+  // (holon.js's own per-part `inspect()`, and again per section in
+  // exportLastPiece's own loop, app.js). The pooled array this function
+  // receives (`state.lastGround.groundingFindings`/`piece.ground.
+  // groundingFindings`) carries no section tag of its own, so the ORIGINAL
+  // check here — `sentence.includes(f.text)`, matching only the flagged
+  // NAME's own bytes against whichever sentence happens to be graded —
+  // let a finding raised while checking one section's own draft veto a
+  // wholly unrelated, legitimately established use of the same name in a
+  // DIFFERENT section (or even a different sentence of the SAME section),
+  // purely on a coincidental substring hit. `findingScoped` reads the
+  // STRONGER signal checkGrounding already computed instead: does this
+  // finding's own recorded sentence-of-origin match the sentence actually
+  // being graded here. A finding whose own sentence cannot be recovered (an
+  // older or foreign caller's pooled findings, predating this field) falls
+  // back to the prior substring test — degrading toward the old behavior
+  // only where the stronger signal is genuinely absent, never a new false
+  // refusal on a caller this file has never seen.
+  const findingScoped = (f) => {
+    if (typeof f.sentence !== "string" || !f.sentence) return sentence.includes(f.text);
+    return f.sentence === sentence || f.sentence.startsWith(`${sentence} `);
+  };
   const contradictedNames = new Set(
     (groundingFindings ?? [])
-      .filter((f) => f?.atomKind === "name" && typeof f.text === "string" && sentence.includes(f.text))
+      .filter((f) => f?.atomKind === "name" && typeof f.text === "string" && findingScoped(f))
       .map((f) => foldName(f.text)),
   );
   // 1. bound
@@ -260,7 +379,7 @@ export function groundOf(sentence, ctx = {}) {
     // witness's own quoted decider text — that text is always verbatim
     // (this module's own "precision guard": "every attest is the passage's
     // verbatim sentence, never the model's words").
-    const ref = passageHolding(witness.decider, passages);
+    const ref = passageHolding(witness.decider, passages, { language });
     return { tier: "witnessed", cell: CELL_OF.witnessed, addresses: ref ? [ref] : [], label: ref ? labelOf(ref) : null, phrase: "a passage states this", detail: `${witness.decider ? `the witness pointed at: “${String(witness.decider).slice(0, 120)}”` : "the witness pointed at a passage"}${witness.secondWitness ? ` (asked again of ${witness.secondWitness}: the first witness ${witness.firstWitness === "incoherent" ? "said no while pointing at a sentence" : witness.firstWitness === "indiscriminate" ? "also said yes to a swapped, false version of the sentence" : "said no"})` : ""}`, reached };
   }
   // 3. recorded / 5. contested — the sentence's claims (any verdict) matched to notes on the ledger
@@ -345,7 +464,7 @@ export function groundOf(sentence, ctx = {}) {
     // than "does this sentence's use of the name stand on anything").
     for (const nm of names) {
       if (contradictedNames.has(foldName(nm))) continue;
-      let ids; try { ids = resolveName(nm); } catch { ids = null; } if (ids && (ids.size ?? ids.length ?? 0) > 0) { const ref = passageHolding(nm, passages); established.push({ name: nm, ref }); }
+      let ids; try { ids = resolveName(nm); } catch { ids = null; } if (ids && (ids.size ?? ids.length ?? 0) > 0) { const ref = passageHolding(nm, passages, { language }); established.push({ name: nm, ref }); }
     }
     if (established.length) {
       const addresses = [...new Set(established.map((e) => e.ref).filter(Boolean))];

@@ -440,3 +440,14 @@ fast: 1 files · 11 affected test files, 183 tests, 182 pass 1 fail (pre-existin
 | Frankfurt | — | app.js:14383 | false-positive-on-review | the flagged line documents the OLD hardcoded `material: []` being REMOVED, not a new placeholder — the fix computes real `turnMaterialTexts` and a real `claimsBound` count from the relation tier's own verdicts, never a stand-in value |
 | Marshall | P186 | app.js:14424-14442 | clean | citation checked against the fix itself: it only ever rewrites the disclosed `satisfaction` field, never `result.output` — matches P186 ("the mouth is not censored") exactly as claimed, no law edited, only cited correctly |
 clean: (no other lenses routed — the diff touches one call site, no new module, no new closed class)
+
+## 2026-09-23 — admission.js P251(b)/(c) audited and accepted (cda8e45, self-committed by a workflow agent against instruction, independently re-verified: 91/91 across admission/longform/gary/admission-gate tests, diff isolated to admission.js+admission.test.mjs only)
+
+## 2026-09-23 — ground-ladder.js: containment-as-assertion + cross-section contamination fixed, tone-mark scoping built (unwired), split from a second concurrent P251 fix sharing the same file via temporary-revert-commit-restore-commit (4607081, 6fb85f9)
+fast: 4 files (2 commits) · 231/64 affected tests, 1 known-temporary failure at commit time (resolved by the immediate follow-up commit) · law: ok, citations resolve (P31 P43 P251 P4 S39 S125 dup pre-existing)
+| lens | citation | file:line | verdict | one line |
+| Kondo | — | ground-ladder.js TONAL_LANGUAGES | disclosed, not fixed | the tone-mark mechanism is real and tested but no caller passes `language` — inert until a language-detection signal exists; stated in the commit message, not silently implied working |
+| Feynman | — | ground-ladder.js:307 (pre-existing "8"), ground-ladder.js:450 (rejected `>=2` bypass, in a comment) | clean | neither is a shipped hand-picked threshold — the "8" predates this diff, the ">=2" is a tried-and-measured-insufficient idea kept as a disclosed negative result, not code |
+| Holmes | — | ground-ladder.js sideMatches | clean | no new identity-merge logic; the fix is a refusal boundary on an empty requirement set, never a new "same referent" decision |
+| Ostrom / Marshall | P31 P43 P238 S125 S39 | ground-ladder.js | clean | credit correctly scoped to the already-generalized mechanisms being reused (company/polarity/S39's per-language pattern), not claimed as new invention |
+clean: Dijkstra, Pearl, Alexander, Greenberg (routed; nothing beyond what's already disclosed above)

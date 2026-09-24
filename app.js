@@ -14361,8 +14361,12 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // declared, measured and reported on without the void noticing there were
   // two. `observedFillers` picks the slot that is actually this void's, by
   // shared content words, and refuses a tie rather than guessing.
+  // The turn's own material, as flat text — everything retrieved this turn,
+  // reused below by Aletheia's satisfaction read (2026-09-23 fix: that call
+  // used to hardcode `material: []` regardless of what was actually fed).
+  const turnMaterialTexts = [...live.map((c) => c.text), ...result.sections.flatMap((s) => (s.passages ?? []).map((p) => p.text))].filter(Boolean);
   narrateTheVoid(
-    [...live.map((c) => c.text), ...result.sections.flatMap((s) => (s.passages ?? []).map((p) => p.text))].filter(Boolean),
+    turnMaterialTexts,
     "material",
     observedFillers(voidBrief?.declaration?.slot, voidBrief?.declaration?.cells?.find((c) => c.op === "SIG")?.declared, relationClaims),
   );
@@ -14387,8 +14391,39 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // itself refuses cleanly ({satisfied:false, at:"filled", reason:
     // "nothing to judge"}) on an empty question or answer, so this needs
     // no extra guard here.
+    //
+    // `material` used to be hardcoded `[]` here regardless of what the turn
+    // actually retrieved, so Aletheia's GROUNDED layer (which only runs
+    // `if (... material.length)`) never ran at all — every satisfying
+    // answer satisfied via FILLED (bag-of-words against the QUESTION alone,
+    // never checked against anything read). The identical shape as a real
+    // bug found in eoreader7's own proxy (proxy-runner.mjs, commit
+    // 256db92): a served `satisfied` read true with zero claims bound to a
+    // source. Threaded through here from what this turn actually held
+    // (`turnMaterialTexts`, above — the same list the void's own narration
+    // already reads) so GROUNDED at least gets a chance to run.
     let satisfaction = null;
-    try { satisfaction = aletheia.judge({ question: task, answer: result.output ?? "", material: [] }); } catch (e) { console.warn("aletheia:", e?.message ?? e); }
+    try {
+      satisfaction = aletheia.judge({ question: task, answer: result.output ?? "", material: turnMaterialTexts });
+      // Even with real material, GROUNDED's own bag-of-words check cannot
+      // catch a specific wrong fact restated in the material's own
+      // vocabulary — aletheia.test.mjs's own "Prussian army burned Moscow"
+      // case says so directly ("the claim-level check is the designed
+      // fix"). So a `satisfied: true` that is not an honest decline (HONEST
+      // stays untouched — a decline needs nothing bound to be a genuine
+      // satisfaction) is re-read here against what the relation tier
+      // actually bound to a source this turn — mirroring eoreader7's own
+      // fix, which withheld a served `satisfied` on zero claims bound to a
+      // source rather than trusting a word match. Disclosure only (P186):
+      // this can only ever make a claimed "yes" more honest, never edit,
+      // withhold or gate the answer itself.
+      if (satisfaction?.satisfied && satisfaction.via !== "honest") {
+        const claimsBound = (result.sections ?? []).reduce((n, s) => n + (s?.relations?.claims ?? []).filter((c) => c.verdict === "bound").length, 0);
+        if (claimsBound === 0) {
+          satisfaction = { satisfied: false, at: "grounded", reason: `satisfied only by the model's own words (via "${satisfaction.via}") — the relation tier bound no claim to a source this turn` };
+        }
+      }
+    } catch (e) { console.warn("aletheia:", e?.message ?? e); }
     // LOGOS (logos.js, reasoning-lint.js's findClaimCycle — "Degrees
     // Kelsen"): does the QUESTION itself already assert a cycle, before the
     // mouth even answers? The one thing nothing else here checks — every

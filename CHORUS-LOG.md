@@ -433,3 +433,10 @@ fast: 3 files · 10 affected test files, 174 pass 0 fail · law: ok (9 citations
 | Kondo | — | app.js | clean | nothing left unwired: `keepPreflightSource`, `forgetPreflightSources` (2 call sites) and `preflightStillOnTopic` all have live callers, and `state.preflightSources` is read by the gate, the admission note, the sources row and `removeSource`. |
 | Marshall | IV.1, P220 | POLICIES.md:13886 | noted | P245 is a new entry, not an amendment; its enforcement is the live run recorded in it plus the affected suite, since app.js is DOM-coupled and no `node --test` can import it — the same standing exception P220 records for a fix in this file. |
 clean: Kondo
+
+## 2026-09-23 — aletheia's satisfaction judge no longer hardcodes material:[]; a satisfied:true reached with zero claims bound to a source now downgrades honestly (fold-one-engine-unify workflow, isolated hunks staged — app.js only, other concurrent sessions' hunks in the same file left untouched)
+fast: 1 files · 11 affected test files, 183 tests, 182 pass 1 fail (pre-existing BECOMING TODO, unrelated: chomsky-eng-svo-demonstrated) · law: WARN pre-existing dup headers P115 P116 P117 P19 P233, S17 S96 (unchanged here); citations resolve
+| lens | citation | file:line | verdict | one line |
+| Frankfurt | — | app.js:14383 | false-positive-on-review | the flagged line documents the OLD hardcoded `material: []` being REMOVED, not a new placeholder — the fix computes real `turnMaterialTexts` and a real `claimsBound` count from the relation tier's own verdicts, never a stand-in value |
+| Marshall | P186 | app.js:14424-14442 | clean | citation checked against the fix itself: it only ever rewrites the disclosed `satisfaction` field, never `result.output` — matches P186 ("the mouth is not censored") exactly as claimed, no law edited, only cited correctly |
+clean: (no other lenses routed — the diff touches one call site, no new module, no new closed class)

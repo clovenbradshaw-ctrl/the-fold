@@ -14214,3 +14214,78 @@ full the-fold suite's pre-existing failure set unchanged by name. Both
 repos committed via the private-index technique (eoreader7 currently
 carries roughly 500 files of concurrent, unrelated WIP from other
 sessions; none of it touched).
+
+**Amended 2026-09-23 — the punch list closed, real residuals disclosed
+rather than force-fixed, and extraction proven against a real benchmark.**
+A dedicated 5-cluster workflow (diagnose → fix → adversarially verify,
+against the real organs, not self-reports) re-reproduced every finding
+above against the CURRENT code first — two had already moved (see below)
+— then fixed what was still real. Nine commits, two repos, each isolated
+from the several other concurrent sessions' unrelated WIP sitting in the
+same shared checkouts and independently re-verified by a human before
+landing (the-fold: 4607081, 6fb85f9, cda8e45, 3e31deb; eoreader7: da71b3f,
+1558475, 2505dc2, ce95bb3).
+
+**Closed:** the John Adams/John Quincy Adams subset-coreference merge
+(`isContiguousRun`, surfaces.js); cross-section `groundingFindings`
+contamination (`findingScoped`, ground-ladder.js); the negation-contraction
+gap in `NEGATION_WORDS` plus a curly-apostrophe miss (priors.js/
+relations.js); the referent index's generic-mention merge not reaching
+discovery time (`commonNoun` forwarded into `discoverReferents`, cast.js
++ surfaces.js); `endsFor`'s decoy-anchor bug in the witness tier
+(witness-sentences.js); tier 4 "derived"'s unconditional vacuous match on
+a bare pronoun/short subject (`sideMatches`, both repos' copies of
+ground-ladder.js) — plus the file's own pinned "precision" test rewritten
+to run against the real coreference organs instead of a mock, the exact
+"verify gates against real organs" trap this project has been burned by
+before; admission.js's paragraph-exemption blank-line-collapse bypass and
+its vocabulary-overlap inversion (both admission.js).
+
+**Closed same-day, beyond the original punch list:** the witness tier's
+sibling-swap `competitors` count, computed and tested one layer down but
+silently dropped by `witnessSentences()`'s own real public output
+(`rowFor`) before reaching any caller — the degenerate single-candidate
+arm P251's own finding named was invisible in the one place a caller
+could actually see it. One-line, additive fix, closed the same day it was
+found.
+
+**Real, disclosed residuals, left named rather than papered over — this
+is the discipline, not a shortfall:** containment-as-assertion closes the
+same-sentence denial only; an ADJACENT-sentence denial reproduces the
+identical bug. The Vietnamese/Pinyin tone-mark mechanism is built and
+tested but no caller anywhere passes `language` — inert in production
+until a real language-detection signal exists to wire it from. Tier 4's
+own fix narrows "bare" to zero-token text; a genuine 3-letter pronoun
+(she/her/him/who) still promotes via the identical vacuous-match path.
+admission.js's paragraph fix closes the literal reported specimen but not
+the general class — `spread`'s "any shared word, anywhere" definition is
+gameable by one ordinary, non-adversarial sentence reusing an
+already-shared word. The relation tier's relative-clause/cleft object-
+boundary fix was tested, found to introduce a real, common false-positive
+class (any participial/gerund-adjective object — "the proposed change,"
+"the requested funds" — truncates to the bare word "the"), and correctly
+NOT shipped; left uncommitted with the failure documented in da71b3f's
+own commit message. Nominalizations still extract zero claims — confirmed
+architectural, not patched. Gap 1's own temporal-conflict false positive
+(two people who genuinely held one office at different times, disputed as
+though they conflict) needs real temporal-scope data this system does not
+yet widely carry — untouched, as this entry's own body already said.
+
+**A NEW finding, from proving extraction rather than assuming it:**
+re-running `mine-1-unimorph.mjs`'s exact protocol against the CURRENT
+native organs (a fresh driver was needed — the committed script still
+imports the frozen `legacy-eoreader6.1` provider, which exercises none of
+today's fixes) reproduced the historical baseline almost exactly — 33.4%/
+38.0% native vs 33.7%/38.3% historical, zero crashes, confirming the
+native-engine migration and today's fixes together did not regress this
+paper-comparable benchmark. One deviation: 2 `contradicted` verdicts
+where this fixture's own history records zero in every prior run. Traced
+to a real, pre-existing bug — a "not only X but also Y" correlative
+construction's own "not" is read as negating the WRONG clause, flipping
+a true claim's polarity — and confirmed, by re-running the ORIGINAL
+committed legacy driver unmodified, to reproduce IDENTICALLY on the
+frozen legacy provider (2 contradicted, same essays), so it predates and
+is unrelated to anything landed today. Disclosed here, not fixed: a real,
+separate negation-scope gap for a future pass, found only because the
+benchmark was actually re-run rather than assumed still valid from a
+month-old results doc (P94's own lesson, applied a second time).

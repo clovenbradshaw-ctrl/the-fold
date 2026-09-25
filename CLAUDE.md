@@ -8847,3 +8847,66 @@ same stage is what pushes this box into the pressure that then drops the
 model. If prompt characters are ever worth attacking here, P232's own
 ordering still holds and this pass did not disturb it: contention and
 residency first, call count second, characters third.
+
+> **Merged 2026-09-25 from checkpoint branch `worktree-agent-ae59d4fae6397c1f0`
+> (work of 2026-09-22).** Numbered P244 there; main's P244 is Socrates, so it
+> lands here as **P260**. The fix it describes was made on main
+> independently, earlier (2026-09-19): `send()` already reads
+> `return (await er7Turn(question)) ?? twoPassTurn(question);`, and that
+> line was kept — the branch's own rewrite of it was not carried. What is
+> kept is the record of the finding and its rule, "a promise is not a
+> verdict."
+
+## The fallback that was never a fallback: a promise is not a verdict (added 2026-09-22) — pointer
+
+POLICIES.md **P260** is the law; this is the map. Reported live as "our
+grounding chips aren't working," and driven live the report turned out to
+name a symptom one layer coarser than its cause: the chips were not drawing
+wrong, the answer was not arriving. The first question asked after a page
+load vanished silently — composer cleared, no user bubble, no assistant
+bubble, status still reading `ready` — and every question after it came back
+tagged `queued`, forever.
+
+**One line, in `app.js::send()`'s own flat-chat seam:** `return
+er7Turn(question) ?? twoPassTurn(question)`. `er7Turn` is `async`, so it
+returns a PROMISE, which is never nullish, so `??` never fired and the
+in-browser fallback was dead code from the commit that wrote it (`c12766f`).
+The function's own docstring states the contract exactly — "or null to fall
+back to the in-browser engine. Guarded: any reachability failure or turn
+error falls through, never half-answers" — and the guard had never once run.
+Both of its decline paths (`er7Reachable()` false; `er7ChatCompletion`
+throwing) return `null` BEFORE any message is drawn and before
+`releaseBusy()`, so a declined turn resolved into `guardedSend`'s `.catch()`
+— which does not fire on a resolved promise — and `state.busy` stayed true
+for the life of the page. `onsubmit`'s busy branch then did exactly what it
+is built to do and queued everything behind a turn that had already finished
+doing nothing. Read from the chat surface, that IS "the chips aren't
+working": there is no answer to ground.
+
+**The rule, stated generally because the shape is not unique to this seam: a
+guarded fallback must AWAIT its guard.** `const answered = await
+er7Turn(question); if (answered) return; return twoPassTurn(question);`.
+Before writing `??` or `||` over a call, check whether the callee is `async`
+— `grep -n "Turn(.*) ?? "` is the cheap sweep, and this was its one hit.
+
+**The chips were confirmed working rather than assumed.** With nothing
+attached, a real answer draws `.sent.self-cited` spans at
+`data-ground-tier="self"` — an underline and no numbered mark, exactly what
+P115 specifies for the self rung. With a real pasted source attached, the
+same path draws numbered `.mark-ref` marks with the footnote strip naming
+each rung and address (`1 · named:…`, `2 · bound:…`) and un-hides the turn's
+own `ground` control. Every tier drew what it should.
+
+**Two environment facts worth not re-finding.** A worktree of this repo
+needs `node_modules` and an `eoreader7` sibling linked beside it, or the
+page's whole module graph dies at link time on a 404 for
+`node_modules/katex/dist/katex.mjs` — which presents IDENTICALLY to this bug
+(no handlers bound, submits do nothing) and is not it. And the browser pane
+is shared between concurrent sessions here: a tab can be navigated out from
+under you mid-investigation, so pin `tabId` on every call and re-read
+`location.href` before trusting a reading.
+
+**Named, not fixed:** a declined engine turn still hands off to the browser
+silently, with nothing on the record or the surface saying the engine
+declined and why. Disclosing the handoff is small, real, unattempted work —
+left out because `app.js` was under concurrent edit.

@@ -14999,3 +14999,50 @@ deixis-guard refusals, the shape of the item set (every family controlled,
 every item runged and reasoned), and the claim the whole design rests on —
 no reflex may sweep the family it is the reflex for, checked by running all
 of them.
+
+> **Merged 2026-09-25 from checkpoint branch `worktree-agent-ae59d4fae6397c1f0`
+> (work of 2026-09-22).** Numbered P244 there; main's P244 is Socrates, so it
+> lands here as **P260**. The fix it describes was made on main
+> independently, earlier (2026-09-19): `send()` already reads
+> `return (await er7Turn(question)) ?? twoPassTurn(question);`, and that
+> line was kept — the branch's own rewrite of it was not carried. What is
+> kept is the record of the finding and its rule, "a promise is not a
+> verdict."
+
+## P260 — a guarded fallback must await its guard: `er7Turn(q) ?? twoPassTurn(q)` was dead code from the day it was written, and a declined engine turn left the composer permanently busy (added 2026-09-22)
+
+**Generality:** universal — the defect is `??` applied to the return of an `async` function, and the rule ("a promise is not a verdict") holds wherever a guarded fallback is written in this codebase, not only on this one seam.
+
+Reported live as "our grounding chips aren't working." Driven live, the symptom turned out to be one layer coarser than the report: the chips were not rendering wrong, the ANSWER was not rendering at all. The first question asked after a page load silently vanished — the composer cleared, no user bubble, no assistant bubble, status still reading `ready` — and every question after it came back tagged `queued` forever.
+
+**The mechanism, found by reading the one line rather than auditing the renderer.** `holon.js`'s own flat-chat seam in `app.js::send()` read:
+
+```js
+return er7Turn(question) ?? twoPassTurn(question);
+```
+
+`er7Turn` is declared `async`. An `async` function returns a PROMISE — never `null`, never `undefined` — so `??` could not fire, and the in-browser fallback `twoPassTurn` was unreachable code from the commit that introduced it (`c12766f`, "Thin client: the fold's flat chat routes through eoreader7's proxy engine when reachable"). The function's own docstring states the intended contract exactly — "or null to fall back to the in-browser engine. Guarded: any reachability failure or turn error falls through, never half-answers" — and the guard had never once run.
+
+Both of `er7Turn`'s decline paths return `null` BEFORE `addMessage` is called and before `releaseBusy()`: `er7Reachable()` false (engine down, CORS-refused, busy, timing out on its own health probe), and `er7ChatCompletion` throwing (which also `node.remove()`s the assistant bubble it had already created). So a declined turn resolved `null` into `send()`, `send()` resolved into `guardedSend()`'s `.catch()` — which never fires on a resolved promise — and `state.busy` stayed `true` for the life of the page. `$("composer").onsubmit`'s own busy branch then did exactly what it is built to do and queued every later message behind a turn that had already finished doing nothing.
+
+Read from the chat surface, that IS "the grounding chips aren't working": there is no answer to ground, no `.sent` wrapper, no ladder rung, no chip.
+
+**The fix is the four lines the contract always described**, with the guard awaited:
+
+```js
+const engineAnswered = await er7Turn(question);
+if (engineAnswered) return;
+return twoPassTurn(question);
+```
+
+`er7Turn` already returns `true` on the one path where it renders and releases, so the truthiness test needs nothing new on its side.
+
+**Verified live, before and after, against the real page and the real local engine.** Before: three separate isolated tabs, first submit after load produces `msgs: 0` with the input cleared and `status: ready`; every following message renders `msg user queued`. After: the same first submit routes through the engine (`status: writing: through eoreader7…`), retries honestly while the shared proxy is queued behind other sessions, and lands a real answer — and a question the engine declines now falls to `twoPassTurn` for the first time (observed directly: a later grounded turn in the same conversation reported `writing: the question…`, the in-browser path's own status line, which this seam could not previously reach).
+
+**The chips themselves were never broken, and this was confirmed rather than assumed.** With no material attached, a real answer renders two `.sent.self-cited` spans carrying `data-ground="model"`, `data-ground-tier="self"` and the self-tier title text — an underline and no numbered mark, which is exactly what P115 specifies for the self rung. With a real pasted source attached and a grounded question asked against it, the same answer renders numbered `.mark-ref` marks `1` and `2` with the footnote strip reading `1 · named:northgate-observatory-annual-report-1998` and `2 · bound:northgate-observatory-annual-report-1998`, and the per-turn `ground` control un-hides (`gt: [false]`). Every tier drew what it is supposed to draw.
+
+**Suite:** 2549 tests, 2535 passing, 14 failing — the same 14 pre-existing failures across `admission-gate`, `measure`, `reading-log`, `shape-fallback` and `word-meaning`, confirmed identical with this change stashed out (none of those five files imports `app.js`, which no `node --test` can import at all). Zero regressions.
+
+**Two environment facts worth not re-finding.** A git worktree of this repo needs `node_modules` and an `eoreader7` sibling linked next to it or the page's whole module graph fails at link time on a 404 for `node_modules/katex/dist/katex.mjs` — which presents identically to this bug (no handlers bound, submits do nothing) and is NOT it. And the browser pane here is shared: a tab can be navigated out from under a session mid-investigation by a concurrent session, so pin `tabId` on every call and re-read `location.href` before trusting a reading.
+
+**Named, not fixed.** `er7Turn`'s decline path still removes the assistant bubble it created and returns `null` with no line on the record saying the engine declined and why; the fallback is silent to the reader. Disclosing the handoff ("the engine declined — answering in this tab instead") is real, small, unattempted work, left out of this pass because `app.js` was under concurrent edit.

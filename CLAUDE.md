@@ -8754,3 +8754,96 @@ cast organs, the way P11 already routes name identity. Never in the prompt.
 The other nine families move with the model and were NOT run against one in
 that session (no Ollama on the machine); the runs in `results/` are the
 benchmark testing itself, not measurements of the Fold.
+
+## The prompt that grows every turn: measured live, and it is the material block under a hard cap — not the fold leaking (added 2026-09-22) — pointer
+
+No POLICIES.md law landed with this, because nothing was changed: this is
+a measurement against a live complaint ("something is not properly folding
+the conversation... see what's hitting the model, it's growing with every
+prompt", watching Heimdall), and the complaint's direction is right while
+its mechanism is not what it looks like. The organs are
+`eoreader7/proxy-runner.mjs` (`PROMPT_MAX_CHARS`, the `materialRoom` loop,
+`systemCore`), `the-fold/er7-client.js::er7ChatCompletion` and
+`app.js::er7Turn`; `fold.js`'s own `buildTurnMessages` is named below for
+the reason that it is NOT one of them.
+
+**What we did.** We drove ordinary fact-threads — a capital, then its
+population, its language, its river, its currency — through the real chat
+path, once through the browser at `:8816` against the live engine and once
+through a sequential driver that reproduces `er7-client.js`'s own request
+shape exactly (`messages = history.slice(-8) + the task`, one
+`x-er7-session`), and we read the bytes the model actually received, not a
+proxy for them: `proxy-runner.mjs` already writes every assembled
+`ollamaMessages` array to `/tmp/er7-prompt-debug.json` before the fetch, so
+a 250ms mtime watcher turns that into a per-draw series with no
+instrumentation of the engine at all. Twelve prompts landed across four
+sessions, two of them our own threads end to end.
+
+**The series, one session, turn by turn (characters over the whole
+messages array):** 4,412 → 2,735 → 8,446 → 4,796. The other thread the
+same day: 4,474 → 2,363 → 7,894. It is not linear and it is not
+monotone — it spikes on the third turn and falls again on the fourth — and
+it never crosses `PROMPT_MAX_CHARS` (9,216, `ER7_MAX_PROMPT_CHARS`), which
+the assembly genuinely enforces: `materialRoom = PROMPT_MAX_CHARS -
+systemLen - taskLen - chatLen`, and the chat window itself is walked
+backwards and cut at the same budget. **There is no unbounded accumulator
+on the model's prompt.** Split by block, the constant part of
+`systemCore` — the neutral character, `turnStanding`, the frame line, the
+atmosphere lines, the durable speaker facts — held at 1,300–1,700
+characters across every turn we measured, and the whole of the variation
+was the surfed material block: 2,681 / 1,359 / 6,828 / 2,686. What looks
+like growth is the material filling whatever room the turn leaves, and the
+room is largest exactly when the chat window is still short.
+
+**So the growth is real and it is stale.** The 6,828-character turn asked
+"What language is spoken there?" and was handed Wikipedia district prose
+about Chiado, Estrela and Parque das Nações, a US Census first-names
+brief, and two Portuguese-history footnotes — nothing that answers the
+question, carried because the web page admitted on turn one is in the
+session corpus forever and `hasNonChatMaterial` stays true for the rest of
+the session. The composition surf already has the screen for this and says
+so in its own words ("never every retained doc in insertion order — the
+measured door for stale material", `salientDocsForTask`); the CHAT surf
+does not apply it, and `materialRoom` invites whatever the ladder returns
+to fill the budget. Riding beside it, a Kelsen block of pure parsing
+noise — "de do G" vs "de do de" → "de do de (lex posterior)" — at ~1,050
+characters on the turn we caught it. Both are candidates to cut, and
+neither is cut here: P232's own amendment is the precedent that a cut to
+the material feed is settled by an A/B on answer quality, not unilaterally
+(cutting restated claims was free, cutting a note because a snip carried
+it cost 3-4 fabrications in 10), and this box could not host that A/B
+today — see the configuration note below.
+
+**The one thing that genuinely is not folding, and it is not the size.**
+`fold.js::buildTurnMessages` — the function whose own docstring calls it
+"the whole point of the module in one function", one system message
+carrying the folded summary plus at most `RECENCY_WINDOW` raw messages
+plus the question — **has no caller in the product.** `grep` over the repo
+returns `fold.test.mjs` and `experiments/system1-cpu-system2-gpu.mjs`, and
+nothing else. On the engine path `er7Turn` sends `state.history.slice(-8)`
+(twice `RECENCY_WINDOW`, a literal 8 where a declared constant sits
+unused), never sends `state.summary` although it computes and advances it
+on every turn through `advanceSummaryFold`, and sends every live source's
+full text as `attachments` with no cap of its own (the engine dedupes a
+re-sent attachment by name+content, so that one costs request bytes, not
+re-reading). The fold is computed and discarded, and the engine rebuilds a
+bounded prompt of its own from the session corpus. That is what "not
+properly folding the conversation" is literally true of — the compression
+this repo built is not what bounds the prompt; `PROMPT_MAX_CHARS` is.
+
+**State the reader's configuration (P88), because it decided what we could
+and could not measure.** One box, `gemma2:2b` at an 8,192 window, the
+live engine on `:11436` shared with several concurrent sessions and a
+second proxy of our own briefly on `:11466`. The box sat at 96% swap and
+~2,400 pages/s swapped out for most of the pass; Heimdall's own thrashing
+guard stood residency down and then refused `er7:gemma2:2b` outright
+("Heimdall dropped it") for stretches of ten minutes and more, which is
+why the series stops at four turns on a thread rather than eight. Two
+latencies worth not re-deriving: a turn spent **9 to 13 minutes before any
+model call at all**, at 200%+ CPU, with `sample` showing the hot leaves in
+`RegExpSplit` / `StringPrototypeSplit` / Set construction — a pre-draw
+reading stage whose cost tracks corpus size, not prompt size — and the
+same stage is what pushes this box into the pressure that then drops the
+model. If prompt characters are ever worth attacking here, P232's own
+ordering still holds and this pass did not disturb it: contention and
+residency first, call count second, characters third.

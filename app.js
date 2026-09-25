@@ -9006,7 +9006,20 @@ async function send(question) {
   // surface, unchanged. When the engine is unreachable or the turn fails,
   // fall back to the fold's own in-browser engine — the fold's chat must
   // never get worse in the meantime.
-  return er7Turn(question) ?? twoPassTurn(question);
+  // FOUND LIVE (2026-09-22): this line used to read `return er7Turn(question)
+  // ?? twoPassTurn(question)`, and `er7Turn` is `async` — so it returns a
+  // PROMISE, which is never nullish, so `??` never fired and the fallback was
+  // dead code from the day it was written (c12766f). Every turn the engine
+  // declined — unreachable, CORS-refused, busy, throwing — resolved `null`
+  // here with no user message drawn, no answer, no `releaseBusy()`, leaving
+  // `state.busy` stuck true forever: the composer silently swallowed the
+  // first question and tagged every one after it "queued". Read from the
+  // chat surface that is exactly the reported symptom, "the grounding chips
+  // aren't working" — there was no answer to ground. A guarded fallback has
+  // to await its guard; a promise is not a verdict.
+  const engineAnswered = await er7Turn(question);
+  if (engineAnswered) return;
+  return twoPassTurn(question);
 }
 
 /** The flat-chat turn routed through eoreader7's proxy engine, or null to

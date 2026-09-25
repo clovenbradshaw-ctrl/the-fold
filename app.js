@@ -2135,6 +2135,21 @@ const state = {
    */
   citedMaterial: {},
   /**
+   * name → {url, host, title, convo, at}, for pages THIS conversation's own
+   * preflight went and fetched and which are now standing material for the
+   * rest of it (P244). Not a second copy of anything: the bytes live in
+   * `sources` and the passages in `chunks`, exactly like an attachment, and
+   * this is only the bookkeeping that says WHERE each one came from and
+   * that nobody attached it — which is what lets three different rules
+   * hold at once. It is never written to OPFS (a page the instrument
+   * fetched on its own is not a document the person keeps), it is dropped
+   * the moment the conversation is left (`forgetPreflightSources`), and it
+   * is deliberately absent from `sourceOrigin`, so the admission gate
+   * (P190) treats it as material to be EARNED per question rather than as
+   * something the person handed this conversation.
+   */
+  preflightSources: {},
+  /**
    * name → the source's papers, for sources that arrived as priors: the
    * publisher's own frontmatter ({line, fields, path}), read mechanically by
    * the explore server from the document itself — never model-authored. A
@@ -2381,6 +2396,7 @@ const PER_WORKSPACE = [
   "sources",
   "sourceOrigin",
   "citedMaterial",
+  "preflightSources",
   "provenance",
   "muted",
   "chunks",
@@ -2407,6 +2423,7 @@ function newWorkspace(name) {
     sources: {},
     sourceOrigin: {},
     citedMaterial: {},
+    preflightSources: {},
     provenance: {},
     muted: new Set(),
     chunks: [],
@@ -2554,6 +2571,10 @@ function switchConvo(index) {
   // file a task's record into the wrong conversation — so the switch waits,
   // exactly as the composer does.
   if (state.busy) return;
+  // The pages THIS conversation's preflight went and fetched leave with it —
+  // they were never an attachment and their whole reason for being held is
+  // the next question in the SAME conversation (P244).
+  forgetPreflightSources();
   const from = state.convos[state.active];
   if (from) {
     for (const k of PER_CONVO) from[k] = state[k];
@@ -2589,6 +2610,7 @@ function closeConvo(index) {
   // never the last conversation — the strip keeps one at all times.
   if (state.busy || state.convos.length < 2) return;
   const wasActive = index === state.active;
+  if (wasActive) forgetPreflightSources(); // same reasoning as switchConvo (P244)
   state.convos[index].el.remove();
   state.convos.splice(index, 1);
   if (wasActive) {
@@ -9006,7 +9028,15 @@ async function send(question) {
   // surface, unchanged. When the engine is unreachable or the turn fails,
   // fall back to the fold's own in-browser engine — the fold's chat must
   // never get worse in the meantime.
-  return er7Turn(question) ?? twoPassTurn(question);
+  // AWAITED, never bare (found live 2026-09-22): `er7Turn` is an async
+  // function, so the call itself is a Promise and a Promise is never
+  // nullish — `er7Turn(question) ?? twoPassTurn(question)` could not fall
+  // through, so with the proxy unreachable the turn resolved to `null`,
+  // the in-browser engine never ran, no message was ever drawn and the
+  // composer stayed busy for the rest of the page load. Masked wherever
+  // the proxy happens to be up.
+  const throughEngine = await er7Turn(question);
+  return throughEngine ?? twoPassTurn(question);
 }
 
 /** The flat-chat turn routed through eoreader7's proxy engine, or null to
@@ -10892,6 +10922,35 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
   // aside for THIS turn — still loaded, still visible in Sources, exactly
   // the same retrieval-only scope the mute toggle already has.
   let admissionNote = null;
+  // THE LOW BAR, BEFORE THE HIGH ONE (P244). A page this instrument fetched
+  // for an earlier question drops out of THIS question's material unless the
+  // question still touches what the page was fetched for — see
+  // `preflightStillOnTopic` for the live specimen that made this necessary.
+  // Done before admission rather than inside it because admission.js knows
+  // nothing about why a source is loaded, and should not: it compares text
+  // to text, and who fetched what for which question is this surface's own
+  // bookkeeping (the same division `exempt` already draws, P235).
+  let offTopicNote = null;
+  // HELD AT FUNCTION SCOPE, because a later block undoes both filters. The
+  // named-URL branch further down re-reads the WHOLE pool
+  // (`live = liveChunks()`) so a page THIS ask named can join it, and that
+  // re-read silently discards every scoping decision made up here — its own
+  // comment already records this happening once to a piece's scope, and
+  // measured again 2026-09-22 it was discarding this gate's set-asides AND
+  // admission's own refusals. Both sets are re-applied there rather than
+  // re-derived, so the two places cannot drift.
+  let setAsideNames = new Set();
+  if (live.length && Object.keys(state.preflightSources ?? {}).length) {
+    const stale = new Set(Object.keys(state.preflightSources).filter((n) => !preflightStillOnTopic(task, n)));
+    if (stale.size) {
+      const before = live.length;
+      live = live.filter((c) => !stale.has(c.source));
+      if (live.length !== before) {
+        setAsideNames = stale;
+        offTopicNote = `set aside ${stale.size} page(s) found earlier for a different question — this one does not touch what they were fetched for: ${[...stale].join(", ")}`;
+      }
+    }
+  }
   if (live.length) {
     const bySource = new Map();
     for (const c of live) if (!bySource.has(c.source)) bySource.set(c.source, state.sources[c.source] ?? c.text ?? "");
@@ -10915,8 +10974,19 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     const { refused } = admissionGate.admitSources(task, [...bySource.entries()].map(([name, text]) => ({ name, text })), { exempt: ownNames });
     if (refused.length) {
       const refusedNames = new Set(refused.map((r) => r.name));
+      for (const n of refusedNames) setAsideNames.add(n);
       live = live.filter((c) => !refusedNames.has(c.source));
-      admissionNote = `set aside ${refused.length} attached source(s) as unrelated to this question: ${refused.map((r) => r.name).join(", ")}`;
+      // A page the preflight fetched earlier in this conversation is set
+      // aside in different words from a document somebody attached — the
+      // second is the person's own material being held back, the first is
+      // this instrument declining to re-use what it went and found for an
+      // earlier question (P244). Said apart so neither reads as the other.
+      const refusedAuto = refused.filter((r) => state.preflightSources?.[r.name]);
+      const refusedHeld = refused.filter((r) => !state.preflightSources?.[r.name]);
+      admissionNote = [
+        refusedHeld.length ? `set aside ${refusedHeld.length} attached source(s) as unrelated to this question: ${refusedHeld.map((r) => r.name).join(", ")}` : "",
+        refusedAuto.length ? `set aside ${refusedAuto.length} page(s) found earlier in this conversation as unrelated to this question: ${refusedAuto.map((r) => r.name).join(", ")}` : "",
+      ].filter(Boolean).join("; ");
     }
   }
   // A PIECE stands only on material in its scope (P114): sources whose text
@@ -11043,6 +11113,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     logBlock.textContent += (logBlock.textContent ? "\n" : "") + line;
     node.scrollIntoView({ block: "end" });
   };
+  if (offTopicNote) show(offTopicNote);
   if (admissionNote) show(admissionNote);
   if (scopeNote) show(scopeNote);
 
@@ -11364,7 +11435,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
         show(`named source ${hostOf(url)}: could not fetch — ${e.message}`);
       }
     }
-    live = liveChunks();
+    live = liveChunks().filter((c) => !setAsideNames.has(c.source));
     // The named-source block re-reads the WHOLE pool (a page just attached
     // must join it), which silently undid a piece's scope — measured, run
     // 8: seven `holon.js` passages and two of the plan of record reached
@@ -11481,7 +11552,13 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     // proof-seeking candidates FROM the invented sentence, so the search
     // that followed looked for "70" and read an RV blog, never NYC weather.
     // A materialless follow-up ("prove it") made it worse: the model
-    // fabricated a second sentence, and the search ran on THAT. Handing the
+    // fabricated a second sentence, and the search ran on THAT.
+    // (Amended 2026-09-22, P244: a fetched page is now kept as material for
+    // the rest of THIS conversation, so a second question about the same
+    // thing finds it already loaded and never crosses the network again;
+    // `gatherPreflightMaterial`'s own header carries the full account, and
+    // the lines below about nothing persisting are superseded by it.)
+    // Handing the
     // existing checking ladder real material before the draft exists fixes
     // both at once — checkGrounding runs for real instead of the
     // no-material fallback inventing candidates, and any figure the model
@@ -15553,14 +15630,23 @@ async function checkLinkCitation(url) {
  * ordinary retrievable chunks — the SAME chunkSource (source.js) every
  * attachment is chunked with, so what follows (retrieve, checkGrounding,
  * attribute, corroborateAtoms, resolveName, the relation tier) is the
- * existing ladder doing real work, not a second checking mechanism. Nothing
- * here is written to state.sources: no attachment pill appears, nothing
- * persists past this turn's `chunks:` array — the same turn-scoped posture
- * `faces` already has for pages read mid-turn proof-seeking. The raw pages
- * themselves are still durably saved server-side by the same P13 fetch
- * every read goes through (web/pages/, web/history.jsonl); a reader who
- * wants this specific page as a standing attachment still opens it from
- * web history, same as any other saved page.
+ * existing ladder doing real work, not a second checking mechanism.
+ *
+ * A FETCHED PAGE IS KEPT FOR THE REST OF THIS CONVERSATION (P244, 2026-09-22).
+ * This used to be turn-scoped — "nothing here is written to state.sources,
+ * nothing persists past this turn's chunks array" — and the cost of that was
+ * measured live: the same factual question asked twice in one conversation
+ * re-ran the whole search, fetch and reading pass against a page this
+ * instrument had already fetched, chunked, read and cited minutes earlier.
+ * `keepPreflightSource` (above) writes the page and ITS OWN passages, the
+ * ones this turn actually read, into state, tagged in `preflightSources` so
+ * every surface can say it was found rather than attached. It is NOT
+ * persisted and NOT exempt from admission — see that function's own header
+ * for why each of those matters. The raw pages themselves are still durably
+ * saved server-side by the same P13 fetch every read goes through
+ * (web/pages/, web/history.jsonl); a reader who wants this specific page as
+ * a standing attachment still opens it from web history, same as any other
+ * saved page.
  *
  * The read-back residue is CLOSED: every page chunked here also lands in
  * state.citedMaterial, so a citation into it re-opens for the life of the
@@ -15574,6 +15660,99 @@ async function checkLinkCitation(url) {
 // the search's results get their full page fetched. Defaults to the same
 // declared constant the slice below always used, so every caller that
 // passes nothing is byte-identical to before this parameter existed.
+/**
+ * The name a preflight-fetched page carries for the life of this
+ * conversation. Stable across TURNS, not across search ranks: the host plus
+ * this conversation's own count of distinct urls already held from that
+ * host, so the first fr.wikipedia.org page read stays `web:fr.wikipedia.org-0`
+ * however the next search happens to rank it. The rank `i` is kept only as
+ * the tiebreak for a genuinely new url, so two picks from one host inside a
+ * single turn still cannot collide.
+ */
+function preflightSourceName(url, i) {
+  const host = hostOf(url);
+  for (const [name, held] of Object.entries(state.preflightSources ?? {})) {
+    if (held?.url === url) return name;
+  }
+  const taken = new Set(Object.keys(state.preflightSources ?? {}));
+  const base = `web:${host}-`;
+  let n = 0;
+  while (taken.has(base + n)) n += 1;
+  return base + (taken.has(base + i) ? n : i);
+}
+
+/**
+ * Keep a page the preflight just fetched AND read as standing material for
+ * the rest of this conversation — the bytes in `sources`, the SAME passages
+ * this turn read in `chunks`, and the bookkeeping in `preflightSources`.
+ *
+ * Three things it deliberately does NOT do, each closing a wall that would
+ * otherwise come open. It does not write `sourceOrigin`, so admission.js
+ * (P190/P235) gates it on the question's own vocabulary like any other
+ * material rather than exempting it as something a person handed this
+ * conversation — which is what keeps an off-topic later turn from reading
+ * `live` as non-empty and silently losing its own preflight. It does not
+ * persist to OPFS (`persistSource`): a page the instrument fetched on its
+ * own initiative is not a document anybody chose to keep, and P206's own
+ * per-tab storage discipline should not have to answer for it. And it does
+ * not re-read the page on arrival (`readSourceOnArrival`): the preflight has
+ * just read it, and a second reading pass would spend the very budget this
+ * whole change exists to stop spending twice.
+ */
+function keepPreflightSource(name, text, chunks, { url, title = null, retrievedAt = null, query = "" } = {}) {
+  if (!text?.trim() || !chunks?.length) return;
+  state.sources[name] = text;
+  state.chunks = state.chunks.filter((c) => c.source !== name).concat(chunks);
+  state.preflightSources[name] = { url, host: hostOf(url), title, retrievedAt, query, convo: convoNow(), at: Date.now() };
+  renderSources?.();
+}
+
+/**
+ * Is a page this instrument fetched for an EARLIER question even a candidate
+ * for THIS one? The low bar of a two-tier gate: the question has to touch the
+ * topic the page was fetched for at all — one content word shared with the
+ * query that went and got it. The high bar is admission.js's own (floor,
+ * company, the search-aware null), unchanged, and it still runs after this.
+ *
+ * Measured live 2026-09-22, and this gate exists because of it: with the
+ * three Les Misérables pages held, "what is the boiling point of tungsten?"
+ * CLEARED admission on a 69,000-character Wikipedia article — a page that
+ * long carries almost any ordinary pair of English words together in two
+ * separate paragraphs, which is exactly the recurrence admission trusts
+ * outright and never puts to its null. So `live` was not empty, the
+ * preflight never fired, and a question the web would have answered in one
+ * search was answered "not stated in the sources I looked at" instead. A
+ * kept page must not be able to silently cost a later question its own
+ * search. Nothing a PERSON attached is touched by this — only pages this
+ * instrument fetched on its own initiative are asked to still be on topic.
+ */
+function preflightStillOnTopic(question, name) {
+  const held = state.preflightSources?.[name];
+  if (!held) return true; // not an automatic fetch — none of this gate's business
+  const asked = new Set(admissionGate.questionTerms(question));
+  if (!asked.size) return true; // nothing to gate on, the same posture admission takes
+  const fetchedFor = tokenize(held.query ?? "");
+  if (!fetchedFor.length) return true; // no recorded query — never refuse on an absence
+  return fetchedFor.some((t) => asked.has(t));
+}
+
+/**
+ * Drop every page THIS conversation's preflight fetched. Called wherever a
+ * conversation stops being the active one — these pages were never anyone's
+ * attachment, and the reason they are held at all (a second question about
+ * the same thing, in the same conversation, should not pay for the same
+ * fetch twice) stops applying the moment the conversation does.
+ */
+function forgetPreflightSources() {
+  for (const name of Object.keys(state.preflightSources ?? {})) {
+    delete state.sources[name];
+    delete state.preflightSources[name];
+    state.muted.delete(name);
+    state.chunks = state.chunks.filter((c) => c.source !== name);
+  }
+  renderSources?.();
+}
+
 const LONGFORM_PAGES_CONSULTED = 8; // the leash for a piece's hunt (P9): the settling rule decides the spend, this is its ceiling
 const LONGFORM_SECTION_PAGES = 2;   // the leash for one section's own hunt (P110)
 async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pagesConsulted = PREFLIGHT_PAGES_CONSULTED, query: queryOverride = null } = {}) {
@@ -15721,15 +15900,24 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
       // Indexed, not just host-named: two picks from the same host (two
       // Wikipedia articles, say) must not chunk under one source name and
       // silently merge their addresses.
-      const sourceName = `web:${hostOf(url)}-${i}`;
+      // Stable across turns, not across positions: the index used to be
+      // the search result's own rank `i`, which is fine inside one turn
+      // (two picks from the same host must not collide) but makes the SAME
+      // page a different source name the next time the same search ranks
+      // it differently — and a source name that drifts is a source the
+      // rest of this conversation cannot recognise as already held (P244).
+      // The host plus this conversation's own count of DISTINCT urls from
+      // it: the first Wikipedia page read in a conversation is
+      // `web:fr.wikipedia.org-0` for the life of that conversation, on
+      // whatever turn it is read again.
+      const sourceName = preflightSourceName(url, i);
       // The fetch record's OWN retrieval date, carried onto the chunk so
       // `buildSourceBlock` can say "en.wikipedia.org, retrieved 2026-08-27"
       // instead of "MATERIAL". Read off `f.entry` (explore-server stamps it
       // at fetch time), never computed here — a date this app made up would
       // be exactly the fabricated provenance the naming exists to avoid, and
       // an absent one correctly prints no date at all.
-      chunks.push(
-        ...chunkSource(sourceName, text, {
+      const pageChunks = chunkSource(sourceName, text, {
           identity: { ...identifyMaterial(url, text), retrievedAt: f.entry.retrievedAt ?? null },
           // Same fix, same reason as addSource — a fetched page's cast
           // deserves the identical furniture wall a pasted one now gets.
@@ -15748,12 +15936,29 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
           // re-paste; source.js's own declared default (mergeShortRuns.js
           // header) is unchanged for every other caller.
           mergeShortRuns: true,
-        }),
-      );
+      });
+      chunks.push(...pageChunks);
       // Kept for audit, not for retrieval: any address cited into this page
       // must re-open for the life of the conversation, or a real mechanical
       // citation reads exactly like a fabricated one the moment the turn ends.
       state.citedMaterial[sourceName] = text;
+      // AND KEPT FOR THE REST OF THIS CONVERSATION (P244). The paragraph at
+      // the head of this function used to say "nothing here is written to
+      // state.sources… nothing persists past this turn's chunks array", and
+      // the cost of that was measured live 2026-09-22: asking the same
+      // factual question twice in one conversation spent the ENTIRE search,
+      // fetch and reading pass a second time on a page this instrument had
+      // read minutes earlier, with a real address and a real retrieval date
+      // already in hand. The bytes are kept now, with the SAME passages this
+      // turn actually read (never a second, differently-cut copy — a
+      // re-chunk here would make the addresses this turn cited disagree with
+      // the addresses the next turn holds). What is deliberately NOT done is
+      // just as load-bearing: no `sourceOrigin` entry, so the admission gate
+      // (P190/P235) never exempts it the way it exempts what a PERSON handed
+      // this conversation — an automatic fetch has to earn its place in
+      // every later question on the question's own words, and when it does
+      // not, `live` empties and `shouldPreflight` fires exactly as before.
+      keepPreflightSource(sourceName, text, pageChunks, { url, title: f.entry.title ?? r.title ?? null, retrievedAt: f.entry.retrievedAt ?? null, query });
       rememberPageFace(sourceName, url, f.entry);
       pages.push({ url, host: hostOf(url), title: f.entry.title ?? r.title ?? null, name: sourceName, ...(f.entry.via ? { via: f.entry.via.gateway } : {}) });
       onStep?.(`${hostOf(url)}: ${text.length.toLocaleString()} chars kept${f.entry.via ? ` — via ${f.entry.via.gateway} (direct fetch ${f.entry.via.why}; ${f.entry.via.sees})` : ""}`);
@@ -17795,6 +18000,7 @@ function removeSource(name) {
   // which is the honest failure for an address whose material is gone.
   delete state.sources[name];
   delete state.sourceOrigin[name];
+  delete state.preflightSources[name];
   delete state.provenance[name];
   state.muted.delete(name);
   state.chunks = state.chunks.filter((c) => c.source !== name);
@@ -18060,6 +18266,11 @@ function renderSourcesPanel() {
   function buildSourceRow(name, text, { nested = false } = {}) {
     const on = !state.muted.has(name);
     const prov = state.provenance[name];
+    // A page this instrument went and fetched on its own says so, in the
+    // row's own meta line — "attached" and "found while answering" are two
+    // different facts about one loaded source, and only one of them is
+    // something the person did (P244).
+    const auto = state.preflightSources?.[name];
     const ext = name.split(".").pop().toLowerCase();
     const icon = ({ md: "M", txt: "T", csv: ",", json: "{", html: "<", js: "JS", py: "PY", sql: "S", pdf: "PDF" })[ext]
       ?? name.charAt(0).toUpperCase();
@@ -18069,7 +18280,7 @@ function renderSourcesPanel() {
       <div class="sources-file-icon">${icon}</div>
       <div class="sources-file-info">
         <div class="sources-file-name">${esc(name)}</div>
-        <div class="sources-file-meta">${fmtBytes(text.length)}${prov?.line ? ` · ${esc(prov.line)}` : ""}</div>
+        <div class="sources-file-meta">${fmtBytes(text.length)}${prov?.line ? ` · ${esc(prov.line)}` : ""}${auto ? ` · found while answering${auto.retrievedAt ? `, retrieved ${esc(String(auto.retrievedAt).slice(0, 10))}` : ""} — not attached by you` : ""}</div>
       </div>
       <div class="sources-file-actions">
         <button type="button" data-action="mute" title="${on ? "silence" : "unsilence"} this source">${on ? "mute" : "unmute"}</button>

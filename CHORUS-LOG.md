@@ -401,3 +401,13 @@ fast: 7 files · 53 affected tests pass (heimdall-invite 4, matrix-client 31, co
 | Marshall | II.13 | constitution.test.mjs | clean | heimdall-invite.js joins the zero-egress allowance — pure, injected crossings, the site literal is only a link target |
 | Simon/Chekhov | none | heimdall-invite.js | clean | dedicated heimdall-invite.test.mjs (4 cases) plus a production consumer (app.js) — wired, not nascent |
 clean: - (the four chorus FAIL lines were environmental, verified not-mine: widget.test.mjs concurrent uncommitted edits, the stray _site_check/ built-site dir, and archon-hyphae.test.mjs's live-homeserver provision failing identically on HEAD)
+
+## 2026-09-22 — preflight pages kept per conversation, gated on the query that fetched them (agent-aa07326b96cb5bfdd, working)
+fast: 3 files · 10 affected test files, 174 pass 0 fail · law: ok (9 citations resolve; P244 carries Generality) — WARN pre-existing dup headers P115 P116 P117 P19 P233 / S17 S96, untouched here
+| lens | citation | file:line | verdict | one line |
+| Ostrom | P244, P54 | app.js:10949 | noted | the set-aside is named page by page in the turn's own trace ("set aside N page(s) found earlier for a different question"), never reported as "there was nothing"; admission's two notes are kept apart so an instrument's own fetch is not described as the person's attachment. |
+| Frankfurt | P4, P234 | app.js:10963 | noted | the new gate introduces no constant: its bar is a non-empty intersection with the recorded query — structural, declared as the LOW bar, with admission's floor/company/null unchanged as the high one. |
+| Alexander | P244 | app.js:9036 | fixed | the composition seam was silently defaulting to "don't compose": `er7Turn(question) ?? twoPassTurn(question)` can never fall through (an async call is a Promise, never nullish), so with the proxy down the fold's own engine never ran and the composer stayed busy — now awaited. |
+| Kondo | — | app.js | clean | nothing left unwired: `keepPreflightSource`, `forgetPreflightSources` (2 call sites) and `preflightStillOnTopic` all have live callers, and `state.preflightSources` is read by the gate, the admission note, the sources row and `removeSource`. |
+| Marshall | IV.1, P220 | POLICIES.md:13886 | noted | P244 is a new entry, not an amendment; its enforcement is the live run recorded in it plus the affected suite, since app.js is DOM-coupled and no `node --test` can import it — the same standing exception P220 records for a fix in this file. |
+clean: Kondo

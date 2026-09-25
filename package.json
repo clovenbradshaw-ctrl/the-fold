@@ -5,7 +5,7 @@
   "type": "module",
   "description": "A reading that runs for months without degrading.",
   "scripts": {
-    "test": "node --test *.test.mjs"
+    "test": "node --test *.test.mjs goldens/*/*.test.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",

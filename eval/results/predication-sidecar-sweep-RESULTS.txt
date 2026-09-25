@@ -1,0 +1,130 @@
+sweeping 2208 stored readings under /Users/mlacy/Documents/3.0/live_priors
+declared: minOccurrences=5, alpha=0.05  (no source file is opened; no extractor runs)
+
+=== WHAT THE STORED READINGS HOLD ===
+  sidecars parsed          2208
+  with arrangements        1808
+  empty (nothing admitted) 400
+  no folded[] at all       0
+  unparseable              0
+  arrangements examined    33504
+  admission gates          {"clean":1808,"empty":284,"gapped_script":116}
+
+=== WHAT THIS ORGAN FOUND ===
+  invariant convicted      205  (0.61% of arrangements)
+  p across ALL convicted   2.5e-33 .. 1.2e-2  (declared alpha 0.05)
+  below recurrence floor   33297  (99.38%)
+  predications detected    none — this organ convicts composition only, and never reads
+                           "varying ends" as evidence of anything
+
+=== INVARIANT (arrangements that recur unchanged — refrain / formula / name, undistinguished) ===
+    7x  p=  1.6e-8  "research claim is true may depend on study power and bias"   [ioannidis-2005-why-most-publ]
+    5x  p=  3.0e-8  "gyxzeu daov ai novzeu nie gyxzeu rof ai novzeu ku puvbianf nie xiaofgov "   [udhr-013.txt]
+    5x  p=  3.2e-7  "Novdiex nier cov nier cenryanrdiex hufniv xief niexxir zunxyanr niex qia"   [udhr-025.txt]
+   11x  p= 3.8e-14  "Katram cilvēkam ir tiesības uz dzīvību"   [udhr-041.txt]
+    5x  p=  6.3e-6  "TINGTING TOHAP ni MANISIA"   [udhr-050.txt]
+   12x  p= 2.8e-17  "We Evribadi av ina Di Worl (Yuunivorshal Deklarieshan a Yuuman Raits)"   [udhr-055.txt]
+   13x  p= 2.0e-21  "Lankasta meeboo xaq inlihaa Nolol"   [udhr-064.txt]
+    6x  p= 2.0e-10  "he blɔ nɛ e kpɔɔ ngɛ a dɛ ɔ"   [udhr-ada.txt]
+    9x  p= 7.1e-13  "allpon derechos ñeñt ̃e'ñe po'ñoc̈h yocop ñeñt̃cha' atet ̃ yep̃a'yena al"   [udhr-ame.txt]
+    5x  p=  3.2e-7  "kom pu ce wvnenkvlelu cem zugu mew rume"   [udhr-arn.txt]
+    6x  p=  7.7e-9  "wenvykawvn kom pu Xokiñke Ce egvn"   [udhr-arn.txt]
+   11x  p= 3.7e-17  "na mayo nin ano man na palaen arog kan raza"   [udhr-bcl.txt]
+   14x  p= 4.3e-22  "saro igwa nin gabos na mga derechos asin mga katalinkasan na ipinahayag "   [udhr-bcl.txt]
+    6x  p=  1.1e-8  "ködyö gwon ko gayet nageleŋ ’bak nene nyunyumet kode laŋa na kilo saresi"   [udhr-bfa.txt]
+   12x  p= 3.3e-20  "Emwen Etin ne O Kheke Omwan na ya wewe Vbe Uhunmwun oto-agbon hia"   [udhr-bin.txt]
+    9x  p= 1.3e-13  "ikwol raet blong man mo woman olsem stamba blong fridom"   [udhr-bis.txt]
+    5x  p=  6.7e-7  "cuat dol muax ndos xangd sheuf jax shad"   [udhr-blu.txt]
+    7x  p= 1.2e-10  "Co topinan quëran tëpacaso' ya'huërinhuë'"   [udhr-cbt.txt]
+    5x  p=  1.3e-7  "nga sa katapusan nga ang matag tawo ug matag bahin sa katilingban"   [udhr-ceb.txt]
+    9x  p= 1.2e-14  "ʒem zal' shɛŋa ŋan be litaafi ŋɔ ni ka zilsigu ni fabila nabigi m-maan p"   [udhr-dag.txt]
+   10x  p= 6.0e-18  "Jeder hat das Recht auf Leben"   [udhr-deu_1901.txt]
+   10x  p= 6.0e-18  "Jeder hat das Recht auf Leben"   [udhr-deu_1996.txt]
+   15x  p= 7.8e-16  "Koomoye woodi baawɗe e hakke maagooje naftirooje hukuumaaje ɗe nder lesd"   [udhr-fuv2.txt]
+   12x  p= 3.2e-23  "jeder Mensch het s Racht ùffs Lawe"   [udhr-gsw1.txt]
+    7x  p= 1.2e-11  "Enaha thë puhi taeo kuaai"   [udhr-guu.txt]
+
+=== SOURCES WITH THE MOST-RECURRING INVARIANT ===
+   25x  1/7 convicted  "your Lord would you deny?"  — 14-holy-texts/tanzil-quran/parallel/surah_055_
+   20x  1/52 convicted  "Chijunil li poyanam juntaq'eet wankil xloq'al naq na"  — 06-government-legal/un-udhr/udhr-kek.txt
+   18x  1/47 convicted  "nghọta onye ọ bụla banyere ikike na ohere ndi a kach"  — 06-government-legal/un-udhr/udhr-ibo.txt
+   18x  2/53 convicted  "Ema hotu iha direitus ho liberdades tau iha Deklaras"  — 06-government-legal/un-udhr/udhr-tet.txt
+   16x  1/31 convicted  "rar bek 'l chad ma bek 'l beluu"  — 06-government-legal/un-udhr/udhr-pau.txt
+   16x  2/6 convicted  "Valsts ieņēmumu dienests pieņem"  — 06-government-legal/world-legislation/lv/22559
+   15x  1/12 convicted  "Koomoye woodi baawɗe e hakke maagooje naftirooje huk"  — 06-government-legal/un-udhr/udhr-fuv2.txt
+   15x  1/25 convicted  "Vigni porsona à le dërt de vita"  — 06-government-legal/un-udhr/udhr-lld.txt
+   15x  1/18 convicted  "application was submitted in accordance with Article"  — 06-government-legal/world-legislation/eu/32016
+   14x  2/44 convicted  "saro igwa nin gabos na mga derechos asin mga katalin"  — 06-government-legal/un-udhr/udhr-bcl.txt
+   14x  1/15 convicted  "Awbody hes the richt tae life"  — 06-government-legal/un-udhr/udhr-sco.txt
+   13x  1/53 convicted  "Lankasta meeboo xaq inlihaa Nolol"  — 06-government-legal/un-udhr/udhr-064.txt
+
+=== SIDECAR QUALITY, OBSERVED WHILE SWEEPING (report back to live_priors) ===
+  sidecars whose spans did not fully self-verify: 0
+  sidecars carrying no folded[] array:            0
+  unparseable sidecars:                           0
+  → nothing wrong found in the stored readings themselves on these axes.
+sweeping 2208 stored readings under /Users/mlacy/Documents/3.0/live_priors
+declared: minOccurrences=2, alpha=0.05  (no source file is opened; no extractor runs)
+
+=== WHAT THE STORED READINGS HOLD ===
+  sidecars parsed          2208
+  with arrangements        1808
+  empty (nothing admitted) 400
+  no folded[] at all       0
+  unparseable              0
+  arrangements examined    33504
+  admission gates          {"clean":1808,"empty":284,"gapped_script":116}
+
+=== WHAT THIS ORGAN FOUND ===
+  invariant convicted      1975  (5.89% of arrangements)
+  p across ALL convicted   2.5e-33 .. 4.8e-2  (declared alpha 0.05)
+  below recurrence floor   30761  (91.81%)
+  predications detected    none — this organ convicts composition only, and never reads
+                           "varying ends" as evidence of anything
+
+=== INVARIANT (arrangements that recur unchanged — refrain / formula / name, undistinguished) ===
+    2x  p=  2.7e-2  "but it was a black morning's work for her"   [pg158_Emma.txt]
+    2x  p=  2.7e-2  "who had fallen little short of a mother in affection"   [pg158_Emma.txt]
+    2x  p=  3.8e-2  "which had been large"   [pg161_Sense-and-Sensibility.]
+    2x  p=  2.9e-2  "Buck did not read the newspapers"   [pg215_The-Call-of-the-Wild.t]
+    2x  p=  2.6e-2  "When Dorothy stood in the doorway and looked around"   [pg55_The-Wonderful-Wizard-of]
+    2x  p=  4.2e-2  "as is seen in No"   [pg10671_The_Iliad__Greek_.tx]
+    2x  p=  2.9e-2  "but it was too dark to see anything"   [pg11_Alice_s_Adventures_in_W]
+    2x  p=  2.9e-2  "that she had never before seen a rabbit with either a waistcoat-pocket"   [pg11_Alice_s_Adventures_in_W]
+    3x  p=  8.7e-4  "There was nothing so _very_ remarkable in that"   [pg11_Alice_s_Adventures_in_W]
+    2x  p=  3.8e-2  "she went on"   [pg12_Through_the_Looking_Gla]
+    2x  p=  2.9e-2  "There is no such thing as a moral or an immoral book"   [pg174_The_Picture_of_Dorian_]
+    3x  p=  1.2e-2  "of Kirk o' Field"   [pg2636_Faust__German_.txt]
+    2x  p=  2.0e-2  "actual Enumeration shall be made within three Years after the first Meet"   [Constitution_of_the_United_S]
+    2x  p=  2.0e-2  "and who shall not"   [Constitution_of_the_United_S]
+    2x  p=  2.0e-2  "as they shall by Law direct"   [Constitution_of_the_United_S]
+    2x  p=  2.0e-2  "No Person shall be a Representative who shall not have attained to the a"   [Constitution_of_the_United_S]
+    2x  p=  2.0e-2  "which he shall be chosen"   [Constitution_of_the_United_S]
+    2x  p=  2.3e-2  "Western Roman empire in the 5th centuryAD"   [Byzantine_Empire.txt]
+    2x  p=  2.8e-2  "Christianity remains Christian cultureculturally diverse in its Western "   [Christianity.txt]
+    2x  p=  2.0e-2  "DNA is organized into long structures called chromosomes"   [DNA.txt]
+    2x  p=  2.0e-2  "Each nucleotide is composed of one of four nitrogenous basenitrogen-cont"   [DNA.txt]
+    2x  p=  2.0e-2  "on one strand and an exposed Directionality (molecular biology)3′-end3′ "   [DNA.txt]
+    2x  p=  2.0e-2  "the DNA strand is made from alternating phosphate and carbohydratesugar "   [DNA.txt]
+    3x  p=  4.0e-4  "two DNA strands are known as polynucleotides as they are composed of sim"   [DNA.txt]
+    2x  p=  2.0e-2  "that Dante was around 35 years old"   [Dante_Alighieri.txt]
+
+=== SOURCES WITH THE MOST-RECURRING INVARIANT ===
+   25x  2/7 convicted  "your Lord would you deny?"  — 14-holy-texts/tanzil-quran/parallel/surah_055_
+   20x  4/52 convicted  "Chijunil li poyanam juntaq'eet wankil xloq'al naq na"  — 06-government-legal/un-udhr/udhr-kek.txt
+   18x  4/47 convicted  "nghọta onye ọ bụla banyere ikike na ohere ndi a kach"  — 06-government-legal/un-udhr/udhr-ibo.txt
+   18x  8/53 convicted  "Ema hotu iha direitus ho liberdades tau iha Deklaras"  — 06-government-legal/un-udhr/udhr-tet.txt
+   16x  8/31 convicted  "rar bek 'l chad ma bek 'l beluu"  — 06-government-legal/un-udhr/udhr-pau.txt
+   16x  3/6 convicted  "Valsts ieņēmumu dienests pieņem"  — 06-government-legal/world-legislation/lv/22559
+   15x  1/12 convicted  "Koomoye woodi baawɗe e hakke maagooje naftirooje huk"  — 06-government-legal/un-udhr/udhr-fuv2.txt
+   15x  1/25 convicted  "Vigni porsona à le dërt de vita"  — 06-government-legal/un-udhr/udhr-lld.txt
+   15x  2/18 convicted  "application was submitted in accordance with Article"  — 06-government-legal/world-legislation/eu/32016
+   14x  6/44 convicted  "saro igwa nin gabos na mga derechos asin mga katalin"  — 06-government-legal/un-udhr/udhr-bcl.txt
+   14x  1/15 convicted  "Awbody hes the richt tae life"  — 06-government-legal/un-udhr/udhr-sco.txt
+   13x  3/53 convicted  "Lankasta meeboo xaq inlihaa Nolol"  — 06-government-legal/un-udhr/udhr-064.txt
+
+=== SIDECAR QUALITY, OBSERVED WHILE SWEEPING (report back to live_priors) ===
+  sidecars whose spans did not fully self-verify: 0
+  sidecars carrying no folded[] array:            0
+  unparseable sidecars:                           0
+  → nothing wrong found in the stored readings themselves on these axes.

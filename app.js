@@ -300,6 +300,11 @@ import { extractSurfaces, extractLeadingSurfaces, discoverReferents, namesCorefe
 import { resolvePronouns } from "/engine-v7/adapters/text/pronouns.js";
 import { makeCastResolver, makeCastHandles, makeReferentIndex } from "./cast.js";
 import { makeShapeFallback } from "./shape-fallback.js";
+// The list reader (P-enumeration, merged 2026-09-25 from reading-cast-cleanup):
+// when the material enumerates its own answer, READ THE LIST rather than
+// asking a model to paraphrase it. Same station as arithmetic.js — computed,
+// never generated.
+import { answeringEnumeration, checkDeclaredCount, enumerationsInChunk } from "./enumeration.js";
 
 // The relation tier — the answer read against the edges the material itself
 // binds (hypergraph.js; the P12 amendment). Same mount, same injection
@@ -9232,6 +9237,88 @@ async function arithmeticTurn(question, found) {
 }
 
 /**
+ * Does the MATERIAL enumerate the answer to this question outright?
+ *
+ * Runs over the same live chunks a grounded turn would retrieve against, and
+ * fires only when a list's own head shares content with the question — a list
+ * that is not about what was asked is not an answer to it. Returns null
+ * otherwise, so every ordinary question falls through untouched.
+ */
+const ENUMERATION_CARDINALS = Object.freeze({ two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7 });
+function checkEnumeration(question) {
+  try {
+    const chunks = liveChunks();
+    if (!chunks.length) return null;
+    const found = [];
+    for (const c of chunks) {
+      const src = state.sources?.[c.source];
+      if (typeof src !== "string") continue;
+      found.push(...enumerationsInChunk(c, src).enumerations.map((e) => ({ e, source: c.source })));
+    }
+    if (!found.length) return null;
+    const best = answeringEnumeration(found.map((f) => f.e), question, { tokenize });
+    if (!best) return null;
+    // NO READER IS PERFECT, SO THIS ONE REFUSES RATHER THAN COMMITS. A
+    // mechanical answer carries byte addresses, and addresses confer
+    // authority: a wrong list shipped with references is worse than a hedged
+    // model answer, because it looks checked (arithmetic.js's own line). The
+    // material said how many and we found a different number: something here
+    // is misread, and which one is not knowable from inside. Refuse.
+    const counted = checkDeclaredCount(best.enumeration, { cardinals: ENUMERATION_CARDINALS });
+    if (counted.agrees === false) return null;
+    const owner = found.find((f) => f.e === best.enumeration);
+    return { ...best, source: owner?.source ?? null, counted };
+  } catch {
+    return null; // a mechanical door never breaks a turn
+  }
+}
+
+/**
+ * The list, rendered from the material's own bytes with every item addressed.
+ * No model call: the same posture arithmeticTurn holds one register over.
+ */
+async function enumerationTurn(question, found) {
+  addMessage("user", question);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+  body.textContent = "";
+  const e = found.enumeration;
+  const count = found.counted ?? checkDeclaredCount(e, { cardinals: ENUMERATION_CARDINALS });
+  const lead = document.createElement("p");
+  lead.textContent = e.head.replace(/\s+/g, " ").trim() + ":";
+  const list = document.createElement("ol");
+  for (const it of e.items) {
+    const li = document.createElement("li");
+    li.textContent = it.text.replace(/\s+/g, " ");
+    const ref = document.createElement("span");
+    ref.className = "ref";
+    ref.textContent = `  [${found.source ?? "material"}#${it.start}-${it.end}]`;
+    li.append(ref);
+    list.append(li);
+  }
+  const note = document.createElement("p");
+  note.className = "note";
+  note.textContent =
+    count.declared != null
+      ? `read from the list, not generated — the material declares ${count.declared} and ${count.agrees ? "states" : "states a differing"} ${count.found}`
+      : "read from the list, not generated";
+  body.append(lead, list, note);
+  const answer = `${e.head.replace(/\s+/g, " ").trim()}: ${e.items.map((i) => i.text.replace(/\s+/g, " ")).join("; ")}`;
+  state.history.push({ role: "user", content: question }, { role: "assistant", content: answer });
+  const turn = state.summary.turnCount + 1;
+  logAct("answered-from-state", { what: "enumeration", source: found.source ?? null, count: e.items.length });
+  observeExchange(turn, question, answer);
+  const fold = mechanicalFoldLine(question, answer);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+  renderFold(node, { fold });
+  renderThreads();
+  $("status").textContent = readyLine();
+  releaseBusy();
+  return node;
+}
+
+/**
  * A knights-and-knaves puzzle, solved by exhaustive check (logic-puzzle.js)
  * and rendered exactly the way `arithmeticTurn` renders a computed number —
  * the same box, the same "computed, not generated" mark — because it is
@@ -9716,6 +9803,13 @@ async function send(question) {
   // the world (or the material) always falls through untouched.
   const arithmetic = checkQuantity(question, { math: window.math, now: new Date() });
   if (arithmetic) return arithmeticTurn(question, arithmetic);
+
+  // The material's own list, when it answers the question outright. Checked
+  // after arithmetic and before the model doors: a list IS the answer, and
+  // paraphrasing one through a model can only lose its items or its
+  // addresses. Falls through untouched when no list is about what was asked.
+  const enumerated = checkEnumeration(question);
+  if (enumerated) return enumerationTurn(question, enumerated);
 
   // Knights-and-knaves: a closed, enumerable boolean-consistency puzzle —
   // computed by exhaustive check, never planned/decomposed/narrated. Checked

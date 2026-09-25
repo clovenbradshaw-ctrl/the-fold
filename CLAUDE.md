@@ -7182,6 +7182,46 @@ Re-verified live: "The Tsar replaced Barclay de Tolly with Mikhail
 Kutuzov" bound and quiet with its address; "the Russian army continued
 fighting" marked "∅ no passage states this" by the witness's own no; 19s.
 
+**Amended same day — the paraphrase strictness measured, both on a small
+excerpt and on the whole book, not left as one specimen's impression.**
+The standing open question ("Kutuzov replaced Barclay de Tolly as
+commander" refused — is role-reversed paraphrase categorically refused,
+or was that one specimen?) is closed by measurement, in
+`eoreader7/native/eval/the-fold/witness-paraphrase.mjs`: a 16-item battery
+(verbatim/passive/role-reversed/synonym-verb/rearranged, each with a FALSE
+twin, truth fixed before the run) over the Borodino excerpt shows it is
+**not categorical** — role-reversed passed 1/2, rearranged 2/2, passive
+and near-verbatim 0/2 and 0/1 — and zero lies across 7 FALSE items.
+
+Then, on direct instruction ("make sure this all works on a huge corpus
+not just a small attachment"): `witness-paraphrase-corpus.mjs` runs the
+identical discipline through the REAL pipeline — `source.js::chunkSource`
+over the full 3.3MB `pg2600.txt` (11,132 byte-addressed chunks, 0.2s),
+`source.js::retrieve()` per question exactly as a live turn ranks
+passages, only the retrieved passages ever handed to the witness.
+**Mechanically it holds at 400x the material**: no crash, no timeout,
+retrieval always surfaced a candidate, sixteen items in 18-43s. **The
+precision guarantee survives unchanged: 0/7 lies**, both gemma2:2b and
+llama3.2, both retrieval widths tried. **Recall collapsed to 0/9**, and
+the cause was traced rather than assumed: byte-verified the retrieved
+chunk genuinely states the fact ("the French army had crossed the
+Niemen"), printed the single candidate sentence shown to the model (a
+correct, near-verbatim statement), and printed the raw model call —
+gemma2:2b itself answered `stated:no` to a sentence that plainly states
+the claim, most likely because the fact sits inside a subordinate clause
+of a longer reported-speech sentence ("Borís was thus the first to learn
+the news that...") rather than the short declaratives the excerpt battery
+used. Cross-checked on llama3.2 with the identical shape — a fact about
+real literary prose and small-model reading, not a pipeline defect. Full
+account, every number, and the diagnostic method (verify a byte-addressed
+span in the SAME runtime that produced it, not a second one — a first
+pass at this check used Python's own text-mode read and got the wrong
+bytes entirely): `eoreader7/native/eval/the-fold/results/
+witness-paraphrase-corpus-RESULTS.md`. Not yet decided: whether the wall
+should widen its reading unit past one sentence for a fact folded into a
+subordinate clause, or whether this ceiling is the wall correctly
+preferring silence — a real next measurement, not resolved here.
+
 ## JSON is the decoder's job, never the prompt's (added 2026-09-02) — pointer
 
 User direction on reading the summary-refresh prompt: telling a small
@@ -8398,3 +8438,475 @@ relation tier's relative-clause/cleft false-bind and nominalization gap,
 the witness tier's anchor-selection bug, tier 4's unconditional bare-word
 promotion, and three confirmed `admission.js` bypasses — are named in
 P251 as a punch list, not force-fixed under this pass's own time pressure.
+
+> **Merged 2026-09-25 from branch `reading-cast-cleanup` (work of 2026-09-02).**
+> On that branch these laws were numbered P80–P85; main had already used
+> P80–P85 for different laws, so they are renumbered here P252 (floor 6),
+> P253 (correction loop / selected testimony), P254 (the note and its own
+> words), P255 (disclosure, chips), P256 (priors are experts), P257
+> (ground/figure/pattern by surprise). What of them reached main's code:
+> selected testimony and one-line-per-sentence (`holon.js`), and the list
+> reader (`enumeration.js` + its `app.js` door). Superseded by main and NOT
+> carried: the branch's `/derive` door, levels blocks and chips (main
+> rebuilt derivation as Pass 21 / P102 with `/declare`, `/derive`,
+> `/concede`), and the correction-prompt rewording (main's 2026-09-08
+> question-anchor fix in `buildCorrectionPrompt` kept). Owed to eoreader7,
+> where these organs now live: P254's quoted notes in `fact-block.js`, and
+> the claim-side `end1Face`/`end2Face` stamp and `objectBoundary` wiring in
+> `hypergraph.js`.
+
+## Floor 6 opened — a corroborated note as a premise (added 2026-09-02) — pointer
+
+POLICIES.md **P252** is the law; eoreader7's `native/docs/LEVELS.md` names
+the floor; `native/organs/derivation.js` + `derivation.test.mjs` (11 cases,
+real ledger / real circuit / real veto / real register) are the organ. The
+one-line version: F5's finding (a note that survived corroboration) becomes
+F6's operand (a premise); licensed composition derives what the material
+never stated and lands it on the SAME ledger with **no witnesses of its
+own** — premises and walked provenance carry it, `foldHyperlexicon` never
+projects it, the ≥2 gate excludes it by construction — and conceding a
+premise (`hyperlexicon.js::concede`, REC·Figure, new) withdraws every
+product transitively (REC·Pattern each). Nesting's wall, one register up.
+Registered as `derive` at SYN·Pattern; the map stays 27/27 at 29 entries.
+No live caller yet — a `/derive` door with the person as giver is the named
+next consumer (NEXT-PASSES Pass 11).
+
+**Amended same day — the door built and driven live; levels render as
+different kinds of block.** `/derive` (app.js, blob-staged on HEAD):
+`give <relation> yields <product> by <who>` (the person is the giver),
+`run floor:<sources>x<instruments> steps:<n>` (every number declared),
+`show`, `concede <noteId> because <trigger>`. Driven on the real page:
+five notes heard, zero stood at `1x1` because a chat turn's witnesses
+carry no `~recipe` (→ a declared `instruments:0`); the ends were the
+extractor's adjunct debris and no face had been earned (→ the substrate
+bonds on IDENTITY ends, eoreader7 PR #53; the debris itself is P74's
+lever 3, upstream); the veto fired on the ledger's own uniqueness
+contradiction, correctly, until the debris notes were conceded at the
+door; then **6 products derived, each walking to real addresses through
+its premises, and one concession withdrew exactly the 3 resting on it.**
+User direction, verbatim: *"be sure that different ontological and
+epistemological levels are rendered differently … in things like code
+boxes and more meaningfully different type of content formats."* So a
+licence is a BLOCKQUOTE in the giver's name (testimony), heard notes are
+a TABLE of sightings with addresses (a record), derived products are a
+CODE BOX (constructions, never sentences — a product must never read as
+a sighting), and a concession is STRUCK lines under a REC caption —
+`levelsTurn`/`levelFigure`/`heardTable`/`derivedBox`/`licenceQuote`/
+`concededList`, all on the page's existing artifact figure. POLICIES.md
+P252's amendment carries the four live findings in order.
+
+## The correction loop destroyed a right answer — P253 (added 2026-09-02) — pointer
+
+POLICIES.md **P253** is the law; CHAT-POLICIES.md carries the chat-side
+amendment. Measured live on "Who replaced whom as vice president, in
+order?": the first draft was right, the reproduction detector convicted
+it, the correction prompt never restated the question and told the model
+to "say what the passage shows" — narration by instruction — and the
+mechanical fallback then shipped one fact three times. Four fixes, all in
+`holon.js`, all pinned: the question is quoted verbatim in every
+correction mode (`firewall.test.mjs` asserts it); no apparatus vocabulary
+in any correction prompt (the firewall scan now covers all five modes);
+**selected testimony is not a photocopy** — a copied stretch resolving to
+≥2 distinct, all-question-relevant MATERIAL sentences (never counted in
+the draft's own punctuation; letterless "sentences" like list markers are
+furniture) is answering, while one copied sentence or one irrelevant one
+still convicts; and `mechanicalAnswer` prints one line per distinct
+sentence with every address on it. After: the same turn ships its first
+draft untouched, 2 calls instead of 3. User direction that opened this,
+verbatim: *"now that we've got to the level where the model is in here,
+we need to think more deeply about prompting formatting, activation,
+etc."* — P253's closing paragraph names the three parts not taken here
+(dedupe identical passages in the source block; activate only the notes
+the question's slot reaches; decide whether the crown line belongs on an
+already-addressed answer).
+
+## The minimum the model needs; the adposition cut refuted — P254 (added 2026-09-02) — pointer
+
+POLICIES.md **P254** is the law. User direction: *"the model doesn't need to
+have metadata for a given span, it should be given the minimum amount of
+info to respond well."* `buildFactBlock` now renders each note with its own
+verbatim sentence(s) beneath it, quoted once by folded text; no address,
+ref, count or coverage figure reaches the model (they stay on `spans` for
+the instrument); `spanBlock` and the ledger block's "(read in N places)"
+are gone. The end-hygiene lever (P74 lever 3) was built as a received
+adposition post-trim in eoreader7 (`relations.js::objectBoundaryFrom`,
+opt-in, pinned) and **measured on Dracula: earned faces +15 / −48 among
+782 moved objects** — narrative prose puts the referent after the
+preposition. Refuted at book scale, specimen-scoped for the VP paste, not
+shipped on; `hypergraph.js` carries the opt-in organ (`objectBoundaryFrom`
++ `boundedObjects`), byte-identical when absent. Lexicon coverage on
+Dracula: 92.6% of occurrences, 63.0% of types. Next lever: why the face
+wire earned nothing on the paste, and a referent-aware trim at `endpoint`.
+
+**Amended same day — the face reaches the ledger.** The paste DID earn
+faces offline (4/5); `holon.js` admits from `read(text).claims`, and claims
+never carried `end1Face`/`end2Face` — the wire was on edges only. `judge()`
+now stamps `faceOf` on every claim; holon forwards it; pinned on the real
+paste through the real reader and ledger. Live, notes fold across sources
+without concessions. Remainder: "March" admitted as a being blocks one
+face (two beings in one object) — P79's kind gate with no caller.
+
+## Disclosure is not the answer; words are for the person; a thing is a chip — P255 (added 2026-09-02) — pointer
+
+POLICIES.md **P255**. Three directions on `/derive`, all general: the typed
+level blocks go behind "thinking" (`levelsTurn` takes a body builder and a
+disclosure builder); the screen speaks plain words (rule / fact read in
+the sources / worked out / withdrawn — `rule … means …`, `run sources:<n>
+steps:<n>`, `withdraw <fact> because …`); a giver is an identity chip said
+once (`/derive iam`, `person:<slug>`) and a fact is a chip that pastes as
+`fact:<id>` — objects travel through the chat by id, never as retyped
+text. Blob-staged on HEAD; verified live end to end.
+
+## Priors are experts; what actually happens decides — P256 (added 2026-09-02) — pointer
+
+POLICIES.md **P256**. The census: received linguistic priors are live;
+declared priors are live; SEDIMENTED priors (111 works compiled) are
+consumed by nothing. The basin widened to music to fix that where no
+treebank can help: eoreader7 `adapters/midi/midi.js` (floor 0) and
+`kernel/continuation.js` (medium-blind, pinned) — a prior over any event
+stream, a symbol-free shape prior from any medium, and a prequential
+mixture weighted by each source's own surprise. Two real Bach pieces:
+hearing beats shuffle by 1.6–1.9 bits/note; structural analogy from a
+novel/the record log is an honest negative at this grain; the mixture
+reads a different best source off each piece. Results + listenable .mid:
+eoreader7 `eval/the-fold/results/midi-continuation-RESULTS.md`. Next:
+register the sedimented text priors as experts in a live turn.
+
+**Amended same day — overtones.** eoreader7 `adapters/audio/overtones.js`
+hears the harmonic series in real recordings at 4.8×/7.5× the noise rate
+(against a null), reads a partial profile, and ranks pitch pairs like
+consonance untaught; as a prior on succession it earns nothing (controlled
+negative — its claim is on simultaneity, next). Intervals as a second
+alphabet help the long context. P256's amendment carries the numbers.
+
+**Amended again — simultaneity.** Where the overtone metric belongs, it
+reads the opposite sign: the notes Bach sounds together share FEWER
+partials than chance (six of eight arms below the 5th percentile, every
+arm on the Aria; metric control holds). Fusion is what the counterpoint
+avoids. P256's second amendment; eoreader7 `overtones-RESULTS.md` §4.
+
+## Ground/figure/pattern by surprise — P257 (added 2026-09-02) — pointer
+
+POLICIES.md **P257**; eoreader7 `kernel/surprise-segments.js` +
+`results/surprise-segments-RESULTS.md`. A boundary is where the ground
+was most wrong, against a shuffled null, recursively, medium-blind. Music:
+the Prelude's bar found at 34% vs 18% random (0/200), spacing = its own
+8-note figure. English: chance at words, moves, and POS classes — the
+sentence is a convention of the script, not a surprise peak; the
+statement's figures live at the arrangement/ledger grain (next). The
+received POS prior made the text a ground at all (11.10 → 4.00 bits).
+
+> **Merged 2026-09-25 from branch `claude/musing-jones-29acf8` (work of
+> 2026-08-18).** Numbered P25 on that branch; main's P25 is a different law,
+> so it lands here as **P258**. Only the pure organ came over —
+> `resurf.js` (`uncoveredTerms`, `resurfQuery`, `RESURF_MAX_ROUNDS`) and
+> `resurf.test.mjs`. The wiring described below (the injected `resurf`
+> crossing in `holon.js::runPart`, `gatherWebMaterial` and the turn's URL
+> ledger in `app.js`) was NOT carried: main has since built its own way of
+> going back to the world for material — the surprise-gated hunt
+> (`makeHuntMeter`, `gatherPreflightMaterial`, `huntFor`) and the anchor
+> chase — and that implementation is kept. `resurf.js` is unwired on main.
+
+## Re-surf: "keep looking until it got it" (added 2026-08-18) — what was decided, so it is not re-derived
+
+P258 in POLICIES.md is the law; this is the map. P23 gave a materialless
+turn one search before its first token; the correction loop gave a bad
+draft one retry against the SAME passages, then the mechanical fallback.
+Nothing ever went back to search when the checking ladder — absent atoms,
+unbound edges, the echo/reproduction judge — already knew the material
+couldn't hold the answer. Findings were recorded and never re-entered
+retrieval. Re-surf is the missing loop: bounded, mechanical, on the
+question's own words only.
+
+**Files.** `resurf.js` (new, pure — `RESURF_MAX_ROUNDS`,
+`uncoveredTerms`, `resurfQuery`, `resurf.test.mjs`); `holon.js`
+(`runPart`'s injected `resurf` — the `checkLink` pattern exactly — a
+pre-draft loop keyed on `uncoveredTerms` and one post-draft round keyed on
+`judge()`'s own `echoed` verdict plus a stripped-to-nothing sentinel,
+never a third narration detector); `app.js` (`gatherWebMaterial` factored
+out of P23's `gatherPreflightMaterial`, which now calls it — one
+search→fetch→chunk pipeline, not two).
+
+**The query wall is a filter, not a convention.** Every term a query
+carries passes through the question's own token set before it can reach
+`resurfQuery` — the P23 lesson (a model-invented sentence once polluted a
+search) enforced by construction: a caller can hand in tokens from
+anywhere and anything the question itself doesn't contain is dropped.
+Pinned as its own regression, named "THE WALL" in resurf.test.mjs.
+
+**Two rounds, two different casts, never a repeat** (P9: budget named,
+`RESURF_MAX_ROUNDS = 2`). Round one leads with the missing words plus the
+question's context; round two is the missing words alone — genuinely
+different queries, not a repeat of a failed search. An identical query is
+refused, not spent. The budget spans both the pre-draft rounds and the
+one post-draft round together.
+
+**Gated on the same two standing consents proof-seeking already uses**
+(checking mode + web consent) — automatic, instrument-decided crossings
+share one gate. A turn-scoped seen-URL set is shared between the
+preflight and every re-surf round so a repeated search that returns the
+same pages honestly gains nothing rather than re-chunking duplicate bytes.
+
+**Disclosed cost, measured live, not hidden:** `uncoveredTerms` has no
+stemmer (the same disclosed gap widget.js's own router carries). Driven
+live against `qwen2.5:14b-instruct-q4_K_M` with real DuckDuckGo egress:
+material already stating "Nashville **sits** on the Cumberland River"
+still cost two wasted rounds against the question "What river does
+Nashville **sit** on?" (inflection mismatch); material reading "the
+report **was written by** Maria Alvarez" cost one wasted round against
+"Who **wrote** the report?" (voice mismatch). Rephrasing to avoid the
+mismatch triggered zero rounds against the identical material, isolating
+the cause. In both cases the final answer still shipped correctly
+grounded in the local material, never the polluted web results — the
+cost is wasted latency and egress on an already-answered question, not a
+corrupted answer. No stemmer or hand-typed irregular-verb list was added
+(P9 rules out tuned detection constants for this shape of fix); the same
+false-positive/false-negative cost asymmetry P23 already established for
+its own gate applies here.
+
+**Evidence, live end to end, real crossing (not a fixture).** Attached-
+but-insufficient material plus "Who was the mayor of Nashville in 2019?":
+one pre-draft round, gained 514 real Wikipedia passages, shipped John
+Cooper correctly (he won the runoff against sitting mayor David Briley)
+cited to `web:en.wikipedia.org-r1-0#…`. An unrelated second topic
+("What is the current population of Reykjavik, Iceland?") independently
+triggered, searched, and shipped a real current figure from a real fetched
+page — not overfit to one worked example. A control with material that
+already held the answer, phrased without a lexical mismatch, triggered
+zero rounds and answered instantly from local material alone
+(`resurf: null`).
+
+**Scoped out, disclosed rather than silently attempted:** feeding a
+grounding finding's own tokens into a re-surf query as a second trigger
+alongside `uncoveredTerms` — the wall would filter most of them out
+anyway (a finding's tokens come from the draft, not the question), and the
+post-draft `echoed`/stripped-to-nothing trigger already reaches the cases
+measured live. Real future work, not built here.
+
+> **Merged 2026-09-25 from branch `claude/golden-benchmark-performance-4skczl`
+> (work of 2026-08-17).** Numbered P18 on that branch; main's P18 is a
+> different law, so it lands here as **P259**. The golden itself
+> (`goldens/conduct/`) came over whole, and `npm test` now also runs
+> `goldens/*/*.test.mjs`.
+
+## The conduct golden (added 2026-08-17) — what was decided, so it is not re-derived
+
+P259 in POLICIES.md is the law; this is the map. The ask this answers: a golden
+benchmark for the Claude/ChatGPT-like behavior this instrument should chase.
+
+**Files.** `goldens/conduct/` — `items.json` (34 items, 10 families, each with
+its third-party anchor, its rung and its stated reason), `checks.mjs` (pure,
+the splitter injected — cast.js pattern), `strategies.mjs` (the six reflexes),
+`run.mjs` (the driver; the turn is `eval/dialogue.mjs`'s, which is `app.js`'s
+`send()` headless — nothing re-implemented), `score.mjs`, `fetch.mjs` +
+`fetched.lock.json`, `checks.test.mjs` (16, against the REAL engine organs).
+`texts/` and `results/` are gitignored. `npm test` now globs
+`goldens/*/*.test.mjs` as well as the root.
+
+**The reference is received, and pinned.** OpenAI Model Spec 2025-12-18 and
+Claude's Constitution 2026-01-22, both CC0, in `manifest.json` with the date
+they were read. `goldens/cast`'s discipline aimed at specifications instead of
+character lists. The families come from them; the per-item expectations are
+ours, and the README says so rather than implying the whole fixture is a gift.
+
+**The rung is the point.** Naming a conduct gap is cheap; the golden's value is
+that every item declares where a fix may LAND — `mechanical` (build the organ),
+`grammar` (constrained decoding, P2's route), `mouth` (unchecked, a wish under
+P10; no item carries it, so adding one is a visible act). `score.mjs` groups
+open failures by rung, which is the actionable output.
+
+**Controls gate the family, and there is no aggregate.** Every family names its
+degenerate reflex and carries a control the reflex fails. Controls down ⇒
+family reported `degenerate` and NOT scored. No total is printed: averaging a
+certified family with a refused one is exactly the distinction the gate exists
+to keep.
+
+**Corpus: Sherlock Holmes (PG 1661), not a novel.** The items need facts stated
+ONCE at a byte offset and rival values occurring ZERO times, so "the instrument
+said Ohio" can never be the corpus talking. Repetition at novel scale destroys
+that property. `verify()` re-counts every pinned value against the bytes before
+scoring and FAILS the run on a mismatch; `fetch.mjs` refuses to overwrite a
+moved lock.
+
+**Found by running, not by reading — all four now pinned as regressions.**
+(1) Negation scoped to the sentence marked the IDEAL answer ("New Jersey, not
+Ohio") as an evasion; scoping is clause-level now, which puts each negator with
+the value it governs. (2) `says`/`states`/`story`/`text` were contrast cues, so
+a clean cave ("the story says Ohio") read as evasive — a value is refused by
+negation, not by someone being quoted holding it. (3) DEIX-1 passed under all
+six strategies because "Where was she born?" shares `born` with the passage
+that answers it; the fix is a fixture-integrity GUARD (a probe must share no
+content term with its anchor under retrieval's own tokenizer, a control must
+share one), and an item failing its guard is refused, not scored down.
+(4) The `dumper` took CLAR 2/2 because Victorian dialogue is full of question
+marks — a clarifying reply is one that HANDS THE TURN BACK, so the question
+must be the answer's last sentence.
+
+**The one result that needs no model.** DEIX scores retrieval alone, so it is
+answerer-independent — identical across all six strategies: probes 0/3,
+control 1/1. **Retrieval cannot follow a pronoun to its referent.** The same
+passage is reached when the question names its subject and missed when the
+subject is only "she"/"them"/"his" one turn back. Not a bug so much as the
+reading policy's own boundary (retrieval is a function of the question's own
+words) meeting a conversational expectation it was not written against. Rung:
+`mechanical` — carry the turn's referents into retrieval through the engine's
+cast organs, the way P11 already routes name identity. Never in the prompt.
+The other nine families move with the model and were NOT run against one in
+that session (no Ollama on the machine); the runs in `results/` are the
+benchmark testing itself, not measurements of the Fold.
+
+## The prompt that grows every turn: measured live, and it is the material block under a hard cap — not the fold leaking (added 2026-09-22) — pointer
+
+No POLICIES.md law landed with this, because nothing was changed: this is
+a measurement against a live complaint ("something is not properly folding
+the conversation... see what's hitting the model, it's growing with every
+prompt", watching Heimdall), and the complaint's direction is right while
+its mechanism is not what it looks like. The organs are
+`eoreader7/proxy-runner.mjs` (`PROMPT_MAX_CHARS`, the `materialRoom` loop,
+`systemCore`), `the-fold/er7-client.js::er7ChatCompletion` and
+`app.js::er7Turn`; `fold.js`'s own `buildTurnMessages` is named below for
+the reason that it is NOT one of them.
+
+**What we did.** We drove ordinary fact-threads — a capital, then its
+population, its language, its river, its currency — through the real chat
+path, once through the browser at `:8816` against the live engine and once
+through a sequential driver that reproduces `er7-client.js`'s own request
+shape exactly (`messages = history.slice(-8) + the task`, one
+`x-er7-session`), and we read the bytes the model actually received, not a
+proxy for them: `proxy-runner.mjs` already writes every assembled
+`ollamaMessages` array to `/tmp/er7-prompt-debug.json` before the fetch, so
+a 250ms mtime watcher turns that into a per-draw series with no
+instrumentation of the engine at all. Twelve prompts landed across four
+sessions, two of them our own threads end to end.
+
+**The series, one session, turn by turn (characters over the whole
+messages array):** 4,412 → 2,735 → 8,446 → 4,796. The other thread the
+same day: 4,474 → 2,363 → 7,894. It is not linear and it is not
+monotone — it spikes on the third turn and falls again on the fourth — and
+it never crosses `PROMPT_MAX_CHARS` (9,216, `ER7_MAX_PROMPT_CHARS`), which
+the assembly genuinely enforces: `materialRoom = PROMPT_MAX_CHARS -
+systemLen - taskLen - chatLen`, and the chat window itself is walked
+backwards and cut at the same budget. **There is no unbounded accumulator
+on the model's prompt.** Split by block, the constant part of
+`systemCore` — the neutral character, `turnStanding`, the frame line, the
+atmosphere lines, the durable speaker facts — held at 1,300–1,700
+characters across every turn we measured, and the whole of the variation
+was the surfed material block: 2,681 / 1,359 / 6,828 / 2,686. What looks
+like growth is the material filling whatever room the turn leaves, and the
+room is largest exactly when the chat window is still short.
+
+**So the growth is real and it is stale.** The 6,828-character turn asked
+"What language is spoken there?" and was handed Wikipedia district prose
+about Chiado, Estrela and Parque das Nações, a US Census first-names
+brief, and two Portuguese-history footnotes — nothing that answers the
+question, carried because the web page admitted on turn one is in the
+session corpus forever and `hasNonChatMaterial` stays true for the rest of
+the session. The composition surf already has the screen for this and says
+so in its own words ("never every retained doc in insertion order — the
+measured door for stale material", `salientDocsForTask`); the CHAT surf
+does not apply it, and `materialRoom` invites whatever the ladder returns
+to fill the budget. Riding beside it, a Kelsen block of pure parsing
+noise — "de do G" vs "de do de" → "de do de (lex posterior)" — at ~1,050
+characters on the turn we caught it. Both are candidates to cut, and
+neither is cut here: P232's own amendment is the precedent that a cut to
+the material feed is settled by an A/B on answer quality, not unilaterally
+(cutting restated claims was free, cutting a note because a snip carried
+it cost 3-4 fabrications in 10), and this box could not host that A/B
+today — see the configuration note below.
+
+**The one thing that genuinely is not folding, and it is not the size.**
+`fold.js::buildTurnMessages` — the function whose own docstring calls it
+"the whole point of the module in one function", one system message
+carrying the folded summary plus at most `RECENCY_WINDOW` raw messages
+plus the question — **has no caller in the product.** `grep` over the repo
+returns `fold.test.mjs` and `experiments/system1-cpu-system2-gpu.mjs`, and
+nothing else. On the engine path `er7Turn` sends `state.history.slice(-8)`
+(twice `RECENCY_WINDOW`, a literal 8 where a declared constant sits
+unused), never sends `state.summary` although it computes and advances it
+on every turn through `advanceSummaryFold`, and sends every live source's
+full text as `attachments` with no cap of its own (the engine dedupes a
+re-sent attachment by name+content, so that one costs request bytes, not
+re-reading). The fold is computed and discarded, and the engine rebuilds a
+bounded prompt of its own from the session corpus. That is what "not
+properly folding the conversation" is literally true of — the compression
+this repo built is not what bounds the prompt; `PROMPT_MAX_CHARS` is.
+
+**State the reader's configuration (P88), because it decided what we could
+and could not measure.** One box, `gemma2:2b` at an 8,192 window, the
+live engine on `:11436` shared with several concurrent sessions and a
+second proxy of our own briefly on `:11466`. The box sat at 96% swap and
+~2,400 pages/s swapped out for most of the pass; Heimdall's own thrashing
+guard stood residency down and then refused `er7:gemma2:2b` outright
+("Heimdall dropped it") for stretches of ten minutes and more, which is
+why the series stops at four turns on a thread rather than eight. Two
+latencies worth not re-deriving: a turn spent **9 to 13 minutes before any
+model call at all**, at 200%+ CPU, with `sample` showing the hot leaves in
+`RegExpSplit` / `StringPrototypeSplit` / Set construction — a pre-draw
+reading stage whose cost tracks corpus size, not prompt size — and the
+same stage is what pushes this box into the pressure that then drops the
+model. If prompt characters are ever worth attacking here, P232's own
+ordering still holds and this pass did not disturb it: contention and
+residency first, call count second, characters third.
+
+> **Merged 2026-09-25 from checkpoint branch `worktree-agent-ae59d4fae6397c1f0`
+> (work of 2026-09-22).** Numbered P244 there; main's P244 is Socrates, so it
+> lands here as **P260**. The fix it describes was made on main
+> independently, earlier (2026-09-19): `send()` already reads
+> `return (await er7Turn(question)) ?? twoPassTurn(question);`, and that
+> line was kept — the branch's own rewrite of it was not carried. What is
+> kept is the record of the finding and its rule, "a promise is not a
+> verdict."
+
+## The fallback that was never a fallback: a promise is not a verdict (added 2026-09-22) — pointer
+
+POLICIES.md **P260** is the law; this is the map. Reported live as "our
+grounding chips aren't working," and driven live the report turned out to
+name a symptom one layer coarser than its cause: the chips were not drawing
+wrong, the answer was not arriving. The first question asked after a page
+load vanished silently — composer cleared, no user bubble, no assistant
+bubble, status still reading `ready` — and every question after it came back
+tagged `queued`, forever.
+
+**One line, in `app.js::send()`'s own flat-chat seam:** `return
+er7Turn(question) ?? twoPassTurn(question)`. `er7Turn` is `async`, so it
+returns a PROMISE, which is never nullish, so `??` never fired and the
+in-browser fallback was dead code from the commit that wrote it (`c12766f`).
+The function's own docstring states the contract exactly — "or null to fall
+back to the in-browser engine. Guarded: any reachability failure or turn
+error falls through, never half-answers" — and the guard had never once run.
+Both of its decline paths (`er7Reachable()` false; `er7ChatCompletion`
+throwing) return `null` BEFORE any message is drawn and before
+`releaseBusy()`, so a declined turn resolved into `guardedSend`'s `.catch()`
+— which does not fire on a resolved promise — and `state.busy` stayed true
+for the life of the page. `onsubmit`'s busy branch then did exactly what it
+is built to do and queued everything behind a turn that had already finished
+doing nothing. Read from the chat surface, that IS "the chips aren't
+working": there is no answer to ground.
+
+**The rule, stated generally because the shape is not unique to this seam: a
+guarded fallback must AWAIT its guard.** `const answered = await
+er7Turn(question); if (answered) return; return twoPassTurn(question);`.
+Before writing `??` or `||` over a call, check whether the callee is `async`
+— `grep -n "Turn(.*) ?? "` is the cheap sweep, and this was its one hit.
+
+**The chips were confirmed working rather than assumed.** With nothing
+attached, a real answer draws `.sent.self-cited` spans at
+`data-ground-tier="self"` — an underline and no numbered mark, exactly what
+P115 specifies for the self rung. With a real pasted source attached, the
+same path draws numbered `.mark-ref` marks with the footnote strip naming
+each rung and address (`1 · named:…`, `2 · bound:…`) and un-hides the turn's
+own `ground` control. Every tier drew what it should.
+
+**Two environment facts worth not re-finding.** A worktree of this repo
+needs `node_modules` and an `eoreader7` sibling linked beside it, or the
+page's whole module graph dies at link time on a 404 for
+`node_modules/katex/dist/katex.mjs` — which presents IDENTICALLY to this bug
+(no handlers bound, submits do nothing) and is not it. And the browser pane
+is shared between concurrent sessions here: a tab can be navigated out from
+under you mid-investigation, so pin `tabId` on every call and re-read
+`location.href` before trusting a reading.
+
+**Named, not fixed:** a declined engine turn still hands off to the browser
+silently, with nothing on the record or the surface saying the engine
+declined and why. Disclosing the handoff is small, real, unattempted work —
+left out because `app.js` was under concurrent edit.

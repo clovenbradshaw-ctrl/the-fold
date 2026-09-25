@@ -338,3 +338,27 @@ the ledger to stand on, never saw it. Wording is "stated", never
 "confirmed": the ledger maps claims, not truth. The `primary` switch
 (Ranke, default off) and `/ranke` are the only ways a turn spends fetches
 on cited sources; a grounded turn on its own never does.
+
+## Amendment 2026-09-02 — the correction loop destroyed a right answer (P253)
+
+*(Merged 2026-09-25 from `reading-cast-cleanup`, where this was P81; renumbered. Selected testimony and the one-line-per-sentence fallback reached `holon.js`; the correction-prompt rewording did not — main's 2026-09-08 question anchor in `buildCorrectionPrompt` was kept — so the "firewall scans all five modes" clause below describes the branch, not main. The quoted-notes change of P254 is owed to eoreader7's `fact-block.js`.)*
+
+Read P253. The one-line version for anyone touching chat behaviour: a
+correction call MUST quote the question; a correction prompt MUST NOT
+name our own parts (the firewall scans all five modes now); an answer
+that is a set of ≥2 of the sources' own question-relevant statements is
+selected testimony, not a photocopy; and the mechanical fallback prints
+one line per distinct sentence with every address on it. Measured live:
+the same question went from a narrated non-answer (3 calls) to the first
+draft shipping untouched (2 calls). Still open from the same direction:
+dedupe identical passages in the source block, activate only the notes
+the question's slot reaches, and decide whether the crown line belongs on
+a turn whose sentences already carry addresses.
+
+## Amendment 2026-09-02 — the minimum the model needs (P254)
+
+A note reaches the model as itself plus its own verbatim sentence(s), once
+— no address, no ref, no count, no separate span list. Everything else is
+the instrument's and stays on the instrument's side. Measured live: the
+same turn's prompt went from three copies of one sentence under three
+addresses to one note with one quote, and the first draft shipped.

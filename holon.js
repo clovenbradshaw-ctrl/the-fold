@@ -1112,7 +1112,14 @@ const SENTENCE_END_RE = /[.!?]["'”’)]*$/;
 export function mechanicalAnswer(question, passages) {
   const qTokens = new Set(tokenize(String(question ?? "")));
   if (!qTokens.size) return "";
-  const lines = [];
+  // ONE VOICE PER PASSAGE, ONE LINE PER SENTENCE. Measured live 2026-09-02:
+  // three passages carrying the identical sentence shipped it three times,
+  // each with its own address — the same fact read as three findings. A
+  // sentence is keyed by its folded text (source.js's own fold, the one the
+  // reproduction detector uses), and every passage that states it adds its
+  // ADDRESS to the one line rather than a second copy of the words. Each
+  // perspective still gets its voice; the voices just agree out loud.
+  const byText = new Map();
   for (const p of passages ?? []) {
     const best = splitSentences(String(p.text ?? ""))
       .map((s) => {
@@ -1121,8 +1128,13 @@ export function mechanicalAnswer(question, passages) {
       })
       .filter((x) => x.t && x.n > 0)
       .sort((a, b) => (b.sentence - a.sentence) || (b.n - a.n))[0];
-    if (best) lines.push(`“${best.t}”${p.ref ? ` [${p.ref}]` : ""}`);
+    if (!best) continue;
+    const key = foldTypography(best.t);
+    const row = byText.get(key) ?? { t: best.t, refs: [] };
+    if (p.ref && !row.refs.includes(p.ref)) row.refs.push(p.ref);
+    byText.set(key, row);
   }
+  const lines = [...byText.values()].map((row) => `“${row.t}”${row.refs.length ? ` ${row.refs.map((r) => `[${r}]`).join(" ")}` : ""}`);
   if (!lines.length) return "";
   // NO FRAMING SENTENCES. This used to open "Here's what the material itself
   // says about this:" and close "That's everything the material offers on
@@ -2373,9 +2385,50 @@ export async function runPart({
    * The measure is a ratio of the answer's own substance, immune to how the
    * source happens to distribute its full stops.
    */
+  // SELECTED TESTIMONY IS NOT A PHOTOCOPY. Measured live 2026-09-02, "Who
+  // replaced whom as vice president, in order?" against sources that state
+  // the succession as four one-sentence facts: the model's first draft was
+  // a numbered list of exactly those facts — right, and by every mass test
+  // below a verbatim copy, so it was convicted, rewritten into narration,
+  // convicted again, and the mechanical fallback shipped one fact three
+  // times. When the answer to a question IS a set of the sources' own
+  // atomic statements, copying those statements is answering; what makes a
+  // photocopy a photocopy is that it drags along what the question never
+  // asked for. So the exemption is structural, not a threshold: the copied
+  // sentences must number at least TWO (a set needs two members — one
+  // copied sentence is a single fact that should be said in one's own
+  // words, and stays a reproduction; binding.js's own "one arrival has no
+  // co-arrival" floor, reused) and EVERY copied sentence must share a
+  // content word with the question (one irrelevant copied sentence and the
+  // whole copy is transcription — the ledger retype and the dialogue
+  // transcription both carry such sentences and both still convict).
+  const questionContent = [...questionWords];
+  const isRelevantSentence = (sf) => { const toks = tokenize(sf); return questionContent.some((w) => toks.includes(w)); };
+  // The set is counted in the MATERIAL's sentences, never the draft's own
+  // punctuation. Measured on the live draft: a numbered list with no full
+  // stops is ONE sentence to the splitter — one copied "sentence" spanning
+  // four of the sources' statements — and a count of draft sentences read
+  // it as a single fact. A copied stretch is resolved to the material
+  // sentences it contains; a fragment that contains none stands as itself.
+  const passageSentencesFolded = passages.flatMap((p) => splitSentences(String(p.text ?? "")).map(foldTypography).filter(Boolean));
+  const selectedTestimony = (folded) => {
+    const units = new Set();
+    for (const sf of folded) {
+      if (!isVerbatimSentence(sf)) continue;
+      const contained = passageSentencesFolded.filter((ms) => ms.length > 0 && sf.includes(ms));
+      if (contained.length) for (const ms of contained) units.add(ms);
+      else units.add(sf);
+    }
+    return units.size >= 2 && [...units].every(isRelevantSentence);
+  };
   const reproducedFromContent = (content) => {
     if (!content.length) return false;
-    const folded = content.map(foldTypography).filter(Boolean);
+    // A "sentence" with no letters is list furniture ("1.", "2.") or bare
+    // punctuation, not content: measured live 2026-09-02, a numbered list's
+    // markers split off as sentences and "1 ." matched INSIDE "1861 ." in
+    // another passage — a letterless, coincidental, irrelevant "copy" that
+    // vetoed the selected-testimony exemption on a correct answer.
+    const folded = content.map(foldTypography).filter((f) => f && /\p{L}/u.test(f));
     if (!folded.length) return false;
     const contentText = folded.join(" ");
     const wholeBlockCopied = passagesFolded.some((pf) => pf.includes(contentText));
@@ -2385,7 +2438,8 @@ export async function runPart({
       totalMass += sf.length;
       if (isVerbatimSentence(sf)) copiedMass += sf.length;
     }
-    return wholeBlockCopied || copiedMass > totalMass / 2;
+    const copied = wholeBlockCopied || copiedMass > totalMass / 2;
+    return copied && !selectedTestimony(folded);
   };
   const judge = (t) => {
     const all = splitSentences(String(t ?? "").replace(ADDRESS_RE, " ")).filter(Boolean);

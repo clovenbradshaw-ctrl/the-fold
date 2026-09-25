@@ -7182,6 +7182,46 @@ Re-verified live: "The Tsar replaced Barclay de Tolly with Mikhail
 Kutuzov" bound and quiet with its address; "the Russian army continued
 fighting" marked "∅ no passage states this" by the witness's own no; 19s.
 
+**Amended same day — the paraphrase strictness measured, both on a small
+excerpt and on the whole book, not left as one specimen's impression.**
+The standing open question ("Kutuzov replaced Barclay de Tolly as
+commander" refused — is role-reversed paraphrase categorically refused,
+or was that one specimen?) is closed by measurement, in
+`eoreader7/native/eval/the-fold/witness-paraphrase.mjs`: a 16-item battery
+(verbatim/passive/role-reversed/synonym-verb/rearranged, each with a FALSE
+twin, truth fixed before the run) over the Borodino excerpt shows it is
+**not categorical** — role-reversed passed 1/2, rearranged 2/2, passive
+and near-verbatim 0/2 and 0/1 — and zero lies across 7 FALSE items.
+
+Then, on direct instruction ("make sure this all works on a huge corpus
+not just a small attachment"): `witness-paraphrase-corpus.mjs` runs the
+identical discipline through the REAL pipeline — `source.js::chunkSource`
+over the full 3.3MB `pg2600.txt` (11,132 byte-addressed chunks, 0.2s),
+`source.js::retrieve()` per question exactly as a live turn ranks
+passages, only the retrieved passages ever handed to the witness.
+**Mechanically it holds at 400x the material**: no crash, no timeout,
+retrieval always surfaced a candidate, sixteen items in 18-43s. **The
+precision guarantee survives unchanged: 0/7 lies**, both gemma2:2b and
+llama3.2, both retrieval widths tried. **Recall collapsed to 0/9**, and
+the cause was traced rather than assumed: byte-verified the retrieved
+chunk genuinely states the fact ("the French army had crossed the
+Niemen"), printed the single candidate sentence shown to the model (a
+correct, near-verbatim statement), and printed the raw model call —
+gemma2:2b itself answered `stated:no` to a sentence that plainly states
+the claim, most likely because the fact sits inside a subordinate clause
+of a longer reported-speech sentence ("Borís was thus the first to learn
+the news that...") rather than the short declaratives the excerpt battery
+used. Cross-checked on llama3.2 with the identical shape — a fact about
+real literary prose and small-model reading, not a pipeline defect. Full
+account, every number, and the diagnostic method (verify a byte-addressed
+span in the SAME runtime that produced it, not a second one — a first
+pass at this check used Python's own text-mode read and got the wrong
+bytes entirely): `eoreader7/native/eval/the-fold/results/
+witness-paraphrase-corpus-RESULTS.md`. Not yet decided: whether the wall
+should widen its reading unit past one sentence for a fact folded into a
+subordinate clause, or whether this ceiling is the wall correctly
+preferring silence — a real next measurement, not resolved here.
+
 ## JSON is the decoder's job, never the prompt's (added 2026-09-02) — pointer
 
 User direction on reading the summary-refresh prompt: telling a small
@@ -8398,3 +8438,160 @@ relation tier's relative-clause/cleft false-bind and nominalization gap,
 the witness tier's anchor-selection bug, tier 4's unconditional bare-word
 promotion, and three confirmed `admission.js` bypasses — are named in
 P251 as a punch list, not force-fixed under this pass's own time pressure.
+
+> **Merged 2026-09-25 from branch `reading-cast-cleanup` (work of 2026-09-02).**
+> On that branch these laws were numbered P80–P85; main had already used
+> P80–P85 for different laws, so they are renumbered here P252 (floor 6),
+> P253 (correction loop / selected testimony), P254 (the note and its own
+> words), P255 (disclosure, chips), P256 (priors are experts), P257
+> (ground/figure/pattern by surprise). What of them reached main's code:
+> selected testimony and one-line-per-sentence (`holon.js`), and the list
+> reader (`enumeration.js` + its `app.js` door). Superseded by main and NOT
+> carried: the branch's `/derive` door, levels blocks and chips (main
+> rebuilt derivation as Pass 21 / P102 with `/declare`, `/derive`,
+> `/concede`), and the correction-prompt rewording (main's 2026-09-08
+> question-anchor fix in `buildCorrectionPrompt` kept). Owed to eoreader7,
+> where these organs now live: P254's quoted notes in `fact-block.js`, and
+> the claim-side `end1Face`/`end2Face` stamp and `objectBoundary` wiring in
+> `hypergraph.js`.
+
+## Floor 6 opened — a corroborated note as a premise (added 2026-09-02) — pointer
+
+POLICIES.md **P252** is the law; eoreader7's `native/docs/LEVELS.md` names
+the floor; `native/organs/derivation.js` + `derivation.test.mjs` (11 cases,
+real ledger / real circuit / real veto / real register) are the organ. The
+one-line version: F5's finding (a note that survived corroboration) becomes
+F6's operand (a premise); licensed composition derives what the material
+never stated and lands it on the SAME ledger with **no witnesses of its
+own** — premises and walked provenance carry it, `foldHyperlexicon` never
+projects it, the ≥2 gate excludes it by construction — and conceding a
+premise (`hyperlexicon.js::concede`, REC·Figure, new) withdraws every
+product transitively (REC·Pattern each). Nesting's wall, one register up.
+Registered as `derive` at SYN·Pattern; the map stays 27/27 at 29 entries.
+No live caller yet — a `/derive` door with the person as giver is the named
+next consumer (NEXT-PASSES Pass 11).
+
+**Amended same day — the door built and driven live; levels render as
+different kinds of block.** `/derive` (app.js, blob-staged on HEAD):
+`give <relation> yields <product> by <who>` (the person is the giver),
+`run floor:<sources>x<instruments> steps:<n>` (every number declared),
+`show`, `concede <noteId> because <trigger>`. Driven on the real page:
+five notes heard, zero stood at `1x1` because a chat turn's witnesses
+carry no `~recipe` (→ a declared `instruments:0`); the ends were the
+extractor's adjunct debris and no face had been earned (→ the substrate
+bonds on IDENTITY ends, eoreader7 PR #53; the debris itself is P74's
+lever 3, upstream); the veto fired on the ledger's own uniqueness
+contradiction, correctly, until the debris notes were conceded at the
+door; then **6 products derived, each walking to real addresses through
+its premises, and one concession withdrew exactly the 3 resting on it.**
+User direction, verbatim: *"be sure that different ontological and
+epistemological levels are rendered differently … in things like code
+boxes and more meaningfully different type of content formats."* So a
+licence is a BLOCKQUOTE in the giver's name (testimony), heard notes are
+a TABLE of sightings with addresses (a record), derived products are a
+CODE BOX (constructions, never sentences — a product must never read as
+a sighting), and a concession is STRUCK lines under a REC caption —
+`levelsTurn`/`levelFigure`/`heardTable`/`derivedBox`/`licenceQuote`/
+`concededList`, all on the page's existing artifact figure. POLICIES.md
+P252's amendment carries the four live findings in order.
+
+## The correction loop destroyed a right answer — P253 (added 2026-09-02) — pointer
+
+POLICIES.md **P253** is the law; CHAT-POLICIES.md carries the chat-side
+amendment. Measured live on "Who replaced whom as vice president, in
+order?": the first draft was right, the reproduction detector convicted
+it, the correction prompt never restated the question and told the model
+to "say what the passage shows" — narration by instruction — and the
+mechanical fallback then shipped one fact three times. Four fixes, all in
+`holon.js`, all pinned: the question is quoted verbatim in every
+correction mode (`firewall.test.mjs` asserts it); no apparatus vocabulary
+in any correction prompt (the firewall scan now covers all five modes);
+**selected testimony is not a photocopy** — a copied stretch resolving to
+≥2 distinct, all-question-relevant MATERIAL sentences (never counted in
+the draft's own punctuation; letterless "sentences" like list markers are
+furniture) is answering, while one copied sentence or one irrelevant one
+still convicts; and `mechanicalAnswer` prints one line per distinct
+sentence with every address on it. After: the same turn ships its first
+draft untouched, 2 calls instead of 3. User direction that opened this,
+verbatim: *"now that we've got to the level where the model is in here,
+we need to think more deeply about prompting formatting, activation,
+etc."* — P253's closing paragraph names the three parts not taken here
+(dedupe identical passages in the source block; activate only the notes
+the question's slot reaches; decide whether the crown line belongs on an
+already-addressed answer).
+
+## The minimum the model needs; the adposition cut refuted — P254 (added 2026-09-02) — pointer
+
+POLICIES.md **P254** is the law. User direction: *"the model doesn't need to
+have metadata for a given span, it should be given the minimum amount of
+info to respond well."* `buildFactBlock` now renders each note with its own
+verbatim sentence(s) beneath it, quoted once by folded text; no address,
+ref, count or coverage figure reaches the model (they stay on `spans` for
+the instrument); `spanBlock` and the ledger block's "(read in N places)"
+are gone. The end-hygiene lever (P74 lever 3) was built as a received
+adposition post-trim in eoreader7 (`relations.js::objectBoundaryFrom`,
+opt-in, pinned) and **measured on Dracula: earned faces +15 / −48 among
+782 moved objects** — narrative prose puts the referent after the
+preposition. Refuted at book scale, specimen-scoped for the VP paste, not
+shipped on; `hypergraph.js` carries the opt-in organ (`objectBoundaryFrom`
++ `boundedObjects`), byte-identical when absent. Lexicon coverage on
+Dracula: 92.6% of occurrences, 63.0% of types. Next lever: why the face
+wire earned nothing on the paste, and a referent-aware trim at `endpoint`.
+
+**Amended same day — the face reaches the ledger.** The paste DID earn
+faces offline (4/5); `holon.js` admits from `read(text).claims`, and claims
+never carried `end1Face`/`end2Face` — the wire was on edges only. `judge()`
+now stamps `faceOf` on every claim; holon forwards it; pinned on the real
+paste through the real reader and ledger. Live, notes fold across sources
+without concessions. Remainder: "March" admitted as a being blocks one
+face (two beings in one object) — P79's kind gate with no caller.
+
+## Disclosure is not the answer; words are for the person; a thing is a chip — P255 (added 2026-09-02) — pointer
+
+POLICIES.md **P255**. Three directions on `/derive`, all general: the typed
+level blocks go behind "thinking" (`levelsTurn` takes a body builder and a
+disclosure builder); the screen speaks plain words (rule / fact read in
+the sources / worked out / withdrawn — `rule … means …`, `run sources:<n>
+steps:<n>`, `withdraw <fact> because …`); a giver is an identity chip said
+once (`/derive iam`, `person:<slug>`) and a fact is a chip that pastes as
+`fact:<id>` — objects travel through the chat by id, never as retyped
+text. Blob-staged on HEAD; verified live end to end.
+
+## Priors are experts; what actually happens decides — P256 (added 2026-09-02) — pointer
+
+POLICIES.md **P256**. The census: received linguistic priors are live;
+declared priors are live; SEDIMENTED priors (111 works compiled) are
+consumed by nothing. The basin widened to music to fix that where no
+treebank can help: eoreader7 `adapters/midi/midi.js` (floor 0) and
+`kernel/continuation.js` (medium-blind, pinned) — a prior over any event
+stream, a symbol-free shape prior from any medium, and a prequential
+mixture weighted by each source's own surprise. Two real Bach pieces:
+hearing beats shuffle by 1.6–1.9 bits/note; structural analogy from a
+novel/the record log is an honest negative at this grain; the mixture
+reads a different best source off each piece. Results + listenable .mid:
+eoreader7 `eval/the-fold/results/midi-continuation-RESULTS.md`. Next:
+register the sedimented text priors as experts in a live turn.
+
+**Amended same day — overtones.** eoreader7 `adapters/audio/overtones.js`
+hears the harmonic series in real recordings at 4.8×/7.5× the noise rate
+(against a null), reads a partial profile, and ranks pitch pairs like
+consonance untaught; as a prior on succession it earns nothing (controlled
+negative — its claim is on simultaneity, next). Intervals as a second
+alphabet help the long context. P256's amendment carries the numbers.
+
+**Amended again — simultaneity.** Where the overtone metric belongs, it
+reads the opposite sign: the notes Bach sounds together share FEWER
+partials than chance (six of eight arms below the 5th percentile, every
+arm on the Aria; metric control holds). Fusion is what the counterpoint
+avoids. P256's second amendment; eoreader7 `overtones-RESULTS.md` §4.
+
+## Ground/figure/pattern by surprise — P257 (added 2026-09-02) — pointer
+
+POLICIES.md **P257**; eoreader7 `kernel/surprise-segments.js` +
+`results/surprise-segments-RESULTS.md`. A boundary is where the ground
+was most wrong, against a shuffled null, recursively, medium-blind. Music:
+the Prelude's bar found at 34% vs 18% random (0/200), spacing = its own
+8-note figure. English: chance at words, moves, and POS classes — the
+sentence is a convention of the script, not a surprise peak; the
+statement's figures live at the arrangement/ledger grain (next). The
+received POS prior made the text a ground at all (11.10 → 4.00 bits).

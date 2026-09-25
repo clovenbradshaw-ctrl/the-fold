@@ -14289,3 +14289,474 @@ is unrelated to anything landed today. Disclosed here, not fixed: a real,
 separate negation-scope gap for a future pass, found only because the
 benchmark was actually re-run rather than assumed still valid from a
 month-old results doc (P94's own lesson, applied a second time).
+
+> **Merged 2026-09-25 from branch `reading-cast-cleanup` (work of 2026-09-02).**
+> On that branch these laws were numbered P80–P85; main had already used
+> P80–P85 for different laws, so they are renumbered here P252 (floor 6),
+> P253 (correction loop / selected testimony), P254 (the note and its own
+> words), P255 (disclosure, chips), P256 (priors are experts), P257
+> (ground/figure/pattern by surprise). What of them reached main's code:
+> selected testimony and one-line-per-sentence (`holon.js`), and the list
+> reader (`enumeration.js` + its `app.js` door). Superseded by main and NOT
+> carried: the branch's `/derive` door, levels blocks and chips (main
+> rebuilt derivation as Pass 21 / P102 with `/declare`, `/derive`,
+> `/concede`), and the correction-prompt rewording (main's 2026-09-08
+> question-anchor fix in `buildCorrectionPrompt` kept). Owed to eoreader7,
+> where these organs now live: P254's quoted notes in `fact-block.js`, and
+> the claim-side `end1Face`/`end2Face` stamp and `objectBoundary` wiring in
+> `hypergraph.js`.
+
+## P252 — Floor 6: a corroborated note as a premise (2026-09-02)
+
+**Generality:** universal.
+
+**Law.** A note that survived corroboration (F5) may stand as a PREMISE,
+and licensed composition may derive from premises facts the material never
+stated — provided the product is kept on a different footing from a heard
+note. Concretely: a derived note lands with **no witnesses of its own**;
+what carries it is its premises and the byte addresses the provenance walk
+reaches through them. Premises' witnesses never corroborate the product,
+the product never corroborates a premise, and conceding a premise withdraws
+everything resting on it, transitively, on the same act. This is nesting's
+wall (floor 4½: witnesses of an outer note never corroborate the inner
+claim) one register up, and it is the whole reason floor 6 is a floor
+rather than a flattening.
+
+**Where it lives.** `eoreader7/native/organs/derivation.js`
+(`makeDerivation` → `derive`, `foldDerived`, `concedePremise`,
+`withdrawDerived`, `withdrawnDerived`; pure helpers `premisesOf`,
+`chemistryFor`, `substrateEdges`, `naiveJoin`, `redeal`), and one addition
+to the ledger organ itself: `hyperlexicon.js::concede` (REC·Figure on a
+note — mirrors `grid.js::concedeEvaluation` and `declarations.js::concede`
+exactly: its own task_id, `concedes`, a required verbatim `trigger`), with
+`foldHyperlexicon` now excluding derived and conceded notes from the F5
+projection. Registered as `derive` at SYN·Pattern (Network, Composing).
+
+**What already existed and what did not.** The circuit is the kernel's
+(`kernel/reaction.js`, P60 — measured as a filter, not a generator). It had
+run only inside eval drivers, over edges each driver assembled by hand,
+and its products were printed and discarded. Nothing read premises off the
+real ledger; nothing landed products back on it; nothing could concede a
+premise; and no wall existed for a product sitting beside a heard note.
+
+**The floor is declared.** `{sources, instruments}` — how many distinct
+sources and how many distinct instruments make a note a premise — is the
+caller's number (P4/P9), refused when absent. The counters are the
+corroboration walk's own (`distinctSources`/`distinctRecipes`).
+
+**The licence comes from the register, never from the organ.** Chemistry
+is projected from `interpretation/declarations.js`'s GIVEN tier alone
+(`affordancesFromDeclarations`), so every affordance can be conceded; a
+CANDIDATE yields nothing (the grain theorem, P37). The veto
+(`auditChemistry`/`vetoedPairs`) runs before the licence and is reported
+apart from `withheld`: nobody vouched, versus somebody vouched and the
+material refuted it.
+
+**Two controls ship with the organ (II.23).** No giver → derivation is a
+measured zero with the candidate disclosed and the withheld chains
+counted. `redeal` (objects permuted within a relation, seeded) → the
+derived set moves when the premises move; and on both the real and the
+redealt material the licensed set stays a SUBSET of `naiveJoin`'s
+unlicensed transitive closure — reaction.js's own standing regression,
+restated at this floor.
+
+**Typed by the act.** SYN · Pattern · `derived` (task-log's own
+`OPERATOR_BASIS.DERIVED`), the cell read off the injected `cellOf`; a
+withdrawal is REC · Pattern per product, each naming what it cascaded
+from and at what depth; the premise's own concession is REC · Figure.
+
+**Evidence.** `organs/derivation.test.mjs`, 11 cases against the REAL
+ledger, reaction circuit, refutation scan and declarations register, on a
+relay a→b→c→d→e recorded by two sources and read by two instruments. The
+closure composes two edges at a bridge, so `a after c` is derived (depth 1,
+grounds = the two raw notes, provenance = eight byte addresses) and `a
+after b` is not — the circuit is right about what "after" means. The wall:
+every derived note carries `witnesses: []`, `distinctSources` reads 0,
+`foldHyperlexicon` projects none of them, and every premise's witness set
+is byte-identical after landing. The cascade: conceding `b replaces c`
+withdraws five products (`a after c` and `b after d` directly; `a after d`,
+`b after e`, `a after e` by cascade) and leaves `c after e` standing;
+entries grow by exactly six, nothing deleted; re-deriving over the
+conceded ledger does not resurrect them. The veto: a corroborated second
+predecessor for `b` refutes the adjacency claim, nothing is derived, and
+`vetoed` is non-empty while `withheld` is empty. Regression: 91/92 organ
+tests (the one skip pre-existing), 468/468 native conformance, the
+capability map 27/27 at 29 entries, the-fold's map pins 130/130.
+
+**Disclosed, not claimed.** No live caller yet — `derive` is registered and
+returns from the seam, and the chat has no door onto it; the natural first
+consumer is a `/derive` door where the person is the giver (the same
+posture `/act`'s warrant clause already holds). A conceded note stays
+conceded: hearing the same triple again does not resurrect it. Organ tests
+do not run in eoreader7's CI (its `npm test` covers `conformance/` and
+`tests/`); this file's evidence was run by hand, as every organ test in
+that directory is.
+
+**Amended 2026-09-02 — the door built, and driven live: `/derive`.** The
+named first consumer exists (app.js, blob-staged on HEAD per the
+shared-file rule): `/derive give <relation> yields <product> by <who>`
+(the PERSON is the giver, refused without a name — /act's warrant and
+/must's waiver posture), `/derive run floor:<sources>x<instruments>
+steps:<n>` (every number declared on the line, P9), `/derive show`,
+`/derive concede <noteId> because <trigger>`. Mechanical throughout;
+every act mirrors to the record (`derive-give` / `derive-run` /
+`derive-concede`, `via: "chat"`).
+
+Driven on the real page against real heard notes (gemma2:2b, two pasted
+sources, a grounded turn), four findings, in the order the page produced
+them — each one changed something:
+
+1. **A chat turn's witnesses carry no recipe.** Five notes heard, zero
+   stood at `floor:1x1`: `distinctRecipes` honestly reads 0 for a bare
+   source ref. `premisesOf` now accepts a DECLARED `instruments:0`
+   ("independence not required", said so), and the run output names the
+   stopped notes with their counts and says why.
+2. **The ends were debris, and no face had been earned.** `andrew
+   johnson|replaced|hannibal hamlin in march 1865` never bridged to
+   `hannibal hamlin|replaced|…`. The substrate now bonds on IDENTITY ends
+   (the id's, where the ledger folds earned faces) rather than display
+   strings — P73's seam consumed. On this material no face was earned at
+   all, so the fix had nothing to bond: the extractor's own end hygiene,
+   P74 lever 3, upstream and untouched.
+3. **The veto fired on the ledger's own contradiction, correctly.** With
+   clean sentences added beside the debris notes, `andrew johnson` stood
+   at the first end of `replaced` with two distinct partners — a
+   uniqueness violation of the adjacency claim — and the licence was
+   REFUSED, `vetoed: 1`, `derived: 0`. Conceding the three debris notes at
+   the door (each with its trigger) cleared it.
+4. **Then it composed:** 4 premises, 3 steps, quiescent, **6 derived** —
+   three at depth 1 (`Andrew Johnson ⇒after⇒ John Breckinridge`, …), three
+   at depth 2 with 2–3 paths each, every product walking to 5–11 real
+   addresses through its premises, none of its own. Conceding `hannibal
+   hamlin|replaced|john breckinridge` withdrew exactly the three products
+   resting on it (one at cascade depth 1, two at depth 2, each naming
+   what it cascaded from) and left three standing.
+
+Two door bugs found by driving, fixed: the concede grammar assumed a
+whitespace-free note id (real ids carry spaces — non-greedy up to
+` because ` now), and — user direction, same session — **different
+ontological and epistemological levels are rendered differently**: a
+heard note (F5, from bytes), a derived note (F6, construction under a
+licence, no witness of its own), a licence (a person's declaration) and
+a concession (REC) are four standings, and a product must never read as
+a sighting. They now render as four different kinds of block, not four
+glyphs on one kind of line — see the door's own header for the shapes.
+
+## P253 — Selected testimony is not a photocopy, and the question is in every call (2026-09-02)
+
+**Generality:** universal.
+
+**The specimen.** "Who replaced whom as vice president, in order?" against
+two pasted sources stating the succession as four one-sentence facts.
+The model's FIRST draft was right — a numbered list of exactly those
+facts. The reproduction detector called it "copies the passage word for
+word" (a verbatim copy by every mass test it has), the correction prompt
+told the model to write "a short paragraph saying what the passage shows
+about it" — and, because that prompt never restated the QUESTION, the
+model could only describe the sources, which it did ("This passage
+details the order in which…"). Convicted again, the mechanical fallback
+shipped one fact three times, each with its own address, under a crown
+line restating it a fourth time. Every organ was individually honest and
+the sequence destroyed a correct answer. User, live: "it did not answer
+the question"; then "it gave multiple layers of answers in a weird way";
+then the standing direction this entry serves — *now that the model is
+in here, think more deeply about prompting, formatting, activation.*
+
+**Four laws, each measured on that one turn.**
+
+1. **The question is in every call.** `buildCorrectionPrompt` quotes
+   `part.description` verbatim, first, in every mode. A rewrite without
+   the question can only describe what it was handed. Enforced:
+   `firewall.test.mjs` asserts the question text appears in all five
+   modes' output.
+2. **No apparatus vocabulary in a correction prompt** (P55, extended).
+   "passage", "material", "the prompt" and "say what the passage shows"
+   were all there — narration by instruction. Every mode now says what to
+   DO with the question and never names our own parts; the firewall scan
+   covers `buildCorrectionPrompt` for all five modes, so the leak cannot
+   quietly return.
+3. **Selected testimony is not a photocopy.** When the answer to a
+   question IS a set of the sources' own atomic statements, copying those
+   statements is answering; what makes a photocopy a photocopy is that it
+   drags along what the question never asked for. The exemption in
+   `reproducedFromContent` is structural, not a threshold: the copied
+   stretch must resolve to at least TWO distinct material sentences (a
+   set needs two members; one copied sentence is a single fact owed in
+   one's own words — the Kessington and bare-"Hamlin" pins keep their
+   meaning), counted in the MATERIAL's sentences never the draft's own
+   punctuation (a numbered list with no full stops is one "sentence" to
+   the splitter), and EVERY one must share a content word with the
+   question (one irrelevant copied sentence and it is transcription — the
+   ledger retype and the dialogue transcription both still convict). A
+   sentence with no letters is furniture, not content: the list's own
+   markers ("1.", "2.") split off as sentences and "1 ." matched inside
+   "1861 ." in another passage — a coincidental, irrelevant "copy" that
+   vetoed the exemption until filtered.
+4. **One voice per passage, one line per sentence.** `mechanicalAnswer`
+   keys its chosen sentences by folded text; passages that state the same
+   sentence add their ADDRESS to one line rather than a second copy of the
+   words.
+
+**Evidence.** Offline replay of the exact live draft through the real
+pipeline: convicted → after each fix in turn, still convicted (the
+punctuation count, then the letterless marker) → ships. Live, same
+question, same material, after: the first draft ships untouched — all
+four handovers, one address chip, 2 model calls instead of 3.
+`holon.test.mjs` 64 → 65 (the specimen, with two controls built to fail:
+one irrelevant sentence dragged along convicts; one copied sentence alone
+convicts), `firewall.test.mjs` 9 → 11. Full the-fold suite: unchanged
+failure set.
+
+**Named, not done — the rest of the direction.** (a) FORMATTING: the
+source block showed the identical sentence three times (two paragraphs of
+one paste, one of another) and the notes block listed the same fact as
+three notes (two with adjunct debris); identical folded text should be
+one quote carrying every address, and a note whose ends are contained by
+another's should fold under it. (b) ACTIVATION: the notes block is every
+note heard; it should be the notes the QUESTION activates — the slot the
+void declared, queried against the ledger — with the rest withheld from
+the prompt (P55: richer provenance never becomes a bigger prompt). (c)
+The crown line restated one sentence of an answer that already carried
+its address — a fifth layer on a four-line answer; whether the crown
+belongs on a turn whose every sentence is addressed is a decision, not a
+bug, and it is not taken here.
+
+## P254 — The model gets the note and its own words, nothing else; the adposition cut is refuted at book scale (2026-09-02)
+
+**Generality:** universal (the prompt rule); specimen-scoped (the cut).
+
+**Two directions, same hour.** *"I thought we were going to prompt the
+system with hypergraph notes grounded in verbatim spans?"* — then, on
+seeing what a span carried into the prompt: *"the model doesn't need to
+have metadata for a given span, it should be given the minimum amount of
+info to respond well."*
+
+**What the prompt was doing.** The design existed (2026-08-28: notes
+first, then only the spans that bound them, raw text as the fallback), but
+the spans went in a SEPARATE list, each under its chunk ADDRESS
+(`pasted.txt#0-173:`) — addresses had left the model's view on 2026-08-18
+and had crept back — and the same sentence stated in three passages went
+three times. The model had to re-join notes to spans by itself; the ledger
+block added "(read in 2 places)" to every line.
+
+**The rule.** A grounded note is ONE unit: the note, then the verbatim
+sentence(s) it was read from, quoted once by folded text however many
+passages state it. No address, no ref label, no witness count, no
+coverage figure — every one of those is the instrument's, and every one
+stays on the instrument's side (`spans` with addresses for chips, the
+record, the fold). `buildFactBlock` renders it; `spanBlock` is gone unless
+a notes block carries no quotes at all (then bare sentences, addressless);
+the ledger block's per-line counts are gone. Pinned:
+`fact-block.test.mjs` — one note for three restatements, the quote under
+its note, `/#\d|p\.txt|read in \d/` absent from the text. Live, same
+question: a 1,725-char system message with every note carrying its words,
+the answer right on the first draft, 2 calls.
+
+**The cut — built, measured, refuted, kept.** The end-hygiene lever named
+as the next step (P74 lever 3) was built as `relations.js::
+objectBoundaryFrom` — the POS prior's adposition class, a received giver,
+no word list — first as a stop class (edges 1644 → 2647: the scan resumed
+inside the truncated adjunct; a random stop set did the same), then as a
+post-trim (match set byte-identical). Measured on 400 Dracula passages
+through the production reader: **782 objects moved, earned faces +15 /
+−48.** In narrative prose the referent sits after the preposition; the cut
+removes it. The VP specimen is the case where the referent comes first —
+specimen-scoped, P71's own gate applied to this repo's own proposal. It
+ships opt-in, pinned (including the disclosed "Duke of Wellington" cost),
+with a re-runnable driver and a results doc (eoreader7
+`results/object-boundary-RESULTS.md`), and NOT on in the production
+reader. Lexicon on that text: 92.6% of occurrences attested, 63.0% of
+types — names and period vocabulary are the gap; any boundary rule is
+bounded by that.
+
+**Where it points.** The identity the ledger keys on is the earned face;
+debris in the display never mattered where a face was earned. The live
+specimen bit because NO face was earned on a three-sentence paste. The
+lever is (a) why the face wire earned nothing there, and (b) a
+referent-aware trim at `hypergraph.js::endpoint` — cut after an earned
+face only when nothing earned follows — a rule about referents, not
+adpositions. Not built here.
+
+**Amended 2026-09-02 — the face reaches the ledger.** The "why did a
+three-sentence paste earn no face" question P254 named was answered the
+same hour by reproducing the paste offline through the production reader:
+it earned 4 of 5 faces. The darkness was between the reader and the door:
+`holon.js` admits the ledger from `read(text).claims`, and the Station-3→4
+face wire had been stamped on material EDGES only — claims never carried
+`end1Face`/`end2Face`, so `hear()` keyed every live note on raw strings.
+Fixed at the source, symmetrically: `judge()` stamps `faceOf` on every
+claim's ends (the same organ, the same exactly-one-real-being rule), and
+holon's admit map forwards them. Pinned through the REAL reader and the
+REAL ledger organ on the exact paste (`holon.test.mjs`): the note keyed
+`hannibal hamlin|replaced|john breckinridge`, no raw-string twin. Live, no
+concessions: the two pastes' notes fold to one note each at 2–3 sources.
+
+**The one honest remainder, pinned rather than hidden:** "Hannibal Hamlin
+in March 1865" resolves to TWO beings — "March" was admitted as a referent
+— so no face is earned and the raw note stands beside the clean one, and
+the uniqueness veto fires on it. That is P79's kind gate with no caller,
+now visible as a face loss: the next lever, and a cheaper one than any
+cut. `hypergraph.test.mjs` runs 58/58 under both providers after this.
+
+## P255 — Disclosure is not the answer; words are for the person; a thing is a chip (2026-09-02)
+
+**Generality:** universal.
+
+Three directions in one sitting, on the `/derive` door, each generalising
+past it:
+
+1. **"All this looks like content that should need to be disclosed, it's
+   not extraordinarily useful normally."** The typed blocks P252 built — a
+   rule as a quotation, facts as a table with addresses, worked-out results
+   as a code box, withdrawals struck — are the RECORD of how a result was
+   reached. They now live where every turn's record already lives: behind
+   "thinking". The body says the plain thing. `levelsTurn(question, text,
+   buildBody, buildDisclosure)` is the shape: two builders, two surfaces,
+   one turn.
+2. **"Do a terminology pass, it's all quite esoteric."** The instrument's
+   vocabulary — premise, licence, concede, witness, floor, cascade, F5/F6,
+   REC, ⊢ — stays in the code and on the record. On the screen: *a rule
+   you gave*, *a fact read in the sources*, *worked out from those facts —
+   not stated in the sources*, *withdrawn*. `/derive rule <relation> means
+   <chained>`, `/derive run sources:<n> steps:<n>`, `/derive withdraw
+   <fact> because <reason>`. The old spellings still parse. The numbers are
+   still declared (P9); they are named for what they are.
+3. **"Attribution should be selectable unique-ID chips, not strings you
+   have to type correctly … it would be cool if we can copy + paste a
+   'fact' into the chat and it copies through as an object."** A giver is
+   an identity said once (`/derive iam <name>` → `person:<slug>`, kept
+   across reloads) and shown as a chip; every rule is attributed to the
+   chip, no `by …` typed. Every fact the door lists is a chip whose label
+   is its words and whose id rides underneath; a click pastes the OBJECT
+   into the composer as `fact:<id>` (a giver pastes `person:<id>`), and the
+   door resolves tokens — so a fact travels through the chat as a
+   reference to a unique thing, never as text retyped. A rule given in
+   someone else's name is refused.
+
+**Evidence, live:** `/derive iam Michael Lacy` → chip `person:michael-lacy`;
+`/derive rule replaced means after` attributed to it with nothing typed;
+`/derive run sources:2 steps:6` → four fact chips and six worked-out lines
+in plain words, the table/quote/code box behind thinking; typing
+`/derive withdraw `, clicking a fact chip, finishing the sentence → the
+composer held `fact:hannibal hamlin|replaced|john breckinridge …`, the
+door withdrew that fact and, in plain words, the three things worked out
+from it.
+
+## P256 — Priors are experts, and what actually happens decides (2026-09-02)
+
+**Generality:** universal.
+
+**The direction, verbatim:** "build out our priors influencing our reading
+and generation more, and not just with text but with music, where we
+generate a continuation of a midi file mid stream without teaching it
+music theory"; then "influenced by anything that has structural analogy";
+then the criterion that settles it: "use what ACTUALLY happens to find
+what source is most predictive by making what sequence of what comes next
+least surprising."
+
+**The census first, honestly.** Reading uses received linguistic priors
+heavily (the UD POS prior, UniMorph, determiners, negation, pronouns —
+facts about English, handed in). Reasoning uses declared priors (a
+person's rule). The SEDIMENTED priors — what the reader learned from 111
+works — are compiled and consumed by nothing live. The gap the direction
+names is real.
+
+**The law.** A prior is an EXPERT, never a choice. Every source of
+experience that can claim a distribution over what comes next — the
+hearing of this stream at each grain, another work, the shape of moves in
+a stream from any medium, a shuffled control — is kept alive, charged its
+surprise as each real event arrives, and weighted by 2^(−cumulative bits).
+The mixture predicts and generates. "Which source is most predictive" is
+READ OFF the stream, never assumed; a source that keeps being surprised
+fades on its own. The control built to fail is a shuffled hearing, and it
+must end at weight zero.
+
+**Where it lives:** eoreader7 `kernel/continuation.js` (medium-blind,
+pinned), `adapters/midi/midi.js` (floor 0 for MIDI), the driver and
+results in `eval/the-fold/`. **Measured** on two real Bach pieces: the
+hearing beats its shuffle by 1.6–1.9 bits/note; the mixture picked order 1
+on the prelude (order 3 replays) and the cross-work expert on the sparse
+aria — a different answer per piece; structural analogy from a novel or
+the record log did NOT reduce surprise at this grain (kept as a negative
+with its control). One defect the numbers found: a mixture scoring worse
+than its best expert — unequal floors — fixed with one declared floor for
+every scorer, and the bound (mixture ≤ best + log2 N / n) pinned.
+
+**What this means for text.** The same kernel applies unchanged to any
+stream the reader produces — words, notes on the ledger, acts on the
+record. Wiring the sedimented priors into live reading is now a matter of
+registering them as experts and letting the turns charge them; it is not
+a design question any more.
+
+**Amended 2026-09-02 — overtones, and intervals.** User: "not melody per
+se — overtones more or less. music." Built in eoreader7
+(`adapters/audio/overtones.js`): a plain FFT reads real recordings (a
+piano Prelude, a 1940s 78rpm; audio from public archives, decoded
+locally, never committed) and the harmonic series is HEARD against a null
+— energy at integer multiples of the strongest peak at 4.8× and 7.5× the
+white-noise rate. The first verdict demanded a hand-set 50% and called
+the piano "not established"; the test is the ratio to the control, never
+an invented threshold — corrected. A metric read off the recording's own
+partial profile ranks octave 0.57 > fifth 0.09 > semitone 0.00, untaught.
+Put to the stream as an expert (`smoothedExpertOf`, medium-blind): as a
+prior on SUCCESSION it earns nothing on the Prelude — no better than a
+random permutation of itself, a controlled negative — because overtone
+nearness is a fact about what sounds TOGETHER, and the test asked about
+what comes NEXT; the simultaneity test is the next measurement. Intervals
+(`ALPHABET=interval`, the file's own subtraction) help the long context
+and hurt the short one; on that alphabet the record log's move-shapes tie
+the hearing and the mixture splits 0.6/0.4. One floor now applies to every
+scorer. Results: eoreader7 `results/overtones-RESULTS.md`,
+`midi-continuation-RESULTS.md` §1b.
+
+**Amended again 2026-09-02 — the simultaneity test turned the question
+around.** Run where the metric belongs (what sounds together, not what
+comes next): co-sounding pairs by tick-overlap, pitch-redeal null with
+timing kept, 200 draws, two-sided, two measured profiles × two tolerances.
+**Six of eight arms — every arm on the Aria — sit below the 5th
+percentile: the notes Bach sounds together share FEWER partials than
+random pairings of the same pitches.** What the physics metric scores
+high is fusion (octave, fifth), and the counterpoint avoids exactly that;
+the most-sounding pairs are thirds and sixths, which the metric scores
+near zero. The metric-control arm never beat its own null. The sign was
+read off two real files with nothing taught. Caveats: fusion-shaped
+metric (k ≤ 8), two pieces, one composer. eoreader7
+`results/overtones-RESULTS.md` §4.
+
+## P257 — Ground, figure, pattern: a boundary is where the ground was most wrong (2026-09-02)
+
+**Generality:** universal (the kernel); the findings are per medium and say so.
+
+**The direction, verbatim:** "the system has no view from nowhere and never
+is without Bayesian priors … music exists in statements too — in ground
+figure patterns that need to be segmented recursively, more elegantly
+than language ever can."
+
+**The law.** Segmentation is not a rule about marks. Ground is the prior so
+far; figure is an event's surprise, measured before it arrives; a boundary
+is a local peak of surprise at or above what the SHUFFLED stream produces
+under the same reader (the null lives inside the cut, II.23); pattern is
+the next level, where segments become symbol-free move-shape tokens and
+the cut recurs. The material's own script — bar lines, punctuation — is
+the ORACLE a boundary is tested against, never something the segmenter
+reads. eoreader7 `kernel/surprise-segments.js`, pinned medium-blind.
+
+**Measured.** Music: the Prelude's boundaries fall on the file's own bar
+at 34% vs 18% for count-matched random placement, 0 of 200 above; the
+boundary spacing is the piece's own 8-note figure; recursion condenses 77
+→ 16 → 4 cuts. The Aria is chance (a ground never right has no figures,
+only novelty). Text (Dracula, sentence ends held aside): chance at three
+grains — raw words (every unseen word a "figure"), word-moves (sentence-
+SIZED segments, below chance on sentence ends), and POS classes, where the
+received prior turned a hapax stream into a real ground (11.10 → 4.00
+bits to cut) and the sentence still did not appear.
+
+**What it means.** A prior is what makes a ground possible — and a sentence
+is a convention of the script, not a peak of surprise at the word grain.
+The thesis stands for music and is not refuted for statements; it is
+mis-aimed at words. A statement's figures live where recurrence is dense:
+the arrangements (floor 2) and the ledger's notes (floor 5) — streams
+this repo already keeps. Segmenting those by surprise is the next
+measurement. And which representation a stream is read at is itself a
+source, to be chosen by what actually happens (P256's mixture), never by
+hand.

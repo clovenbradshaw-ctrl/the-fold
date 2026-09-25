@@ -487,6 +487,140 @@ export function huntSettled(obs) {
   return obs.rank != null && obs.rank > 0.5;
 }
 
+// ── the hunt gate, second signal: echo by shape ─────────────────────────
+//
+// GAP, verbatim from the task that opened this section: the hunt's own
+// stopping decision is driven ONLY by statistical surprise, and a newly
+// arrived page that is substantially an ECHO of a page already gathered
+// this hunt (a search-results snippet and the full page it previews, or
+// two results that are the literal same underlying page) can still read
+// as "somewhat surprising" under a pure word-novelty measure — so the
+// hunt can keep going, or worse, both copies can reach the model as if
+// independent facts. This is P181's own bug class (fact-block.js's
+// header), caught there only AFTER the hunt had already decided to fetch
+// and keep both. This section gives the hunt meter the same organ
+// fact-block.js already built for that class of bug — never a second
+// one, never a fuzzy-similarity threshold.
+//
+// aposiopesis.js's own `find()`, read closely before writing anything
+// here, does NOT already generalize to whole-passage comparison: it is
+// fixed at SENTENCE granularity (it calls `splitSentences` on every
+// passage) and it gates domination checking on `TRAILING_ELLIPSIS_RE` —
+// a sentence is only ever a candidate for being DOMINATED if it itself
+// ends in "…"/"...". That is exactly the shape a search-engine snippet
+// has and almost never the shape a whole fetched PAGE has (a page's own
+// last sentence essentially never trails off), so `find()` alone would
+// answer "did this page's own truncated sentence get completed
+// elsewhere" (real, and built below as `ownDominatedSentences`, a thin
+// call straight through `find()` — nothing reimplemented) but would stay
+// silent on "is this whole page substantially a restatement of a page
+// already gathered", the more common real shape.
+//
+// So two checks ship, not one — BOTH are additive disclosure, neither
+// ever overrides `huntSettled`'s own statistical verdict:
+//
+//   ownDominatedSentences(text, priorTexts, organs) — calls
+//   aposiopesis.find() directly, over every already-gathered text plus
+//   the arriving one, and reports which of the ARRIVING page's own
+//   sentences landed in the returned `dominated` set. Zero new logic;
+//   this is `find()`'s own sentence-level answer, read for one
+//   caller-declared passage instead of the whole pool.
+//
+//   wholePassageDominance(text, priorTexts, normalize) — the thin, reused
+//   wrapper `find()` cannot give: the SAME byte-for-byte prefix test
+//   `find()` runs internally (`hay.startsWith(needle)`, the identical
+//   shape fact-block.js's own `subsumes` already uses one register over,
+//   for a triple's object instead of a whole sentence) applied to two
+//   WHOLE normalized passages, with no ellipsis gate — because the
+//   arriving page need not itself trail off to be substantially the same
+//   text as something already held. Two whole passages, byte-for-byte
+//   prefix or exact match, nothing fuzzy: the arriving page is DOMINATED
+//   when it is the shorter one (a later, thinner echo of fuller material
+//   already gathered — the case worth disclosing to the hunt), or it
+//   DOMINATES a prior arrival (the fuller page has just arrived and
+//   completes an earlier truncated seed/snippet — genuinely new
+//   information, never "echo", see `huntEchoed` below).
+//
+// Both are wired into `makeHuntMeter` as one optional `aposiopesis`
+// organ (the SAME `{splitSentences, normalize}`-injected `makeAposiopesis`
+// instance fact-block.js builds, or an equivalent one constructed the
+// same way — never a second, independent instance) plus the two
+// primitives it was built from, `splitSentences`/`normalize`, required
+// alongside it for the identical reason `makeAposiopesis` itself
+// requires them: this file constructs no second guess at either, and the
+// whole-passage check must agree with the sentence-level one on what
+// "the same text" means.
+
+/**
+ * ownDominatedSentences(text, priorTexts, {aposiopesis, splitSentences,
+ * normalize}) — `aposiopesis.find()`'s own sentence-level answer, read
+ * for one page. Every already-gathered text plus the arriving one are
+ * handed to `find()` as passages (order does not matter — `find()`'s own
+ * header says so, and a search-results digest is not reliably fetched
+ * before or after the full page it duplicates); the arriving page's own
+ * sentences are then split and normalized with the SAME injected
+ * functions and checked for membership in the returned `dominated` set.
+ */
+function ownDominatedSentences(text, priorTexts, { aposiopesis, splitSentences, normalize }) {
+  const passages = priorTexts.map((t) => ({ text: t })).concat([{ text }]);
+  const { dominated } = aposiopesis.find(passages);
+  if (!dominated.size) return [];
+  return splitSentences(String(text ?? ""))
+    .map((s) => normalize(s))
+    .filter((n) => n && dominated.has(n));
+}
+
+/**
+ * wholePassageDominance(text, priorTexts, normalize) — the general case
+ * `find()` cannot answer (see this section's own header): does the whole
+ * arriving `text`, normalized, sit byte-for-byte as a PREFIX of some
+ * already-gathered text (`dominated: true` — the arriving page is the
+ * thinner echo), or does some already-gathered text sit as a prefix of
+ * it (`dominates: true` — the arriving page is the fuller completion,
+ * genuinely new)? An exact normalized match is reported `dominated` with
+ * `exact: true` — nothing is gained either way, so it reads as the
+ * arriving copy contributing nothing new, same as a strict prefix would.
+ * First match wins; this answers an existence question, not "which".
+ */
+function wholePassageDominance(text, priorTexts, normalize) {
+  const norm = normalize(String(text ?? ""));
+  if (!norm) return { dominated: false, dominates: false, exact: false };
+  for (const prior of priorTexts) {
+    const priorNorm = normalize(String(prior ?? ""));
+    if (!priorNorm) continue;
+    if (priorNorm === norm) return { dominated: true, dominates: false, exact: true };
+    if (priorNorm.length > norm.length && priorNorm.startsWith(norm)) return { dominated: true, dominates: false, exact: false };
+    if (norm.length > priorNorm.length && norm.startsWith(priorNorm)) return { dominated: false, dominates: true, exact: false };
+  }
+  return { dominated: false, dominates: false, exact: false };
+}
+
+/** Both checks, folded into the one object a hunt observation carries as
+ * `.echo` when an aposiopesis organ was supplied to `makeHuntMeter`. */
+function huntEchoOf(text, priorTexts, organs) {
+  return {
+    sentenceDominated: ownDominatedSentences(text, priorTexts, organs),
+    ...wholePassageDominance(text, priorTexts, organs.normalize),
+  };
+}
+
+/**
+ * huntEchoed(obs) — a convenience reading of `obs.echo`, mirroring
+ * `huntSettled`'s own shape: true only when the WHOLE arriving page reads
+ * as substantially dominated (an exact echo counts, since `exact` is
+ * always accompanied by `dominated: true` above) — never merely on
+ * `sentenceDominated.length`, which can be real and small while the rest
+ * of the page is genuinely new, and never on `dominates`, which marks
+ * the arriving page as the VALUABLE, completing one, the opposite of an
+ * echo. Pure and UNWIRED — see this file's own header on `surfWeight`/
+ * `forcesFoldRefresh` for the same disclosed posture: a caller (the
+ * hunt's own stopping decision in `gatherPreflightMaterial`, app.js) may
+ * OR this alongside `arrived.settled`, never in place of it.
+ */
+export function huntEchoed(obs) {
+  return !!obs?.echo?.dominated;
+}
+
 /**
  * makeHuntMeter(organs) — `{ create, arrive }`, the reflex.js/aperture.js
  * factory shape. `create(seedTexts)` folds the ground the hunt STARTS
@@ -496,8 +630,30 @@ export function huntSettled(obs) {
  * recorded with `role: "seed"` and never consulted by the stop rule.
  * `arrive(meter, text)` measures one fetched page and returns the
  * observation with `settled` already read off it.
+ *
+ * `aposiopesis`/`splitSentences`/`normalize` are OPTIONAL and additive —
+ * see this section's own header, above. Omitted (every existing caller,
+ * today — `app.js`'s one call site passes only `createTierStack`/
+ * `foldThrough`), every returned observation is byte-identical to this
+ * function's behavior before this section existed: no `.echo` key is
+ * ever added to an observation, and nothing about the surprise
+ * computation itself changes. Supplied, every observation additionally
+ * carries `.echo` (see `huntEchoOf`), and `meter.rawTexts` accumulates
+ * the raw text of every arrival (seed and page alike — a search-snippet
+ * seed is exactly the kind of thing a later full-page fetch echoes) so
+ * each new arrival is checked against everything already gathered this
+ * hunt, in order, and only ever looks backward — the same
+ * never-revise-a-past-observation discipline this repo holds everywhere
+ * else (P4).
  */
-export function makeHuntMeter({ createTierStack, foldThrough }) {
+export function makeHuntMeter({ createTierStack, foldThrough, aposiopesis = null, splitSentences = null, normalize = null }) {
+  if (aposiopesis && (typeof splitSentences !== "function" || typeof normalize !== "function")) {
+    throw new TypeError(
+      "makeHuntMeter: an injected aposiopesis organ needs its own splitSentences/normalize beside it — the same primitives its instance was built from; this file constructs no second guess at either",
+    );
+  }
+  const echoOrgans = aposiopesis ? { aposiopesis, splitSentences, normalize } : null;
+
   const fold = (meter, text, role) => {
     const arrival = huntCounts(text);
     const seq = meter.arrivals.length;
@@ -516,9 +672,11 @@ export function makeHuntMeter({ createTierStack, foldThrough }) {
         gap: t0.gap ? `${t0.gap.gap ?? t0.gap}${t0.gap.detail?.reason ? ` — ${t0.gap.detail.reason}` : ""}` : null,
       };
     }
+    if (echoOrgans) obs.echo = huntEchoOf(text, meter.rawTexts, echoOrgans);
     obs.settled = role === "seed" ? null : huntSettled(obs);
     obs = Object.freeze(obs);
     meter.arrivals.push(obs);
+    meter.rawTexts.push(text);
     return obs;
   };
 
@@ -531,6 +689,7 @@ export function makeHuntMeter({ createTierStack, foldThrough }) {
           seed: SURPRISE_SEED,
         }),
         arrivals: [],
+        rawTexts: [],
       };
       for (const t of seedTexts) if (String(t ?? "").trim()) fold(meter, t, "seed");
       return meter;

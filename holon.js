@@ -4228,6 +4228,12 @@ export async function runPart({
     // never re-summarized by a later cell. Absent when the seam was not
     // armed (every existing caller before this seam existed).
     ...(shipment ? { shipment: { text: shipment.text ?? null, coverage: shipment.coverage ?? null, coverageLine: shipment.coverageLine ?? null, withheld: shipment.withheld ?? [], refused: shipment.refused ?? [], gap: shipment.gap ?? null } } : {}),
+    // Developer-surface disclosure (2026-09-23): was this part's own shipped
+    // text assembled mechanically (mechanicalAnswer/mechanicalCompetingAnswer)
+    // rather than drafted by the model? Computed above but never returned
+    // before now — a caller had no way to tell an assembled fallback from
+    // the model's own words without re-deriving it from `open`'s prose.
+    mechanical,
     open,
     // The updated shared log, threaded back to the caller — `gridLog`
     // unchanged (byte-identical `===`) when no organ was injected or

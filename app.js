@@ -1102,6 +1102,16 @@ const RELATION_READER_OPTIONS = {
   // manufacture a finding against an answer (beyond-reach stays off the
   // unsupported list by relationFindings' own standing rule).
   determiners: new Set([...enginePriors.DEFINITE_DETERMINERS, ...enginePriors.INDEFINITE_DETERMINERS]),
+  // queryReferents' own verb-label fold (hypergraph.js, 2026-09-23) reads a
+  // NARROWER, separate organ than the object-token match above: definite
+  // determiners only, never indefinite ones. Adversarial falsification (the
+  // same pass) found folding "a" together with "the" wrongly clusters a
+  // non-unique claim ("became A vice president", one of several) with a
+  // unique one ("became THE vice president", the sole holder) as though
+  // they named the same office slot — see hypergraph.js's own comment on
+  // `foldLabel` for the specimen. This is the-fold's own live turn getting
+  // that narrowing, not just the test suite's.
+  definiteDeterminers: new Set(enginePriors.DEFINITE_DETERMINERS),
   negationWords: enginePriors.NEGATION_WORDS,
   // A third closed class, same standing, same reason (POLICIES.md P180): a
   // first-person subject ("my favorite color", "I painted the wall") names
@@ -1168,6 +1178,7 @@ const BARE_RELATION_READER_OPTIONS = {
   verbForms: undefined,
   oovLexicon: undefined,
   determiners: undefined,
+  definiteDeterminers: undefined,
   negationWords: undefined,
   firstPerson: undefined,
   createLemmatizer: undefined,
@@ -9123,6 +9134,7 @@ async function chartTurn(question) {
   renderFold(node, { fold });
   renderThreads();
   $("status").textContent = readyLine();
+  lastUserDraw = null;
   state.busy = false;
   $("send").disabled = false;
   $("input").focus();
@@ -9349,6 +9361,10 @@ function drainQueue() {
 }
 
 function releaseBusy() {
+  // The turn that just ended owns no submit's bubble any more: a chip, ant or
+  // suggestion that sends the SAME words as the last turn must draw its own
+  // user bubble, never reuse this one (lastUserDraw's own comment).
+  lastUserDraw = null;
   state.busy = false;
   $("send").disabled = false;
   $("input").focus();
@@ -14098,6 +14114,7 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
     renderFold(node, { sent: sentCalls });
     renderThreads();
     $("status").textContent = readyLine();
+    lastUserDraw = null;
     state.busy = false;
     $("send").disabled = false;
     drainQueue();
@@ -14462,6 +14479,12 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       question: task, answer: result.output ?? "", model: turnModel, frame: recFrame, recipe: recRecipe,
       sections: result.sections ?? [], unsupported: result.unsupported ?? [], unbacked: result.unbacked ?? [],
       unread: unreadNow(), cursor: ANSWER_CURSOR++,
+      // Developer surface (2026-09-23): the SAME diagnostic strings already
+      // threaded into fold.js's separate warrant record (app.js's own
+      // `record.open` a few dozen lines up), which nothing renders — this is
+      // the record renderFold actually draws from.
+      open: result.open ?? [],
+      mechanical: (result.sections ?? []).some((s) => s?.mechanical),
       // Every ∅ cites its void (P106): the open voids at the moment of the
       // record, and the sentence witness's rows, so each absence is either
       // an honest citation of a declared gap or a counted leak.
@@ -14570,7 +14593,36 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
 /** Real tokens, cumulative, straight from Ollama's own `done` chunks. */
 const tokensSeen = { in: 0, out: 0, calls: 0 };
 
+// The composer's own bubble for the CURRENT submit, unconsumed. The composer
+// draws it once, synchronously, before any dispatch (so it is on screen 100%
+// of the time a submit is accepted — see the composer's onsubmit below); the
+// FIRST downstream draw of the same message for that submit (a turn function's
+// `addMessage("user", …)`) gets this node back instead of a second bubble and
+// CONSUMES it — so a later identical draw in the same turn (a room-conversation
+// print echoing the same line twice) draws its own bubble exactly as before,
+// and only the composer's own submit draw is ever deduplicated. Never set by
+// general draws; reset at the start of the composer's own draw (a second
+// identical submit is a second message, never a dedup of the first) and at
+// releaseBusy (a chip/ant/suggestion send that happens to repeat the last
+// turn's words must draw its own bubble, never reuse this one).
+// Root cause this closes, found live 2026-09-22: the composer drew the
+// person's bubble ONLY in the busy/queued branch; the normal path delegated
+// drawing to the turn function, which draws LATE (er7Turn only after
+// `await er7Reachable()`, up to 1500ms) and conditionally — so a turn that
+// died before its own addMessage, or an engine path that hung, left the
+// message with no bubble at all. This class had been patched one call site at
+// a time three times (er7Turn 09-19, renderSocratic 09-22 twice); this is the
+// choke-point fix that makes the composer itself the guarantee.
+let lastUserDraw = null;
+
 function addMessage(role, text) {
+  if (role === "user" && lastUserDraw && lastUserDraw.text === text &&
+      lastUserDraw.node?.isConnected &&
+      lastUserDraw.node.parentElement === state.convos[state.active]?.el) {
+    const node = lastUserDraw.node;
+    lastUserDraw = null;
+    return node;
+  }
   const el = document.createElement("div");
   el.className = `msg ${role}`;
   // Ground mode draws every turn's standings: a message born under it
@@ -19416,6 +19468,37 @@ function recordClaimsList(record) {
   return sec;
 }
 
+// Developer surface (2026-09-23, user direction: "before we get the surface
+// working, we need to get perfect answers in code... make a developer
+// surface that's just focused on what is happening behind the scenes" —
+// following the earlier "/dev" direction, "make a developer mode that shows
+// the actual pipeline that goes from prompt to answer"). engineTraceSection
+// covers the SEPARATE eoreader7-proxy (er7Turn) path; this covers the LOCAL
+// path (holonicTurn/twoPassTurn) — the one that runs whenever no proxy is
+// configured, which is the ordinary case. Renders record.open verbatim: the
+// run-log/completeness-gate diagnostic strings holon.js already computes
+// (including the exact finding that drives a competing-subjects correction,
+// "answer names only one of several the material states: ...") and whether
+// the shipped text was assembled mechanically rather than drafted.
+function foldDevPipeline(record) {
+  const open = record?.open ?? [];
+  if (!open.length && !record?.mechanical) return null;
+  const sec = foldSection("Engine pipeline (dev)", "the local turn's own run-log — see /dev to turn this off");
+  if (record.mechanical) {
+    const p = document.createElement("p");
+    p.className = "fold-step-note";
+    p.textContent = "this answer was assembled mechanically (mechanicalAnswer/mechanicalCompetingAnswer) — the material's own verbatim, addressed sentences, not the model's drafted words.";
+    sec.append(p);
+  }
+  for (const line of open) {
+    const p = document.createElement("p");
+    p.className = "fold-step-note";
+    p.textContent = line;
+    sec.append(p);
+  }
+  return sec;
+}
+
 // Two of this turn's phase LABELS are, byte-for-byte, an already-registered
 // capacity (eoreader7/native/organs/capacities.js) — not a new typing
 // invented for this box, a citation of one that already exists: "checking
@@ -19607,6 +19690,7 @@ function renderFold(node, { sent, record = null, engineTrace = null } = {}) {
   if (claimsList) out.append(claimsList);
 
   if (state.devMode && engineTrace) out.append(engineTraceSection(engineTrace));
+  if (state.devMode && !engineTrace) { const dev = foldDevPipeline(record); if (dev) out.append(dev); }
 
   meta.querySelector(".fold-copy")?.remove();
   if (record || sent?.length) {
@@ -22961,10 +23045,25 @@ $("composer").onsubmit = (e) => {
   e.preventDefault();
   const q = $("input").value.trim();
   if (!q || !state.ready) return;
+  // DRAW THE PERSON'S OWN BUBBLE HERE, ALWAYS — busy or not — before any
+  // dispatch (the guarantee this file's addMessage header names). The turn
+  // functions that used to draw it still call addMessage("user", …), which
+  // now returns this same node for this submit; nothing downstream draws a
+  // second one. Found live, 2026-09-22: the old code drew only in the busy
+  // branch, so a normal submit's bubble depended on the turn function
+  // drawing it LATE (er7Turn draws after `await er7Reachable()`, up to
+  // 1500ms) — and if the turn died before that line, or hung, the message
+  // had no bubble at all. `lastUserDraw = null` first: two identical
+  // consecutive submits are two messages, never a dedup of the first.
+  lastUserDraw = null;
   $("input").value = "";
+  const el = addMessage("user", q);
+  // Mark this node as the composer's own draw for this submit: the FIRST
+  // turn-function draw of the same message consumes it (addMessage's dedup),
+  // so nothing downstream adds a second bubble.
+  lastUserDraw = { text: q, node: el };
   if (state.busy) {
     state.queue.push(q);
-    const el = addMessage("user", q);
     el.classList.add("queued");
     el.querySelector(".body").append(Object.assign(document.createElement("span"), { className: "queue-tag", textContent: "queued" }));
     return;

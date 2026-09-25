@@ -1,5 +1,11 @@
 // activation-retrieval.js — retrieval as ACTIVATION over the reading, not a
-// string matcher over containers. THE-HOLOGRAPH.md §6 is the theory; this is
+// string matcher over containers.
+//
+// Handle: Kahanamoku (alias "Duke"), after Duke Kahanamoku, who carried
+// surfing to the wider world — read the water, then ride the wave that is
+// actually there. The archon of the surf (eoreader7 README Handle table).
+//
+// THE-HOLOGRAPH.md §6 is the theory; this is
 // the organ. Pure: the referent index, the sentence splitter and the
 // measurement organ are injected (the cast.js posture).
 //

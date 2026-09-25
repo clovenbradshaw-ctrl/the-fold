@@ -78,7 +78,7 @@ export const claimKey = (c) => `${String(c.end1 ?? c.subject ?? "").toLowerCase(
  * @param {object} turn — { question, answer, model, frame, recipe, sections, unsupported, unbacked, unread, sources, constitution, cursor }
  * @returns {object} the record
  */
-export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [], sameForm = null, satisfaction = null, logos = null, ledgerLint = null, ungrounded = null, expectation = null } = {}) {
+export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [], sameForm = null, satisfaction = null, logos = null, ledgerLint = null, ungrounded = null, expectation = null, open = [], mechanical = false } = {}) {
   const claims = [];
   const retrieved = [];
   for (const s of sections ?? []) {
@@ -107,6 +107,21 @@ export function answerRecord({ question, answer = "", model = null, frame = null
     question: String(question ?? ""),
     model, recipe, frame,
     expectation,
+    // The developer surface's own field (2026-09-23): the SAME run-log
+    // diagnostic strings holon.js's runHolonicTask already computes as
+    // `result.open` — the completeness gate's own finding among them
+    // ("answer names only one of several the material states: ...") — and
+    // which fold.js's SEPARATE buildWarrantRecord() already threads into its
+    // own, differently-named `record.open` (app.js's persistent per-turn
+    // summary record), never rendered anywhere. This is the one actually
+    // shown in the fold/thinking panel; without this field the completeness
+    // gate's own diagnosis of an incomplete answer was computed and then
+    // discarded before a reader could ever see it.
+    open: [...(open ?? [])],
+    // Whether this turn's shipped text was assembled mechanically
+    // (mechanicalAnswer/mechanicalCompetingAnswer, holon.js) rather than
+    // drafted by the model — the caller's own aggregate over its parts.
+    mechanical: !!mechanical,
     retrieved,
     // THE SOURCES OF WHAT WAS RETRIEVED (2026-09-10, user direction: "this
     // should disclose sources" — found live, a materialless preflight turn

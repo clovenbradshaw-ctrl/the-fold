@@ -15110,3 +15110,57 @@ with it. Next, not done: no live caller invokes `detectTrajectoryChurn` or
 seam for the first; form-prior's admission loop for the second), and the
 registry rows are reference-only — `capacity-runner.js` still answers
 `not_yet_executable` for all four.
+
+## P262 — contextuality: the quantum-style quantity S13 left unbuilt, built where the lemma says it can show (added 2026-09-25)
+
+**Generality:** not-applicable — a record of what landed in eoreader7 (a kernel module described there as medium-blind), written on the shared checkout; no the-fold finding is claimed here.
+
+**Why.** An investigation of which parts of the holograph are measured in
+quantum-style, chemistry-style and Newtonian-style mathematics found that
+the canon had already drawn the quantum boundary (`READING-SPEC.md` S13):
+a density matrix over counts reduces to Bayes, phase is earned only from
+dynamics (`kernel/dmd.js`), and the ONE quantum-style quantity computable
+from exactly our data — contextuality, the obstruction to gluing per-context
+readings into one global assignment — was named as real unbuilt work and
+had stayed unbuilt. The assertions were put through `cli/reason.mjs --ants`
+(one universal vetoed and sharpened: licensed composition in `reaction.js`
+conserves the outer ends of a chain, the one conservation law on the path;
+nothing on the path is Newtonian mechanics; chemistry holds as a bond table
+with yields and no rate law).
+
+**What landed (eoreader7, uncommitted on main).**
+- `kernel/contextuality.js` (SYN·Network, `contextuality`) — an empirical
+  model of contexts (sets of slots read jointly) with their supports (joint
+  sections), judged on the possibilistic hierarchy of Abramsky &
+  Brandenburger: `signalling` (overlaps disagree — a direct influence, not
+  contextuality; Contextuality-by-Default owed), `noncontextual`,
+  `logically_contextual` (Hardy), `strongly_contextual` (the PR box). The
+  overlap check runs before the gluing search. Exact, no null — a structural
+  fact of the data; the extension search is bounded by a declared node
+  budget and refuses typed (`search_budget_exceeded`) when spent; the
+  contextual fraction (the LP over noncontextual models) is owed and
+  reported null with its basis. Nine falsifiers in `tests/contextuality.test.js`.
+- **The lemma that moved the seam.** With one section per context and
+  consistent overlaps, the union of the sections is a global section — so
+  the Lens's one-reading-per-place notes can only ever be signalling (a
+  dispute the Lens already names) or gluable. Contextuality needs contexts
+  that carry several joint sections. The seam is therefore
+  `the-fold/form-prior.js::learnForm`: the instances grouped by the slot set
+  each carries (forms as contexts, instances as sections), reported as
+  `contextuality` beside the Bayesian delta — the organ that says WHEN
+  bayes-surprise.js's declared independence of slots fails non-classically.
+  Additive; pinned in `form-prior-falsify.test.mjs`.
+- `capacities.js` rows `contextuality` (SYN·Network) and `dmd`
+  (DEF·Paradigm — the phase-bearing organ had no row; it is not on the
+  holograph's hand-off path, which imports only `dmdWindow`, a disclosed
+  name collision).
+- `eval/the-fold/capability-coverage.mjs`'s operators shim gained `cellOf`
+  and `OPERATOR_CHAIN`: `moves.js` (00c4283, 2026-09-20) had started
+  destructuring them and the live registry walk had been throwing since.
+
+**Owed, named.** The contextual fraction (LP). Contextuality-by-Default for
+signalling systems, which language is. Streaming DMD on the Atmosphere
+regime (today's regime is a referent-set overlap cut, not a modal
+decomposition). And a stale sentence in `THE-THREE-MATHEMATICS.md` §II
+("retrieval forgets by power law") that S17's amendment superseded with
+need-odds matching.

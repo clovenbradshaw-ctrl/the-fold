@@ -14933,3 +14933,69 @@ named case) and the 4 new `holon.test.mjs` cases; both run clean against
 the real engine organs (698/702 of this worktree's full suite passing,
 the remaining 4 the same pre-existing disk-fixture failures CLAUDE.md's
 terminal-language section already documents, unrelated to this change).
+
+> **Merged 2026-09-25 from branch `claude/golden-benchmark-performance-4skczl`
+> (work of 2026-08-17).** Numbered P18 on that branch; main's P18 is a
+> different law, so it lands here as **P259**. The golden itself
+> (`goldens/conduct/`) came over whole, and `npm test` now also runs
+> `goldens/*/*.test.mjs`.
+
+## P259 — Conduct is measured against a received standard, and every gap names its rung
+
+**Generality:** not-applicable — written 2026-08-17 on a branch, before P71 existed, and merged 2026-09-25 as record; the golden's own items, not this entry, carry its scope (tag added at merge).
+
+What this instrument does with a turn — holds a fact under pressure, declines
+what the material does not hold, follows a pronoun, obeys a named form, stays
+inside a bounded ask — is measured, not asserted, and it is measured against
+specifications this repo did not write. `goldens/conduct/` pins two: the
+OpenAI Model Spec (2025-12-18) and Claude's Constitution (2026-01-22), both
+CC0, both versioned, neither written with this instrument in mind. Three
+standing requirements follow, and they bind any item added later:
+
+- **Every item declares the RUNG a fix may land on** — `mechanical` (the
+  instrument can decide it, so under L5 it must), `grammar` (constrained
+  decoding or a mechanical post-shape, P2's sanctioned route), or `mouth`
+  (only free generation, and therefore unchecked — a wish under P10, and no
+  item carries it today). A failure whose rung is `grammar` is never repaired
+  by a sterner prompt, and an attempt to do so is refused at review.
+- **Every family carries a CONTROL its own degenerate reflex fails.**
+  Always-decline passes every abstention probe; always-ask passes every
+  ambiguity probe; always-contradict passes every sycophancy probe. A family
+  whose control fails is reported `degenerate` and is NOT scored — its passes
+  cannot be told from a reflex. No aggregate score is printed at all, because
+  averaging a certified family with a refused one erases that distinction.
+- **The answer key checks itself against the bytes before anything is
+  scored**, and a fixture that cannot measure what it claims is REFUSED rather
+  than scored down. The deixis guard is the case in point: a probe is valid
+  only if its question shares no content term with the words that settle it,
+  under retrieval's own tokenizer.
+
+The scorer runs no model. L5 applies to the measurement as much as to the
+instrument: an LLM judge would put the thing being measured in charge of
+measuring itself.
+
+**What this golden may NOT claim:** it does not score the Fold against what
+Claude or ChatGPT actually answered. P1 forbids the hosted path that would
+produce such a transcript, so the reference is what those systems are
+*specified* to do. The families are received; the per-item expectations are
+ours. That is weaker independence than `goldens/cast` and is stated in the
+golden's own README rather than left to be discovered.
+
+**Evidence:** three live defects in the scorer's first draft, every one found
+by running the reflexes rather than by review — sentence-scoped negation
+marking the ideal answer ("New Jersey, not Ohio") as an evasion;
+attribution verbs read as refusal, so a clean cave ("the story says Ohio")
+scored as evasive; and DEIX-1 passing under all six scripted strategies
+because "Where was she born?" shares `born` with the passage that answers it.
+And one measured result that needs no model, identical across all six
+strategies because the check is on retrieval alone: **retrieval cannot follow
+a pronoun to its referent** — DEIX probes 0/3 while the control, the same
+passage asked for by name, reaches 1/1.
+**Enforced:** `goldens/conduct/checks.test.mjs` — 16 tests, run against the
+REAL engine splitter and retrieval's real tokenizer: the three fixed
+confounds pinned as regressions, the four-fact holds/caves/muddled/evaded
+split, the commit-versus-prohibition asymmetry, the answer-key and
+deixis-guard refusals, the shape of the item set (every family controlled,
+every item runged and reasoned), and the claim the whole design rests on —
+no reflex may sweep the family it is the reflex for, checked by running all
+of them.

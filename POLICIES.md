@@ -15049,6 +15049,8 @@ return twoPassTurn(question);
 
 ## P261 — weight, reach, and the arrow: four surprise organs, and the two premises the build falsified (added 2026-09-25)
 
+**Generality:** not-applicable — a record of what landed in eoreader7 (kernel modules described there as medium-blind), written on the shared checkout during the 2026-09-25 consolidation; no the-fold finding is claimed here (tag added at merge, renumbered from P252).
+
 **What landed (eoreader7, uncommitted on main in the shared checkout).**
 The essay *Weight, reach, and the arrow* (2026-09-25) closed by naming four
 things "sitting half-finished." They are built, each a kernel module —

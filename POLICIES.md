@@ -14289,3 +14289,65 @@ is unrelated to anything landed today. Disclosed here, not fixed: a real,
 separate negation-scope gap for a future pass, found only because the
 benchmark was actually re-run rather than assumed still valid from a
 month-old results doc (P94's own lesson, applied a second time).
+
+## P252 — weight, reach, and the arrow: four surprise organs, and the two premises the build falsified (added 2026-09-25)
+
+**What landed (eoreader7, uncommitted on main in the shared checkout).**
+The essay *Weight, reach, and the arrow* (2026-09-25) closed by naming four
+things "sitting half-finished." They are built, each a kernel module —
+medium-blind, its cell stamped in its own `CELL` export, its null injectable,
+its pValue declared by the caller, no constant beyond corroboration.js's
+existing `CANONICALIZATION_FLOOR` — each with a falsifier file under
+`native/tests/`, each registered reference-only in `capacities.js`:
+
+- `kernel/consequential-surprise.js` (EVA·Paradigm, `consequence`) — an
+  admission's Bayesian surprise partitioned by how much rests on what moved:
+  bits on load-bearing ids (reach through `cascade.js`'s dependents index
+  above `cascadeNull` at the declared bar) versus local bits. A sum, never a
+  product. Reports `thinButLoadBearing` — a seed under the corroboration floor
+  that is nonetheless load-bearing, the case the essay called dangerous.
+- `kernel/revision-volatility.js` (EVA·Lens, `volatility`) — how many of a
+  node's own sightings were later revised, against the store's total marks
+  dealt onto occurrences without replacement; p and a rank among peers; no
+  mapping into alpha or gamma.
+- `kernel/hindsight.js` + `the-fold/hindsight-log.js` (SEG·Network,
+  `hindsight`) — what the record said before a merge or reassignment
+  re-addressed the beings it said it about: direct and (through a dependents
+  index) transitive, only entries before the event, never a rewrite, ranked
+  against synthetic touched-sets drawn from what the prior entries refer to.
+- `kernel/settling.js` + `document-ledger.js::detectTrajectoryChurn`
+  (NUL·Kind, `settling`) — the boredom detector's mirror on the same axis:
+  `never_settles` (structural), `settled_any_order` (the flat fixture;
+  boredom's territory), `settles_in_sequence` (regimes that form and break —
+  the band a meaningfully surprising stream lives in). On
+  trajectory-boredom.test.js's own fixtures the *healthy* control churns.
+
+105/105 across the five new suites and four neighbouring ones. Before the
+volatility rewrite: 25/27 — the two failures were the falsifiers doing their
+job (below).
+
+**Two premises falsified, and the rules they drill in.**
+
+1. *The essay claimed reach had no null.* `cascade.js` already carried
+   `cascadeNull`/`cascadeSurprise` (lines 128–170); the essay's author had
+   read the header and stopped. What was actually unbuilt was only the
+   composition with bayes-surprise's magnitude. Rule, restated for the third
+   time in this ledger's memory: read the whole organ before claiming a gap;
+   a header describes the first seventy lines, not the file.
+2. *A counter that every act bumps is not a revision count.*
+   `corroboration.js::signProvisionalKind` increments `entry.revision` on
+   every sighting, so a store with no revisions read as volatile under the
+   first draft; falsifier 4 caught it. The statistic is the `falsified` and
+   `superseded` marks on the occurrences themselves. Any organ that reads
+   `revision` as "times revised" inherits this bug — grep for it before
+   trusting the field.
+
+**How to apply.** A conversation harness that checks only boredom passes the
+churn failure perfectly; the two detectors are one axis and should be read
+together. Composite scores across kernels are partitions with a declared bar,
+never products — the rank is the measurement, the caller declares what to do
+with it. Next, not done: no live caller invokes `detectTrajectoryChurn` or
+`consequentialSurprise` yet (proxy-runner's boredom call site is the obvious
+seam for the first; form-prior's admission loop for the second), and the
+registry rows are reference-only — `capacity-runner.js` still answers
+`not_yet_executable` for all four.

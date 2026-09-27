@@ -15,6 +15,11 @@
 // out of the first"; the model-identity version of that rule is: never
 // answer AS the fold on a request that did not ask for the fold).
 
+// The one import in this otherwise pure module: falsifiers.js is itself
+// import-free, and its stripper keeps Popper's disclosure line out of a
+// resent history, so it never reaches the model as prompt text.
+import { stripPopperLine } from "../eoreader7/native/organs/falsifiers.js";
+
 export const MODEL_PREFIX = "fold:";
 
 export function prefixModel(name) {
@@ -57,7 +62,7 @@ export function turnFromMessages(messages) {
   const rest = list.slice(0, -1);
   const chatHistory = rest
     .filter((m) => m?.role === "user" || m?.role === "assistant")
-    .map((m) => ({ role: m.role, content: String(m.content ?? "") }));
+    .map((m) => ({ role: m.role, content: m.role === "assistant" ? stripPopperLine(String(m.content ?? "")) : String(m.content ?? "") }));
   const discourse = rest
     .filter((m) => m?.role === "system")
     .map((m) => String(m.content ?? ""))
@@ -87,7 +92,10 @@ export function parseProxyRequest(body) {
   if (turn.error) return { error: turn.error };
   const stream = Boolean(body?.stream);
   const grounded = body?.fold_grounded !== false;
-  return { model, ...turn, stream, grounded };
+  // Popper's line rides inside content for a plain-text client unless the
+  // caller draws it itself from `fold.falsifiers` (fold_popper_inline: false).
+  const popperInline = body?.fold_popper_inline !== false;
+  return { model, ...turn, stream, grounded, popperInline };
 }
 
 // ── model listing, both wire shapes ─────────────────────────────────────────

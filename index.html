@@ -2153,6 +2153,18 @@
          caption on the affordance, not a second row under it. The details
          element still gets the full width when it is open, which is what the
          order-2 wrap gives it. */
+      /* Popper (2026-09-27): what would prove this answer wrong — one quiet
+         line under the answer, a sibling of .body so the marks toggle never
+         hides it (a finding, not a drawing). Muted, never alarming: it says
+         how the answer could be refuted, not that it has been. */
+      .popper { margin: 6px 0 2px; font-size: 13px; color: var(--muted); line-height: 1.45; }
+      .popper > summary { cursor: pointer; list-style: none; }
+      .popper > summary::-webkit-details-marker { display: none; }
+      .popper strong { font-weight: 600; color: inherit; }
+      .popper-mark { font-family: var(--mono); color: var(--accent); }
+      .popper ul { margin: 4px 0 0; padding-left: 18px; }
+      .popper li { margin: 2px 0; }
+      .popper q { font-style: italic; }
       .turn-meta { display: flex; gap: 10px; flex-wrap: wrap; align-items: baseline; }
       .turn-meta > details { flex: 0 1 auto; min-width: 0; }
       .turn-meta > details[open] { flex: 1 1 100%; }

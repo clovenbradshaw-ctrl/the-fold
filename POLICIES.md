@@ -15164,3 +15164,78 @@ regime (today's regime is a referent-set overlap cut, not a modal
 decomposition). And a stale sentence in `THE-THREE-MATHEMATICS.md` §II
 ("retrieval forgets by power law") that S17's amendment superseded with
 need-odds matching.
+
+## P263 — Popper on every surface: each answer says what would prove it wrong, derived from its ground, never written by the model (added 2026-09-27)
+
+**Generality:** universal — a medium-blind reading of the ground tiers every
+answer already carries; no number, list or threshold fitted to any specimen.
+
+**The ask.** User direction, after a design pass on keeping people grounded
+in reality and out of the closed loop of two voices confirming each other
+("AI psychosis"): Popper is a key archon — *what could be true that would
+prove us wrong?* — then *wire this in so it shows up on all surfaces.* Until
+now Popper's only organ (eoreader7 `blindspot.js`) read code for tests that
+cannot fail. This is the same law read off an answer.
+
+**The organ.** eoreader7 `native/organs/falsifiers.js` (exported through the
+organs seam), pure and import-free. `falsifiersFor({rows, isCheckable, ...})`
+turns each checkable sentence's ground row into a plain falsifier, by tier:
+bound/witnessed name the address a reader can open to refute it; a
+one-source note says a second source would refute it, and a many-source note
+names the risk that all of them repeat one origin; derived names its
+premises and the rule that combined them; contested names the live dispute;
+named says the names are in the sources and the claim is not; self says
+*nothing checked this, and nothing here would notice.* The headline counts
+standing and never averages it. A verbatim snip and a computed answer each
+get their own honest headline. An answer that asserts nothing checkable
+(`extractAtoms`, injected: one definition of "checkable") gets `null` —
+no lecture on "hello". Checking-off overrides every tier: nothing was held
+to a source.
+
+**Rules that carry the design.**
+- *Derived, never authored* (L5). The model never writes a falsifier. A line
+  can never claim more exposure than the reading did.
+- *A finding, not a drawing.* On the chat surface it is a sibling of the
+  answer body, so the marks toggle (scoped to `.msg .body`) never hides it.
+- *Beside the mouth's words, never an edit of them* (P186). On a plain-text
+  surface it is one line set apart by a blank line and opened with ⟂ (the
+  falsum, used nowhere else).
+- *Never prompt material.* Both proxies strip the ⟂ line from any resent
+  assistant turn (`stripPopperLine`) before history reaches the model.
+- *One reconciliation.* eoreader7's `gatedPopper` wraps `gatedReading` once,
+  and every response-assembly site now carries `falsifiers`.
+
+**Surfaces.**
+- *eoreader7 proxy.* `reading.falsifiers` on `/v1/ask`, both
+  `/v1/chat/completions` shapes and both `/api/chat` shapes. The ⟂ line is
+  inline in content by default for OpenCode, the Ollama app and curl. The
+  Anthropic-shaped route has no reading channel, so it carries the line
+  inline only. `fold_popper_inline: false` opts out.
+- *The Fold's chat.* `app.js::drawPopper`, fed by the same ground verdicts
+  the marks draw (`popperGround`, collected in `taggedProse`). An engine turn
+  prefers the engine's own falsifiers, which also know the unchecked gate,
+  a computed win and the void's settler. `er7-client.js` opts out of the
+  inline line.
+- *The Fold's older `fold:` routes* (explore-server, P27). They carry
+  `fold.falsifiers` from `proxy-runner.mjs` (bound/contradicted relation
+  claims plus witnessed sentences), plus the inline line.
+- *The TUI.* A magenta ⟂ note, and it opts out of the inline line.
+- *Build turns* get no line, the same as their chips.
+
+**Tests.** eoreader7 `falsifiers.test.mjs` (10) and
+`proxy-api-reading.test.mjs` (+2: the default and the opt-out; a resent
+history never carries the line). The existing wall *gatedReading is wired
+into every site* was rewritten to demand that `gatedPopper` reconcile through
+`gatedReading` first. Rewriting it caught a real bug before commit: a global
+replace had turned the wrapper's own call into infinite recursion. Suites:
+the-fold 2632 tests, the same 53 failures by name before and after.
+
+**Not claimed.** That the line makes anyone more grounded. The Popper
+falsifiers for this very design are open and unmeasured, and any of them
+could sink it:
+- spirals may carry few checkable atoms;
+- web corroboration can legitimize a fringe claim;
+- citations may raise trust indiscriminately;
+- an honest void can read as support.
+
+Measure before believing this helps.

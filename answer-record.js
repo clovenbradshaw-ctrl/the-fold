@@ -14,7 +14,81 @@
 // claims they make, and the count of claims nothing backs (which must be 0),
 // is the thing compared — `claimKey` is the identity the diff compares on.
 
+import { ingestionStanding } from "../eoreader7/native/kernel/ingestion.js";
+import { shouldEscalate, recordOutcome } from "../eoreader7/native/kernel/escalation.js";
+
 export const ANSWER_RECORD_SCHEMA = "EOAnswerRecord@1";
+
+// WHAT WAS NOT FULLY INGESTED, ON EVERY TURN (2026-09-28, user direction: "I
+// just don't get why we're not already doing that if it doesn't require a
+// model call"). It doesn't, and the record already holds every input:
+// `unread` is the arrival read's reach per source (passages read of total),
+// a claim's refs are its addresses, and a claim's verdict is the relation
+// tier's own typed gap where it left one (beyond-reach / unheard / unbound).
+// kernel/ingestion.js reads the standing off exactly that — unread / partial
+// / read per cited address — and kernel/escalation.js says whether a judge
+// is needed and which rung to try first, in the order the environment has
+// LEARNED (Wilson's trails). The judge rung is the sentence witness that
+// already runs in this turn: where it pointed at a passage for the claim's
+// sentence, that trip is recorded as the judge succeeding; where it refused,
+// as failing. Nothing here calls a model; nothing here edits the answer.
+// The judge is the third rung (judge.js): asked, under its own budget, only
+// for a claim the witness did not settle — the small model handed the full
+// section and the question, its prose read mechanically for the verdict.
+// ...and the HABIT rung sits between them and the mechanical tier: a judgment
+// once learned answers the same claim again with no model call (judge.js).
+export const ESCALATION_RUNGS = Object.freeze(["mechanical", "habit", "witness", "judge"]);
+const GAP_VERDICTS = new Set(["beyond-reach", "unheard", "unbound"]);
+const holonOfRef = (ref) => { const s = String(ref ?? ""); const i = s.indexOf("#"); return i < 0 ? `/${s}` : `/${s.slice(0, i)}/${s.slice(i + 1)}`; };
+// EVERY READER'S REACH, NOT ONE (2026-09-28): the arrival read is one reader;
+// the constitutional reader (reading-worker.js, READING_CONSTITUTIONAL) is a
+// second, with its own cursor in its own unit (chunks admitted). A source
+// the first finished can still be half-read by the second, and the kernel's
+// reach is CONTAINMENT (a reach at "/a.txt" covers every passage under it),
+// so a source-level extent gap never reaches a passage's own standing — the
+// passage the claim cites WAS read by the arrival read. What the second
+// reader adds is positional: `readers` carries, per source, the refs its
+// cursor has passed and the refs it has not — { name, recipe, readRefs,
+// unreadRefs } — each passed ref its own reach, each unpassed ref a typed
+// gap `not_yet_read` naming that reader. A claim citing a passage the
+// constitutional reader has not reached stands `partial`, with the reader
+// named in `left`, while the arrival read's own reach still holds.
+export function ingestionOf({ claims = [], unread = [], witness = [], sources = [], trails = {}, readers = [] } = {}) {
+  const partialSources = new Map((unread ?? []).map((u) => [u.name, u]));
+  const reached = [], gaps = [];
+  for (const s of sources ?? []) {
+    const u = partialSources.get(s.name);
+    if (!u) reached.push({ holon: `/${s.name}`, recipe: "arrival-read" });
+    else if (u.read > 0) { reached.push({ holon: `/${s.name}`, recipe: "arrival-read" }); gaps.push({ holon: `/${s.name}`, reason: "unread_extent", detail: `${u.read} of ${u.total}`, recipe: "arrival-read" }); }
+  }
+  for (const r of readers ?? []) {
+    if (!r?.name) continue;
+    const recipe = r.recipe ?? "reader";
+    for (const ref of r.readRefs ?? []) reached.push({ holon: holonOfRef(ref), recipe });
+    for (const ref of r.unreadRefs ?? []) gaps.push({ holon: holonOfRef(ref), reason: "not_yet_read", recipe });
+  }
+  for (const c of claims) if (GAP_VERDICTS.has(c.verdict)) for (const ref of c.refs?.length ? c.refs : (c.spans ?? []).map((sp) => sp.ref).filter(Boolean)) gaps.push({ holon: holonOfRef(ref), reason: c.verdict });
+  const said = (w) => toks(w?.sentence ?? "");
+  const witnessed = (c) => { const ends = [...toks(c.end1), ...toks(c.end2)]; if (!ends.length) return null; for (const w of witness ?? []) { const s = said(w); if (ends.every((t) => s.has(t))) return w.witness === "states" ? true : w.witness === "refused" ? false : null; } return null; };
+  let t = trails ?? {};
+  const byClaim = [], tally = { read: 0, partial: 0, unread: 0 };
+  for (const c of claims) {
+    const refs = c.refs?.length ? c.refs : (c.spans ?? []).map((sp) => sp.ref).filter(Boolean);
+    const holon = refs.length ? holonOfRef(refs[0]) : "/";
+    const standing = ingestionStanding({ holon, reached, gaps, slots: [] });
+    tally[standing.standing] += 1;
+    const esc = shouldEscalate({ standing, trails: t, rungs: ESCALATION_RUNGS, rng: () => 1 });
+    let judged = null;
+    if (esc.needed) {
+      const mech = c.verdict === "bound" || c.verdict === "contradicted";
+      t = recordOutcome(t, { shape: esc.shape, rung: "mechanical", ok: mech });
+      judged = witnessed(c);
+      if (judged !== null) t = recordOutcome(t, { shape: esc.shape, rung: "witness", ok: judged });
+    }
+    byClaim.push({ key: c.key, holon, standing: standing.standing, left: [...standing.gaps.map((g) => g.reason)], ...(esc.needed ? { shape: esc.shape, first: esc.first, ladder: [...esc.ladder.order], learned: esc.ladder.learned, judged } : {}) });
+  }
+  return { byClaim, tally, escalated: byClaim.filter((b) => b.shape).length, judgedByWitness: byClaim.filter((b) => b.judged !== null && b.judged !== undefined).length, trails: t };
+}
 
 // EVERY ∅ CITES ITS VOID (Pass 25 of the null experiments, P106). A sentence
 // the answer asserts and nothing backs is an ABSENCE; an absence is honest
@@ -78,7 +152,7 @@ export const claimKey = (c) => `${String(c.end1 ?? c.subject ?? "").toLowerCase(
  * @param {object} turn — { question, answer, model, frame, recipe, sections, unsupported, unbacked, unread, sources, constitution, cursor }
  * @returns {object} the record
  */
-export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [], sameForm = null, satisfaction = null, logos = null, ledgerLint = null, ungrounded = null, expectation = null, open = [], mechanical = false } = {}) {
+export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [], sameForm = null, satisfaction = null, logos = null, ledgerLint = null, ungrounded = null, expectation = null, open = [], mechanical = false, trails = null, readers = [] } = {}) {
   const claims = [];
   const retrieved = [];
   for (const s of sections ?? []) {
@@ -101,6 +175,11 @@ export function answerRecord({ question, answer = "", model = null, frame = null
   const tally = {};
   for (const c of claims) tally[c.verdict] = (tally[c.verdict] ?? 0) + 1;
   const absences = absencesOf({ witness, voids, question, sameForm });
+  // Ingestion standing per cited address, and the escalation ladder per claim
+  // that rests on something not fully read — mechanical, every turn (above).
+  // `trails` is the environment the ladder learns in; the caller keeps it.
+  let ingestion = null;
+  try { ingestion = ingestionOf({ claims, unread, witness, sources, trails: trails ?? {}, readers }); } catch (e) { ingestion = { error: String(e?.message ?? e) }; }
   return {
     schema: ANSWER_RECORD_SCHEMA,
     cursor,
@@ -134,6 +213,11 @@ export function answerRecord({ question, answer = "", model = null, frame = null
     // attached-file list.
     retrievedSources: [...new Set(retrieved.map((r) => String(r ?? "").split("#")[0]).filter(Boolean))],
     unread: (unread ?? []).map((u) => ({ name: u.name, read: u.read, total: u.total })),
+    // What was not fully ingested among what this answer cites, and which
+    // rung the environment says to try first for each such claim. The
+    // trails ride here so the caller can persist the learned order; the
+    // reading view (answerRecordForReading) drops them.
+    ...(ingestion ? { ingestion } : {}),
     claims,
     tally,
     unsupported: (unsupported ?? []).map((u) => (typeof u === "string" ? u : (u?.sentence ?? u?.text ?? JSON.stringify(u)))).slice(0, 50),
@@ -302,6 +386,16 @@ export function answerRecordProse(r) {
     if (contradicted) bits.push(`${contradicted} contradicted by it`);
     if (unclear) bits.push(`${unclear} the reading couldn't settle either way`);
     sentences.push(`It made ${plural(claims, "claim")} about the material${bits.length ? ` — ${bits.join(", ")}` : ""}.`);
+  }
+
+  // The judge (judge.js): a claim resting on something not fully read that
+  // the witness could not settle, read by a small model over the full
+  // section — said in words, with the count that landed apart from the
+  // count that was asked.
+  const judgeAsks = r.ingestion?.judgeAsks ?? 0;
+  if (judgeAsks) {
+    const landed = r.ingestion?.judged ?? 0;
+    sentences.push(`For ${plural(judgeAsks, "claim")} resting on something not fully read, a judge was handed the whole section${landed ? `; ${landed} of those it settled on the section's own words` : ", and it settled none on the section's own words"}.`);
   }
 
   const unsupported = r.unsupported?.length ?? 0;

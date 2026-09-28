@@ -239,6 +239,8 @@ import { revisionLine } from "./piece-revise.js";
 import { exportPiece } from "./piece-export.js";
 import { groundOf, groundLine, tierWord } from "./ground-ladder.js";
 import { answerRecord, answerRecordProse, voidInScope } from "./answer-record.js";
+import { judgeTurn, judgeLine } from "./judge.js";
+import { habitsFromEntries, createHabits as createJudgeHabits, habitCensus as judgeHabitCensus } from "../eoreader7/native/kernel/habit.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
 // ledger, and its measured surprise — held apart from the material at the
@@ -559,6 +561,15 @@ const yieldMacrotask = (() => {
   return () => new Promise((r) => { waiters.push(r); ch.port2.postMessage(null); });
 })();
 let readQueue = Promise.resolve();
+/** The constitutional reader's reach per live source, for ingestionOf's `readers`: the refs its cursor has passed (in state.chunks' own order for that source) and the refs it has not. */
+function constitutionalReadersNow() {
+  const recipe = (() => { try { return readingManifest().assembly; } catch { return "constitutional-reader"; } })();
+  return [...READING_CONSTITUTIONAL.entries()].filter(([name]) => state.sources[name]).map(([name, r]) => {
+    const refs = state.chunks.filter((c) => c.source === name).map((c) => c.ref);
+    const cursor = Math.max(0, Math.min(refs.length, r.cursor ?? 0));
+    return { name, recipe, readRefs: refs.slice(0, cursor), unreadRefs: refs.slice(cursor) };
+  });
+}
 function unreadNow() {
   // A source's own reading state may only speak for a source still on the
   // record — `state.sources[name]` is the one fact that decides that, the
@@ -2158,6 +2169,14 @@ const state = {
    * authorization.
    */
   webProof: localStorage.getItem("fold-web-proof") !== "off",
+  // The escalation environment (kernel/stigmergy.js trails keyed by the
+  // shape of what a cited holon left open): the learned order in which the
+  // mechanical rung and the witness are tried, kept across reloads.
+  escalationTrails: (() => { try { const t = JSON.parse(localStorage.getItem("fold-escalation-trails") ?? "{}"); return t && typeof t === "object" ? t : {}; } catch { return {}; } })(),
+  // The judge's habits (kernel/habit.js): every chosen judgment learned, every
+  // contradicted one conceded — replayed through the kernel's own append (a
+  // corrupt row throws and the ledger starts empty, never loads silently).
+  judgeHabits: (() => { try { const rows = JSON.parse(localStorage.getItem("fold-judge-habits") ?? "[]"); return Array.isArray(rows) ? habitsFromEntries(rows) : createJudgeHabits(); } catch { return createJudgeHabits(); } })(),
   /**
    * Auto-suggest (swarm.js::suggestNext): whether a settled turn may offer
    * one-click next steps beneath its answer. Same standing as webProof —
@@ -14573,6 +14592,15 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       question: task, answer: result.output ?? "", model: turnModel, frame: recFrame, recipe: recRecipe,
       sections: result.sections ?? [], unsupported: result.unsupported ?? [], unbacked: result.unbacked ?? [],
       unread: unreadNow(), cursor: ANSWER_CURSOR++,
+      // The constitutional reader's own reach per source (its cursor, in
+      // its own chunk unit) — the second reader ingestionOf folds in, so a
+      // claim resting on a source it has half-read stands `partial` with
+      // that reader named.
+      readers: constitutionalReadersNow(),
+      // The escalation environment (kernel/escalation.js over stigmergy):
+      // the learned order in which a claim resting on something not fully
+      // read is tried — mechanical, then the witness — kept across turns.
+      trails: state.escalationTrails ?? {},
       // Developer surface (2026-09-23): the SAME diagnostic strings already
       // threaded into fold.js's separate warrant record (app.js's own
       // `record.open` a few dozen lines up), which nothing renders — this is
@@ -14607,6 +14635,49 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
         },
       }),
     });
+    // THE JUDGE, LIVE (judge.js, 2026-09-28): for a claim resting on
+    // something not fully read that the sentence witness did not settle, the
+    // full section around the cited passage and this turn's question go to
+    // the second small model, under judge.js's own declared budget; its
+    // prose is read mechanically (organs/judgment-reader.js) and lands as a
+    // collapse for this turn's for-whom on the claim's own record row. The
+    // outcome deposits on the judge rung so the next turn's ladder is
+    // learned. Checking mode only — the same gate the witness runs under —
+    // and never a word of the answer changed (P186).
+    if (state.grounded && answerRec?.ingestion?.byClaim?.length) {
+      try {
+        const judgeModel = secondWitnessModelFor() ?? witnessModelFor() ?? turnModel;
+        const judged = await judgeTurn({
+          ingestion: answerRec.ingestion, claims: answerRec.claims ?? [], question: task,
+          forWhomId: `turn:${answerRec.cursor ?? ANSWER_CURSOR}`, chunks: state.chunks,
+          recipe: `${judgeModel}@judge-v1`, cursor: answerRec.cursor ?? null,
+          // Gary's door reads the loaded window (heimdall's /api/ps) so "does
+          // this fit" is answered against the window the judge actually runs at
+          model: judgeModel, windowOf: (name) => loadedWindows.get(name) ?? null,
+          // the habits learned so far, and this turn's witness rows (a refusal
+          // of a sentence a habit holds concedes the habit)
+          habits: state.judgeHabits, witness: state.lastWitness ?? [],
+          ask: (messages) => complete(messages, { maxTokens: 220, temperature: 0, model: judgeModel, jobKind: JOB_KINDS.WITNESS }),
+          onStep: (j, claim) => show(judgeLine(j, claim)),
+        });
+        answerRec = { ...answerRec, ingestion: judged.ingestion };
+        for (const c of judged.conceded) show(`habit conceded · ${c.key} · was ${c.verdict} — ${c.trigger}`);
+        if (judged.habits !== state.judgeHabits) {
+          state.judgeHabits = judged.habits;
+          try { localStorage.setItem("fold-judge-habits", JSON.stringify(state.judgeHabits.entries)); } catch {}
+          const census = judgeHabitCensus(state.judgeHabits);
+          show(`habits · ${census.live} live, ${census.conceded} conceded, ${census.learned} learned in all`);
+        }
+      } catch (e) { console.warn("judge:", e?.message ?? e); }
+    }
+    // The learned escalation environment persists across turns and reloads;
+    // the trails themselves stay out of the per-turn answers log (they are
+    // the environment, not this answer's record).
+    if (answerRec?.ingestion?.trails) {
+      state.escalationTrails = answerRec.ingestion.trails;
+      try { localStorage.setItem("fold-escalation-trails", JSON.stringify(state.escalationTrails)); } catch {}
+      answerRec = { ...answerRec, ingestion: { ...answerRec.ingestion, trails: undefined } };
+    }
     appendRecord("answers", [JSON.stringify(answerRec)]).catch(() => {});
   } catch (e) { console.warn("answer record:", e?.message ?? e); }
   renderFold(node, { sent: sentCalls, record: answerRec });

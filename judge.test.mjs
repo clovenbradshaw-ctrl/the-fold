@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sectionAround, judgeCandidates, buildJudgeMessages, judgeTurn, judgeLine, refOfHolon, defaultGary, habitKeyOf, JUDGE_ASKS_PER_TURN, JUDGE_RUNG, HABIT_RUNG } from "./judge.js";
+import { sectionAround, judgeCandidates, buildJudgeMessages, judgeTurn, judgeLine, refOfHolon, defaultGary, habitKeyOf, negatedNearby, JUDGE_ASKS_PER_TURN, JUDGE_RUNG, HABIT_RUNG } from "./judge.js";
 import { createHabits, recallHabit, habitCensus } from "../eoreader7/native/kernel/habit.js";
 import { ingestionOf, ESCALATION_RUNGS } from "./answer-record.js";
 import { apparatusMentions } from "./firewall.js";
@@ -147,4 +147,19 @@ test("point-then-word (the default): the first ask is only for a number, the sec
   // no word was ever asked for, so nothing was committed to: NONE, one call spent — never a verdict manufactured from a bad point
   assert.equal(lazy.ingestion.byClaim[0].judgment.calls, 1); assert.equal(lazy.ingestion.byClaim[0].judgment.landed, "none");
   await assert.rejects(() => judgeTurn({ ingestion: ingestion(), claims, question: "q", chunks, recipe: "t", protocol: "chat", ask: async () => "" }), /protocol/);
+});
+
+test("the counter-decider wall: a habit whose decider is still in the section stands down when a negated restatement of its own company sits beside it, and the judge is asked instead", async () => {
+  const section = chunks.map((c) => c.text).join("\n\n");
+  assert.equal(negatedNearby("Pierre received the whole estate", section), false);
+  assert.equal(negatedNearby("Pierre received the whole estate", section + "\n\nPierre never received the whole estate."), true);
+  assert.equal(negatedNearby("Pierre received the whole estate", section + "\n\nAnatole never received a letter."), false, "a negation elsewhere, sharing no company, is not a counter-decider");
+  const ing = ingestion();
+  const first = await judgeTurn({ ingestion: ing, claims, question: "q", chunks, recipe: "t", habits: createHabits(), protocol: "prose", ask: async () => 'The text says "received the whole estate", so it holds.' });
+  const negated = chunks.map((c) => (c.ref === "wp.txt#212-260" ? { ...c, text: "Pierre never received the whole estate; Anatole did." } : c));
+  let calls = 0;
+  const r = await judgeTurn({ ingestion: ingestion(), claims, question: "q", chunks: negated, recipe: "t", habits: first.habits, protocol: "prose", ask: async () => { calls += 1; return "Undetermined."; } });
+  assert.equal(r.ingestion.byClaim[0].judgment.rung, JUDGE_RUNG, "the judge was asked, not the habit");
+  assert.deepEqual(r.ingestion.byClaim[0].habitStoodDown, { verdict: "holds", because: "a negated restatement of the decider's own company is in the section" });
+  assert.equal(calls, 1);
 });

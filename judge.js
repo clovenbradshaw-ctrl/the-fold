@@ -66,6 +66,8 @@ import { splitSentences as engineSentences } from "../eoreader7/native/adapters/
 import { becauseContained } from "../eoreader7/native/organs/testimony.js";
 import { recordOutcome, recordContradiction } from "../eoreader7/native/kernel/escalation.js";
 import { createHabits, learnHabit, recallHabit, applyHabit, concedeHabit, HABIT_RUNG } from "../eoreader7/native/kernel/habit.js";
+import { NEGATION_WORDS } from "../eoreader7/native/adapters/text/priors.js";
+import { tokenize } from "../eoreader7/native/organs/source.js";
 import { makeGary } from "./gary.js";
 import { strikeAddresses, apparatusMentions } from "./firewall.js";
 
@@ -152,6 +154,29 @@ export function buildWordMessages(sentence, claim, question) {
     { role: "user", content: `Sentence: ${sentence}\n\nClaim: ${stated}\n\n${question}` },
   ];
 }
+/**
+ * THE COUNTER-DECIDER WALL (fast-reasoning v4, 2026-09-28): a habit answered
+ * `holds` by containment with "Mina never was the brightest..." one sentence
+ * away, because the relation reader reads no claim from a copula + adjective
+ * sentence and so no contradiction ever reached the revision loop. A habit is
+ * only as revisable as the eyes that watch it; this is the habit rung's own
+ * eye. Before a habit answers, every sentence of the section that shares the
+ * decider's company (its first content word and one more) is read for a
+ * received negation word (priors.js NEGATION_WORDS, lang/en); one found stands
+ * the habit down — NOT APPLICABLE, never a verdict — and the judge is asked.
+ */
+export function negatedNearby(decider, material) {
+  const dTok = tokenize(decider);
+  if (dTok.length < 2) return false;
+  // a negation the decider itself carries is its own polarity, not a counter
+  const own = new Set(dTok.filter((w) => NEGATION_WORDS.has(w)));
+  for (const s of numberedSentences(material)) {
+    const t = tokenize(s); const set = new Set(t);
+    const shares = set.has(dTok[0]) && dTok.slice(1).some((x) => set.has(x));
+    if (shares && t.some((w) => NEGATION_WORDS.has(w) && !own.has(w))) return true;
+  }
+  return false;
+}
 /** The habit's key for "the same claim again": the arrangement's ends and label, folded. */
 export const habitKeyOf = (claim) => [claim?.end1, claim?.label, claim?.end2].map((x) => String(x ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim()).join("|");
 /** The default door: Gary with the firewall's own organs, no window (a gap he reports, never a verdict). */
@@ -200,7 +225,8 @@ export async function judgeTurn({ ingestion, claims = [], question, forWhomId, c
     const key = habitKeyOf(claims[i]);
     // THE HABIT RUNG: a learned judgment whose decider is in this section answers with no model call
     const live = recallHabit(log, key);
-    const applied = applyHabit(live, section.text, { holds: (decider, material) => becauseContained(decider, material) });
+    const applied = applyHabit(live, section.text, { holds: (decider, material) => becauseContained(decider, material) && !negatedNearby(decider, material) });
+    if (live && !applied && becauseContained(live.decider, section.text)) byClaim[i].habitStoodDown = { verdict: live.verdict, because: "a negated restatement of the decider's own company is in the section" };
     if (applied) {
       trails = recordOutcome(trails, { shape: row.shape, rung: HABIT_RUNG, ok: true, ms: 0 });
       byClaim[i].judgment = Object.freeze({ rung: HABIT_RUNG, recipe: applied.giver, learnedAt: applied.seq, forWhom: forWhom.id, section: { source: section.source, start: section.start, end: section.end, refs: section.refs, chars: section.text.length }, verdict: applied.verdict, anchored: true, decider: applied.decider, landed: "chosen", reason: `a habit learned from ${applied.giver} — its decider is in the section, no model asked`, noModel: true });

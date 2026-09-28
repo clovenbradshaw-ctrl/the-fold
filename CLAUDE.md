@@ -8915,9 +8915,15 @@ left out because `app.js` was under concurrent edit.
 
 This repo holds no archon organ, carrier or archon content. The organs
 (aletheia, ashby, clippy, elenchus, gary, kairos, kondo, muninn, nagarjuna,
-panini, parmenides) are `eoreader7/native/organs/`, reached through the one
-seam `../eoreader7/native/organs/index.js` (colliding names prefixed by the
-organ: `GARY_SEVERITY`, `NAGARJUNA_RULES`, …); the eighteen historical-figure
+panini, parmenides, and — moved the same day, once their surface dependencies
+were injected — huginn, logos, solon, passage-comparison, activation-retrieval)
+are `eoreader7/native/organs/`, reached through the one seam
+`../eoreader7/native/organs/index.js` (colliding names prefixed by the organ:
+`GARY_SEVERITY`, `NAGARJUNA_RULES`, …). What an organ needs from this surface
+is handed to it: `activation-wiring.js` binds activation-retrieval to
+dialogue.js/resolutions.js, `holon.js` binds passage-comparison to arithmetic.js
+and quoting.js, and `solon-run.mjs` hands Solon this repo (root, ENFORCEMENT,
+results roots, a port probe; `--daemon` runs the keeper). The eighteen historical-figure
 carriers are `eoreader7/native/archons/carriers/`; the archons' sayings and
 voices are data in `live_priors/derived-priors/archon-voices/` (the rotating
 chat-hero quote table, dead since the hero was deleted, moved there). Do not

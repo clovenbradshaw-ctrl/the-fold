@@ -155,9 +155,9 @@ export const isHuman = (entity) => (entity?.instanceOf ?? []).includes(HUMAN);
 // Stanford's own English article resolves to the DIFFERENT Q41506). Two
 // sources correspond when their OWN declared qids are equal — nothing
 // compared, nothing guessed, the same "identity from a giver, not from
-// spelling" rule this file's own header already states for
-// `chainAgreesByIdentity`. The pure half lives here; the crossing (reading
-// each source's own qid) is the caller's, exactly like `entityUrl` above.
+// spelling" rule seek.js's own `chainCloses` already applies to a chain's
+// pointers. The pure half lives here; the crossing (reading each source's
+// own qid) is the caller's, exactly like `entityUrl` above.
 export const pagePropsUrl = (lang, title) =>
   `https://${encodeURIComponent(String(lang ?? "en"))}.wikipedia.org/w/api.php?action=query&prop=pageprops&ppprop=wikibase_item&titles=${encodeURIComponent(String(title ?? ""))}&format=json`;
 
@@ -169,6 +169,22 @@ export function parsePageProps(json) {
   const qid = page?.pageprops?.wikibase_item;
   return isQid(qid) ? qid : null;
 }
+
+// SUPERSEDED, and kept with its finding rather than deleted — never call
+// either of these two in production. Checked directly: the one production
+// route this file serves (`POST /api/entity/seek`, explore-server.mjs)
+// never calls `qidBridge` or `holdersOfPosition`, and nothing else in this
+// repo does either. They are this file's FIRST identity walk — parse a
+// locally-held entity (already fetched, already shaped by `parseEntity`)
+// and hand records straight to `chains.js::chainFillers` — the design
+// this file's own header above still describes. The live route takes a
+// different path: it drives `makeWikidataSource` through `seek.js`'s own
+// generalized walk (`chooseAnchor`/`specialize`/`seekBindings`), reading
+// each binding's own `prev`/`next` pointers straight off the network
+// rather than a locally-parsed record set. Kept rather than deleted
+// because wikidata.test.mjs's own fixture-driven proof that the chain
+// closes by identity — the incident this file exists for — still runs
+// against these two directly, through `seek.js`'s own `chainCloses`.
 
 /**
  * qidBridge(sourceA, sourceB) — do two sources (`{qid, ref}`-shaped, ref
@@ -216,33 +232,6 @@ export function holdersOfPosition(entities, positionQid) {
     }
   }
   return records;
-}
-
-/**
- * chainAgreesByIdentity(records) — does each record's own forward pointer
- * name the record whose backward pointer names it? Checked on qids, so
- * agreement is identity and not spelling.
- *
- * Returns every link it could confirm plus every pointer that named someone
- * outside this set — that second list is not a failure, it is the chain's
- * own edge (Hamlin's `replaces` names Breckinridge, who is genuinely not a
- * VP under Lincoln), and reporting it as an edge rather than a fault is what
- * lets a caller tell "the set is closed here" from "the set is incomplete".
- */
-export function chainAgreesByIdentity(records) {
-  const byId = new Map((records ?? []).map((r) => [r.id, r]));
-  const links = [];
-  const openEnds = [];
-  for (const r of records ?? []) {
-    const forward = r.next && byId.get(r.next);
-    if (forward) {
-      links.push({ from: r.id, to: forward.id, mutual: forward.prev === r.id });
-    } else if (r.next) {
-      openEnds.push({ from: r.id, names: r.next, direction: "after", inSet: false });
-    }
-    if (r.prev && !byId.has(r.prev)) openEnds.push({ from: r.id, names: r.prev, direction: "before", inSet: false });
-  }
-  return { links, openEnds, mutual: links.length > 0 && links.every((l) => l.mutual) };
 }
 
 // ── the seek: from two surface strings to the bindings, by constraint ───────
@@ -302,6 +291,21 @@ export const parseEntities = (json) =>
   Object.values(json?.entities ?? {})
     .map((e) => parseEntity({ entities: { [e.id]: e } }))
     .filter(Boolean);
+
+// SUPERSEDED, and kept with their findings rather than deleted — never
+// call any of the next three in production. Checked directly: no caller
+// anywhere in this file or in the route that serves it (`POST
+// /api/entity/seek`). They are the LOCAL half of the six-step walk this
+// section's header describes above: `datedTerms` and `bindByTerm`
+// implement steps 3 and 6 over entities already held in memory, and
+// `coverageOf` is the closure measure that decides whether the bound set
+// they find is complete. `seek.js`'s own `seekBindings` performs the
+// equivalent walk over the network instead — `source.specialize` narrows
+// the slot, and `seek.js`'s own `coverage` (not this file's `coverageOf`)
+// measures the close — which is what the live route actually drives
+// today. Kept rather than deleted because wikidata.test.mjs still tests
+// all three directly, `coverageOf`'s own interval-tiling measure
+// included.
 
 /**
  * datedTerms(entity) — every position the anchor held with BOTH ends dated.
@@ -539,6 +543,16 @@ export function exampleIdsFrom(rawEntity) {
   return [...new Set(ids)];
 }
 
+// SUPERSEDED, and kept with its finding rather than deleted — never call
+// in production. Checked directly: no caller anywhere in this file, and
+// the live route (`POST /api/entity/seek`) does not reach it either — it
+// calls `seek.js`'s own `learnRelation`, the same "settle when a further
+// batch changes nothing" stopping rule generalized over any source, not
+// only this one (the witness floor itself, `RELATING_WITNESS_FLOOR` /
+// `clearsFloor` below, stays live — the route applies it to whichever
+// candidates it is handed). Kept because wikidata.test.mjs still tests
+// this directly.
+
 /**
  * nominateRelating(slotQid, rawExamples) — the candidates, with their
  * witnesses, ordered by how many independent examples used each property.
@@ -599,6 +613,14 @@ export const instanceOfIn = (rawEntity) =>
 export const KIND_QIDS = Object.freeze({ person: HUMAN });
 export const kindQidFor = (name) => KIND_QIDS[String(name ?? "").toLowerCase()] ?? null;
 export const clearsFloor = (candidate) => (candidate?.count ?? 0) >= RELATING_WITNESS_FLOOR;
+
+// SUPERSEDED, and kept with their findings rather than deleted — never
+// call any of the next three (`nominationVerdict`, `enoughExamples`, its
+// private `refusedResult`) in production, for the same reason named above
+// `nominateRelating`: `seek.js`'s own `learnRelation` is the live stopping
+// rule the route actually runs. `SETTLE_RUNS` moves with `enoughExamples`,
+// since nothing else in this file reads it. Kept because wikidata.test.mjs
+// still tests all three directly.
 
 /**
  * nominationVerdict(candidates) — what the nominations actually DECIDE, and

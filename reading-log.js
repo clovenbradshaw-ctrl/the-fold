@@ -81,7 +81,8 @@ export function foldReading(entries = [], { reconstruct = null, diaNorm = null, 
     if (isReferent(e)) {
       const r = referents.get(e.id) ?? { id: e.id, surfaces: new Set(), provenance: [], fedBy: new Set() };
       for (const s of e.surfaces ?? []) r.surfaces.add(String(s));
-      for (const p of e.provenance ?? []) r.provenance.push(p);
+      // the engine now writes provenance as one object, not a list; keep both readable
+      for (const p of Array.isArray(e.provenance) ? e.provenance : e.provenance ? [e.provenance] : []) r.provenance.push(p);
       for (const f of e.fedBy ?? []) r.fedBy.add(String(f));
       referents.set(e.id, r);
     } else if (isEncounter(e)) {

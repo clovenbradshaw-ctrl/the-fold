@@ -76,6 +76,7 @@ import { NOTHING, buildTable, chartOf, detectChart, detectTable, toMarkdown } fr
 // questions (units, choose, statistics, derivative, an equation) and the
 // calendar — each computed by the engine's own operation, never restated.
 import { checkQuantity, disputesQuantity } from "./arithmetic.js";
+import { checkCounting } from "./counting.js";
 import { needsConfirmation, confirmationTemplate } from "./confirm.js";
 import { socraticTurn, newDialogue, isAnswer, isActionableRequest, assignAnswer, detectAporia, nextCell, composeAporia, composeConsumptionAndAsk, composeMove, classifyAnswer, nextMove, VOID_CELLS } from "./socratic-epistemic.js";
 import { isStalled, WITHDRAWAL, operatorPath } from "./stall.js";
@@ -9256,6 +9257,72 @@ async function arithmeticTurn(question, found) {
 }
 
 /**
+ * counting.js's own render, mirroring arithmeticTurn above field for field
+ * (the same "computed, not generated" chip, the same history-caption
+ * stripping so a later turn can never read the caption back off its own
+ * history and imitate it — P51's forgeability fix, reused rather than
+ * re-earned for a second door). The one addition: the note discloses
+ * whether a second, independent engine (pyodide, injected at the call
+ * site above) actually confirmed the count, was offered and disagreed
+ * (unreachable here — a disagreement is a typed gap and never reaches this
+ * function with a value at all), or was never offered in the first place.
+ *
+ * Disclosed, not silently covered: unlike arithmeticTurn, this door has no
+ * dispute-reopening companion yet (arithmetic.js's own disputesQuantity/
+ * arithmeticDisputeTurn, P209/P210/P212) — a person disputing a count one
+ * turn later falls through to the model exactly as an arithmetic dispute
+ * did before P209 existed. Real, scoped, un-attempted follow-up work.
+ */
+async function countingTurn(question, found) {
+  addMessage("user", question);
+  const node = addMessage("assistant", "");
+  const body = node.querySelector(".body");
+
+  const answer = found.gap
+    ? `${found.expression} — ${found.gap}`
+    : `${found.expression} = ${found.display} — computed, not generated`;
+  body.textContent = "";
+  if (!found.gap) {
+    const wrap = document.createElement("div");
+    wrap.className = "arithmetic-result";
+    wrap.textContent = `${found.expression} = ${found.display}`;
+    const note = document.createElement("p");
+    note.className = "note";
+    note.textContent = found.verified?.ok
+      ? "computed, not generated — cross-checked against a second, independent Python interpreter"
+      : found.verified && found.verified.ok === false
+        ? `computed, not generated — the Python cross-check did not confirm it (${found.verified.detail})`
+        : "computed, not generated";
+    body.append(wrap, note);
+  } else {
+    const p = document.createElement("p");
+    p.className = "prose";
+    p.textContent = answer;
+    body.append(p);
+  }
+
+  state.history.push(
+    { role: "user", content: question },
+    { role: "assistant", content: stripComputedCaption(answer) },
+  );
+  const turn = state.summary.turnCount + 1;
+  logAct("answered-from-state", {
+    what: "counting",
+    expression: found.expression,
+    ...(found.gap ? { gap: found.gap } : { value: found.value, verified: found.verified?.ok ?? null }),
+  });
+  observeExchange(turn, question, answer);
+  const fold = mechanicalFoldLine(question, answer);
+  state.turnFolds.push(fold);
+  state.summary = advanceSummaryFold(state.summary, fold);
+
+  renderFold(node, { fold });
+  renderThreads();
+  $("status").textContent = readyLine();
+  releaseBusy();
+}
+
+/**
  * Does the MATERIAL enumerate the answer to this question outright?
  *
  * Runs over the same live chunks a grounded turn would retrieve against, and
@@ -9822,6 +9889,26 @@ async function send(question) {
   // the world (or the material) always falls through untouched.
   const arithmetic = checkQuantity(question, { math: window.math, now: new Date() });
   if (arithmetic) return arithmeticTurn(question, arithmetic);
+
+  // Counting: the same law (L5, arithmetic.js's own header), a different
+  // engine. "How many times does X appear in Y" is not a numeric
+  // EXPRESSION — mathjs has nothing to parse in it — so checkQuantity's own
+  // door just above never claims it, and it would otherwise reach the
+  // model raw: the exact, publicly notorious failure class arithmetic.js
+  // already names for a sum ("17 times 24" → 372), one register over, for
+  // a tally instead. Cross-checked against a SECOND, independent engine —
+  // this app's own real pyodide sandbox (term.js::runSandboxed, the
+  // identical Worker /run python already boots) — before the answer ships;
+  // a disagreement between the two is a typed gap counting.js hands back,
+  // never a guess at which engine to trust. Disclosed cost: a genuine
+  // counting question pays a real pyodide boot (several seconds cold,
+  // measured elsewhere in this app), which arithmetic's mathjs-only door
+  // never has to — accepted because a hand-rolled JS tally, however well
+  // tested in isolation, is exactly the "untested arithmetic" arithmetic.js
+  // itself warns a caller never to trust alone (its own header, on why an
+  // operator is never hand-rolled here either).
+  const counting = await checkCounting(question, { runPython: (code) => runSandboxed("python", code) });
+  if (counting) return countingTurn(question, counting);
 
   // The material's own list, when it answers the question outright. Checked
   // after arithmetic and before the model doors: a list IS the answer, and

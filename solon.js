@@ -108,7 +108,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { checkAppendOnly, verifyWatcher } from "./ashby.js";
+import { checkAppendOnly, verifyWatcher } from "../eoreader7/native/organs/index.js";
 import { ENFORCEMENT } from "./constitution.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));

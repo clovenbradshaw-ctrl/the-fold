@@ -5,9 +5,9 @@
 // PLANTED-CONTROL.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { makeGary, assertPromptsBuildable, garyDecision, RULES, SEVERITY, checkOracleMode, hasCheckableClaim, oracleContentWords, oracleRefusalText, ORACLE_MIN_CONTENT_WORDS } from "./gary.js";
-import { makeKondo, TIDY_PAIRS, TIDY_NOTES_PAIR, wordsOf } from "./kondo.js";
-import { makeParmenides } from "./parmenides.js";
+import { makeGary, assertPromptsBuildable, garyDecision, RULES, SEVERITY, checkOracleMode, hasCheckableClaim, oracleContentWords, oracleRefusalText, ORACLE_MIN_CONTENT_WORDS } from "../eoreader7/native/organs/gary.js";
+import { makeKondo, TIDY_PAIRS, TIDY_NOTES_PAIR, wordsOf } from "../eoreader7/native/organs/kondo.js";
+import { makeParmenides } from "../eoreader7/native/organs/parmenides.js";
 import { strikeAddresses, apparatusMentions } from "../eoreader7/native/organs/firewall.js";
 import { buildWitnessMessages, buildSelectMessages } from "../eoreader7/native/organs/testimony.js";
 import { EXECUTE_SYSTEM_PROMPT, FLAT_EXECUTE_SYSTEM_PROMPT, CHAT_SYSTEM_PROMPT, S1_SYSTEM_PROMPT, SEARCHED_VOID_PREFIX } from "./holon.js";

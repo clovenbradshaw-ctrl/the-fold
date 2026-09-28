@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { makeNagarjuna, RULES, SEVERITY } from "./nagarjuna.js";
+import { makeNagarjuna, RULES, SEVERITY } from "../eoreader7/native/organs/nagarjuna.js";
 import { BOUND, CONTRADICTED, CONTESTED, UNBOUND, BEYOND_REACH, flip } from "../eoreader7/native/interpretation/hl.js";
 
 const nagarjuna = makeNagarjuna({ lattice: { BOUND, CONTRADICTED, CONTESTED, UNBOUND, BEYOND_REACH }, flip });

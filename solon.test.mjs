@@ -18,7 +18,7 @@ import {
   referencedBy,
   scanResultsDir,
 } from "./solon.js";
-import { checkAppendOnly, heartbeatVerdict, verifyWatcher } from "./ashby.js";
+import { checkAppendOnly, heartbeatVerdict, verifyWatcher } from "../eoreader7/native/organs/ashby.js";
 
 // PLANTED-CONTROL — the marker Ashby requires to exist here: the regulator's
 // own controls can fail, or the regulator is a wish, not a wall.

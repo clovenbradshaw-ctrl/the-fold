@@ -167,7 +167,7 @@ import { reduce as audioReduce } from "../eoreader7/native/adapters/audio/reduce
 // (derivation.js), so a derived fact always names who licensed it.
 import { createDeclarationLog, proposeCandidate as proposeDeclaration, promote as promoteDeclaration, foldDeclarations } from "/engine-v7/interpretation/declarations.js";
 import { renderCrown, assertCrownShippable } from "./crown.js";
-import { checkOracleMode, oracleRefusalText, hasCheckableClaim } from "./gary.js";
+import { checkOracleMode, oracleRefusalText, hasCheckableClaim } from "../eoreader7/native/organs/index.js";
 import { compose, coverageLine } from "./compose.js";
 import { selectContent } from "./selector.js";
 import { formatReference, CITATION_STYLES, DEFAULT_CITATION_STYLE } from "./citation-style.js";
@@ -271,14 +271,14 @@ import {
 // a contraction of the raw present, registered on the ledger, drawn
 // nowhere (aperture.js's regime block says why).
 import { makeApertureMeter, presentWindow, regimeAfter } from "./aperture.js";
-import { kairosSign, SIGN as KAIROS_SIGN } from "./kairos.js";
+import { kairosSign, SIGN as KAIROS_SIGN } from "../eoreader7/native/organs/index.js";
 import { createRetrievalIndex, encodeRecord as encodeRecallRecord, recallCandidates, recordCitation } from "./retrieval.js";
-import { muninnRecall } from "./muninn.js";
+import { muninnRecall } from "../eoreader7/native/organs/index.js";
 // KONDO (the register's tidy-prompt archon) and the Way he asks about
 // sameness: a line carried twice is Parmenides's verdict, never a string
 // comparison of Kondo's own (II.7).
-import { makeKondo, kondoDecision, wordsOf as kondoWords } from "./kondo.js";
-import { makeParmenides } from "./parmenides.js";
+import { makeKondo, kondoDecision, wordsOf as kondoWords } from "../eoreader7/native/organs/index.js";
+import { makeParmenides } from "../eoreader7/native/organs/index.js";
 import { tokens as memoryTokens, codeOf as memoryCodeOf, recall as memoryRecall, encodeFrame as memoryEncodeFrame } from "/engine-v7/memory/activation.js";
 
 // The reading engine's own segment organ, served from /engine (see serve.mjs).
@@ -1645,7 +1645,7 @@ import {
   tokenize,
 } from "./source.js";
 import { makeAdmission, properNamesIn } from "./admission.js";
-import { makeAletheia } from "./aletheia.js";
+import { makeAletheia } from "../eoreader7/native/organs/index.js";
 import { questionCycle, ledgerLint as lintNotesInLog, functionalConflicts } from "./logos.js";
 import { sourceOfWitness } from "../eoreader7/native/organs/index.js";
 // The discourse-admission gate (admission.js): should a whole ATTACHED

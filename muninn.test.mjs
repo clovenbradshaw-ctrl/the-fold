@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 
 import { createRetrievalIndex, encodeRecord, recallCandidates, recordCitation } from "./retrieval.js";
 import { adaptTaskLog, classifyConsequence, createConsequenceLedger, scoreConsequence, evaluatePromotion } from "./consequence.js";
-import { declareBudget, muninnRecall, muninnPromote, muninnDecision } from "./muninn.js";
+import { declareBudget, muninnRecall, muninnPromote, muninnDecision } from "../eoreader7/native/organs/muninn.js";
 
 let organs = null;
 try {

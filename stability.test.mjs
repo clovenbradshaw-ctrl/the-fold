@@ -16,7 +16,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { containment, fallOpen, noVerdictsUp, makeInstructionDetector, canHeadImperative, traceLines, pareto, scoreAnswer, unrelatedInert, blastRadius, earned, ratchet } from "./stability.js";
 import { runTurn, RUNGS, FIXED_PROMPTS } from "./stability-rig.mjs";
 import { BATTERY, UNRELATED, UNRELATED_CONFUSABLE, PLANTED_INSTRUCTIONS } from "./stability-battery.js";
-import { makeGary } from "./gary.js";
+import { makeGary } from "../eoreader7/native/organs/gary.js";
 import { falseAbsenceOf } from "./snip-check.js";
 import * as M from "../eoreader7/native/adapters/text/morphology.js";
 import { splitSentences } from "../eoreader7/native/adapters/text/spans.js";

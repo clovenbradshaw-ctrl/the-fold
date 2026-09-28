@@ -10,7 +10,7 @@
 // exists to hold (P11/P38: pronunciation is referent-keyed).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { makePanini, RULES, SEVERITY, CONFUSABLE_DISTANCE, HETERONYM_DISTANCE, phonemesOf, READ_READ_RED } from "./panini.js";
+import { makePanini, RULES, SEVERITY, CONFUSABLE_DISTANCE, HETERONYM_DISTANCE, phonemesOf, READ_READ_RED } from "../eoreader7/native/organs/panini.js";
 import { manifestOf } from "../live_priors/scripts/pronunciation.mjs";
 import { wordDistance, phoneDistance } from "../live_priors/scripts/pronunciation-compare.mjs";
 

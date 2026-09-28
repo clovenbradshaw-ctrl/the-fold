@@ -73,11 +73,11 @@ import { buildFactBlock, dedupeSourceText } from "./fact-block.js";
 // KONDO'S CUT (P232): the duplication she reports, removed by this builder
 // before the prompt is sent. She names owners and never cuts; the cut is the
 // builder's own.
-import { tidyMaterial, makeKondo, TIDY_PAIRS, TIDY_NOTES_PAIR } from "./kondo.js";
+import { tidyMaterial, makeKondo, TIDY_PAIRS, TIDY_NOTES_PAIR } from "../eoreader7/native/organs/index.js";
 // GARY (gary.js) keeps the door: the archon in charge of what the mouth is
 // handed. Kondo counts what a prompt carries twice; Gary holds every rule
 // about what may be carried at all, and hands the bag over.
-import { makeGary, garyDecision, oracleRefusalText } from "./gary.js";
+import { makeGary, garyDecision, oracleRefusalText } from "../eoreader7/native/organs/index.js";
 import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
 import { LINK_CHECKS_PER_PART, extractLinkAtoms, linkFindings, stripDeadLinks, urlInMaterial, verifyLinks } from "./links.js";
 import { composeShipment } from "./composition-gate.js";

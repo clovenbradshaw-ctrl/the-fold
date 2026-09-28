@@ -61,7 +61,7 @@
 // habit answers nothing; the next judgment learns anew.
 
 import { judgmentRequest, landJudgment, INGESTION_SCHEMA, ingestionStanding } from "../eoreader7/native/kernel/ingestion.js";
-import { readJudgment } from "../eoreader7/native/organs/judgment-reader.js";
+import { readJudgment, pointedDecider } from "../eoreader7/native/organs/judgment-reader.js";
 import { splitSentences as engineSentences } from "../eoreader7/native/adapters/text/spans.js";
 import { becauseContained } from "../eoreader7/native/organs/testimony.js";
 import { recordOutcome, recordContradiction } from "../eoreader7/native/kernel/escalation.js";
@@ -120,9 +120,36 @@ export function buildJudgeMessages(request, claim) {
   return [
     // information, not prohibition: what each word means, and that the deciding sentence is named by its number
     // (v1 of fast-reasoning.mjs: a small judge answers one word and quotes nothing; it can still point)
-    { role: "system", content: "One piece of text, its sentences numbered, and one claim about it. The answer names the number of the sentence that decides the claim, like [3], then ends with one word: holds (the text states the claim), refused (the text states otherwise), undetermined (the text settles neither)." },
+    // (v2 of fast-reasoning.mjs: an example number in the instruction — "like [3]" — was the number a 0.5B judge gave back on every claim; no example here)
+    { role: "system", content: "One piece of text, its sentences numbered, and one claim about it. The answer names the number of the sentence that decides the claim, then ends with one word: holds (the text states the claim), refused (the text states otherwise), undetermined (the text settles neither)." },
     // the text, the claim, and LAST the question in the asker's own words
     { role: "user", content: `Text:\n${numbered}\n\nClaim: ${stated}\n\n${request.forWhom.question}` },
+  ];
+}
+/**
+ * THE POINT-THEN-WORD PROTOCOL (v2 of fast-reasoning.mjs, 2026-09-28): a very
+ * small judge cannot carry two parts in one answer — asked to point and to
+ * decide, it did neither. Asked for ONLY the number it pointed right; asked
+ * for ONLY the word over that one sentence it decided right (a false claim
+ * refused from the pointed bytes). Two asks, each a point, each read
+ * mechanically; the second sees the pointed sentence alone, the claim, and
+ * the question LAST. Two calls per judged claim, declared; a point the
+ * company wall refuses spends one and lands NONE (no word was asked for).
+ */
+export const JUDGE_PROTOCOLS = Object.freeze(["point-then-word", "prose"]);
+export function buildPointMessages(request, claim) {
+  const stated = [claim?.end1, claim?.label, claim?.end2].filter(Boolean).join(" ");
+  const numbered = numberedSentences(request.text).map((t, i) => `[${i + 1}] ${t}`).join("\n");
+  return [
+    { role: "system", content: "A numbered list of sentences and a claim. The answer is only the number of the one sentence that speaks to the claim." },
+    { role: "user", content: `Sentences:\n${numbered}\n\nClaim: ${stated}\n\nWhich sentence speaks to the claim?` },
+  ];
+}
+export function buildWordMessages(sentence, claim, question) {
+  const stated = [claim?.end1, claim?.label, claim?.end2].filter(Boolean).join(" ");
+  return [
+    { role: "system", content: "One sentence and one claim. The answer is one word: holds if the sentence states the claim, refused if the sentence states otherwise, undetermined if it settles neither." },
+    { role: "user", content: `Sentence: ${sentence}\n\nClaim: ${stated}\n\n${question}` },
   ];
 }
 /** The habit's key for "the same claim again": the arrangement's ends and label, folded. */
@@ -139,7 +166,8 @@ export const defaultGary = () => makeGary({ strikeAddresses, apparatusMentions }
  * -> { ingestion (rows carrying `judgment` where asked), trails, asked: [{ i, holon, verdict, landed, anchored, decider }] }
  * Nothing awaited here edits the answer; a throw in one ask lands as a typed `judgment.error` on that row and the next is tried.
  */
-export async function judgeTurn({ ingestion, claims = [], question, forWhomId, chunks = [], ask, recipe, maxAsks = JUDGE_ASKS_PER_TURN, cursor = null, onStep = null, gary = null, model = null, windowOf = null, habits = null, witness = [] } = {}) {
+export async function judgeTurn({ ingestion, claims = [], question, forWhomId, chunks = [], ask, recipe, maxAsks = JUDGE_ASKS_PER_TURN, cursor = null, onStep = null, gary = null, model = null, windowOf = null, habits = null, witness = [], protocol = "point-then-word" } = {}) {
+  if (!JUDGE_PROTOCOLS.includes(protocol)) throw new TypeError(`judgeTurn: protocol is one of ${JUDGE_PROTOCOLS.join(" / ")}`);
   if (!ingestion?.byClaim) return { ingestion, trails: ingestion?.trails ?? {}, asked: [], habits: habits ?? createHabits(), conceded: [] };
   if (typeof ask !== "function") throw new TypeError("judgeTurn: ask(messages) is the caller's — this module calls no model");
   if (!recipe) throw new TypeError("judgeTurn: the judge's recipe is declared");
@@ -186,15 +214,29 @@ export async function judgeTurn({ ingestion, claims = [], question, forWhomId, c
     const request = judgmentRequest({ standing, forWhom, sectionOf: () => section.text, claim: { key: row.key, i } });
     if (!request) continue;
     // GARY HANDS THE BAG: struck, checked, refused where his rules say so
-    const bag = door.hand(buildJudgeMessages(request, claims[i]), { model, material: 1, options: { num_predict: JUDGE_MAX_TOKENS } });
-    const gate = { findings: bag.findings.map((f) => ({ rule: f.rule, severity: f.severity, detail: f.detail })), gaps: bag.gaps.map((g) => g.type), struck: bag.struck, tokens: bag.tokens, window: bag.window ?? null };
-    if (bag.refused.length) { byClaim[i].judgment = { refused: "gary_refused", because: bag.refused.map((f) => `${f.rule}: ${f.detail}`).join("; "), gary: gate }; asked.push({ i, holon: row.holon, verdict: null, landed: "refused", rung: JUDGE_RUNG }); continue; }
-    const t0 = Date.now();
-    let prose;
-    try { prose = await ask(bag.messages); }
-    catch (e) { byClaim[i].judgment = { refused: "ask_failed", because: String(e?.message ?? e), gary: gate }; asked.push({ i, holon: row.holon, verdict: null, landed: "error", rung: JUDGE_RUNG }); continue; }
     const stated = [claims[i]?.end1, claims[i]?.label, claims[i]?.end2].filter(Boolean).join(" ");
-    const { collapse, reading } = landJudgment(request, { answer: String(prose ?? ""), read: (p, q) => readJudgment(p, q, { sentences: numberedSentences(q.text), claim: stated }), judge: { recipe }, cursor });
+    const sentences = numberedSentences(request.text);
+    const firstBag = door.hand(protocol === "prose" ? buildJudgeMessages(request, claims[i]) : buildPointMessages(request, claims[i]), { model, material: 1, options: { num_predict: JUDGE_MAX_TOKENS } });
+    const gate = { findings: firstBag.findings.map((f) => ({ rule: f.rule, severity: f.severity, detail: f.detail })), gaps: firstBag.gaps.map((g) => g.type), struck: firstBag.struck, tokens: firstBag.tokens, window: firstBag.window ?? null, protocol };
+    if (firstBag.refused.length) { byClaim[i].judgment = { refused: "gary_refused", because: firstBag.refused.map((f) => `${f.rule}: ${f.detail}`).join("; "), gary: gate }; asked.push({ i, holon: row.holon, verdict: null, landed: "refused", rung: JUDGE_RUNG }); continue; }
+    const t0 = Date.now();
+    let prose, callsSpent = 0;
+    try {
+      const first = String((await ask(firstBag.messages)) ?? ""); callsSpent += 1;
+      if (protocol === "prose") prose = first;
+      else {
+        // POINT, read; then the WORD over the pointed sentence alone — only when the point anchors (the company wall), else one call is spent and the judgment is contested on the point
+        const point = pointedDecider(first, sentences, stated);
+        if (!point?.anchored) prose = point ? `[${point.index}]` : first;
+        else {
+          const wordBag = door.hand(buildWordMessages(point.decider, claims[i], request.forWhom.question), { model, material: 1, options: { num_predict: 12 } });
+          gate.wordFindings = wordBag.findings.map((f) => f.rule);
+          const word = String((await ask(wordBag.messages)) ?? ""); callsSpent += 1;
+          prose = `[${point.index}] ${word}`;
+        }
+      }
+    } catch (e) { byClaim[i].judgment = { refused: "ask_failed", because: String(e?.message ?? e), gary: gate }; asked.push({ i, holon: row.holon, verdict: null, landed: "error", rung: JUDGE_RUNG }); continue; }
+    const { collapse, reading } = landJudgment(request, { answer: prose, read: (p, q) => readJudgment(p, q, { sentences, claim: stated }), judge: { recipe }, cursor });
     const ok = collapse.verdict === "chosen";
     trails = recordOutcome(trails, { shape: row.shape, rung: JUDGE_RUNG, ok, ms: Date.now() - t0 });
     // THE HABIT LEARNED: a chosen judgment with a decider to find again
@@ -205,7 +247,7 @@ export async function judgeTurn({ ingestion, claims = [], question, forWhomId, c
       section: { source: section.source, start: section.start, end: section.end, refs: section.refs, chars: section.text.length },
       verdict: reading.verdict, anchored: reading.anchored, decider: reading.decider ?? null, because: reading.because ?? null,
       landed: collapse.verdict, reason: collapse.reason ?? null,
-      prose: String(prose ?? "").slice(0, 600), gary: gate, learned,
+      prose: String(prose ?? "").slice(0, 600), gary: gate, learned, calls: callsSpent,
     });
     asked.push({ i, holon: row.holon, verdict: reading.verdict, landed: collapse.verdict, anchored: reading.anchored, decider: reading.decider ?? null, rung: JUDGE_RUNG, learned: !!learned });
     onStep?.(byClaim[i].judgment, claims[i]);

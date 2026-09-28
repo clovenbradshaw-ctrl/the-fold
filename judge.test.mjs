@@ -52,7 +52,7 @@ test("prose that quotes the section lands CHOSEN on the row, deposits on the jud
   const ing = ingestion();
   const seen = [];
   const good = await judgeTurn({ ingestion: ing, claims, question: "Who received the estate?", forWhomId: "turn:1", chunks, recipe: "test@judge-v1",
-    ask: async (msgs) => { seen.push(msgs); return 'The text says "received the whole estate", so the claim holds.'; } });
+    protocol: "prose", ask: async (msgs) => { seen.push(msgs); return 'The text says "received the whole estate", so the claim holds.'; } });
   const j = good.ingestion.byClaim[0].judgment;
   assert.equal(j.landed, "chosen"); assert.equal(j.verdict, "holds"); assert.equal(j.anchored, true); assert.equal(j.decider, "received the whole estate");
   assert.equal(good.ingestion.byClaim[0].standing, "partial", "the standing is untouched — a judgment sits beside the gap, never over it");
@@ -65,7 +65,7 @@ test("prose that quotes the section lands CHOSEN on the row, deposits on the jud
   assert.match(judgeLine(j, claims[0]), /judge · Pierre received the whole estate · holds — read wp.txt 0-260, deciding on «received the whole estate»/);
 
   const bad = await judgeTurn({ ingestion: ing, claims, question: "Who received the estate?", chunks, recipe: "test@judge-v1",
-    ask: async () => "The claim is refused: the estate went to Anatole after a duel in Moscow." });
+    protocol: "prose", ask: async () => "The claim is refused: the estate went to Anatole after a duel in Moscow." });
   const b = bad.ingestion.byClaim[0].judgment;
   assert.equal(b.landed, "contested"); assert.equal(b.verdict, "refused"); assert.equal(b.anchored, false);
   assert.match(judgeLine(b, claims[0]), /said refused but pointed at nothing/);
@@ -76,7 +76,7 @@ test("the budget holds and a failed ask is a typed refusal on its row, never a t
   const many = Array.from({ length: 4 }, (_, k) => ({ ...claims[0], key: `k${k}` }));
   const ing = ingestionOf({ claims: many, unread: [{ name: "wp.txt", read: 4, total: 900 }], witness: [], sources: [{ name: "wp.txt" }], trails: {} });
   let calls = 0;
-  const r = await judgeTurn({ ingestion: ing, claims: many, question: "q", chunks, recipe: "t", ask: async () => { calls += 1; if (calls === 1) throw new Error("boom"); return "undetermined."; } });
+  const r = await judgeTurn({ ingestion: ing, claims: many, question: "q", chunks, recipe: "t", protocol: "prose", ask: async () => { calls += 1; if (calls === 1) throw new Error("boom"); return "undetermined."; } });
   assert.equal(calls, JUDGE_ASKS_PER_TURN);
   assert.equal(r.ingestion.byClaim[0].judgment.refused, "ask_failed");
   assert.equal(r.ingestion.byClaim[1].judgment.verdict, "undetermined");
@@ -87,7 +87,7 @@ test("the budget holds and a failed ask is a typed refusal on its row, never a t
 test("a model call leaves a habit: the same claim again is answered by the habit rung with no model call, deposited on the trails; a decider absent from the new section falls through to the judge", async () => {
   const ing = ingestion();
   let calls = 0;
-  const first = await judgeTurn({ ingestion: ing, claims, question: "Who received the estate?", chunks, recipe: "test@judge-v1", habits: createHabits(),
+  const first = await judgeTurn({ ingestion: ing, claims, question: "Who received the estate?", chunks, recipe: "test@judge-v1", habits: createHabits(), protocol: "prose",
     ask: async () => { calls += 1; return 'The text says "received the whole estate", so it holds.'; } });
   assert.equal(calls, 1); assert.equal(first.ingestion.byClaim[0].judgment.learned.verdict, "holds");
   assert.equal(recallHabit(first.habits, habitKeyOf(claims[0])).decider, "received the whole estate");
@@ -104,13 +104,13 @@ test("a model call leaves a habit: the same claim again is answered by the habit
   assert.deepEqual((first.trails[shape] ?? []).map((t) => [t.route, t.ok]), [["mechanical", false], [JUDGE_RUNG, true]]);
   // a section that no longer carries the decider: the habit is not applicable and the judge is asked
   const other = chunks.map((c) => (c.ref === "wp.txt#142-210" ? { ...c, text: "Pierre received a letter from Moscow." } : c));
-  const fall = await judgeTurn({ ingestion: ingestion(), claims, question: "q", chunks: other, recipe: "test@judge-v1", habits: first.habits, ask: async () => { calls += 1; return "Undetermined."; } });
+  const fall = await judgeTurn({ ingestion: ingestion(), claims, question: "q", chunks: other, recipe: "test@judge-v1", habits: first.habits, protocol: "prose", ask: async () => { calls += 1; return "Undetermined."; } });
   assert.equal(calls, 2); assert.equal(fall.ingestion.byClaim[0].judgment.rung, JUDGE_RUNG);
 });
 
 test("a habit is revisable: the material contradicting it concedes it (REC, trigger quoted) before it answers anything, and the next judgment learns anew", async () => {
   const ing = ingestion();
-  const first = await judgeTurn({ ingestion: ing, claims, question: "q", chunks, recipe: "test@judge-v1", habits: createHabits(), ask: async () => 'The text says "received the whole estate", so it holds.' });
+  const first = await judgeTurn({ ingestion: ing, claims, question: "q", chunks, recipe: "test@judge-v1", habits: createHabits(), protocol: "prose", ask: async () => 'The text says "received the whole estate", so it holds.' });
   const contradicting = [{ ...claims[0], verdict: "contradicted", refs: ["wp.txt#142-210"] }];
   const ingC = ingestionOf({ claims: contradicting, unread: [{ name: "wp.txt", read: 4, total: 900 }], witness: [], sources: [{ name: "wp.txt" }], trails: first.trails });
   const r = await judgeTurn({ ingestion: ingC, claims: contradicting, question: "q", chunks, recipe: "test@judge-v1", habits: first.habits, ask: async () => "never" });
@@ -119,18 +119,32 @@ test("a habit is revisable: the material contradicting it concedes it (REC, trig
   assert.deepEqual(habitCensus(r.habits), { learned: 1, live: 0, conceded: 1 });
   assert.equal(r.ingestion.byClaim[0].habitConceded.verdict, "holds");
   // the witness refusing the sentence the habit held concedes it too
-  const again = await judgeTurn({ ingestion: ing, claims, question: "q", chunks, recipe: "test@judge-v1", habits: createHabits(), ask: async () => 'The text says "received the whole estate", so it holds.' });
-  const w = await judgeTurn({ ingestion: ingestion(), claims, question: "q", chunks, recipe: "t", habits: again.habits, witness: [{ sentence: "Pierre received the whole estate.", witness: "refused" }], ask: async () => "Undetermined." });
+  const again = await judgeTurn({ ingestion: ing, claims, question: "q", chunks, recipe: "test@judge-v1", habits: createHabits(), protocol: "prose", ask: async () => 'The text says "received the whole estate", so it holds.' });
+  const w = await judgeTurn({ ingestion: ingestion(), claims, question: "q", chunks, recipe: "t", habits: again.habits, witness: [{ sentence: "Pierre received the whole estate.", witness: "refused" }], protocol: "prose", ask: async () => "Undetermined." });
   assert.equal(w.conceded.length, 1); assert.match(w.conceded[0].trigger, /witness refused/);
   assert.equal(w.ingestion.byClaim[0].judgment.rung, JUDGE_RUNG, "with the habit conceded the judge is asked again");
 });
 
 test("a judge that points instead of quoting lands CHOSEN through the numbered sentences — and a lazy point at a sentence without the claim's words stays contested", async () => {
   const ing = ingestion();
-  const pointed = await judgeTurn({ ingestion: ing, claims, question: "q", chunks, recipe: "t", habits: createHabits(), ask: async (msgs) => { assert.match(msgs[1].content, /\[1\] /); return "[3] holds"; } });
+  const pointed = await judgeTurn({ ingestion: ing, claims, question: "q", chunks, recipe: "t", habits: createHabits(), protocol: "prose", ask: async (msgs) => { assert.match(msgs[1].content, /\[1\] /); return "[3] holds"; } });
   const j = pointed.ingestion.byClaim[0].judgment;
   assert.equal(j.landed, "chosen"); assert.equal(j.verdict, "holds"); assert.match(j.decider, /received the whole estate/);
   assert.equal(pointed.ingestion.judged, 1); assert.ok(recallHabit(pointed.habits, habitKeyOf(claims[0])), "a pointed, anchored judgment is learned as a habit");
-  const lazy = await judgeTurn({ ingestion: ingestion(), claims, question: "q", chunks, recipe: "t", habits: createHabits(), ask: async () => "[4] holds" });
+  const lazy = await judgeTurn({ ingestion: ingestion(), claims, question: "q", chunks, recipe: "t", habits: createHabits(), protocol: "prose", ask: async () => "[4] holds" });
   assert.equal(lazy.ingestion.byClaim[0].judgment.landed, "contested");
+});
+
+test("point-then-word (the default): the first ask is only for a number, the second only for a word over the pointed sentence, the question last; a point the company wall refuses spends one call and lands contested", async () => {
+  const ing = ingestion();
+  const seen = [];
+  const r = await judgeTurn({ ingestion: ing, claims, question: "Who received the estate?", chunks, recipe: "t", habits: createHabits(), ask: async (msgs) => { seen.push(msgs); return seen.length === 1 ? "[3]" : "holds"; } });
+  const j = r.ingestion.byClaim[0].judgment;
+  assert.equal(seen.length, 2); assert.equal(j.calls, 2); assert.equal(j.landed, "chosen"); assert.equal(j.verdict, "holds"); assert.match(j.decider, /received the whole estate/);
+  assert.ok(!/\[\d\]/.test(seen[0][0].content), "no example number in the point ask"); assert.match(seen[1][1].content, /Who received the estate\?$/);
+  for (const bag of seen) assert.deepEqual(defaultGary().hand(bag, { material: 1 }).findings, []);
+  const lazy = await judgeTurn({ ingestion: ingestion(), claims, question: "q", chunks, recipe: "t", habits: createHabits(), ask: async () => "[4]" });
+  // no word was ever asked for, so nothing was committed to: NONE, one call spent — never a verdict manufactured from a bad point
+  assert.equal(lazy.ingestion.byClaim[0].judgment.calls, 1); assert.equal(lazy.ingestion.byClaim[0].judgment.landed, "none");
+  await assert.rejects(() => judgeTurn({ ingestion: ingestion(), claims, question: "q", chunks, recipe: "t", protocol: "chat", ask: async () => "" }), /protocol/);
 });

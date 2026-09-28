@@ -154,6 +154,10 @@ test("the counter-decider wall: a habit whose decider is still in the section st
   assert.equal(negatedNearby("Pierre received the whole estate", section), false);
   assert.equal(negatedNearby("Pierre received the whole estate", section + "\n\nPierre never received the whole estate."), true);
   assert.equal(negatedNearby("Pierre received the whole estate", section + "\n\nAnatole never received a letter."), false, "a negation elsewhere, sharing no company, is not a counter-decider");
+  // v5: a decider that opens with a clause the claim is not about ("We tried to be cheerful..., and Mina was the brightest") — the claim's own words are the company
+  const mina = "We tried to be cheerful and encourage each other, and Mina was the brightest and most cheerful of us.";
+  assert.equal(negatedNearby(mina, mina + "\n\nMina never was the brightest and most cheerful of us."), false, "read against the decider's opening clause the counter is missed");
+  assert.equal(negatedNearby(mina, mina + "\n\nMina never was the brightest and most cheerful of us.", "Mina was the brightest and most cheerful of us"), true, "read against the claim's own words it is found");
   const ing = ingestion();
   const first = await judgeTurn({ ingestion: ing, claims, question: "q", chunks, recipe: "t", habits: createHabits(), protocol: "prose", ask: async () => 'The text says "received the whole estate", so it holds.' });
   const negated = chunks.map((c) => (c.ref === "wp.txt#212-260" ? { ...c, text: "Pierre never received the whole estate; Anatole did." } : c));

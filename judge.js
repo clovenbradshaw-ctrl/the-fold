@@ -165,8 +165,9 @@ export function buildWordMessages(sentence, claim, question) {
  * received negation word (priors.js NEGATION_WORDS, lang/en); one found stands
  * the habit down — NOT APPLICABLE, never a verdict — and the judge is asked.
  */
-export function negatedNearby(decider, material) {
-  const dTok = tokenize(decider);
+export function negatedNearby(decider, material, claimText = null) {
+  // v5: the company is the CLAIM's when the caller hands it over — a decider sentence may open with a clause the claim is not about
+  const dTok = tokenize(claimText ?? decider);
   if (dTok.length < 2) return false;
   // a negation the decider itself carries is its own polarity, not a counter
   const own = new Set(dTok.filter((w) => NEGATION_WORDS.has(w)));
@@ -225,7 +226,8 @@ export async function judgeTurn({ ingestion, claims = [], question, forWhomId, c
     const key = habitKeyOf(claims[i]);
     // THE HABIT RUNG: a learned judgment whose decider is in this section answers with no model call
     const live = recallHabit(log, key);
-    const applied = applyHabit(live, section.text, { holds: (decider, material) => becauseContained(decider, material) && !negatedNearby(decider, material) });
+    const stated0 = [claims[i]?.end1, claims[i]?.label, claims[i]?.end2].filter(Boolean).join(" ");
+    const applied = applyHabit(live, section.text, { holds: (decider, material) => becauseContained(decider, material) && !negatedNearby(decider, material) && !negatedNearby(decider, material, stated0) });
     if (live && !applied && becauseContained(live.decider, section.text)) byClaim[i].habitStoodDown = { verdict: live.verdict, because: "a negated restatement of the decider's own company is in the section" };
     if (applied) {
       trails = recordOutcome(trails, { shape: row.shape, rung: HABIT_RUNG, ok: true, ms: 0 });

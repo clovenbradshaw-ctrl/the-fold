@@ -63,6 +63,8 @@
 
 import { CHAIN } from "./turn-order.js";
 import { checkForm, checkGenre, draftText } from "./shape.js";
+import { FIELD_BY_OP } from "./void-loop.js";
+import { OPEN_QUESTIONS } from "./void-narration.js";
 
 export const LOOP_SCHEMA = "EOLoop@1";
 
@@ -74,27 +76,25 @@ export const STATES = Object.freeze(["open", "closed", "refused", "contested", "
 /** The grain each cell of a loop takes — the void's own nine, read off void-shape.js's VOID_OPERATORS table (the cube's reading, not this file's). */
 export const GRAIN_BY_CELL = Object.freeze({ NUL: "Ground", SIG: "Figure", INS: "Pattern", SEG: "Ground", CON: "Figure", SYN: "Pattern", DEF: "Figure", EVA: "Figure", REC: "Pattern" });
 
-/** The nine fields of a void, by the cell that declares each — void-loop.js's own FIELD_BY_OP, unchanged. */
-export const CELL_BY_FIELD = Object.freeze({ slot: "NUL", anchor: "SIG", admits: "INS", extent: "SEG", relation: "CON", composition: "SYN", cardinality: "DEF", admission: "EVA", reopensOn: "REC" });
+/** The nine fields of a void, by the cell that declares each — the
+ *  inverse of void-loop.js's own FIELD_BY_OP, computed from it rather than
+ *  restated (a hand-typed inverse is a second table that can drift from
+ *  the one it is meant to mirror exactly the way CELL_ASKS below already
+ *  did once). */
+export const CELL_BY_FIELD = Object.freeze(
+  Object.fromEntries(Object.entries(FIELD_BY_OP).map(([op, field]) => [field, op])),
+);
 
 /**
- * What each cell of a void is asking, as a person would ask it. Giver:
- * void-narration.js's OPEN_QUESTIONS — the same questions in the same
- * voice, so the cards and the narration can never say two different things
- * about one cell. Keyed by field, not by letter, because the field is what
- * the reader is being told is open.
+ * What each cell of a void is asking, as a person would ask it. THIS IS
+ * void-narration.js's own OPEN_QUESTIONS, re-exported under the name this
+ * file's callers already use — never a restated copy. A hand-typed copy
+ * here once drifted from the narration's own wording ("relation": "tie
+ * something to it" vs "tie someone to it") with nothing to catch it;
+ * importing the one table instead of retyping it makes that drift
+ * structurally impossible rather than merely tested-against.
  */
-export const CELL_ASKS = Object.freeze({
-  slot: "what space this even is",
-  anchor: "who or what it hangs on",
-  admits: "what kind of thing belongs in it",
-  extent: "how wide it is",
-  relation: "what would tie something to it",
-  composition: "how several answers would fit together, if there are several",
-  cardinality: "how many it holds",
-  admission: "what test something has to pass to count",
-  reopensOn: "what would make me take all this back",
-});
+export const CELL_ASKS = OPEN_QUESTIONS;
 
 /** The words the canon keeps backstage. A card carrying any of these has leaked the record's notation into the reader's view (loops.test.mjs pins it). */
 export const BACKSTAGE = /\b(NUL|SIG|INS|SEG|CON|SYN|DEF|EVA|REC)\b|[A-Za-z]·[A-Za-z]/;

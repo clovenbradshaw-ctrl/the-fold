@@ -93,7 +93,14 @@ const spanText = (s) => {
 // running prose; these are the same questions in the voice the rest of the
 // paragraph is in. Keyed by field, not by operator letter, because the field
 // is what the reader is being told is missing.
-const OPEN_QUESTIONS = Object.freeze({
+//
+// Exported so loops.js's card wording reads THIS table rather than
+// restating it — a restated copy is exactly the drift class this repo's
+// own history keeps naming (task-log.js's OPERATOR_ORDER, P22's duplicated
+// runtime-type ternary): loops.js's own hand-copy had already drifted on
+// "relation" ("someone" here vs "something" there) with nothing to catch
+// it, found and fixed the same day this export was added.
+export const OPEN_QUESTIONS = Object.freeze({
   slot: "what space this even is",
   anchor: "who or what it hangs on",
   admits: "what kind of thing belongs in it",

@@ -19,11 +19,13 @@ import { serializeRecord, replayRecord } from "./record-log.js";
 import { CHAIN } from "./turn-order.js";
 import { declaredForm, declaredGenre } from "./shape.js";
 import { namesIn } from "./ground-ladder.js";
+import { FIELD_BY_OP } from "./void-loop.js";
+import { OPEN_QUESTIONS } from "./void-narration.js";
 import {
   makeLoops, foldLoops, cardsFor, orderLoops, lineFor, stateWord, loopId, voidKey,
   loopsFromBrief, fillLoopIdFor, loopsFromProgress, loopsFromResult, loopsFromObligations, closingsFromFillings,
   subjectOf, loopsFromQuestion, closingsFromDraft, eotFor, eotStep, witnessShort, ACT_OPS, LOOP_GLYPHS, OP_GLYPHS, SOURCE_GLYPHS,
-  BACKSTAGE, BACKSTAGE_WORDS, CELL_ASKS, ACTS, STATES,
+  BACKSTAGE, BACKSTAGE_WORDS, CELL_ASKS, CELL_BY_FIELD, ACTS, STATES,
 } from "./loops.js";
 
 const loops = makeLoops({ taskLog, cellOf });
@@ -31,6 +33,22 @@ const fresh = () => loops.createLoopLog();
 const ok = (r) => { assert.ok(r.ok, `refused: ${JSON.stringify(r.refused)}`); return r.log; };
 
 const OPEN = (over = {}) => ({ id: "loop:test:a", kind: "test", cell: "SEG", asks: "how wide it is", closesOn: "a span the material states", by: "test", turn: 1, ...over });
+
+// ── the cell-vocabulary tables are read off their own givers, never restated ──
+
+test("CELL_ASKS is void-narration.js's OPEN_QUESTIONS itself, not a retyped copy — a hand-typed copy once drifted (\"tie something to it\" vs \"tie someone to it\") with nothing to catch it", () => {
+  assert.equal(CELL_ASKS, OPEN_QUESTIONS, "loops.js must import this table, never restate it, or a future edit to the narration's wording can silently stop matching what a card shows");
+});
+
+test("CELL_BY_FIELD is exactly the inverse of void-loop.js's own FIELD_BY_OP", () => {
+  const expected = Object.fromEntries(Object.entries(FIELD_BY_OP).map(([op, field]) => [field, op]));
+  assert.deepEqual(CELL_BY_FIELD, expected);
+  // every field FIELD_BY_OP declares has exactly one cell, and CELL_ASKS
+  // (the reader-facing table) covers every one of the same fields — a card
+  // asking about a field with no wording, or wording for a field no cell
+  // declares, is the same class of drift this pair once had.
+  assert.deepEqual(Object.keys(CELL_BY_FIELD).sort(), Object.keys(CELL_ASKS).sort());
+});
 
 // ── the acts ────────────────────────────────────────────────────────────────
 

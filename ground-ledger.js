@@ -9,7 +9,7 @@
 // state that existed strictly BEFORE that turn arrived, and once scored, a
 // turn's score is permanent — the ground moving later can never re-price it.
 //
-// Reused, not reinvented: this is the cast.js/priors-toggles.js/fold-log.js
+// Reused, not reinvented: this is the cast.js/priors-toggles.js/build-log.js
 // pattern (the engine module arrives as an argument, so the page loads it
 // from /engine and the tests load it by relative path). Every entry goes
 // through the engine's own `append` — vocabulary walls (kind, operator,
@@ -21,9 +21,9 @@
 // `append` directly, never by the log's own autopoietic `produce()` rule
 // engine — the same reasoning wide-vs-narrow.mjs's `landSample` already
 // used for exactly this distinction. Operator INS matches this repo's own
-// corrected convention for PROPOSE (grid.js/fold-log.js's "delta carriage"
-// amendment: "birth is Generate · Existence," not SEG — SEG stays the
-// deletion primitive). Ground versions are never superseded or chained:
+// corrected convention for PROPOSE (build-log.js's own correction: "INS is
+// birth," Generate · Existence, not SEG — SEG stays the deletion primitive).
+// Ground versions are never superseded or chained:
 // each is its own independent task_id, because every past ground must stay
 // queryable for prequential lookups, not just the live one.
 //
@@ -53,7 +53,7 @@ export function makeGroundLedger(taskLog) {
   const { createTaskLog, append, ENTRY_KINDS, OPERATOR_BASIS, GRAIN_RANK } = taskLog;
 
   // Read from the engine's own rank table rather than restated — the name
-  // has one source of truth (fold-log.js's own line, reused verbatim).
+  // has one source of truth (build-log.js's own convention, not restated).
   const FIGURE = Object.keys(GRAIN_RANK).find((g) => GRAIN_RANK[g] === 1);
 
   const isGroundPropose = (e) =>
@@ -75,7 +75,7 @@ export function makeGroundLedger(taskLog) {
 
   /**
    * Freeze a ground state as of `turnIndex`. Churn is refused (identical
-   * summary to the current live version appends nothing — fold-log.js's own
+   * summary to the current live version appends nothing — build-log.js's own
    * discipline: "an entry that changes no state is churn"). turnIndex must
    * strictly exceed every prior version's turnIndex — this is rule 1 of the
    * firewall, and it is what makes "propose a ground as of a turn already
@@ -171,7 +171,7 @@ export function makeGroundLedger(taskLog) {
   }
 
   /** Rebuild a log from its serialized entries alone — the resumption
-   * property P3 already demands elsewhere (skills.js, fold-log.js), held
+   * property P3 already demands elsewhere (skills.js, build-log.js), held
    * here too: a stored row that violates the vocabulary throws instead of
    * silently loading. */
   function replayEntries(entries) {

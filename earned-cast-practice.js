@@ -5,6 +5,18 @@
 //
 // This is a hypothesis about teaching, held to the system's own standard:
 // it must be measured, with a control built to fail, before it is claimed.
+//
+// DISCLOSED (2026-09-28, organ-consolidation audit): the production copy,
+// `eoreader7/native/the-fold/earned-cast.js` — imported live by
+// `proxy-runner.mjs` — is NOT kept byte-synced with this file and has
+// since diverged: it carries three more archons (terry-gross/eastwood/
+// kubrick) this practice cast lacks, plus a `ground` attention
+// (`state.groundFact`) and a `CONVERSATION_FLOW_RULES`/`archonRules()`
+// export with no analogue here. This file is a frozen practice/spec
+// snapshot with its own tests — never meant to be a live mirror — so
+// forcing it back into sync would contradict its stated purpose; this
+// note exists only so a future reader does not mistake THIS file for
+// the current design of the live archon set.
 
 export const CAST = Object.freeze([
   "kelsen",

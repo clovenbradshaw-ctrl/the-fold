@@ -124,3 +124,13 @@ test("a habit is revisable: the material contradicting it concedes it (REC, trig
   assert.equal(w.conceded.length, 1); assert.match(w.conceded[0].trigger, /witness refused/);
   assert.equal(w.ingestion.byClaim[0].judgment.rung, JUDGE_RUNG, "with the habit conceded the judge is asked again");
 });
+
+test("a judge that points instead of quoting lands CHOSEN through the numbered sentences — and a lazy point at a sentence without the claim's words stays contested", async () => {
+  const ing = ingestion();
+  const pointed = await judgeTurn({ ingestion: ing, claims, question: "q", chunks, recipe: "t", habits: createHabits(), ask: async (msgs) => { assert.match(msgs[1].content, /\[1\] /); return "[3] holds"; } });
+  const j = pointed.ingestion.byClaim[0].judgment;
+  assert.equal(j.landed, "chosen"); assert.equal(j.verdict, "holds"); assert.match(j.decider, /received the whole estate/);
+  assert.equal(pointed.ingestion.judged, 1); assert.ok(recallHabit(pointed.habits, habitKeyOf(claims[0])), "a pointed, anchored judgment is learned as a habit");
+  const lazy = await judgeTurn({ ingestion: ingestion(), claims, question: "q", chunks, recipe: "t", habits: createHabits(), ask: async () => "[4] holds" });
+  assert.equal(lazy.ingestion.byClaim[0].judgment.landed, "contested");
+});

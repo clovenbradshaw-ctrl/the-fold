@@ -62,6 +62,7 @@
 
 import { judgmentRequest, landJudgment, INGESTION_SCHEMA, ingestionStanding } from "../eoreader7/native/kernel/ingestion.js";
 import { readJudgment } from "../eoreader7/native/organs/judgment-reader.js";
+import { splitSentences as engineSentences } from "../eoreader7/native/adapters/text/spans.js";
 import { becauseContained } from "../eoreader7/native/organs/testimony.js";
 import { recordOutcome, recordContradiction } from "../eoreader7/native/kernel/escalation.js";
 import { createHabits, learnHabit, recallHabit, applyHabit, concedeHabit, HABIT_RUNG } from "../eoreader7/native/kernel/habit.js";
@@ -110,13 +111,18 @@ export function sectionAround(chunks, holon, { chars = JUDGE_SECTION_CHARS } = {
 export const judgeCandidates = (ingestion) => (ingestion?.byClaim ?? []).map((row, i) => ({ row, i })).filter(({ row }) => row.shape && row.standing !== "read" && (row.judged === null || row.judged === undefined) && !row.judgment);
 
 /** Plain words. No address, no apparatus noun (checked by test against firewall.js's own list). The judge may answer in prose; it is asked to quote and to end on one word so the reader has something to read. */
+/** The section's sentences, numbered as the ask shows them — the same list the reader is handed, so a pointed number names the same bytes. */
+export const numberedSentences = (text) => engineSentences(String(text ?? "")).map((s) => (typeof s === "string" ? s : s.text)).map((t) => t.trim()).filter(Boolean);
 export function buildJudgeMessages(request, claim) {
   const stated = [claim?.end1, claim?.label, claim?.end2].filter(Boolean).join(" ");
+  const sentences = numberedSentences(request.text);
+  const numbered = sentences.map((t, i) => `[${i + 1}] ${t}`).join("\n");
   return [
-    // information, not prohibition: what each word means, and that the deciding words are quoted
-    { role: "system", content: "One piece of text and one claim about it. The answer is a short reading that quotes the exact words of the text that decide the claim, then ends with one word: holds (the text states the claim), refused (the text states otherwise), undetermined (the text settles neither)." },
+    // information, not prohibition: what each word means, and that the deciding sentence is named by its number
+    // (v1 of fast-reasoning.mjs: a small judge answers one word and quotes nothing; it can still point)
+    { role: "system", content: "One piece of text, its sentences numbered, and one claim about it. The answer names the number of the sentence that decides the claim, like [3], then ends with one word: holds (the text states the claim), refused (the text states otherwise), undetermined (the text settles neither)." },
     // the text, the claim, and LAST the question in the asker's own words
-    { role: "user", content: `Text:\n\n${request.text}\n\nClaim: ${stated}\n\n${request.forWhom.question}` },
+    { role: "user", content: `Text:\n${numbered}\n\nClaim: ${stated}\n\n${request.forWhom.question}` },
   ];
 }
 /** The habit's key for "the same claim again": the arrangement's ends and label, folded. */
@@ -187,7 +193,8 @@ export async function judgeTurn({ ingestion, claims = [], question, forWhomId, c
     let prose;
     try { prose = await ask(bag.messages); }
     catch (e) { byClaim[i].judgment = { refused: "ask_failed", because: String(e?.message ?? e), gary: gate }; asked.push({ i, holon: row.holon, verdict: null, landed: "error", rung: JUDGE_RUNG }); continue; }
-    const { collapse, reading } = landJudgment(request, { answer: String(prose ?? ""), read: readJudgment, judge: { recipe }, cursor });
+    const stated = [claims[i]?.end1, claims[i]?.label, claims[i]?.end2].filter(Boolean).join(" ");
+    const { collapse, reading } = landJudgment(request, { answer: String(prose ?? ""), read: (p, q) => readJudgment(p, q, { sentences: numberedSentences(q.text), claim: stated }), judge: { recipe }, cursor });
     const ok = collapse.verdict === "chosen";
     trails = recordOutcome(trails, { shape: row.shape, rung: JUDGE_RUNG, ok, ms: Date.now() - t0 });
     // THE HABIT LEARNED: a chosen judgment with a decider to find again

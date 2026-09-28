@@ -81,7 +81,13 @@ export function foldReading(entries = [], { reconstruct = null, diaNorm = null, 
     if (isReferent(e)) {
       const r = referents.get(e.id) ?? { id: e.id, surfaces: new Set(), provenance: [], fedBy: new Set() };
       for (const s of e.surfaces ?? []) r.surfaces.add(String(s));
-      for (const p of e.provenance ?? []) r.provenance.push(p);
+      // provenance is an ARRAY on the perceiver's admitted EOReferent@1 and an
+      // OBJECT (a single {giver, basis} testimony, eoreader7's discourse-
+      // referent organ) on recycled occurrence-level referents — the record
+      // keeps both shapes; it never assumes the array form.
+      const prov = e.provenance;
+      if (Array.isArray(prov)) for (const p of prov) r.provenance.push(p);
+      else if (prov && typeof prov === "object") r.provenance.push(prov);
       for (const f of e.fedBy ?? []) r.fedBy.add(String(f));
       referents.set(e.id, r);
     } else if (isEncounter(e)) {

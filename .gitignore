@@ -32,3 +32,15 @@ war-and-peace.txt
 # checkouts are not source (the chorus affected-test scan excludes these too)
 _site_check/
 .claude/worktrees/
+
+# eval/mobile-shots/*.png (2026-09-28): screenshots overwritten by every run
+# of mobile-e2e.mjs / eval/mobile-e2e.mjs ("so a person can SEE what a phone
+# shows" — ARCHITECTURE.md documents them only as driver scripts, never as
+# producing committed evidence). Not referenced by deploy-pages.yml (the
+# repo's only workflow) or any test — every pass/fail in eval/mobile-e2e.mjs
+# is against live page state via Playwright/CDP, never the screenshot bytes.
+# Three of the eight (03-tabs.png, 04-turn-start.png, 05-turn-done.png) were
+# byte-identical duplicates, itself evidence nobody reviews them as-tracked.
+# Same shape of file goldens/conduct/.gitignore already excludes for that
+# golden's own raw output — extended here.
+eval/mobile-shots/

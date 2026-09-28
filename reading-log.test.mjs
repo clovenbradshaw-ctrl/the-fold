@@ -87,6 +87,16 @@ test("one being, many addresses: the reader's recorded merges fold its fragments
   const idx = readingIndexFromLog(log, { diaNorm, namesCorefer }); assert.deepEqual([...idx.resolve("Pyotr Petrovitch")], ["ref:auto:mr_luzhin"]); assert.deepEqual([...idx.resolve("Petrovitch")], ["ref:auto:petrovitch"]); assert.deepEqual([...idx.resolve("Rodya Pyotr Petrovitch")], ["ref:auto:mr_luzhin"]);
 });
 
+test("provenance is an ARRAY on the perceiver's admitted EOReferent@1 and an OBJECT (a single {giver, basis} testimony) on recycled occurrence-level referents — the fold never assumes the array shape", () => {
+  const entries = [{ schema: "EOReferent@1", id: "ref:discourse:x", surfaces: ["the monster"], provenance: { giver: "text/discourse-referents", basis: "apposition" }, fedBy: [] }];
+  const f = foldReading(entries, { diaNorm, namesCorefer });
+  const r = f.referents.get("ref:discourse:x");
+  assert.ok(r, "the referent is established despite an object-shaped provenance");
+  assert.deepEqual(r.provenance, [{ giver: "text/discourse-referents", basis: "apposition" }]);
+  const idx = readingIndexFromLog(entries, { diaNorm, namesCorefer });
+  assert.deepEqual([...idx.resolve("the monster")], ["ref:discourse:x"]);
+});
+
 test("a refresh reassignment changes surface routing without unioning live beings", () => {
   const entries = [{ schema: "EOReferent@1", id: "old", surfaces: ["Sonia"] }, { schema: "EOReferent@1", id: "new", surfaces: ["Sofya Semyonovna"] }, { schema: "EOReferentReassignment@1", id: "ra", from: "old", to: "new", surface: "Sonia" }];
   const folded = foldReading(entries, { diaNorm: (s) => s }); assert.deepEqual([...folded.referents.keys()].sort(), ["new", "old"]); assert.equal(folded.identity.reassignments, 1); assert.deepEqual([...readingIndexFromLog(entries, { diaNorm: (s) => s }).resolve("Sonia")], ["new"]);

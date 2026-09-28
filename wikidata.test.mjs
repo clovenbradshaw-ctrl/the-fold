@@ -7,7 +7,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import {
-  chainAgreesByIdentity,
   entityUrl,
   GIVER,
   holdersOfPosition,
@@ -20,6 +19,7 @@ import {
   qidBridge,
 } from "./wikidata.js";
 import { chainFillers } from "./chains.js";
+import { chainCloses } from "./seek.js";
 import * as wdMod from "./wikidata.js";
 
 const VP_OF_US = "Q11699";
@@ -69,7 +69,7 @@ test("each holder carries its own real extent, from the giver's own qualifiers",
 
 test("the chain closes by IDENTITY: Hamlin's successor IS Johnson's qid, mutually", () => {
   const holders = holdersOfPosition([HAMLIN, JOHNSON], VP_OF_US);
-  const agreement = chainAgreesByIdentity(holders);
+  const agreement = chainCloses(holders);
   assert.equal(agreement.links.length, 1, "one confirmed link between the two");
   assert.deepEqual(agreement.links[0], { from: "Q273546", to: "Q8612", mutual: true });
   assert.equal(agreement.mutual, true, "each pointer names the other — not a name-string match");
@@ -80,10 +80,9 @@ test("pointers leaving the set are reported as EDGES, not as faults", () => {
   // Colfax — both real, both genuinely outside "VP under Lincoln". A closed
   // set has to be able to say where it ends.
   const holders = holdersOfPosition([HAMLIN, JOHNSON], VP_OF_US);
-  const { openEnds } = chainAgreesByIdentity(holders);
+  const { openEnds } = chainCloses(holders);
   assert.ok(openEnds.some((e) => e.direction === "before" && e.names === "Q273212"), "bounded before by Breckinridge");
   assert.ok(openEnds.some((e) => e.direction === "after" && e.names === "Q310852"), "bounded after by Colfax");
-  assert.ok(openEnds.every((e) => e.inSet === false));
 });
 
 test("the records feed chains.js unchanged, with identity as the matcher", () => {

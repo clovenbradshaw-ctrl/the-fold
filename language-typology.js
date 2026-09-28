@@ -1,3 +1,12 @@
+// SUPERSEDED / HISTORICAL (2026-09-28, POLICIES.md P229's amendment): the
+// per-language dispatch this router was built to seed was implemented
+// directly in app.js (2026-09-20, `relationExtractorsFor`) without ever
+// calling this file, and it is currently gated OFF (`SVO_DECLARED = false`)
+// because English's own measured RoleConfig@1 failed a live-prose BECOMING
+// test. This file has no production caller. See eoreader7's
+// `relations-language.js` + `native/the-fold/reader-bundle.js` for the live
+// dispatch instead.
+//
 // language-typology.js — a received, giver-named per-language declaration of
 // which SLOT ORGAN a relation reader needs (2026-09-15).
 //

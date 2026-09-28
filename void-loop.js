@@ -141,8 +141,13 @@ export const STANCE_LADDER = Object.freeze([
 const LADDER_BASIS =
   "extraction -> cultivation -> encounter, descended only on exhaustion — skills.js's own descent ladder (skill -> slot-fill -> model), stances in place of tiers";
 
-/** The nine fields `declareVoid` keys its cells by, indexed by operator. */
-const FIELD_BY_OP = Object.freeze({
+/** The nine fields `declareVoid` keys its cells by, indexed by operator.
+ *  Exported so loops.js reads this table rather than restating it — a
+ *  restated copy is exactly the drift class this repo's own history keeps
+ *  naming (task-log.js's OPERATOR_ORDER, P22's duplicated runtime-type
+ *  ternary): one loops.js/void-narration.js pass already found and fixed
+ *  a real disagreement here (loops.test.mjs pins it). */
+export const FIELD_BY_OP = Object.freeze({
   NUL: "slot", SIG: "anchor", INS: "admits",
   SEG: "extent", CON: "relation", SYN: "composition",
   DEF: "cardinality", EVA: "admission", REC: "reopensOn",

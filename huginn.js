@@ -56,6 +56,7 @@ Yet  watch  I  more  for  Muninn."”
 // crossing (app.js) owns the network, the pool, and the persistence.
 
 import { ROOM_FALLBACK_KINDS } from "./matrix.js";
+import { typicalLatency, ewmaUpdate } from "../eoreader7/native/kernel/latency-stats.js";
 
 /** The one register of jobs a model can answer. Both surfaces speak it:
  *  the chat (model-routing.js's ROUTE_KINDS) and the outward flows
@@ -159,12 +160,7 @@ export function huginnObserve(evidence, { candidateId, jobKind = JOB_KINDS.FLAT,
   if (!candidateId) return evidence;
   const prev = evidence[candidateId] ?? { meanMs: null, n: 0, ok: 0, failed: 0 };
   const next = {
-    meanMs:
-      ms != null && Number.isFinite(ms) && ms > 0
-        ? prev.meanMs == null
-          ? Math.round(ms)
-          : Math.round((1 - EWMA_ALPHA) * prev.meanMs + EWMA_ALPHA * ms)
-        : prev.meanMs,
+    meanMs: ms != null && Number.isFinite(ms) && ms > 0 ? ewmaUpdate(prev.meanMs, ms, EWMA_ALPHA) : prev.meanMs,
     n: prev.n + 1,
     ok: prev.ok + (ok ? 1 : 0),
     failed: prev.failed + (ok ? 0 : 1),
@@ -222,7 +218,7 @@ export function huginnPrioritize(jobKind = JOB_KINDS.FLAT, { candidates = [], pi
   }
 
   const timed = list.map((c) => meanMs[c.id]).filter((v) => Number.isFinite(v) && v > 0);
-  const typical = timed.length ? timed.reduce((a, b) => a + b, 0) / timed.length : 1;
+  const typical = typicalLatency(timed, 1);
   const waitOf = (c) =>
     (inflight[c.id] ?? 0) * (Number.isFinite(meanMs[c.id]) && meanMs[c.id] > 0 ? meanMs[c.id] : typical);
   const order = list

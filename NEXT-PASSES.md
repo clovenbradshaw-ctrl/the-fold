@@ -484,7 +484,7 @@ in the file" — a lead, not a verdict; some of these are pure UI helpers
 
 aperture arithmetic bound build-log builds chains clearance code-scout
 consequence constitution crown description-standing dialogue-graph
-fold-log fold github grid ground-ledger handbook holon interact
+fold github grid ground-ledger handbook holon interact
 library links metacognition mhc-interact mhc model-routing moves network pace
 pass-delta periodicity predigest proof proxy-api read-source
 referent-fold reflex relations-chain reopen retrieval sameness seed seek
@@ -503,7 +503,7 @@ next closures, by import graph: `holon.js` (with fact-block, firewall,
 provenance, claims, verification, void-*) is the largest and is the model
 loop itself — it belongs with the engine only once the model call is an
 injected organ, which it already nearly is; `store.js`/`store-sql.js`/
-`build-log.js`/`fold-log.js` (the EOT stores) are kernel-shaped already;
+`build-log.js` (the EOT stores) are kernel-shaped already;
 `proof.js`/`web-claim.js`/`web-hunt.js`/`primary` sit behind P13's egress
 and must cross with their consent posture intact.
 

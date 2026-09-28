@@ -8,6 +8,18 @@ number is reported; a model is the mouth, never the judge of its own words;
 P186 — the mouth is not censored; append-only records; nothing pushed to a
 different branch). Attribution lines for commits are in your system reminder.
 
+## Status, 2026-09-28 (the session that wrote this ran it)
+
+Run in this container with `onnx-community/Qwen2.5-0.5B-Instruct` in-process
+(no Ollama). E1, E2 and E4 are DONE across six registered runs —
+`eoreader7/native/eval/identity/results/fast-reasoning-v1…v6-RESULTS.md`
+— with every prediction holding on v6 (0.21 correct per model call on first
+sight, 0.25 with habits, 0.08 for the judge alone, zero fabrications
+throughout). Two organ changes came out of it, both in the-fold `judge.js`:
+the point-then-word protocol and the habit rung's counter-decider wall.
+Still open for you: E3 (needs the witness rung, i.e. Ollama), E5, E6, and
+the three levers named at the end of v6's results.
+
 ## The ask
 
 Take the identity and ingestion machinery built on 2026-09-28 and run it AS A

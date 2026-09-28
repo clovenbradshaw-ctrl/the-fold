@@ -8910,3 +8910,44 @@ under you mid-investigation, so pin `tabId` on every call and re-read
 silently, with nothing on the record or the surface saying the engine
 declined and why. Disclosing the handoff is small, real, unattempted work —
 left out because `app.js` was under concurrent edit.
+
+## The ladder run as a reasoner: 0.21 correct per model call, zero fabrications (added 2026-09-28) — pointer
+
+`eoreader7/native/eval/identity/fast-reasoning.mjs` and its six registered
+runs (`results/fast-reasoning-v1…v6-RESULTS.md`) are the record; this is
+the map. Thirty-four claims (20 true, 14 false, key fixed before any run)
+over War and Peace and Dracula, a 0.5B judge in-process, the ladder
+`mechanical → habit → judge` (the witness rung off for want of a
+constrained decoder). Numbers, final: the judge alone 0.08 correct per
+model call (3 right, 1 wrong, 39 calls); the ladder 0.21 on first sight
+(7 right, 0 wrong, 34 calls); 0.25 on the second pass, three claims
+answered from habits with no model; **zero fabrications on every arm of
+every run** — the model's raw verdicts wanted to ship six.
+
+Six things earned by running, kept here so nobody re-derives them:
+(1) a very small judge will not quote, and one answer cannot carry two
+parts — `judge.js` now asks twice, POINT (a sentence number, no example
+value: v2 measured the example was the answer) then the WORD over the
+pointed sentence alone, `organs/judgment-reader.js::pointedDecider`
+anchoring only with the claim's company; (2) the question LAST, measured
+a third time — first, the judge could not point at all, and a
+prohibition cost three of four landings; (3) a habit is only as revisable
+as the eyes that watch it — where the relation reader is blind (copula +
+adjective/number complements, 22 of 34 claims) an injected negation never
+reaches the revision loop, so the habit rung has its own eye now
+(`negatedNearby`: a negated restatement of the CLAIM's company stands the
+habit down and the judge is asked); (4) concession works end to end where
+the reader can read: an inserted "never" read `contradicted`, REC with the
+trigger quoted, the mechanical rung then refusing; (5) the wall held every
+time the model was wrong — 24 of 30 points landed on a sentence without the
+claim's words and shipped nothing; (6) two controls were broken by
+construction before they were right (v1's shuffle joined sentence objects;
+v3's injection looked habits up under the wrong key) — recorded as
+vacuous, never as results.
+
+What still costs a model, and what could take it next: the extractor's
+blind class (a copula reader for adjective and number complements would
+move most `no_claim` rows to the mechanical rung at zero calls); the
+point rate (3 of 30) is retrieval's as much as the model's, so a habit on
+the question's own section address is the next lever; and the witness
+rung is one Ollama away, already built.

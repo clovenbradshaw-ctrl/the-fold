@@ -93,10 +93,15 @@ const isSpan = (s) =>
 //                                → unknown. Read off grammar it said
 //                                  "single", and one true filler closed a
 //                                  two-filler space.
-//   EVA  Relate/Paradigm-Figure  the admission test a candidate must pass
-//                                → its span lies within the extent
+//   EVA  Relate/Paradigm-Figure  what a candidate must be shown to depend
+//                                on before any of it counts as covered —
+//                                never granted on the strength of the
+//                                candidate's own say-so
+//                                → its span is shown, not assumed, to lie
+//                                  within the extent
 //   REC  Generate/Paradigm       what forces the declaration to be revised
-//                                → an uncovered stretch: something holds it.
+//                                → an uncovered stretch: something else
+//                                  must be depended on to hold it.
 //
 // EVERY FIELD IS OPTIONAL AND EVERY OMISSION IS TYPED. A caller that cannot
 // state one gets a declared gap for that operator, never a default — and
@@ -118,7 +123,7 @@ const VOID_OPERATORS = Object.freeze([
   ["CON", "Figure", "relation", "what binds a filler to the anchor"],
   ["SYN", "Pattern", "composition", "how fillers compose across the extent"],
   ["DEF", "Figure", "cardinality", "how many fillers the space is declared to hold"],
-  ["EVA", "Figure", "admission", "the test a candidate must pass to fill any of it"],
+  ["EVA", "Figure", "admission", "what a candidate must be shown to depend on before it counts as covering any of this — never granted on its own say-so"],
   ["REC", "Pattern", "reopensOn", "what forces this declaration to be revised"],
 ]);
 

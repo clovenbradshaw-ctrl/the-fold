@@ -14,7 +14,57 @@
 // claims they make, and the count of claims nothing backs (which must be 0),
 // is the thing compared — `claimKey` is the identity the diff compares on.
 
+import { ingestionStanding } from "../eoreader7/native/kernel/ingestion.js";
+import { shouldEscalate, recordOutcome } from "../eoreader7/native/kernel/escalation.js";
+
 export const ANSWER_RECORD_SCHEMA = "EOAnswerRecord@1";
+
+// WHAT WAS NOT FULLY INGESTED, ON EVERY TURN (2026-09-28, user direction: "I
+// just don't get why we're not already doing that if it doesn't require a
+// model call"). It doesn't, and the record already holds every input:
+// `unread` is the arrival read's reach per source (passages read of total),
+// a claim's refs are its addresses, and a claim's verdict is the relation
+// tier's own typed gap where it left one (beyond-reach / unheard / unbound).
+// kernel/ingestion.js reads the standing off exactly that — unread / partial
+// / read per cited address — and kernel/escalation.js says whether a judge
+// is needed and which rung to try first, in the order the environment has
+// LEARNED (Wilson's trails). The judge rung is the sentence witness that
+// already runs in this turn: where it pointed at a passage for the claim's
+// sentence, that trip is recorded as the judge succeeding; where it refused,
+// as failing. Nothing here calls a model; nothing here edits the answer.
+const ESCALATION_RUNGS = Object.freeze(["mechanical", "witness"]);
+const GAP_VERDICTS = new Set(["beyond-reach", "unheard", "unbound"]);
+const holonOfRef = (ref) => { const s = String(ref ?? ""); const i = s.indexOf("#"); return i < 0 ? `/${s}` : `/${s.slice(0, i)}/${s.slice(i + 1)}`; };
+export function ingestionOf({ claims = [], unread = [], witness = [], sources = [], trails = {} } = {}) {
+  const partialSources = new Map((unread ?? []).map((u) => [u.name, u]));
+  const reached = [], gaps = [];
+  for (const s of sources ?? []) {
+    const u = partialSources.get(s.name);
+    if (!u) reached.push({ holon: `/${s.name}`, recipe: "arrival-read" });
+    else if (u.read > 0) { reached.push({ holon: `/${s.name}`, recipe: "arrival-read" }); gaps.push({ holon: `/${s.name}`, reason: "unread_extent", detail: `${u.read} of ${u.total}` }); }
+  }
+  for (const c of claims) if (GAP_VERDICTS.has(c.verdict)) for (const ref of c.refs?.length ? c.refs : (c.spans ?? []).map((sp) => sp.ref).filter(Boolean)) gaps.push({ holon: holonOfRef(ref), reason: c.verdict });
+  const said = (w) => toks(w?.sentence ?? "");
+  const witnessed = (c) => { const ends = [...toks(c.end1), ...toks(c.end2)]; if (!ends.length) return null; for (const w of witness ?? []) { const s = said(w); if (ends.every((t) => s.has(t))) return w.witness === "states" ? true : w.witness === "refused" ? false : null; } return null; };
+  let t = trails ?? {};
+  const byClaim = [], tally = { read: 0, partial: 0, unread: 0 };
+  for (const c of claims) {
+    const refs = c.refs?.length ? c.refs : (c.spans ?? []).map((sp) => sp.ref).filter(Boolean);
+    const holon = refs.length ? holonOfRef(refs[0]) : "/";
+    const standing = ingestionStanding({ holon, reached, gaps, slots: [] });
+    tally[standing.standing] += 1;
+    const esc = shouldEscalate({ standing, trails: t, rungs: ESCALATION_RUNGS, rng: () => 1 });
+    let judged = null;
+    if (esc.needed) {
+      const mech = c.verdict === "bound" || c.verdict === "contradicted";
+      t = recordOutcome(t, { shape: esc.shape, rung: "mechanical", ok: mech });
+      judged = witnessed(c);
+      if (judged !== null) t = recordOutcome(t, { shape: esc.shape, rung: "witness", ok: judged });
+    }
+    byClaim.push({ key: c.key, holon, standing: standing.standing, left: [...standing.gaps.map((g) => g.reason)], ...(esc.needed ? { shape: esc.shape, first: esc.first, ladder: [...esc.ladder.order], learned: esc.ladder.learned, judged } : {}) });
+  }
+  return { byClaim, tally, escalated: byClaim.filter((b) => b.shape).length, judgedByWitness: byClaim.filter((b) => b.judged !== null && b.judged !== undefined).length, trails: t };
+}
 
 // EVERY ∅ CITES ITS VOID (Pass 25 of the null experiments, P106). A sentence
 // the answer asserts and nothing backs is an ABSENCE; an absence is honest
@@ -78,7 +128,7 @@ export const claimKey = (c) => `${String(c.end1 ?? c.subject ?? "").toLowerCase(
  * @param {object} turn — { question, answer, model, frame, recipe, sections, unsupported, unbacked, unread, sources, constitution, cursor }
  * @returns {object} the record
  */
-export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [], sameForm = null, satisfaction = null, logos = null, ledgerLint = null, ungrounded = null, expectation = null, open = [], mechanical = false } = {}) {
+export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [], sameForm = null, satisfaction = null, logos = null, ledgerLint = null, ungrounded = null, expectation = null, open = [], mechanical = false, trails = null } = {}) {
   const claims = [];
   const retrieved = [];
   for (const s of sections ?? []) {
@@ -101,6 +151,11 @@ export function answerRecord({ question, answer = "", model = null, frame = null
   const tally = {};
   for (const c of claims) tally[c.verdict] = (tally[c.verdict] ?? 0) + 1;
   const absences = absencesOf({ witness, voids, question, sameForm });
+  // Ingestion standing per cited address, and the escalation ladder per claim
+  // that rests on something not fully read — mechanical, every turn (above).
+  // `trails` is the environment the ladder learns in; the caller keeps it.
+  let ingestion = null;
+  try { ingestion = ingestionOf({ claims, unread, witness, sources, trails: trails ?? {} }); } catch (e) { ingestion = { error: String(e?.message ?? e) }; }
   return {
     schema: ANSWER_RECORD_SCHEMA,
     cursor,
@@ -134,6 +189,11 @@ export function answerRecord({ question, answer = "", model = null, frame = null
     // attached-file list.
     retrievedSources: [...new Set(retrieved.map((r) => String(r ?? "").split("#")[0]).filter(Boolean))],
     unread: (unread ?? []).map((u) => ({ name: u.name, read: u.read, total: u.total })),
+    // What was not fully ingested among what this answer cites, and which
+    // rung the environment says to try first for each such claim. The
+    // trails ride here so the caller can persist the learned order; the
+    // reading view (answerRecordForReading) drops them.
+    ...(ingestion ? { ingestion } : {}),
     claims,
     tally,
     unsupported: (unsupported ?? []).map((u) => (typeof u === "string" ? u : (u?.sentence ?? u?.text ?? JSON.stringify(u)))).slice(0, 50),

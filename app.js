@@ -2158,6 +2158,10 @@ const state = {
    * authorization.
    */
   webProof: localStorage.getItem("fold-web-proof") !== "off",
+  // The escalation environment (kernel/stigmergy.js trails keyed by the
+  // shape of what a cited holon left open): the learned order in which the
+  // mechanical rung and the witness are tried, kept across reloads.
+  escalationTrails: (() => { try { const t = JSON.parse(localStorage.getItem("fold-escalation-trails") ?? "{}"); return t && typeof t === "object" ? t : {}; } catch { return {}; } })(),
   /**
    * Auto-suggest (swarm.js::suggestNext): whether a settled turn may offer
    * one-click next steps beneath its answer. Same standing as webProof —
@@ -14573,6 +14577,10 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       question: task, answer: result.output ?? "", model: turnModel, frame: recFrame, recipe: recRecipe,
       sections: result.sections ?? [], unsupported: result.unsupported ?? [], unbacked: result.unbacked ?? [],
       unread: unreadNow(), cursor: ANSWER_CURSOR++,
+      // The escalation environment (kernel/escalation.js over stigmergy):
+      // the learned order in which a claim resting on something not fully
+      // read is tried — mechanical, then the witness — kept across turns.
+      trails: state.escalationTrails ?? {},
       // Developer surface (2026-09-23): the SAME diagnostic strings already
       // threaded into fold.js's separate warrant record (app.js's own
       // `record.open` a few dozen lines up), which nothing renders — this is
@@ -14607,6 +14615,14 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
         },
       }),
     });
+    // The learned escalation environment persists across turns and reloads;
+    // the trails themselves stay out of the per-turn answers log (they are
+    // the environment, not this answer's record).
+    if (answerRec?.ingestion?.trails) {
+      state.escalationTrails = answerRec.ingestion.trails;
+      try { localStorage.setItem("fold-escalation-trails", JSON.stringify(state.escalationTrails)); } catch {}
+      answerRec = { ...answerRec, ingestion: { ...answerRec.ingestion, trails: undefined } };
+    }
     appendRecord("answers", [JSON.stringify(answerRec)]).catch(() => {});
   } catch (e) { console.warn("answer record:", e?.message ?? e); }
   renderFold(node, { sent: sentCalls, record: answerRec });

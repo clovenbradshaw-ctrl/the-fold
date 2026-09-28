@@ -222,3 +222,31 @@ test("bareLogic is null-safe and empty-safe", () => {
   assert.deepEqual(bareLogic(null), []);
   assert.deepEqual(bareLogic(answerRecord({})), []);
 });
+
+// ── what was not fully ingested, on every record (2026-09-28) ──
+import { ingestionOf } from "./answer-record.js";
+
+test("ingestion standing per cited address is read off the record itself — unread / partial / read — and the escalation ladder is learned across turns from the witness's own trips", () => {
+  const claims = [
+    { key: "a", end1: "Hamlin", label: "held", end2: "the seat", verdict: "bound", refs: ["a.txt#0-10"] },
+    { key: "b", end1: "Johnson", label: "held", end2: "the office", verdict: "unbound", refs: ["b.txt#5-20"] },
+    { key: "c", end1: "Cyril", label: "held", end2: "the title", verdict: "beyond-reach", refs: ["c.txt#0-9"] },
+  ];
+  const sources = [{ name: "a.txt" }, { name: "b.txt" }, { name: "c.txt" }];
+  const unread = [{ name: "b.txt", read: 3, total: 40 }, { name: "c.txt", read: 0, total: 40 }];
+  const witness = [{ sentence: "Johnson held the office until 1869.", witness: "states" }];
+  const r1 = ingestionOf({ claims, unread, witness, sources, trails: {} });
+  assert.deepEqual(r1.byClaim.map((b) => [b.key, b.standing]), [["a", "read"], ["b", "partial"], ["c", "unread"]]);
+  assert.deepEqual(r1.tally, { read: 1, partial: 1, unread: 1 });
+  assert.equal(r1.escalated, 2); assert.equal(r1.byClaim[1].first, "mechanical", "an empty environment tries the mechanical rung first");
+  assert.equal(r1.byClaim[1].judged, true, "the witness pointed at a passage for Johnson's sentence: the judge rung's trip is recorded as a success");
+  assert.equal(r1.byClaim[2].judged, null, "no witness row covers Cyril: no judge trip to record");
+  // the same shape on later turns: the witness keeps settling it, the mechanics keep failing — the environment learns witness-first
+  let trails = r1.trails;
+  for (let i = 0; i < 4; i++) trails = ingestionOf({ claims: [claims[1]], unread, witness, sources, trails }).trails;
+  const r2 = ingestionOf({ claims: [claims[1]], unread, witness, sources, trails });
+  assert.equal(r2.byClaim[0].first, "witness"); assert.equal(r2.byClaim[0].learned, true);
+  // the whole record carries it, and the reading view drops the trails
+  const rec = answerRecord({ question: "q", sections: [{ passages: [], relations: { claims } }], unread, sources, witness, trails: {} });
+  assert.equal(rec.ingestion.tally.unread, 1); assert.ok(rec.ingestion.trails);
+});

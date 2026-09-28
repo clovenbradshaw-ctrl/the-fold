@@ -38,13 +38,32 @@ export const ANSWER_RECORD_SCHEMA = "EOAnswerRecord@1";
 export const ESCALATION_RUNGS = Object.freeze(["mechanical", "witness", "judge"]);
 const GAP_VERDICTS = new Set(["beyond-reach", "unheard", "unbound"]);
 const holonOfRef = (ref) => { const s = String(ref ?? ""); const i = s.indexOf("#"); return i < 0 ? `/${s}` : `/${s.slice(0, i)}/${s.slice(i + 1)}`; };
-export function ingestionOf({ claims = [], unread = [], witness = [], sources = [], trails = {} } = {}) {
+// EVERY READER'S REACH, NOT ONE (2026-09-28): the arrival read is one reader;
+// the constitutional reader (reading-worker.js, READING_CONSTITUTIONAL) is a
+// second, with its own cursor in its own unit (chunks admitted). A source
+// the first finished can still be half-read by the second, and the kernel's
+// reach is CONTAINMENT (a reach at "/a.txt" covers every passage under it),
+// so a source-level extent gap never reaches a passage's own standing — the
+// passage the claim cites WAS read by the arrival read. What the second
+// reader adds is positional: `readers` carries, per source, the refs its
+// cursor has passed and the refs it has not — { name, recipe, readRefs,
+// unreadRefs } — each passed ref its own reach, each unpassed ref a typed
+// gap `not_yet_read` naming that reader. A claim citing a passage the
+// constitutional reader has not reached stands `partial`, with the reader
+// named in `left`, while the arrival read's own reach still holds.
+export function ingestionOf({ claims = [], unread = [], witness = [], sources = [], trails = {}, readers = [] } = {}) {
   const partialSources = new Map((unread ?? []).map((u) => [u.name, u]));
   const reached = [], gaps = [];
   for (const s of sources ?? []) {
     const u = partialSources.get(s.name);
     if (!u) reached.push({ holon: `/${s.name}`, recipe: "arrival-read" });
-    else if (u.read > 0) { reached.push({ holon: `/${s.name}`, recipe: "arrival-read" }); gaps.push({ holon: `/${s.name}`, reason: "unread_extent", detail: `${u.read} of ${u.total}` }); }
+    else if (u.read > 0) { reached.push({ holon: `/${s.name}`, recipe: "arrival-read" }); gaps.push({ holon: `/${s.name}`, reason: "unread_extent", detail: `${u.read} of ${u.total}`, recipe: "arrival-read" }); }
+  }
+  for (const r of readers ?? []) {
+    if (!r?.name) continue;
+    const recipe = r.recipe ?? "reader";
+    for (const ref of r.readRefs ?? []) reached.push({ holon: holonOfRef(ref), recipe });
+    for (const ref of r.unreadRefs ?? []) gaps.push({ holon: holonOfRef(ref), reason: "not_yet_read", recipe });
   }
   for (const c of claims) if (GAP_VERDICTS.has(c.verdict)) for (const ref of c.refs?.length ? c.refs : (c.spans ?? []).map((sp) => sp.ref).filter(Boolean)) gaps.push({ holon: holonOfRef(ref), reason: c.verdict });
   const said = (w) => toks(w?.sentence ?? "");
@@ -131,7 +150,7 @@ export const claimKey = (c) => `${String(c.end1 ?? c.subject ?? "").toLowerCase(
  * @param {object} turn — { question, answer, model, frame, recipe, sections, unsupported, unbacked, unread, sources, constitution, cursor }
  * @returns {object} the record
  */
-export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [], sameForm = null, satisfaction = null, logos = null, ledgerLint = null, ungrounded = null, expectation = null, open = [], mechanical = false, trails = null } = {}) {
+export function answerRecord({ question, answer = "", model = null, frame = null, recipe = null, sections = [], unsupported = [], unbacked = [], unread = [], sources = [], constitution = null, cursor = null, voids = [], witness = [], sameForm = null, satisfaction = null, logos = null, ledgerLint = null, ungrounded = null, expectation = null, open = [], mechanical = false, trails = null, readers = [] } = {}) {
   const claims = [];
   const retrieved = [];
   for (const s of sections ?? []) {
@@ -158,7 +177,7 @@ export function answerRecord({ question, answer = "", model = null, frame = null
   // that rests on something not fully read — mechanical, every turn (above).
   // `trails` is the environment the ladder learns in; the caller keeps it.
   let ingestion = null;
-  try { ingestion = ingestionOf({ claims, unread, witness, sources, trails: trails ?? {} }); } catch (e) { ingestion = { error: String(e?.message ?? e) }; }
+  try { ingestion = ingestionOf({ claims, unread, witness, sources, trails: trails ?? {}, readers }); } catch (e) { ingestion = { error: String(e?.message ?? e) }; }
   return {
     schema: ANSWER_RECORD_SCHEMA,
     cursor,

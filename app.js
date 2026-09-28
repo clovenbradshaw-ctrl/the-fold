@@ -560,6 +560,15 @@ const yieldMacrotask = (() => {
   return () => new Promise((r) => { waiters.push(r); ch.port2.postMessage(null); });
 })();
 let readQueue = Promise.resolve();
+/** The constitutional reader's reach per live source, for ingestionOf's `readers`: the refs its cursor has passed (in state.chunks' own order for that source) and the refs it has not. */
+function constitutionalReadersNow() {
+  const recipe = (() => { try { return readingManifest().assembly; } catch { return "constitutional-reader"; } })();
+  return [...READING_CONSTITUTIONAL.entries()].filter(([name]) => state.sources[name]).map(([name, r]) => {
+    const refs = state.chunks.filter((c) => c.source === name).map((c) => c.ref);
+    const cursor = Math.max(0, Math.min(refs.length, r.cursor ?? 0));
+    return { name, recipe, readRefs: refs.slice(0, cursor), unreadRefs: refs.slice(cursor) };
+  });
+}
 function unreadNow() {
   // A source's own reading state may only speak for a source still on the
   // record — `state.sources[name]` is the one fact that decides that, the
@@ -14578,6 +14587,11 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
       question: task, answer: result.output ?? "", model: turnModel, frame: recFrame, recipe: recRecipe,
       sections: result.sections ?? [], unsupported: result.unsupported ?? [], unbacked: result.unbacked ?? [],
       unread: unreadNow(), cursor: ANSWER_CURSOR++,
+      // The constitutional reader's own reach per source (its cursor, in
+      // its own chunk unit) — the second reader ingestionOf folds in, so a
+      // claim resting on a source it has half-read stands `partial` with
+      // that reader named.
+      readers: constitutionalReadersNow(),
       // The escalation environment (kernel/escalation.js over stigmergy):
       // the learned order in which a claim resting on something not fully
       // read is tried — mechanical, then the witness — kept across turns.

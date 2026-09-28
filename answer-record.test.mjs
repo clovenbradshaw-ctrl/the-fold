@@ -250,3 +250,13 @@ test("ingestion standing per cited address is read off the record itself — unr
   const rec = answerRecord({ question: "q", sections: [{ passages: [], relations: { claims } }], unread, sources, witness, trails: {} });
   assert.equal(rec.ingestion.tally.unread, 1); assert.ok(rec.ingestion.trails);
 });
+
+test("every reader's reach, not one (2026-09-28): a passage the arrival read reached but the constitutional reader's cursor has not passed stands `partial`, with that reader named; a passage it passed stands `read`", () => {
+  const claims = [{ key: "k", end1: "A", label: "did", end2: "B", verdict: "bound", refs: ["a.txt#20-30"], spans: [] }, { key: "j", end1: "A", label: "saw", end2: "C", verdict: "bound", refs: ["a.txt#0-10"], spans: [] }];
+  const recipe = "causalTextPerceiver+reviseTextFold@refresh25";
+  const r = ingestionOf({ claims, unread: [], witness: [], sources: [{ name: "a.txt" }], readers: [{ name: "a.txt", recipe, readRefs: ["a.txt#0-10"], unreadRefs: ["a.txt#20-30", "a.txt#40-50"] }] });
+  assert.equal(r.byClaim[0].standing, "partial"); assert.deepEqual(r.byClaim[0].left, ["not_yet_read"]);
+  assert.equal(r.byClaim[1].standing, "read");
+  const done = ingestionOf({ claims, unread: [], witness: [], sources: [{ name: "a.txt" }], readers: [{ name: "a.txt", recipe, readRefs: ["a.txt#0-10", "a.txt#20-30"], unreadRefs: [] }] });
+  assert.equal(done.byClaim[0].standing, "read", "a second reader that passed the passage leaves no gap");
+});

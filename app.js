@@ -239,6 +239,7 @@ import { revisionLine } from "./piece-revise.js";
 import { exportPiece } from "./piece-export.js";
 import { groundOf, groundLine, tierWord } from "./ground-ladder.js";
 import { answerRecord, answerRecordProse, voidInScope } from "./answer-record.js";
+import { judgeTurn, judgeLine } from "./judge.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
 // ledger, and its measured surprise — held apart from the material at the
@@ -14615,6 +14616,28 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
         },
       }),
     });
+    // THE JUDGE, LIVE (judge.js, 2026-09-28): for a claim resting on
+    // something not fully read that the sentence witness did not settle, the
+    // full section around the cited passage and this turn's question go to
+    // the second small model, under judge.js's own declared budget; its
+    // prose is read mechanically (organs/judgment-reader.js) and lands as a
+    // collapse for this turn's for-whom on the claim's own record row. The
+    // outcome deposits on the judge rung so the next turn's ladder is
+    // learned. Checking mode only — the same gate the witness runs under —
+    // and never a word of the answer changed (P186).
+    if (state.grounded && answerRec?.ingestion?.byClaim?.length) {
+      try {
+        const judgeModel = secondWitnessModelFor() ?? witnessModelFor() ?? turnModel;
+        const judged = await judgeTurn({
+          ingestion: answerRec.ingestion, claims: answerRec.claims ?? [], question: task,
+          forWhomId: `turn:${answerRec.cursor ?? ANSWER_CURSOR}`, chunks: state.chunks,
+          recipe: `${judgeModel}@judge-v1`, cursor: answerRec.cursor ?? null,
+          ask: (messages) => complete(messages, { maxTokens: 220, temperature: 0, model: judgeModel, jobKind: JOB_KINDS.WITNESS }),
+          onStep: (j, claim) => show(judgeLine(j, claim)),
+        });
+        answerRec = { ...answerRec, ingestion: judged.ingestion };
+      } catch (e) { console.warn("judge:", e?.message ?? e); }
+    }
     // The learned escalation environment persists across turns and reloads;
     // the trails themselves stay out of the per-turn answers log (they are
     // the environment, not this answer's record).

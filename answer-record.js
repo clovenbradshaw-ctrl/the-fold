@@ -32,7 +32,10 @@ export const ANSWER_RECORD_SCHEMA = "EOAnswerRecord@1";
 // already runs in this turn: where it pointed at a passage for the claim's
 // sentence, that trip is recorded as the judge succeeding; where it refused,
 // as failing. Nothing here calls a model; nothing here edits the answer.
-const ESCALATION_RUNGS = Object.freeze(["mechanical", "witness"]);
+// The judge is the third rung (judge.js): asked, under its own budget, only
+// for a claim the witness did not settle — the small model handed the full
+// section and the question, its prose read mechanically for the verdict.
+export const ESCALATION_RUNGS = Object.freeze(["mechanical", "witness", "judge"]);
 const GAP_VERDICTS = new Set(["beyond-reach", "unheard", "unbound"]);
 const holonOfRef = (ref) => { const s = String(ref ?? ""); const i = s.indexOf("#"); return i < 0 ? `/${s}` : `/${s.slice(0, i)}/${s.slice(i + 1)}`; };
 export function ingestionOf({ claims = [], unread = [], witness = [], sources = [], trails = {} } = {}) {
@@ -362,6 +365,16 @@ export function answerRecordProse(r) {
     if (contradicted) bits.push(`${contradicted} contradicted by it`);
     if (unclear) bits.push(`${unclear} the reading couldn't settle either way`);
     sentences.push(`It made ${plural(claims, "claim")} about the material${bits.length ? ` — ${bits.join(", ")}` : ""}.`);
+  }
+
+  // The judge (judge.js): a claim resting on something not fully read that
+  // the witness could not settle, read by a small model over the full
+  // section — said in words, with the count that landed apart from the
+  // count that was asked.
+  const judgeAsks = r.ingestion?.judgeAsks ?? 0;
+  if (judgeAsks) {
+    const landed = r.ingestion?.judged ?? 0;
+    sentences.push(`For ${plural(judgeAsks, "claim")} resting on something not fully read, a judge was handed the whole section${landed ? `; ${landed} of those it settled on the section's own words` : ", and it settled none on the section's own words"}.`);
   }
 
   const unsupported = r.unsupported?.length ?? 0;

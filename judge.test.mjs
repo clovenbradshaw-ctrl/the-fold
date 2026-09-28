@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sectionAround, judgeCandidates, buildJudgeMessages, judgeTurn, judgeLine, refOfHolon, defaultGary, habitKeyOf, negatedNearby, JUDGE_ASKS_PER_TURN, JUDGE_RUNG, HABIT_RUNG } from "./judge.js";
+import { sectionAround, judgeCandidates, buildJudgeMessages, judgeTurn, judgeLine, refOfHolon, defaultGary, habitKeyOf, negatedNearby, witnessClaim, JUDGE_ASKS_PER_TURN, JUDGE_RUNG, HABIT_RUNG, WITNESS_RUNG, WITNESS_ASKS_PER_TURN } from "./judge.js";
 import { createHabits, recallHabit, habitCensus } from "../eoreader7/native/kernel/habit.js";
 import { ingestionOf, ESCALATION_RUNGS } from "./answer-record.js";
 import { apparatusMentions } from "./firewall.js";
 import { ladderFor } from "../eoreader7/native/kernel/escalation.js";
+import { witnessSlice, siblingSwap, foldTestimony, buildSelectMessages, foldSelect } from "../eoreader7/native/organs/testimony.js";
 
 const chunks = [
   { source: "wp.txt", start: 0, end: 60, text: "Pierre arrived at the count's house late in the evening.", ref: "wp.txt#0-60" },
@@ -167,3 +168,150 @@ test("the counter-decider wall: a habit whose decider is still in the section st
   assert.deepEqual(r.ingestion.byClaim[0].habitStoodDown, { verdict: "holds", because: "a negated restatement of the decider's own company is in the section" });
   assert.equal(calls, 1);
 });
+
+// ── THE WITNESS RUNG (2026-09-28) ─────────────────────────────────────────
+// Not the passive check `ingestionOf` already made against this turn's
+// witnessed ANSWER sentences (the earlier tests' own `witness: []` — that
+// one never reaches a model and is already exercised above via
+// `judgeCandidates`/`ingestion`). These test the ACTIVE ask: the claim's
+// own arrangement, put to the real eoreader7 witness-sentences.js/
+// testimony.js organs (imported, not reimplemented — only `selectAsk` and
+// the generate fallback are scripted, matching every other test in this
+// file). The testimony bundle is the REAL one app.js's own
+// `witnessTestimony()` builds.
+const testimony = { witnessSlice, siblingSwap, foldTestimony, buildSelectMessages, foldSelect };
+// A scripted, sequenced selectAsk: the first pick is the caller's, the
+// second is the sibling-swapped arm's — the same "seen.length === 1 ? … :
+// …" shape the point-then-word test above already uses for two sequential
+// asks of one kind.
+const scriptedSelect = (picks) => { let n = 0; return async () => { const p = picks[Math.min(n, picks.length - 1)]; n += 1; return p; }; };
+const neverAsk = async () => { throw new Error("should not be called — the witness settled this claim without it"); };
+
+test("(a) a states verdict from the witness lands the claim holds, anchored, and is learned as a habit through the SAME path the judge rung uses — no judge ask spent", async () => {
+  const ing = ingestion();
+  let judgeAsks = 0;
+  const r = await judgeTurn({
+    ingestion: ing, claims, question: "Who received the estate?", chunks, recipe: "test@judge-v1", habits: createHabits(),
+    ask: async () => { judgeAsks += 1; return "never — the witness settles this claim first"; },
+    witnessAsk: neverAsk, // the generate fallback is never reached: the select protocol finds a real candidate and a real arm
+    selectAsk: scriptedSelect([{ stated: "yes", sentence: 1 }, { stated: "no", sentence: 0 }]),
+    testimony,
+  });
+  const j = r.ingestion.byClaim[0].judgment;
+  assert.equal(j.rung, WITNESS_RUNG);
+  assert.equal(j.verdict, "holds");
+  assert.equal(j.anchored, true);
+  assert.equal(j.landed, "chosen");
+  assert.match(j.decider, /received the whole estate/);
+  assert.deepEqual(j.learned, { key: habitKeyOf(claims[0]), verdict: "holds" });
+  assert.equal(judgeAsks, 0, "the judge is the LAST rung — settled by the witness, it is never asked");
+  assert.equal(r.ingestion.judgeAsks, 0);
+  assert.equal(r.ingestion.byWitness, 1);
+  assert.ok(recallHabit(r.habits, habitKeyOf(claims[0])), "a states verdict earned by the witness is learned as a habit, exactly as a chosen judgment would be");
+  assert.equal(recallHabit(r.habits, habitKeyOf(claims[0])).decider, j.decider);
+  assert.match(judgeLine(j, claims[0]), /^witness · Pierre received the whole estate · holds — settled before the judge was asked, deciding on/);
+  assert.match(judgeLine(j, claims[0]), /learned as a habit/);
+});
+
+test("(b) a refused verdict from the witness — armed with the section's own candidates and saying no to all of them — lands the claim refused, settled, with no judge ask spent", async () => {
+  const ing = ingestion();
+  let judgeAsks = 0;
+  const r = await judgeTurn({
+    ingestion: ing, claims, question: "q", chunks, recipe: "test@judge-v1", habits: createHabits(),
+    ask: async () => { judgeAsks += 1; return "never"; },
+    witnessAsk: neverAsk,
+    selectAsk: async () => ({ stated: "no", sentence: 0 }), // a clean, armed "no" to the very first ask — witnessNote returns before ever building an arm
+    testimony,
+  });
+  const j = r.ingestion.byClaim[0].judgment;
+  assert.equal(j.rung, WITNESS_RUNG);
+  assert.equal(j.verdict, "refused");
+  assert.equal(j.landed, "chosen", "a settled negative — the same landed value a judge's own anchored refusal would take");
+  assert.equal(j.decider, null, "nothing states the claim, so there is nothing to point at — a fact, not a missing field");
+  assert.equal(j.learned, null, "a refused verdict has no decider to find again, so nothing is learned — learnFromDecider's own guard, shared with the judge rung");
+  assert.equal(judgeAsks, 0);
+  assert.equal(r.ingestion.byWitness, 1);
+  assert.equal(recallHabit(r.habits, habitKeyOf(claims[0])), null);
+});
+
+test("(c) a skipped verdict (no content to anchor a candidate on) spends nothing and falls through to the judge exactly as before — the judge is asked and its own budget is spent", async () => {
+  // a claim thin enough that witnessSentences.js's own endsFor/words check
+  // refuses it outright (< 2 content words) — witnessClaim never even
+  // reaches selectAsk/witnessAsk, which is the assertion: both throw if called.
+  const thinClaims = [{ key: "thin", end1: "Pierre", label: null, end2: null, verdict: "unheard", refs: ["wp.txt#142-210"], spans: [] }];
+  const thinIngestion = ingestionOf({ claims: thinClaims, unread: [{ name: "wp.txt", read: 4, total: 900 }], witness: [], sources: [{ name: "wp.txt" }], trails: {} });
+  assert.equal(judgeCandidates(thinIngestion).length, 1, "the claim still reaches the loop — nothing about it is pre-settled");
+  let judgeAsks = 0;
+  const r = await judgeTurn({
+    ingestion: thinIngestion, claims: thinClaims, question: "q", chunks, recipe: "test@judge-v1", habits: createHabits(), protocol: "prose",
+    ask: async () => { judgeAsks += 1; return 'The text says "Pierre, on unexpectedly becoming Count Bezúkhov, received the whole estate.", so it holds.'; },
+    witnessAsk: neverAsk, selectAsk: neverAsk, testimony,
+  });
+  const j = r.ingestion.byClaim[0].judgment;
+  assert.equal(j.rung, JUDGE_RUNG, "the witness never settled it, so the judge rung landed the judgment");
+  assert.equal(j.landed, "chosen");
+  assert.equal(judgeAsks, 1, "a judge ask was spent — the witness's skip cost the judge nothing of its own budget");
+  assert.equal(r.ingestion.byWitness, 0);
+  assert.equal(r.ingestion.judgeAsks, 1);
+});
+
+test("(d) omitting witnessAsk/selectAsk/testimony reproduces the pre-existing, byte-identical behaviour — the witness rung is never even attempted", async () => {
+  const ing = ingestion();
+  let calls = 0;
+  const r = await judgeTurn({
+    ingestion: ing, claims, question: "Who received the estate?", chunks, recipe: "test@judge-v1", habits: createHabits(), protocol: "prose",
+    ask: async (msgs) => { calls += 1; return 'The text says "received the whole estate", so the claim holds.'; },
+    // no witnessAsk, no selectAsk, no testimony — the exact call shape the
+    // very first "prose that quotes the section…" test above already uses
+  });
+  const j = r.ingestion.byClaim[0].judgment;
+  assert.equal(j.rung, JUDGE_RUNG);
+  assert.equal(j.landed, "chosen");
+  assert.equal(j.verdict, "holds");
+  assert.equal(j.anchored, true);
+  assert.equal(j.decider, "received the whole estate");
+  assert.equal(calls, 1, "one judge call, exactly as before the witness rung existed");
+  assert.equal(r.ingestion.judged, 1);
+  assert.equal(r.ingestion.byWitness, 0, "the new counter exists and correctly reports zero — the rung never ran");
+  assert.equal(r.ingestion.judgeAsks, 1);
+  // maxWitnessAsks defaults to WITNESS_ASKS_PER_TURN even when unused — a
+  // declared default (P9), never a silent one
+  assert.equal(WITNESS_ASKS_PER_TURN, 2);
+});
+
+test("witnessClaim is the file's own adapter: null on a claim with no arrangement to ask about, and it spends nothing when it never reaches a model", async () => {
+  const noArrangement = await witnessClaim({ end1: null, label: null, end2: null }, [{ ref: "wp.txt", text: "anything" }], { witnessAsk: neverAsk, selectAsk: neverAsk, testimony, maxAsks: 1 });
+  assert.deepEqual(noArrangement, { row: null, asks: 0 });
+  const section = sectionAround(chunks, "/wp.txt/142-210");
+  const thin = await witnessClaim({ end1: "Pierre", label: null, end2: null }, [{ ref: section.source, text: section.text }], { witnessAsk: neverAsk, selectAsk: neverAsk, testimony, maxAsks: 1 });
+  assert.equal(thin.row.witness, "skipped");
+  assert.equal(thin.asks, 0);
+});
+
+test("the witness rung's own budget (maxWitnessAsks) is declared apart from the judge's — spent it never asks the witness again, and a later judgeCandidates row still reaches the judge under the judge's own, untouched budget", async () => {
+  // two claims with genuinely DIFFERENT arrangements — habitKeyOf reads
+  // end1/label/end2, not `.key`, so two rows sharing an arrangement would
+  // let the first's judge-learned habit silently settle the second before
+  // its own witness/judge budget was ever in question. Kept apart here so
+  // the thing under test (the WITNESS budget, not the habit rung) is what
+  // decides the second claim's fate.
+  const many = [claims[0], { ...claims[0], key: "k1", end2: "an estate" }];
+  const ing = ingestionOf({ claims: many, unread: [{ name: "wp.txt", read: 4, total: 900 }], witness: [], sources: [{ name: "wp.txt" }], trails: {} });
+  assert.notEqual(habitKeyOf(many[0]), habitKeyOf(many[1]));
+  let selectCalls = 0, judgeCalls = 0;
+  const script = scriptedSelect([{ stated: "yes", sentence: 1 }, { stated: "no", sentence: 0 }]);
+  const r = await judgeTurn({
+    ingestion: ing, claims: many, question: "q", chunks, recipe: "t", habits: createHabits(), protocol: "prose",
+    maxWitnessAsks: 1, maxAsks: 4,
+    ask: async () => { judgeCalls += 1; return 'The text says "Pierre, on unexpectedly becoming Count Bezúkhov, received the whole estate.", so it holds.'; },
+    witnessAsk: neverAsk,
+    selectAsk: async (msgs) => { selectCalls += 1; return script(msgs); },
+    testimony,
+  });
+  assert.equal(selectCalls, 2, "one witness ask unit (the pick, plus its sibling-swapped arm) spent the whole declared budget of 1, so the second claim's witness step is never even attempted");
+  assert.equal(r.ingestion.byWitness, 1);
+  assert.equal(r.ingestion.byClaim[0].judgment.rung, WITNESS_RUNG);
+  assert.equal(r.ingestion.byClaim[1].judgment.rung, JUDGE_RUNG, "the second claim's witness budget was already spent, so it falls to the judge — whose own budget is untouched by the witness's");
+  assert.equal(judgeCalls, 1, "the judge's own budget (maxAsks: 4) was never touched by the witness rung");
+});
+

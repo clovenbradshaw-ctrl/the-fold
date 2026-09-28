@@ -60,10 +60,32 @@
 // `contradicted` while the habit holds, or the witness refuses it. A conceded
 // habit answers nothing; the next judgment learns anew.
 
+// THE WITNESS RUNG, INSIDE THIS FILE (2026-09-28, same day). The paragraph
+// above ("A claim already judged by the witness costs nothing here") names
+// a PASSIVE check: answer-record.js::ingestionOf already matches a claim's
+// ends against whatever sentences THIS TURN'S DRAFTED ANSWER happened to
+// have witnessed (holon.js's own per-part sweep) before `judgeCandidates`
+// is even computed — no model call of its own, and every row that reaches
+// this file already failed it. What was missing was an ACTIVE ask about
+// the CLAIM ITSELF, between the habit rung and the judge: `witnessClaim`
+// composes eoreader7's already-built, already-tested organ
+// (organs/witness-sentences.js over organs/testimony.js's SELECT protocol
+// — sibling-swap armed, point-then-word, never a verdict in prose) over
+// the same section the judge would otherwise read whole. Its own budget
+// (WITNESS_ASKS_PER_TURN) is declared apart from the judge's, and a
+// "states"/"refused" verdict lands exactly the way a chosen judgment does
+// — through the SAME learnFromDecider helper, so a claim the witness
+// settles becomes a habit too. A "skipped" verdict spent nothing and the
+// claim falls to the judge unchanged. Wired only when the caller supplies
+// `selectAsk`/`testimony` (and `witnessAsk` for the select protocol's own
+// generate fallback); omitting them reproduces this file's behaviour from
+// before this addition, byte for byte.
+
 import { judgmentRequest, landJudgment, INGESTION_SCHEMA, ingestionStanding } from "../eoreader7/native/kernel/ingestion.js";
 import { readJudgment, pointedDecider } from "../eoreader7/native/organs/judgment-reader.js";
 import { splitSentences as engineSentences } from "../eoreader7/native/adapters/text/spans.js";
 import { becauseContained } from "../eoreader7/native/organs/testimony.js";
+import { witnessSentences } from "../eoreader7/native/organs/witness-sentences.js";
 import { recordOutcome, recordContradiction } from "../eoreader7/native/kernel/escalation.js";
 import { createHabits, learnHabit, recallHabit, applyHabit, concedeHabit, HABIT_RUNG } from "../eoreader7/native/kernel/habit.js";
 import { NEGATION_WORDS } from "../eoreader7/native/adapters/text/priors.js";
@@ -72,9 +94,20 @@ import { makeGary } from "./gary.js";
 import { strikeAddresses, apparatusMentions } from "./firewall.js";
 
 export const JUDGE_RUNG = "judge";
+export const WITNESS_RUNG = "witness";
 export { HABIT_RUNG };
 /** Judge asks per turn — P9: a budget is declared, never implied. Two: the witness already spent this turn's asks on the sentences; the judge takes the remainder the witness could not settle, and a turn is not a courtroom. */
 export const JUDGE_ASKS_PER_TURN = 2;
+/**
+ * Witness asks per turn — P9, declared separately from JUDGE_ASKS_PER_TURN
+ * so the two never eat each other's budget. Two: a select-protocol point
+ * (and its sibling-swapped arm, when one can be built) is cheaper than the
+ * judge's own full-section point-then-word pair, but it is still a real
+ * model call, and this rung runs BEFORE the judge for every judge
+ * candidate — a generous witness budget would leave nothing for the judge
+ * to try on whatever the witness could not settle.
+ */
+export const WITNESS_ASKS_PER_TURN = 2;
 /** The section's width in characters — the cited passage plus its neighbours, in reading order. The width of a printed page of prose, not a tuned number: wide enough to hold the sentence before and after the one cited, narrow enough that a small model reads all of it. */
 export const JUDGE_SECTION_CHARS = 2400;
 export const JUDGE_MAX_TOKENS = 220;
@@ -184,15 +217,94 @@ export const habitKeyOf = (claim) => [claim?.end1, claim?.label, claim?.end2].ma
 export const defaultGary = () => makeGary({ strikeAddresses, apparatusMentions });
 
 /**
- * judgeTurn({ ingestion, claims, question, forWhomId, chunks, ask, recipe, maxAsks, cursor, onStep })
+ * THE WITNESS RUNG (2026-09-28) — a small model handed the claim's OWN
+ * arrangement, asked through eoreader7's already-built, already-tested
+ * organ (organs/witness-sentences.js, composing organs/testimony.js's
+ * SELECT protocol: the model points at a mechanically gathered candidate
+ * by index, sibling-swap armed, and never writes a verdict in prose — the
+ * same point-then-word discipline `buildPointMessages`/`buildWordMessages`
+ * already hold this file to, one organ over).
+ *
+ * NOT to be confused with the OTHER "witness" already in this file: the
+ * `witness` array `judgeTurn` already accepts (and `ingestionOf`, upstream
+ * in answer-record.js, already reads to decide `judgeCandidates` in the
+ * first place — see that file's own `ESCALATION_RUNGS` and `witnessed()`).
+ * That one is a PASSIVE reuse of whatever sentences THIS TURN'S DRAFTED
+ * ANSWER happened to have witnessed already (holon.js's own per-part sweep,
+ * `WITNESS_ASKS_PER_PART`); it matches a claim against a witnessed
+ * sentence's tokens, no model call of its own. It is exactly why every row
+ * `judgeCandidates` returns already failed that passive check — a claim the
+ * model never restated as a sentence never reaches it. `witnessClaim` asks
+ * about the CLAIM ITSELF, so the residual population still gets one more,
+ * cheaper try before the judge is asked the same question over the full
+ * section.
+ *
+ * witnessClaim(claim, passages, { witnessAsk, selectAsk, testimony,
+ * splitSentences, maxAsks }) -> { row, asks } | null
+ *   claim:      { end1, label, end2 } — [end1, label, end2].join(" ") is the
+ *               one "sentence" this asks about.
+ *   passages:   [{ ref, text }] — the section's own bytes (sectionAround's
+ *               `source`/`text`); witnessSentences joins them into one
+ *               source and offers the model candidate sentences drawn from
+ *               it, never from anywhere else.
+ *   witnessAsk: async (sentence, slice) -> parsed verdict — the GENERATE
+ *               fallback witnessNote falls to when the select protocol has
+ *               no co-present candidate to offer. Named `witnessAsk`, not
+ *               `ask`, on purpose: judgeTurn's own `ask(messages) -> prose`
+ *               is a different function with a different shape (the judge's
+ *               prose ask), and the two must never be confused for one
+ *               another or handed to the wrong organ.
+ *   selectAsk:  async (messages) -> { index, verdict } — the point, never a
+ *               verdict in prose.
+ *   testimony:  { witnessSlice, siblingSwap, foldTestimony,
+ *               buildSelectMessages, foldSelect, ...(sameForm?) } — the
+ *               SAME bundle app.js's own `witnessTestimony()` already
+ *               builds for the answer-sentence witness; nothing new to
+ *               compose, only to hand over again.
+ * Returns null when the claim carries no arrangement to ask about at all
+ * (a claim's ends and label are all this asks); otherwise the one row
+ * witnessSentences produced for it, and how many of `maxAsks` it spent
+ * (0 when it never reached a model — no content to anchor a candidate on,
+ * or the budget handed in was already 0).
+ */
+export async function witnessClaim(claim, passages, { witnessAsk, selectAsk, testimony, splitSentences = engineSentences, maxAsks = 1 } = {}) {
+  const sentence = [claim?.end1, claim?.label, claim?.end2].filter(Boolean).join(" ");
+  if (!sentence) return { row: null, asks: 0 };
+  const claimRow = { sentence, end1: claim?.end1 ?? null, end2: claim?.end2 ?? null };
+  const { rows, asks } = await witnessSentences([sentence], [claimRow], passages, { ask: witnessAsk, selectAsk, splitSentences, testimony, maxAsks });
+  return { row: rows[0] ?? null, asks };
+}
+
+/**
+ * A chosen judgment's decider is a habit worth learning again — the SAME
+ * rule for both rungs that can spend a model call here (the judge's own
+ * point-then-word, and the witness's select point): a verdict with nothing
+ * to find again is a rumour (learnHabit's own wall), so this is a no-op
+ * whenever there is no decider, and both call sites share it rather than
+ * each re-deriving the guard.
+ */
+function learnFromDecider(log, { shape, key, verdict, decider, giver, forWhom, cursor }) {
+  if (!decider) return { log, learned: null };
+  return { log: learnHabit(log, { shape, key, verdict, decider, giver, forWhom, cursor }), learned: { key, verdict } };
+}
+
+/**
+ * judgeTurn({ ingestion, claims, question, forWhomId, chunks, ask, recipe, maxAsks, cursor, onStep,
+ *             witnessAsk, selectAsk, testimony, maxWitnessAsks })
  *   ingestion: answer-record.js's ingestionOf result (byClaim rows aligned with `claims`)
  *   claims:    the record's claims (end1/label/end2 per row)
  *   ask:       async (messages) -> prose — the one model call, the caller's (app.js binds complete())
  *   recipe:    the judge's address (model + prompt version) — the collapse's giver
+ *   witnessAsk, selectAsk, testimony: the WITNESS RUNG's own organs (witnessClaim's own doc,
+ *              above, has the full shape). All three are OPTIONAL — omit any one and the witness
+ *              rung is skipped entirely, byte-identical to before it existed: every judgeCandidates
+ *              row goes straight to the habit-then-judge path this file already had.
+ *   maxWitnessAsks: the witness rung's own declared per-turn budget (WITNESS_ASKS_PER_TURN, P9) —
+ *              never the judge's; the two are counted apart.
  * -> { ingestion (rows carrying `judgment` where asked), trails, asked: [{ i, holon, verdict, landed, anchored, decider }] }
  * Nothing awaited here edits the answer; a throw in one ask lands as a typed `judgment.error` on that row and the next is tried.
  */
-export async function judgeTurn({ ingestion, claims = [], question, forWhomId, chunks = [], ask, recipe, maxAsks = JUDGE_ASKS_PER_TURN, cursor = null, onStep = null, gary = null, model = null, windowOf = null, habits = null, witness = [], protocol = "point-then-word" } = {}) {
+export async function judgeTurn({ ingestion, claims = [], question, forWhomId, chunks = [], ask, recipe, maxAsks = JUDGE_ASKS_PER_TURN, cursor = null, onStep = null, gary = null, model = null, windowOf = null, habits = null, witness = [], protocol = "point-then-word", witnessAsk = null, selectAsk = null, testimony = null, maxWitnessAsks = WITNESS_ASKS_PER_TURN } = {}) {
   if (!JUDGE_PROTOCOLS.includes(protocol)) throw new TypeError(`judgeTurn: protocol is one of ${JUDGE_PROTOCOLS.join(" / ")}`);
   if (!ingestion?.byClaim) return { ingestion, trails: ingestion?.trails ?? {}, asked: [], habits: habits ?? createHabits(), conceded: [] };
   if (typeof ask !== "function") throw new TypeError("judgeTurn: ask(messages) is the caller's — this module calls no model");
@@ -203,6 +315,11 @@ export async function judgeTurn({ ingestion, claims = [], question, forWhomId, c
   let trails = ingestion.trails ?? {};
   let log = habits ?? createHabits();
   const asked = [], conceded = [];
+  // THE WITNESS RUNG's own budget (P9) — spent across every judgeCandidates
+  // row this turn, never per-row; a skip that never reached a model (no
+  // content to anchor a candidate on, or this budget already at 0) spends
+  // nothing, matching witnessSentences' own accounting (`asks`).
+  let witnessAsksSpent = 0;
   const toks = (t) => new Set(String(t ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2));
   // REVISION FIRST: a live habit the material now contradicts is conceded before anything is answered by it
   for (let i = 0; i < claims.length; i++) {
@@ -236,6 +353,46 @@ export async function judgeTurn({ ingestion, claims = [], question, forWhomId, c
       onStep?.(byClaim[i].judgment, claims[i]);
       continue;
     }
+    // THE WITNESS RUNG (witnessClaim, above): the claim's own arrangement,
+    // asked through the SAME select-protocol/sibling-swap organ the
+    // answer's own sentences are already witnessed with — never the passive
+    // token-coverage match `ingestionOf` already tried upstream (this row
+    // reached judgeCandidates precisely because that one found nothing).
+    // Skipped entirely when the caller did not supply the organs — the
+    // rest of this loop is then byte-identical to before this rung existed.
+    if (selectAsk && testimony && witnessAsksSpent < maxWitnessAsks) {
+      const t0w = Date.now();
+      let wr = { row: null, asks: 0 };
+      try { wr = await witnessClaim(claims[i], [{ ref: section.source, text: section.text }], { witnessAsk, selectAsk, testimony, maxAsks: maxWitnessAsks - witnessAsksSpent }); }
+      catch { wr = { row: null, asks: 0 }; }
+      witnessAsksSpent += wr?.asks ?? 0;
+      const wrow = wr?.row ?? null;
+      // "skipped" (no content to anchor a candidate on, or the corroboration
+      // organ itself could not commit — unarmed, indiscriminate, figure
+      // unbacked) is not a finding: nothing here was settled, so the claim
+      // falls through to the judge exactly as it would have before this
+      // rung existed. Only "states"/"refused" — the witness actually
+      // committed to something and its own arm backs it — land here.
+      if (wrow && wrow.witness !== "skipped") {
+        const verdict = wrow.witness === "states" ? "holds" : "refused";
+        const decider = wrow.decider ?? null;
+        trails = recordOutcome(trails, { shape: row.shape, rung: WITNESS_RUNG, ok: true, ms: Date.now() - t0w });
+        const learn = learnFromDecider(log, { shape: row.shape, key, verdict, decider, giver: recipe, forWhom: forWhom.id, cursor });
+        log = learn.log;
+        byClaim[i].judgment = Object.freeze({
+          rung: WITNESS_RUNG, recipe, forWhom: forWhom.id,
+          section: { source: section.source, start: section.start, end: section.end, refs: section.refs, chars: section.text.length },
+          verdict, anchored: true, decider, landed: "chosen",
+          reason: wrow.witness === "states"
+            ? `the sentence witness pointed at the section — states, deciding on «${String(decider ?? "").slice(0, 80)}»`
+            : "the sentence witness was armed with the section's own candidates and refused every one of them",
+          learned: learn.learned, calls: wr.asks,
+        });
+        asked.push({ i, holon: row.holon, verdict, landed: "chosen", anchored: true, decider, rung: WITNESS_RUNG, learned: !!learn.learned });
+        onStep?.(byClaim[i].judgment, claims[i]);
+        continue;
+      }
+    }
     if (asked.filter((a) => a.rung === JUDGE_RUNG).length >= maxAsks) continue;
     const standing = ingestionStanding({ holon: row.holon, reached: [{ holon: row.holon, recipe: "arrival-read" }], gaps: row.left.map((reason) => ({ holon: row.holon, reason })), slots: [] });
     if (standing.schema !== INGESTION_SCHEMA || standing.standing === "read") continue;
@@ -268,8 +425,12 @@ export async function judgeTurn({ ingestion, claims = [], question, forWhomId, c
     const ok = collapse.verdict === "chosen";
     trails = recordOutcome(trails, { shape: row.shape, rung: JUDGE_RUNG, ok, ms: Date.now() - t0 });
     // THE HABIT LEARNED: a chosen judgment with a decider to find again
-    let learned = null;
-    if (ok && reading.decider) { log = learnHabit(log, { shape: row.shape, key, verdict: reading.verdict, decider: reading.decider, giver: recipe, forWhom: forWhom.id, cursor }); learned = { key, verdict: reading.verdict }; }
+    // (learnFromDecider, shared with the witness rung above — one guard,
+    // not two copies of it: "a verdict with nothing to find again is a
+    // rumour" is learnHabit's own wall, and both rungs that can spend a
+    // model call here answer to it the same way).
+    const learn = ok ? learnFromDecider(log, { shape: row.shape, key, verdict: reading.verdict, decider: reading.decider, giver: recipe, forWhom: forWhom.id, cursor }) : { log, learned: null };
+    log = learn.log; const learned = learn.learned;
     byClaim[i].judgment = Object.freeze({
       rung: JUDGE_RUNG, recipe, forWhom: forWhom.id,
       section: { source: section.source, start: section.start, end: section.end, refs: section.refs, chars: section.text.length },
@@ -281,7 +442,7 @@ export async function judgeTurn({ ingestion, claims = [], question, forWhomId, c
     onStep?.(byClaim[i].judgment, claims[i]);
   }
   const judged = asked.filter((a) => a.landed === "chosen").length;
-  return { ingestion: { ...ingestion, byClaim, trails, judged, judgeAsks: asked.filter((a) => a.rung === JUDGE_RUNG).length, byHabit: asked.filter((a) => a.rung === HABIT_RUNG).length, habitsConceded: conceded.length }, trails, asked, habits: log, conceded };
+  return { ingestion: { ...ingestion, byClaim, trails, judged, judgeAsks: asked.filter((a) => a.rung === JUDGE_RUNG).length, byHabit: asked.filter((a) => a.rung === HABIT_RUNG).length, byWitness: asked.filter((a) => a.rung === WITNESS_RUNG).length, habitsConceded: conceded.length }, trails, asked, habits: log, conceded };
 }
 
 /** One line for the thinking trace, plain words. */
@@ -290,6 +451,7 @@ export function judgeLine(j, claim) {
   if (j?.refused) return `judge · ${stated || "a claim"} · not asked (${j.because ?? j.refused})`;
   const where = j.section ? `${j.section.source} ${j.section.start}-${j.section.end}` : "?";
   if (j.rung === HABIT_RUNG) return `habit · ${stated} · ${j.verdict} — no model asked; the decider «${String(j.decider).slice(0, 70)}» is in ${where} (learned from ${j.recipe})`;
+  if (j.rung === WITNESS_RUNG) return `witness · ${stated} · ${j.verdict} — settled before the judge was asked${j.decider ? `, deciding on «${String(j.decider).slice(0, 70)}»` : ""}${j.learned ? " · learned as a habit" : ""}`;
   if (j.landed === "chosen") return `judge · ${stated} · ${j.verdict} — read ${where}${j.decider ? `, deciding on «${String(j.decider).slice(0, 70)}»` : ""}${j.learned ? " · learned as a habit" : ""}`;
   if (j.landed === "contested") return `judge · ${stated} · said ${j.verdict} but pointed at nothing in ${where} — not trusted`;
   return `judge · ${stated} · no verdict read (${j.because ?? "committed to nothing"})`;

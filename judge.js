@@ -36,11 +36,40 @@
 // them on the claim's own row. A judge that cannot point at the section is
 // never trusted for its verdict.
 
+// GARY KEEPS THE JUDGE'S DOOR (gary.js, 2026-09-28, user direction: "use Gary
+// to understand how to best prompt models"). His rules are the whole of what
+// this file knows about prompting, and every ask goes through `gary.hand`:
+// no address reaches the judge (struck); no apparatus noun (the section is
+// "the text", the material is never "passages"); no JSON asked for in prose
+// (the judge answers in prose and the reader reads it); INFORMATION, NOT
+// PROHIBITION — the judge is told what a candidate word means, never what
+// not to say; the question LAST, the person's own words, after the text and
+// the claim it is asked about; and a bag that fits the window the model is
+// loaded at. What he finds is disclosed on the judgment row; a REFUSE finding
+// means the judge is not asked at all.
+//
+// A MODEL CALL LEAVES A HABIT (kernel/habit.js, user direction: "be sure
+// that model calls create a revisable habit that makes the next instance of
+// something similar less likely to need a model call"). A chosen, anchored
+// judgment is learned: the claim's key, the verdict, and the decider the
+// judge pointed at. The next claim with the same key is answered by the
+// habit when its decider is in the section at hand — the HABIT rung, no
+// model call, deposited on the trails so the ladder learns to try it before
+// the witness and the judge. A habit is conceded (REC, trigger quoted) the
+// moment the material contradicts it: the relation tier reads the claim
+// `contradicted` while the habit holds, or the witness refuses it. A conceded
+// habit answers nothing; the next judgment learns anew.
+
 import { judgmentRequest, landJudgment, INGESTION_SCHEMA, ingestionStanding } from "../eoreader7/native/kernel/ingestion.js";
 import { readJudgment } from "../eoreader7/native/organs/judgment-reader.js";
-import { recordOutcome } from "../eoreader7/native/kernel/escalation.js";
+import { becauseContained } from "../eoreader7/native/organs/testimony.js";
+import { recordOutcome, recordContradiction } from "../eoreader7/native/kernel/escalation.js";
+import { createHabits, learnHabit, recallHabit, applyHabit, concedeHabit, HABIT_RUNG } from "../eoreader7/native/kernel/habit.js";
+import { makeGary } from "./gary.js";
+import { strikeAddresses, apparatusMentions } from "./firewall.js";
 
 export const JUDGE_RUNG = "judge";
+export { HABIT_RUNG };
 /** Judge asks per turn — P9: a budget is declared, never implied. Two: the witness already spent this turn's asks on the sentences; the judge takes the remainder the witness could not settle, and a turn is not a courtroom. */
 export const JUDGE_ASKS_PER_TURN = 2;
 /** The section's width in characters — the cited passage plus its neighbours, in reading order. The width of a printed page of prose, not a tuned number: wide enough to hold the sentence before and after the one cited, narrow enough that a small model reads all of it. */
@@ -84,10 +113,16 @@ export const judgeCandidates = (ingestion) => (ingestion?.byClaim ?? []).map((ro
 export function buildJudgeMessages(request, claim) {
   const stated = [claim?.end1, claim?.label, claim?.end2].filter(Boolean).join(" ");
   return [
-    { role: "system", content: "You are reading one piece of text to decide whether it settles a claim. Quote the exact words in the text that decide it. Then finish with exactly one of these words on its own: holds, refused, undetermined. Say undetermined when the text does not settle it either way." },
-    { role: "user", content: `Question: ${request.forWhom.question}\n\nClaim: ${stated}\n\nText:\n\n${request.text}` },
+    // information, not prohibition: what each word means, and that the deciding words are quoted
+    { role: "system", content: "One piece of text and one claim about it. The answer is a short reading that quotes the exact words of the text that decide the claim, then ends with one word: holds (the text states the claim), refused (the text states otherwise), undetermined (the text settles neither)." },
+    // the text, the claim, and LAST the question in the asker's own words
+    { role: "user", content: `Text:\n\n${request.text}\n\nClaim: ${stated}\n\n${request.forWhom.question}` },
   ];
 }
+/** The habit's key for "the same claim again": the arrangement's ends and label, folded. */
+export const habitKeyOf = (claim) => [claim?.end1, claim?.label, claim?.end2].map((x) => String(x ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim()).join("|");
+/** The default door: Gary with the firewall's own organs, no window (a gap he reports, never a verdict). */
+export const defaultGary = () => makeGary({ strikeAddresses, apparatusMentions });
 
 /**
  * judgeTurn({ ingestion, claims, question, forWhomId, chunks, ask, recipe, maxAsks, cursor, onStep })
@@ -98,41 +133,78 @@ export function buildJudgeMessages(request, claim) {
  * -> { ingestion (rows carrying `judgment` where asked), trails, asked: [{ i, holon, verdict, landed, anchored, decider }] }
  * Nothing awaited here edits the answer; a throw in one ask lands as a typed `judgment.error` on that row and the next is tried.
  */
-export async function judgeTurn({ ingestion, claims = [], question, forWhomId, chunks = [], ask, recipe, maxAsks = JUDGE_ASKS_PER_TURN, cursor = null, onStep = null } = {}) {
-  if (!ingestion?.byClaim) return { ingestion, trails: ingestion?.trails ?? {}, asked: [] };
+export async function judgeTurn({ ingestion, claims = [], question, forWhomId, chunks = [], ask, recipe, maxAsks = JUDGE_ASKS_PER_TURN, cursor = null, onStep = null, gary = null, model = null, windowOf = null, habits = null, witness = [] } = {}) {
+  if (!ingestion?.byClaim) return { ingestion, trails: ingestion?.trails ?? {}, asked: [], habits: habits ?? createHabits(), conceded: [] };
   if (typeof ask !== "function") throw new TypeError("judgeTurn: ask(messages) is the caller's — this module calls no model");
   if (!recipe) throw new TypeError("judgeTurn: the judge's recipe is declared");
+  const door = gary ?? makeGary({ strikeAddresses, apparatusMentions, windowOf });
   const forWhom = { id: forWhomId ?? `turn:${cursor ?? "?"}`, giver: "the question asked this turn", question };
   const byClaim = ingestion.byClaim.map((r) => ({ ...r }));
   let trails = ingestion.trails ?? {};
-  const asked = [];
+  let log = habits ?? createHabits();
+  const asked = [], conceded = [];
+  const toks = (t) => new Set(String(t ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2));
+  // REVISION FIRST: a live habit the material now contradicts is conceded before anything is answered by it
+  for (let i = 0; i < claims.length; i++) {
+    const c = claims[i]; const key = habitKeyOf(c); const live = recallHabit(log, key);
+    if (!live) continue;
+    const said = (w) => toks(w?.sentence ?? "");
+    const ends = [...toks(c.end1), ...toks(c.end2)];
+    const refusedByWitness = ends.length > 0 && (witness ?? []).some((w) => w.witness === "refused" && ends.every((t) => said(w).has(t)));
+    const trigger = c.verdict === "contradicted" && live.verdict === "holds" ? `the relation tier read the claim contradicted at ${(c.refs ?? [])[0] ?? "?"} while the habit held`
+      : c.verdict === "bound" && live.verdict === "refused" ? `the relation tier bound the claim at ${(c.refs ?? [])[0] ?? "?"} while the habit refused it`
+      : refusedByWitness && live.verdict === "holds" ? "the witness refused the sentence the habit held" : null;
+    if (!trigger) continue;
+    const r = concedeHabit(log, key, { trigger, giver: "judge.js revision", cursor });
+    log = r.log; conceded.push({ i, key, verdict: live.verdict, trigger });
+    if (byClaim[i].shape) trails = recordContradiction(trails, { shape: byClaim[i].shape, rung: HABIT_RUNG });
+    byClaim[i].habitConceded = { verdict: live.verdict, trigger };
+  }
   for (const { row, i } of judgeCandidates(ingestion)) {
-    if (asked.length >= maxAsks) break;
     const section = sectionAround(chunks, row.holon);
     if (!section) { byClaim[i].judgment = { refused: "section_unavailable", because: `nothing loaded is chunked at ${row.holon}` }; continue; }
-    // The standing the kernel asks over: the same gaps the record row carries.
+    const key = habitKeyOf(claims[i]);
+    // THE HABIT RUNG: a learned judgment whose decider is in this section answers with no model call
+    const live = recallHabit(log, key);
+    const applied = applyHabit(live, section.text, { holds: (decider, material) => becauseContained(decider, material) });
+    if (applied) {
+      trails = recordOutcome(trails, { shape: row.shape, rung: HABIT_RUNG, ok: true, ms: 0 });
+      byClaim[i].judgment = Object.freeze({ rung: HABIT_RUNG, recipe: applied.giver, learnedAt: applied.seq, forWhom: forWhom.id, section: { source: section.source, start: section.start, end: section.end, refs: section.refs, chars: section.text.length }, verdict: applied.verdict, anchored: true, decider: applied.decider, landed: "chosen", reason: `a habit learned from ${applied.giver} — its decider is in the section, no model asked`, noModel: true });
+      asked.push({ i, holon: row.holon, verdict: applied.verdict, landed: "chosen", anchored: true, decider: applied.decider, rung: HABIT_RUNG });
+      onStep?.(byClaim[i].judgment, claims[i]);
+      continue;
+    }
+    if (asked.filter((a) => a.rung === JUDGE_RUNG).length >= maxAsks) continue;
     const standing = ingestionStanding({ holon: row.holon, reached: [{ holon: row.holon, recipe: "arrival-read" }], gaps: row.left.map((reason) => ({ holon: row.holon, reason })), slots: [] });
     if (standing.schema !== INGESTION_SCHEMA || standing.standing === "read") continue;
     const request = judgmentRequest({ standing, forWhom, sectionOf: () => section.text, claim: { key: row.key, i } });
     if (!request) continue;
+    // GARY HANDS THE BAG: struck, checked, refused where his rules say so
+    const bag = door.hand(buildJudgeMessages(request, claims[i]), { model, material: 1, options: { num_predict: JUDGE_MAX_TOKENS } });
+    const gate = { findings: bag.findings.map((f) => ({ rule: f.rule, severity: f.severity, detail: f.detail })), gaps: bag.gaps.map((g) => g.type), struck: bag.struck, tokens: bag.tokens, window: bag.window ?? null };
+    if (bag.refused.length) { byClaim[i].judgment = { refused: "gary_refused", because: bag.refused.map((f) => `${f.rule}: ${f.detail}`).join("; "), gary: gate }; asked.push({ i, holon: row.holon, verdict: null, landed: "refused", rung: JUDGE_RUNG }); continue; }
     const t0 = Date.now();
     let prose;
-    try { prose = await ask(buildJudgeMessages(request, claims[i])); }
-    catch (e) { byClaim[i].judgment = { refused: "ask_failed", because: String(e?.message ?? e) }; asked.push({ i, holon: row.holon, verdict: null, landed: "error" }); continue; }
+    try { prose = await ask(bag.messages); }
+    catch (e) { byClaim[i].judgment = { refused: "ask_failed", because: String(e?.message ?? e), gary: gate }; asked.push({ i, holon: row.holon, verdict: null, landed: "error", rung: JUDGE_RUNG }); continue; }
     const { collapse, reading } = landJudgment(request, { answer: String(prose ?? ""), read: readJudgment, judge: { recipe }, cursor });
     const ok = collapse.verdict === "chosen";
     trails = recordOutcome(trails, { shape: row.shape, rung: JUDGE_RUNG, ok, ms: Date.now() - t0 });
+    // THE HABIT LEARNED: a chosen judgment with a decider to find again
+    let learned = null;
+    if (ok && reading.decider) { log = learnHabit(log, { shape: row.shape, key, verdict: reading.verdict, decider: reading.decider, giver: recipe, forWhom: forWhom.id, cursor }); learned = { key, verdict: reading.verdict }; }
     byClaim[i].judgment = Object.freeze({
       rung: JUDGE_RUNG, recipe, forWhom: forWhom.id,
       section: { source: section.source, start: section.start, end: section.end, refs: section.refs, chars: section.text.length },
       verdict: reading.verdict, anchored: reading.anchored, decider: reading.decider ?? null, because: reading.because ?? null,
       landed: collapse.verdict, reason: collapse.reason ?? null,
-      prose: String(prose ?? "").slice(0, 600),
+      prose: String(prose ?? "").slice(0, 600), gary: gate, learned,
     });
-    asked.push({ i, holon: row.holon, verdict: reading.verdict, landed: collapse.verdict, anchored: reading.anchored, decider: reading.decider ?? null });
+    asked.push({ i, holon: row.holon, verdict: reading.verdict, landed: collapse.verdict, anchored: reading.anchored, decider: reading.decider ?? null, rung: JUDGE_RUNG, learned: !!learned });
     onStep?.(byClaim[i].judgment, claims[i]);
   }
-  return { ingestion: { ...ingestion, byClaim, trails, judged: asked.filter((a) => a.landed === "chosen").length, judgeAsks: asked.length }, trails, asked };
+  const judged = asked.filter((a) => a.landed === "chosen").length;
+  return { ingestion: { ...ingestion, byClaim, trails, judged, judgeAsks: asked.filter((a) => a.rung === JUDGE_RUNG).length, byHabit: asked.filter((a) => a.rung === HABIT_RUNG).length, habitsConceded: conceded.length }, trails, asked, habits: log, conceded };
 }
 
 /** One line for the thinking trace, plain words. */
@@ -140,7 +212,8 @@ export function judgeLine(j, claim) {
   const stated = [claim?.end1, claim?.label, claim?.end2].filter(Boolean).join(" ");
   if (j?.refused) return `judge · ${stated || "a claim"} · not asked (${j.because ?? j.refused})`;
   const where = j.section ? `${j.section.source} ${j.section.start}-${j.section.end}` : "?";
-  if (j.landed === "chosen") return `judge · ${stated} · ${j.verdict} — read ${where}${j.decider ? `, deciding on «${String(j.decider).slice(0, 70)}»` : ""}`;
+  if (j.rung === HABIT_RUNG) return `habit · ${stated} · ${j.verdict} — no model asked; the decider «${String(j.decider).slice(0, 70)}» is in ${where} (learned from ${j.recipe})`;
+  if (j.landed === "chosen") return `judge · ${stated} · ${j.verdict} — read ${where}${j.decider ? `, deciding on «${String(j.decider).slice(0, 70)}»` : ""}${j.learned ? " · learned as a habit" : ""}`;
   if (j.landed === "contested") return `judge · ${stated} · said ${j.verdict} but pointed at nothing in ${where} — not trusted`;
   return `judge · ${stated} · no verdict read (${j.because ?? "committed to nothing"})`;
 }

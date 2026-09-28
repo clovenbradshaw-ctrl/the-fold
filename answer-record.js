@@ -35,7 +35,9 @@ export const ANSWER_RECORD_SCHEMA = "EOAnswerRecord@1";
 // The judge is the third rung (judge.js): asked, under its own budget, only
 // for a claim the witness did not settle — the small model handed the full
 // section and the question, its prose read mechanically for the verdict.
-export const ESCALATION_RUNGS = Object.freeze(["mechanical", "witness", "judge"]);
+// ...and the HABIT rung sits between them and the mechanical tier: a judgment
+// once learned answers the same claim again with no model call (judge.js).
+export const ESCALATION_RUNGS = Object.freeze(["mechanical", "habit", "witness", "judge"]);
 const GAP_VERDICTS = new Set(["beyond-reach", "unheard", "unbound"]);
 const holonOfRef = (ref) => { const s = String(ref ?? ""); const i = s.indexOf("#"); return i < 0 ? `/${s}` : `/${s.slice(0, i)}/${s.slice(i + 1)}`; };
 // EVERY READER'S REACH, NOT ONE (2026-09-28): the arrival read is one reader;

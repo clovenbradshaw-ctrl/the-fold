@@ -240,6 +240,7 @@ import { exportPiece } from "./piece-export.js";
 import { groundOf, groundLine, tierWord } from "./ground-ladder.js";
 import { answerRecord, answerRecordProse, voidInScope } from "./answer-record.js";
 import { judgeTurn, judgeLine } from "./judge.js";
+import { habitsFromEntries, createHabits as createJudgeHabits, habitCensus as judgeHabitCensus } from "../eoreader7/native/kernel/habit.js";
 
 // The self plane: the instrument's own acts as an append-only, addressed
 // ledger, and its measured surprise — held apart from the material at the
@@ -2172,6 +2173,10 @@ const state = {
   // shape of what a cited holon left open): the learned order in which the
   // mechanical rung and the witness are tried, kept across reloads.
   escalationTrails: (() => { try { const t = JSON.parse(localStorage.getItem("fold-escalation-trails") ?? "{}"); return t && typeof t === "object" ? t : {}; } catch { return {}; } })(),
+  // The judge's habits (kernel/habit.js): every chosen judgment learned, every
+  // contradicted one conceded — replayed through the kernel's own append (a
+  // corrupt row throws and the ledger starts empty, never loads silently).
+  judgeHabits: (() => { try { const rows = JSON.parse(localStorage.getItem("fold-judge-habits") ?? "[]"); return Array.isArray(rows) ? habitsFromEntries(rows) : createJudgeHabits(); } catch { return createJudgeHabits(); } })(),
   /**
    * Auto-suggest (swarm.js::suggestNext): whether a settled turn may offer
    * one-click next steps beneath its answer. Same standing as webProof —
@@ -14646,10 +14651,23 @@ async function holonicTurn(task, typed = task, planMode = "model", opts = {}) {
           ingestion: answerRec.ingestion, claims: answerRec.claims ?? [], question: task,
           forWhomId: `turn:${answerRec.cursor ?? ANSWER_CURSOR}`, chunks: state.chunks,
           recipe: `${judgeModel}@judge-v1`, cursor: answerRec.cursor ?? null,
+          // Gary's door reads the loaded window (heimdall's /api/ps) so "does
+          // this fit" is answered against the window the judge actually runs at
+          model: judgeModel, windowOf: (name) => loadedWindows.get(name) ?? null,
+          // the habits learned so far, and this turn's witness rows (a refusal
+          // of a sentence a habit holds concedes the habit)
+          habits: state.judgeHabits, witness: state.lastWitness ?? [],
           ask: (messages) => complete(messages, { maxTokens: 220, temperature: 0, model: judgeModel, jobKind: JOB_KINDS.WITNESS }),
           onStep: (j, claim) => show(judgeLine(j, claim)),
         });
         answerRec = { ...answerRec, ingestion: judged.ingestion };
+        for (const c of judged.conceded) show(`habit conceded · ${c.key} · was ${c.verdict} — ${c.trigger}`);
+        if (judged.habits !== state.judgeHabits) {
+          state.judgeHabits = judged.habits;
+          try { localStorage.setItem("fold-judge-habits", JSON.stringify(state.judgeHabits.entries)); } catch {}
+          const census = judgeHabitCensus(state.judgeHabits);
+          show(`habits · ${census.live} live, ${census.conceded} conceded, ${census.learned} learned in all`);
+        }
       } catch (e) { console.warn("judge:", e?.message ?? e); }
     }
     // The learned escalation environment persists across turns and reloads;

@@ -135,7 +135,7 @@ import { FoldMatrix, localStorageStorage, MatrixError } from "./matrix-client.js
 import { parseShareLink, stripShareFragment, SERVER_SEES, MAGIC_KEY_WARNING, deviceContent, deviceLine, fallbackMouth, renderConversation } from "./matrix.js";
 import { createWatch } from "./heimdall-client.js";
 import { mintInvite, recordCode, CODES_TYPE as HEIMDALL_CODES_TYPE } from "./heimdall-invite.js";
-import { JOB_KINDS, CANDIDATE_KINDS, candidateOf, roomCandidateOf, roomCandidatesFrom, emptyEvidence, huginnObserve, huginnPrioritize, huginnHopAfter, huginnDecision } from "./huginn.js";
+import { JOB_KINDS, CANDIDATE_KINDS, candidateOf, roomCandidateOf, roomCandidatesFrom, emptyEvidence, huginnObserve, huginnPrioritize, huginnHopAfter, huginnDecision } from "../eoreader7/native/organs/index.js";
 
 // The local vault (P242): what's encrypted at rest — same posture as the
 // Matrix import above, one cipher (matrix.js's) reused, never restated.
@@ -401,7 +401,7 @@ import { declaredSlotShape } from "./web-claim.js";
 import { cellOf, GRAINS, TERRAIN_BY_DOMAIN, isCurrentOperator } from "/engine-v7/kernel/cube.js";
 // The measurement organ the three resolutions' cuts spend (resolutions.js, P171): the kernel's own dmdWindow, never a count.
 import { dmdWindow } from "/engine-v7/kernel/activation.js";
-import { mentionBook, makeActivationRetrieval } from "./activation-retrieval.js";
+import { mentionBook, makeActivationRetrieval } from "./activation-wiring.js";
 // The typed-note ledger (hyperlexicon.js, P57): the notes a turn's own
 // relation reading admits, corroborated across turns by the same cell the
 // cube derives. `adaptTaskLog` reconciles native's ordinal GRAINS with the
@@ -1646,7 +1646,7 @@ import {
 } from "./source.js";
 import { makeAdmission, properNamesIn } from "./admission.js";
 import { makeAletheia } from "../eoreader7/native/organs/index.js";
-import { questionCycle, ledgerLint as lintNotesInLog, functionalConflicts } from "./logos.js";
+import { questionCycle, ledgerLint as lintNotesInLog, functionalConflicts } from "../eoreader7/native/organs/index.js";
 import { sourceOfWitness } from "../eoreader7/native/organs/index.js";
 // The discourse-admission gate (admission.js): should a whole ATTACHED
 // SOURCE even be treated as material for THIS question, before retrieve()

@@ -3,5 +3,4 @@
 // only the surface); this file only forwards it so a stale importer keeps
 // resolving. New code imports the seam, ../eoreader7/native/organs/index.js,
 // never this file.
-// Handle: Panini — after the karaka grammar, which names the experiencer as its own case role: every belief carries who is undergoing it. Amendment XVII.
 export * from "../eoreader7/native/organs/experiencer.js";

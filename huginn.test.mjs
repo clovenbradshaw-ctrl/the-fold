@@ -16,7 +16,7 @@ import {
   candidateOf, roomCandidateOf, roomCandidatesFrom,
   emptyEvidence, huginnObserve,
   huginnPrioritize, huginnHopAfter, huginnDecision,
-} from "./huginn.js";
+} from "../eoreader7/native/organs/huginn.js";
 
 const LOCAL = candidateOf("gemma2:2b");
 const LOCAL2 = candidateOf("llama3.2:latest");

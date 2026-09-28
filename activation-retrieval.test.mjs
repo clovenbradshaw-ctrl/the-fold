@@ -4,7 +4,7 @@
 // real turn.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mentionBook, activate, makeActivationRetrieval } from "./activation-retrieval.js";
+import { mentionBook, activate, makeActivationRetrieval } from "./activation-wiring.js";
 import { chunkSource, retrieve } from "./source.js";
 import { makeReferentIndex } from "./cast.js";
 import { dmdWindow } from "../eoreader7/native/kernel/activation.js";

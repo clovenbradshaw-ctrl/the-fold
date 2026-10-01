@@ -68,7 +68,7 @@ const ENGINE_V7 = resolve(ROOT, "..", "eoreader7", "native");
 const EOREADER7_ROOT = resolve(ROOT, "..", "eoreader7");
 // Boot check (2026-09-05): a missing mount used to surface as every engine
 // import 404ing behind a blank page. Name the path and the repair here.
-for (const [name, dir] of [["../eoreader7/native", ENGINE_V7], ["../eoreader7/legacy-eoreader6.1/packages/engine", ENGINE], ["../eoreader7/legacy-eoreader6.1/nul", NUL]]) {
+for (const [name, dir] of [["../eoreader7/native", ENGINE_V7], ["../eoreader6.1/packages/engine", ENGINE], ["../eoreader6.1/nul", NUL]]) {
   if (!existsSync(dir)) {
     console.error(`serve.mjs: ${name} is missing (${dir}).\n  The Fold reads the engine from ../eoreader7 — run ./fold, or: git clone --recurse-submodules https://github.com/clovenbradshaw-ctrl/eoreader7.git ${resolve(ROOT, "..", "eoreader7")}`);
     process.exit(2);

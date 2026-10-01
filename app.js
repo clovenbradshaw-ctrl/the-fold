@@ -145,7 +145,7 @@ import { passkeySupported, registerPasskeyKey, unlockWithPasskey, storedPasskeyI
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
-import { terminalEncliticFold } from "../eoreader7/native/organs/index.js"; // identity-routes.js, P263 — see encliticRoute below
+import { learnedNameFold } from "../eoreader7/native/organs/index.js"; // identity-routes.js, P263/P265 — see nameFormRoute below
 import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony, landContest, makeDerivation } from "../eoreader7/native/organs/index.js";
 // THE PATHOS SYSTEM, NOT OPTIONAL (2026-09-13): the felt shape of the
 // conversation's recent voice, run on EVERY finished exchange (observeExchange),
@@ -299,7 +299,7 @@ import { createLemmatizer as nativeLemmatizer, morphologyFromPrior } from "/engi
 // furniture, never an engine notion) — imported below alongside this
 // file's other source.js symbols and bound with declared numbers at the
 // hypergraph.js injection site.
-import { extractSurfaces, extractLeadingSurfaces, discoverReferents, namesCorefer, diaNorm, opticalReferentForm, isNearMissSpelling, stripPossessive, isRomanNumeral } from "/engine-v7/adapters/text/surfaces.js";
+import { extractSurfaces, extractLeadingSurfaces, discoverReferents, namesCorefer, diaNorm, opticalReferentForm, isNearMissSpelling, isRomanNumeral } from "/engine-v7/adapters/text/surfaces.js";
 import { resolvePronouns } from "/engine-v7/adapters/text/pronouns.js";
 import { makeCastResolver, makeCastHandles, makeReferentIndex } from "./cast.js";
 import { makeShapeFallback } from "./shape-fallback.js";
@@ -809,16 +809,23 @@ import {
 // what counts as furniture.
 const castBlankFurniture = (text) => blankLabelRows(text, { minRun: 4, maxCell: 60 });
 
-// THE ENCLITIC ROUTE (identity-routes.js, P263). A name asked with the possessive mark ("Anna's") reaches what the bare name reaches, and a person
-// the material names only with it (a sentence-opener keeps the mark; extraction strips it from every other mention) is reachable by the bare name.
-// The language is DECLARED, never defaulted (Chomsky: a language's own marks): an undeclared or unregistered language is a typed gap and the
-// index is byte-identical. It reads the LAST token of a name only, and it is consulted only when the name asked as written resolved to NOTHING,
-// so no answer the index gave by an exact match changes — 0 of 21,886 queries over 55 documents, and 5,165 of 5,321 possessive-form questions
-// went from nothing to the bare name's referents (eval/the-fold/results/possessive-audit-RESULTS.md). Not carried by the relation reader's own
-// index (RELATION_READER_OPTIONS: a new key would change the reader's recipe identity, P90) nor by holographIndex's replica of resolve() below.
+// THE ENCLITIC ROUTE (identity-routes.js, P263; LEARNED, P265). A name asked with the possessive mark ("Anna's") reaches what the bare name reaches, and a
+// person the material names only with it (a sentence-opener keeps the mark; extraction strips it from every other mention) is reachable by the bare name.
+// The language is DECLARED, never defaulted (Chomsky: a language's own marks). It reads the LAST word of a name only (and the first word's beginning),
+// and it is consulted only when the name asked as written resolved to NOTHING, so no answer the index gave by an exact match changes — 0 of 21,886
+// queries over 55 documents, and 5,165 of 5,321 possessive-form questions went from nothing to the bare name's referents
+// (eval/the-fold/results/possessive-audit-RESULTS.md). Not carried by the relation reader's own index (RELATION_READER_OPTIONS: a new key would change
+// the reader's recipe identity, P90) nor by holographIndex's replica of resolve() below.
+//
+// The rule itself is no longer typed here. `learnedNameFold` builds the fold from a NameFormPrior@1 that Sullivan LEARNED from the language's own treebank
+// (priors/name-forms-eng.json: UD_English-EWT, held-out audited, READING-SPEC S139) — which marks leave a name's referent where it was, counted, not
+// composed. The prior arrives after boot, DATA-GATED like the POS prior below (P73): until it loads, and wherever a host does not serve it, the fold is the
+// identity and the index is exactly what it was before the route existed — a check whose data layer is absent never runs, and says so once in the console.
+// On the same 55 documents the learned route answers 21,880 of 21,886 queries as the typed route did, and the six it does not are an apostrophe the typed
+// rule stripped from a Chatino word and from two extraction artifacts (eval/the-fold/results/possessive-audit-learned-RESULTS.md).
 const MATERIAL_LANGUAGE = "eng"; // the same declaration relationExtractorsFor makes further down
-const encliticRoute = terminalEncliticFold({ language: MATERIAL_LANGUAGE, stripEnclitic: stripPossessive, isNumeral: isRomanNumeral });
-if (encliticRoute.gap) console.warn("enclitic route off:", encliticRoute.gap.type, encliticRoute.gap.detail);
+const nameFormRoute = { fold: null, gap: { type: "name_form_prior_not_loaded", detail: `the NameFormPrior@1 for "${MATERIAL_LANGUAGE}" has not arrived` } };
+const encliticFold = (name) => (nameFormRoute.fold ? nameFormRoute.fold(name) : name);
 
 const castFor = makeCastResolver({
   splitSentences: engineSentences,
@@ -828,7 +835,7 @@ const castFor = makeCastResolver({
   diaNorm,
   blankFurniture: castBlankFurniture,
   leadingSurfaces: extractLeadingSurfaces,
-  surfaceFold: encliticRoute.fold,
+  surfaceFold: encliticFold,
 });
 
 // Same organ bundle as castFor above, one level less collapsed — the
@@ -858,7 +865,7 @@ const referentIndexFor = makeReferentIndex({
   leadingSurfaces: extractLeadingSurfaces,
   nameFold: opticalReferentForm,
   nameVariant: isNearMissSpelling,
-  surfaceFold: encliticRoute.fold,
+  surfaceFold: encliticFold,
 });
 
 // shape-fallback.js's tie-triggered re-rank for source.js::retrieve() (built
@@ -985,6 +992,16 @@ PRIOR_LOADS.push(fetch("/eoreader7/native/priors/role-config-eng.json") // the m
   .then((r) => (r.ok ? r.json() : null))
   .then((j) => { if (j?.schema === "RoleConfig@1") { engRoleConfig = j; upgradeDispatch(); } })
   .catch(() => {}));
+// The learned name-form prior (P265), through the engine mount so the static build rewrites it like any other mount path. A prior for another
+// language, a refused one and a missing one are each a typed gap, said once; the fold stays the identity.
+PRIOR_LOADS.push(fetch(`/engine-v7/priors/name-forms-${MATERIAL_LANGUAGE}.json`)
+  .then((r) => (r.ok ? r.json() : null))
+  .then((j) => {
+    if (!j) { console.warn("name-form route off:", nameFormRoute.gap.type, nameFormRoute.gap.detail); return; }
+    const route = learnedNameFold({ language: MATERIAL_LANGUAGE, prior: j, isNumeral: isRomanNumeral });
+    if (route.fold) { nameFormRoute.fold = route.fold; nameFormRoute.gap = null; } else { nameFormRoute.gap = route.gap; console.warn("name-form route off:", route.gap.type, route.gap.detail); }
+  })
+  .catch(() => { console.warn("name-form route off:", nameFormRoute.gap.type, nameFormRoute.gap.detail); }));
 PRIOR_LOADS.push(fetch("/eoreader7/native/eval/the-fold/fixtures/unimorph-eng-verb-forms.json") // moved with eval/ (Phase 2); the old path 404ed silently and the widening below had been dead since
   .then((r) => (r.ok ? r.json() : null))
   .then((forms) => { if (Array.isArray(forms)) for (const f of forms) unimorphVerbForms.add(f); })

@@ -129,6 +129,13 @@ test("a real --no-vendor build: every page file present, no mount specifier left
     const walk = (d) => readdirSync(d).flatMap((n) => { const p = join(d, n); return statSync(p).isDirectory() ? walk(p) : [p]; });
     const left = walk(join(out, "the-fold")).filter((p) => /\.(js|mjs|html|css)$/.test(p)).filter((p) => { const s = readFileSync(p, "utf8"); return Object.keys(MOUNT_TARGETS).some((m) => s.includes(`"${m}`) || s.includes(`'${m}`) || s.includes(`\`${m}`)); });
     assert.deepEqual(left.map((p) => p.slice(out.length)), []);
+    // the learned name-form prior the page fetches (P265): shipped beside the engine tree, byte for byte, and the page's fetch path rewritten to it
+    const e7priors = resolve(new URL(".", import.meta.url).pathname, "..", "eoreader7", "native", "priors");
+    for (const f of readdirSync(e7priors).filter((n) => /^name-forms-.*\.json$/.test(n))) {
+      assert.ok(existsSync(join(out, "eoreader7", "native", "priors", f)), `${f} carried`);
+      assert.equal(readFileSync(join(out, "eoreader7", "native", "priors", f), "utf8"), readFileSync(join(e7priors, f), "utf8"), `${f} is the engine's file, not a copy that can drift`);
+    }
+    assert.match(readFileSync(join(out, "the-fold", "app.js"), "utf8"), /fetch\(`\.\.\/eoreader7\/native\/priors\/name-forms-\$\{MATERIAL_LANGUAGE\}\.json`\)/, "the page reaches the prior by the rewritten relative path");
     assert.match(readFileSync(join(out, "index.html"), "utf8"), /url=the-fold\/index\.html/);
     const mirrors = JSON.parse(readFileSync(join(out, "the-fold", "models", "MIRRORS.json"), "utf8")).mirrors;
     assert.deepEqual(mirrors, ["https://archive.org/download/the-fold-pin/models/"]);

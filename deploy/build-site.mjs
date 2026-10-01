@@ -317,6 +317,14 @@ export async function build(opts) {
     if (!existsSync(src)) throw new Error(`engine tree missing: ${src} — clone eoreader7 beside this repo (./fold does)`);
     copyTree(src, join(out, "eoreader7", sub));
   }
+  // The priors the page fetches by name from the engine tree. `native/priors` is skipped above (36 MB, nearly all of it nothing the page reads); the
+  // learned name-form priors are a few KB each and the page's enclitic route is data-gated on them (P265), so a static host without them would
+  // silently lose the route.
+  const priorsSrc = join(e7, "native", "priors");
+  if (existsSync(priorsSrc)) {
+    mkdirSync(join(out, "eoreader7", "native", "priors"), { recursive: true });
+    for (const name of readdirSync(priorsSrc)) if (/^name-forms-.*\.json$/.test(name)) cpSync(join(priorsSrc, name), join(out, "eoreader7", "native", "priors", name));
+  }
 
   // 3. vendored packages the page loads (page-graph's vendored edges) plus the
   //    import-map targets index.html names (onnxruntime for transformers.js)

@@ -95,17 +95,10 @@ if [ ! -d "$LEGACY/.git" ] && [ ! -f "$LEGACY/.git" ]; then
   git clone https://github.com/clovenbradshaw-ctrl/eoreader6.1.git "$LEGACY"
 fi
 
-# An older eoreader7 checkout may still pin the cut as a submodule; keep
-# that path working. Idempotent; a no-op where nothing declares one.
-if [ -f "$EOREADER/.gitmodules" ]; then
-  if ! command -v git >/dev/null 2>&1; then
-    echo "error: git is required to initialize the frozen 6.1 source" >&2
-    exit 1
-  fi
-  (cd "$EOREADER" && git clone --recurse-submodules https://github.com/clovenbradshaw-ctrl/eoreader7.git)
-fi
-
-# The three mounts the servers read, checked by name.
+# EOReader 7 no longer owns the frozen 6.1 source as a submodule.
+# The compatibility source is a separate sibling checkout at $LEGACY.
+# This keeps old runtime imports working without restoring the retired
+# internal mount.\n\n# The three mounts the servers read, checked by name.
 for need in "$EOREADER/native/organs/index.js" "$LEGACY/packages/engine" "$LEGACY/nul/index.js"; do
   if [ ! -e "$need" ]; then
     echo "error: EOReader 7 is incomplete: $need is missing" >&2

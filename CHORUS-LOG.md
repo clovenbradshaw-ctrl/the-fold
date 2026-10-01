@@ -467,3 +467,21 @@ fast: not run — the `chorus-lint` skill is not installed in this environment. 
 clean: (no other lens routed)
 
 Context: this checkout cannot boot the page (no `node_modules`, no `legacy-eoreader6.1`, and the organs seam does not load in a browser on `main` either — see the eoreader7 entry of this date). P263's "Verified, and what could not be" lists what was run and what was not; nothing here claims the page was driven.
+
+## 2026-10-01 — the page's native imports link in a browser: a guard over every native module the page enters (P264; the-fold side of eoreader7 S138)
+
+fast: not run — the `chorus-lint` skill is not installed in this environment. By hand: P264 is free on `origin/main` (latest P262; P263 is on this branch); `generality-gate.test.mjs` passes (P264 carries its `**Generality:**` line); the citations in P264 (P263, S138, `constitution.test.mjs`, `web.test.mjs`) resolve; the pre-existing duplicate-header WARNs are unchanged; P263 is amended by an appended paragraph, not rewritten. Tests: all 213 root test files were run on their own, on a clean worktree at the branch base (5b57ea6) and on the working tree, the eoreader7 sibling at its fixed state (acbd999) for both — 2,652 tests / 53 failing before, 2,656 / 53 after; no file's row changed, the same 30 files fail on both (pre-existing; their causes were not investigated here), and the +4 are this diff's own (`page-native-browser-safe.test.mjs`, 4 of 4). With eoreader7's `native/organs/index.js` stashed back to `HEAD`, the real-page test fails and names all fifteen specifiers; the other three pass. The eoreader7 entry of the same date carries the lens-by-lens reading of the harness and the seam fix; this one covers the page.
+
+User direction (2026-10-01): "Fix it, follow our best practices" — about the page not linking, recorded in P263's last verification bullet. The seam is fixed in eoreader7; this is the guard at the level the page enters.
+
+| lens | citation | file:line | verdict | one line |
+|---|---|---|---|---|
+| Holmes | II.23 | page-native-browser-safe.test.mjs:63 | fixed | the chain graph → entries → files → harness is run on a synthetic page whose answer is known (a planted `node:fs` module entered through a shim is derived, mapped and named with its parent), and the real run asserts the entries are many, include the seam and exist on disk, so a derivation that returned nothing cannot pass it vacuously. |
+| Dijkstra | P264 | page-native-browser-safe.test.mjs:38 | clean | `nativeEntries` is pure over the graph and the root: the two spellings of the mount (`/engine-v7/…` and `../eoreader7/native/…`, which `page-graph.mjs` already types as one mount) come out once each, in one order. |
+| Feynman | III.5 | POLICIES.md P264 | noted | the 44 entries, the 291 ms and the 154 requests are one-off measurements and said to be; the standing assertions are a floor of 20 entries and the seam's presence, not 44, so adding a module to the page cannot fail the test for being new. |
+| Chekhov | — | page-native-browser-safe.test.mjs:32 | noted | this test imports eoreader7's harness by path (`conformance/lib/seam-reach.mjs`), a cross-repo test dependency; chosen over a second copy because two readings of "browser-safe" would drift (said in S138). It needs the eoreader7 sibling at a commit that has the helper, which every the-fold test already needs of it. |
+| Marshall | P263, P264 | POLICIES.md:15189 | clean | P263's "NOT run" bullet is amended by an appended paragraph that says what is now run and what still is not; the original text stands. |
+| Kondo | — | CLAUDE.md (new pointer section) | clean | pointer only, two short paragraphs; the account lives in P264 and S138. |
+clean: (no other lens routed — one new test, one policy entry, one pointer)
+
+Context: this checkout still cannot drive the page through a model turn (no model server; `katex`, `mathjs` and the `monaco-editor` loader are not installed). P264's "Not covered" lists what the guard does not read, among them the legacy mounts, this repo's own DOM-bound page files, and an `import("node:…")` inside a function.

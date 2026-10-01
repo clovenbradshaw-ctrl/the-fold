@@ -105,7 +105,7 @@ noticing — because if it ever did, nothing would clear the pattern test
 anymore, and its own silence would be the tell. You'll see this stated
 formally as one of the system's declared vital signs in Chapter 1.5.
 
-**Where this comes from:** `eoreader6/SEED.md`, "The entelechy" — *"Two
+**Where this comes from:** `legacy-engine/SEED.md`, "The entelechy" — *"Two
 deaths, one conformance family each: Confabulation — it speaks without
 witness. Sclerosis — the ground closes, nothing can differ from it, and it
 becomes an oracle: fluent, sourced, correct, incapable of encounter. With
@@ -120,7 +120,7 @@ those fields — not something the codebase itself cites.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “Two deaths, one conformance family each: Confabulation —…” → `eoreader6/SEED.md#b2666-2964`
+- “Two deaths, one conformance family each: Confabulation —…” → `legacy-engine/SEED.md#b2666-2964`
 
 <!-- anchors:end -->
 

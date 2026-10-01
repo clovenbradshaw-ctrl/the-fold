@@ -52,7 +52,7 @@
 // trazodone type's material and its real grounding/echo/novel machinery);
 // grounding.js (checkGrounding, corroborateAtoms, buildUnionIndex,
 // tokenSupported — meaningfulSurprise's own atom classification);
-// eoreader6.1's task-log.js — the real ledger.
+// the legacy engine.1's task-log.js — the real ledger.
 //
 // Run from the-fold's own root:
 //   node experiments/surprise-router.mjs --self-test

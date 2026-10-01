@@ -13,8 +13,8 @@ name: Deploy Pages
 # each and Pages holds a site under 1 GB.
 #
 # The engine is eoreader7 (its native tree, whose native/legacy-ported
-# serves the page's /engine and /nul — tiers.js, nul). The eoreader6.1 cut
-# is retired (eoreader7/LEGACY-EOREADER6.1.md) and not fetched. Checked out
+# serves the page's /engine and /nul — tiers.js, nul). The the legacy engine.1 cut
+# is retired (eoreader7/LEGACY-ENGINE.md) and not fetched. Checked out
 # beside the-fold exactly as ./fold lays it out.
 
 on:

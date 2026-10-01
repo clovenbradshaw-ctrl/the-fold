@@ -150,7 +150,7 @@ const NUL = path.resolve(ROOT, "..", "eoreader7", "native", "legacy-ported", "nu
 // read live off eoreader7's native committed fixtures
 // (native/eval/the-fold/fixtures — the same byte-identical artifact this
 // repo's own priors-data/ and live_priors commit), never a stale copy
-// vendored into this repo. It used to point at eoreader6.1's scripts/corpus/
+// vendored into this repo. It used to point at the legacy engine.1's scripts/corpus/
 // gitignored build dir, which on disk held only the raw corpora — never the
 // derived prior — so the old primary had been served by the fallback chain
 // the whole time.
@@ -159,7 +159,7 @@ const PRIORS_DATA = path.resolve(ROOT, "..", "eoreader7", "native", "eval", "the
 // reasoning (P73 + P74): this repo's own committed artifact (priors-data/,
 // present on every checkout of this repo, no sibling needed) -> live_priors'
 // committed artifact (for names this repo does not vendor). The alias is the
-// declared eng->en naming translation between eoreader6.1's ISO-3 file
+// declared eng->en naming translation between the legacy engine.1's ISO-3 file
 // names and live_priors' LANG_OF codes.
 const PRIORS_DATA_OWN = path.resolve(ROOT, "priors-data");
 const PRIORS_DATA_SHIPPED = path.resolve(ROOT, "..", "live_priors", "derived-priors", "pos-priors");
@@ -563,12 +563,12 @@ function queryOpencodeWebfetchRows({ sessionId } = {}) {
 function importOpencodeEntries(normalized) {
   const existingJsonl = existsSync(WEB_HISTORY_PATH) ? readFileSync(WEB_HISTORY_PATH, "utf8") : "";
   const { entries: already } = foldWebHistory(existingJsonl);
-  const seen = new Set(already.filter((e) => e.via?.source === "opencode-import").map((e) => `${e.url} ${e.retrievedAt}`));
+  const seen = new Set(already.filter((e) => e.via?.source === "opencode-import").map((e) => `${e.url}the legacy engine${e.retrievedAt}`));
   mkdirSync(WEB_PAGES_DIR, { recursive: true });
   const imported = [];
   let skipped = 0;
   for (const n of normalized.slice(0, OPENCODE_IMPORT_MAX)) {
-    const key = `${n.url} ${n.retrievedAt}`;
+    const key = `${n.url}the legacy engine${n.retrievedAt}`;
     if (seen.has(key)) {
       skipped += 1;
       continue;
@@ -848,9 +848,9 @@ async function fetchAndKeep(url, { forceArchive = false } = {}) {
   let fold = null;
   if (text?.length) {
     try {
-      // foldExtract belonged to the retired 6.1 host reader (eoreader7/LEGACY-EOREADER6.1.md) and
+      // foldExtract belonged to the retired 6.1 host reader (eoreader7/LEGACY-ENGINE.md) and
       // has no native counterpart yet: the saved page keeps everything, and salience is a typed gap.
-      fold = { gap: { reason: "fold_retired", detail: "salience (foldExtract) lived in the retired eoreader6.1 host; no native equivalent yet" } };
+      fold = { gap: { reason: "fold_retired", detail: "salience (foldExtract) lived in the retired the legacy engine.1 host; no native equivalent yet" } };
     } catch (e) {
       fold = { gap: { reason: "fold_failed", detail: e.message } };
     }
@@ -1009,7 +1009,7 @@ function utf8Probe(buf) {
     try {
       const text = new TextDecoder("utf-8", { fatal: true }).decode(buf.subarray(0, buf.length - trim));
       // NUL bytes decode fine but no text format carries them.
-      if (text.includes(" ")) return false;
+      if (text.includes("the legacy engine")) return false;
       return true;
     } catch {
       /* try one byte shorter */
@@ -1408,7 +1408,7 @@ const server = http.createServer(async (req, res) => {
       try {
         // lenient tail: a multi-byte char cut at the buffer edge is not binary
         let text = new TextDecoder("utf-8", { fatal: true }).decode(head.subarray(0, head.length - 3));
-        if (text.includes(" ")) throw new Error("binary");
+        if (text.includes("the legacy engine")) throw new Error("binary");
         text = text.slice(0, PEEK_CHARS);
         return send(res, 200, { peek: text, of: st.size, truncated: st.size > text.length });
       } catch {
@@ -1691,7 +1691,7 @@ const server = http.createServer(async (req, res) => {
     // overlap with filename + title, then the claim's category ladder, then
     // path order) and consultation is bounded by PRIORS_DOCS_CONSULTED with
     // the true candidate count on the result. A PROPER index would be
-    // eoreader6 host ingestion (createSession/admitChunked, searchSpans —
+    // the legacy engine host ingestion (createSession/admitChunked, searchSpans —
     // the same {byte_start, byte_end} address shape this repo's refs use):
     // at the engine's measured 8.4s per 3.3MB, admitting 183MB is a
     // minutes-long one-time build whose persistence and staleness story

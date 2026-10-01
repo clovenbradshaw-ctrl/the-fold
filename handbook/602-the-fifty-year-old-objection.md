@@ -140,7 +140,7 @@ left for a reader to notice on their own.
 **Where this comes from:** Fillmore's argument and the field's response
 (FrameNet 1997, PropBank 2005, unsupervised SRL by Titov & Klementiev
 and Lang & Lapata c. 2010–11, TextRunner 2007, and ReVerb — Fader,
-Soderland & Etzioni, 2011) are from `eoreader6/prior-art-teachable-
+Soderland & Etzioni, 2011) are from `legacy-engine/prior-art-teachable-
 language-comprehender.md`, §III, including the direct citation *"Charles
 Fillmore, The Case for Case, 1968"* and its three examples; every passage
 in quotation marks above is verbatim from that section, including the
@@ -150,11 +150,11 @@ from the ERIC working-paper text of "The Case for Case" (ED019631; the
 1968 Bach & Harms book printing has minor wording differences and was
 not itself retrievable), and the ReVerb abstract is from the EMNLP 2011
 proceedings PDF (ACL Anthology D11-1142). The 87%
-recall-loss measurement is from `eoreader6/scripts/experiments/
+recall-loss measurement is from `legacy-engine/scripts/experiments/
 FINDINGS.md` §1 (PR #44, `goldens/agency-civic/`). The verb-island
 reordering (Tomasello), the transitional-probability chunking (Saffran,
 Aslin & Newport), and the cross-lingual result ("the mouth is
-language-specific by construction, the organ isn't") are from `eoreader6/
+language-specific by construction, the organ isn't") are from `legacy-engine/
 scripts/experiments/README.md` (PRs #45–48), which carries those
 citations itself. The stated ceiling against Fillmore's actual goal (two
 coarse, unlabeled kinds rather than named roles) is from `FINDINGS.md`
@@ -166,14 +166,14 @@ coarse, unlabeled kinds rather than named roles) is from `FINDINGS.md`
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “the hammer broke the window,” → `eoreader6/prior-art-teachable-language-comprehender.md#b7151-7178`
+- “the hammer broke the window,” → `legacy-engine/prior-art-teachable-language-comprehender.md#b7151-7178`
 - “The case notions comprise a set of universal,…” → `fillmore-1968#b74814-74970`, `fillmore-1968#b74971-75033`, `fillmore-1968#b75033-75092` *(+0 segment(s) not located)*
-- “as far as I know, [it] has never…” → `eoreader6/prior-art-teachable-language-comprehender.md#b8604-8653` *(+1 segment(s) not located)*
+- “as far as I know, [it] has never…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b8604-8653` *(+1 segment(s) not located)*
 - “This paper shows that the output of state-of-the-art…” → `reverb-2011#b589-653`, `reverb-2011#b655-779` *(+1 segment(s) not located)*
-- “That is `discoverRelationVocab` and the ≥2-distinct-surfaces recurrence requirement,…” → `eoreader6/prior-art-teachable-language-comprehender.md#b9502-9789`
-- “the acquisition of X by Y, the deployment…” → `eoreader6/prior-art-teachable-language-comprehender.md#b9890-9958`
-- “Charles Fillmore, The Case for Case, 1968” → `eoreader6/prior-art-teachable-language-comprehender.md#b6904-6947`
-- “the mouth is language-specific by construction, the organ…” → `eoreader6/scripts/experiments/README.md#b6685-6748`
+- “That is `discoverRelationVocab` and the ≥2-distinct-surfaces recurrence requirement,…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b9502-9789`
+- “the acquisition of X by Y, the deployment…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b9890-9958`
+- “Charles Fillmore, The Case for Case, 1968” → `legacy-engine/prior-art-teachable-language-comprehender.md#b6904-6947`
+- “the mouth is language-specific by construction, the organ…” → `legacy-engine/scripts/experiments/README.md#b6685-6748`
 
 Quoted spans **not located in any obtained source** and not explained by a known gap — each is either the book's own illustrative speech, or a passage that reads as verbatim and is not, which is itself a finding to resolve:
 

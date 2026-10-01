@@ -1,6 +1,6 @@
 // measure.test.mjs — the walls themselves, against the real engine.
 //
-// Every test here runs measure.js over eoreader6's actual `nul/index.js` and
+// Every test here runs measure.js over the legacy engine's actual `nul/index.js` and
 // `emergence/binding.js`, imported by relative path the same way the page
 // imports them from /nul and /engine. No stub carries these walls: a fake nul
 // with a hand-written LICENSED table would pass every test below while proving
@@ -562,7 +562,7 @@ test("sniffContainer reads real containers off their own first bytes", () => {
   // Real files from this machine, head bytes only — no synthetic magic.
   const head = (path) => new Uint8Array(readFileSync(path).subarray(0, 64));
   const cases = [
-    ["/home/user/eoreader6/problem space.zip", "zip"],
+    ["/home/user/legacy-engine/problem space.zip", "zip"],
     ["/home/user/eoreaderhandbook/sources/web/quine-1948-on-what-there-is.pdf", "pdf"],
     ["/opt/pw-browsers/chromium-1194/chrome-linux/product_logo_48.png", "png"],
     ["/opt/pw-browsers/chromium-1194/chrome-linux/libEGL.so", "elf"],

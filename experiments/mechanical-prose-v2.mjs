@@ -7,7 +7,7 @@
 // question asked in chat (2026-08-19): "load up all our priors, read them
 // properly, and try to generate from it." Two real priors are loaded here,
 // not simulated:
-//   1. POSPrior@1 (eoreader6.1/scripts/corpus/pos-prior-eng.json) — every
+//   1. POSPrior@1 (the legacy engine.1/scripts/corpus/pos-prior-eng.json) — every
 //      English word form's attested part-of-speech tags, real counts, from
 //      Universal Dependencies UD_English-EWT (CC BY-SA 4.0), read through
 //      wordclass.js::classifyWord/dominantClass exactly as hyperlexicon.js

@@ -30,7 +30,7 @@
 // "What is most surprising" is MEASURED, never asked (L5: a compliance-
 // critical fact is never left to the model's instruction-following — and a
 // model asked to introspect its own surprise is exactly that mistake). The
-// meter is the engine's own tier stack — eoreader6 emergence/tiers.js,
+// meter is the engine's own tier stack — the legacy engine emergence/tiers.js,
 // createTierStack/foldThrough over surprise.js's bayesianSurprise and
 // priorContinuationNull — used, never copied (organs injected, the cast.js
 // pattern, so this module stays node-testable while the page loads them
@@ -247,7 +247,7 @@ function standingOf(r) {
 /**
  * `makeReflexMeter(organs)` → `{ create, observe }`.
  *
- * The organs are eoreader6's own — emergence/tiers.js createTierStack and
+ * The organs are the legacy engine's own — emergence/tiers.js createTierStack and
  * foldThrough — injected so this module is imported by both the page (which
  * loads them from /engine) and the node tests (relative path). One meter per
  * conversation; `observe` mutates the meter's tiers (they are the engine's

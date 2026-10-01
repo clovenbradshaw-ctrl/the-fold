@@ -1,8 +1,8 @@
 {
   "schema": "the-fold.eoreader-contract.v1",
-  "purpose": "Runtime compatibility contract that EOReader 7 must satisfy for The Fold. Migration is in progress, not binary: browserEngineModules records what remains on the frozen /engine (legacy-eoreader6.1) mount; browserNativeModules records what has already crossed to the native /engine-v7 (eoreader7 native/) kernel, per the migrationLaw below. The 2026-08-29 pass (CLAUDE.md: \"The connection pass\" and its ratchet-completion follow-up) moved app.js's text organs and its operator/task-log algebra off /engine; emergence/tiers.js (and the nul/index.js statistics subsystem it stands on) is the one disclosed holdout \u2014 no native equivalent exists yet, and porting it faithfully is its own future pass, not a rider on this one.",
+  "purpose": "Runtime compatibility contract that EOReader 7 must satisfy for The Fold. Migration is in progress, not binary: browserEngineModules records what remains on the frozen /engine (legacy-legacy-engine.1) mount; browserNativeModules records what has already crossed to the native /engine-v7 (eoreader7 native/) kernel, per the migrationLaw below. The 2026-08-29 pass (CLAUDE.md: \"The connection pass\" and its ratchet-completion follow-up) moved app.js's text organs and its operator/task-log algebra off /engine; emergence/tiers.js (and the nul/index.js statistics subsystem it stands on) is the one disclosed holdout \u2014 no native equivalent exists yet, and porting it faithfully is its own future pass, not a rider on this one.",
   "reference": {
-    "repository": "clovenbradshaw-ctrl/eoreader6.1",
+    "repository": "clovenbradshaw-ctrl/legacy-engine.1",
     "branch": "main",
     "observedHead": "00bf5605912d601c82936654055dcc8df30633fa"
   },

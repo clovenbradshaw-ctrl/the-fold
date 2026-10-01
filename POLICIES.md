@@ -27,7 +27,7 @@ transitive closure of imports, dynamic imports, importScripts, Worker sources
 and relative module paths held as data (term.js's ROSTER). Three kinds of
 edge stay out of scope and each is typed, asserted to resolve on this disk,
 and reported rather than skipped — `/engine` and `/nul` (another repo's bytes,
-governed by eoreader6's own tests), `/node_modules` (vendored third-party,
+governed by the legacy engine's own tests), `/node_modules` (vendored third-party,
 where what is checked is that the bytes are served from localhost), and a
 separate document in an iframe (Explore, scanned by web.test.mjs's seam).
 A non-local host literal is a failure unless a TYPED allowance covers it and
@@ -414,7 +414,7 @@ material IS the ledger, audited by the same organs as any turn.
 "What is most surprising" is measured, never asked — L5 applied to
 introspection: a model asked to report its own surprise is a
 compliance-critical fact left to instruction-following. The meter is the
-engine's own tier stack (eoreader6 `emergence/tiers.js`,
+engine's own tier stack (the legacy engine `emergence/tiers.js`,
 `createTierStack`/`foldThrough` over `surprise.js`), used, never copied
 (organs injected, the cast.js pattern; served via the `/engine` and `/nul`
 mounts). Every message the conversation hears is one arrival, placed against
@@ -442,7 +442,7 @@ always wins).
 P3 extended from plans to the things built. A build — a code artifact, a
 table, an html/svg render, anything the conversation produces and keeps — is
 never a mutable object. It is a thread on the engine's own task log
-(eoreader6 `engine/holon/task-log.js`, used through the `/engine` mount,
+(the legacy engine `engine/holon/task-log.js`, used through the `/engine` mount,
 injected so `build-log.js` stays pure — the cast.js pattern): its birth is a
 PROPOSE, every edit and reset a SUPERSEDE that keeps the past, every run a
 RESULT attached to the version that actually ran. What the app shows is a
@@ -579,7 +579,7 @@ iteration loop, one complaint away, with nothing lost. Kinship disclosed:
 this is the same shape as the sibling `bare-metal-eo-matrix-app` (state =
 fold(dispatch, initial, events), operator-typed events, schema in the
 log), with one divergence named — that repo reads DEF as "set a value in
-the current frame"; this repo follows eoreader6's own register (DEF =
+the current frame"; this repo follows the legacy engine's own register (DEF =
 refuse), so a value swap here is SYN · compile, never DEF.
 
 Amended same day, user direction ("INS is birth — go read the eoreader
@@ -773,7 +773,7 @@ The instrument could draw a file's own rows (P12's tables and charts) and
 could not say whether anything in them was more than the file's own
 arithmetic. So that question got answered elsewhere, by hand, every time
 someone had it — and the sibling `dfr-causal-analysis` repo is the measured
-cost of that: of seven analysis scripts, four import eoreader6 by an absolute
+cost of that: of seven analysis scripts, four import the legacy engine by an absolute
 path on one laptop (its own paper lists this under limitations: "those runs
 cannot be reproduced by a third party"), three hand-roll permutation nulls
 with `random.shuffle` and their own p-values, and two report weighted
@@ -1117,7 +1117,7 @@ capacity registry `synthesize`'s parts are checked against).
 **Reused, not re-derived.** The nine operators (NUL SIG INS SEG CON SYN DEF
 EVA REC), the terrain grid (`TERRAIN_BY_DOMAIN`), and the append-only log
 discipline all come from `packages/engine/operators.js` and
-`holon/task-log.js` (`../eoreader6.1`) — grid.js adds the composition-law
+`holon/task-log.js` (`../legacy-engine.1`) — grid.js adds the composition-law
 surface and the stance axis on top, never a second copy of the algebra.
 Three reconciliations were necessary between the Terminal Language document
 as handed down and what this repo already ships, and grid.js's own header
@@ -1522,7 +1522,7 @@ causal, not incidental — and a decomposed part stays narrowly scoped even
 when discourse names the exact right topic). 626 of 628 repo tests pass;
 the two failures (`arithmetic.test.mjs`, `measure.test.mjs`) are
 pre-existing and unrelated — a missing `mathjs` dependency and a stale
-`eoreader6` path respectively, neither file touched by this policy.
+`the legacy engine` path respectively, neither file touched by this policy.
 
 **Amended 2026-08-19 — the join is earned, never assumed (stable
 sub-assemblies, user direction: "change the way the prompting happens to be
@@ -2248,7 +2248,7 @@ standing:
   verdict.** No cut is drawn anywhere in this pass: earning one needs more
   material than a synthetic suite and one real-prose sample, and tuning a
   threshold against either would be exactly the "calibrating on the answer
-  key" mistake eoreader6.1's CLAUDE.md names twice over. Polarity is
+  key" mistake the legacy engine.1's CLAUDE.md names twice over. Polarity is
   ignored when matching a shuffled-copy triple to an edge — under shuffle
   it is noise by construction, the negation window being an order fact
   the shuffle just destroyed.
@@ -2641,7 +2641,7 @@ reusing it for a discrete hop-expansion stopping rule needs its own
 design and its own measurement against real material before it earns a
 name in this file — exactly the standard P4 and this file's "never tune a
 parameter by checking what it does to a golden's own score" sibling rule
-(eoreader6.1/CLAUDE.md) hold every other number in this instrument to.
+(the legacy engine.1/CLAUDE.md) hold every other number in this instrument to.
 Shipping a claimed null test that was not actually validated would be
 worse than the honest, disclosed, sentence-scoped heuristic landed today —
 "a heuristic tweak quietly standing in as if it were the real fix" is
@@ -2669,8 +2669,8 @@ flight (three pre-existing, unrelated failures — `arithmetic.test.mjs`,
 confirmed unrelated by stashing this change and re-running those files
 alone); 759/760 after merging that work in, the upstream commits having
 fixed `arithmetic.test.mjs` along the way — the one remaining failure
-(`measure.test.mjs`, a stale `../eoreader6/` path predating the
-`eoreader6.1` rename) touches neither `grounding.js` nor this policy.
+(`measure.test.mjs`, a stale `../legacy-engine/` path predating the
+`the legacy engine.1` rename) touches neither `grounding.js` nor this policy.
 
 ## P32 — The witness tier: the verdict is derived from a pair of binary reads, never asked as a label
 
@@ -2738,7 +2738,7 @@ aspect, phrased beside the web counts). The reflex ledger gains a
 unedited.
 
 **Evidence.** Offline: 7/7 conformance tests; full repo 767 passing (one
-pre-existing failure, `measure.test.mjs`'s stale `eoreader6` path).
+pre-existing failure, `measure.test.mjs`'s stale `the legacy engine` path).
 Live (`eval/witness-live.mjs`, gemma2:2b, three iterations recorded in the
 session): the three-way form → right `because`, wrong label (led to the
 binary redesign); the first binary run → correct pair (claim-no,
@@ -3328,7 +3328,7 @@ and Structure's was never promoted. Same review found the omnimodal
 proof satisfies the constitution's Article II.1 but not its stronger
 Article II.11 (a real cross-modal-failure contrast, not a second
 hand-typed toy fixture) — disclosed, not yet closed. Full corrected
-account: eoreader6.1/CLAUDE.md.
+account: the legacy engine.1/CLAUDE.md.
 Proven content-general before trusting the move, not asserted: the
 engine's own `hl.test.mjs` runs the identical rules over a
 non-linguistic supply-chain stage with structurally identical results
@@ -3389,8 +3389,8 @@ works, not a workaround.
 
 **Full suite after: the-fold 1002/1002 (net -2 from the prior count —
 hl.test.mjs shrank from 16 to 4 cases as its logic tests moved to the
-engine; hl-acquire.test.mjs added 10), eoreader6.1's own new modules
-19/19. One pre-existing failure in eoreader6.1's full suite
+engine; hl-acquire.test.mjs added 10), the legacy engine.1's own new modules
+19/19. One pre-existing failure in the legacy engine.1's full suite
 (`goldens/multimodal/score.test.mjs`, a video causal-boundary test) is
 unrelated to this work — confirmed by `git status`: the only files this
 change touches are CLAUDE.md, packages/engine/package.json, and the new
@@ -3418,7 +3418,7 @@ this repo, check what floor built that index. If it is `cast.js`'s
 (`minSentences: 0`, its own header explains why — presence, not cast),
 build a separate pass with `discoverReferents(surfaces, {})` instead,
 letting the organ's own DERIVED recurrence floor apply — the same thing
-eoreader6.1's `host/corpus.js` already does, validated at book scale.
+the legacy engine.1's `host/corpus.js` already does, validated at book scale.
 
 **The incident this law is named for (2026-08-20).** Wiring
 `pronouns.js::resolvePronouns` into `hypergraph.js`'s relation tier (to
@@ -3457,7 +3457,7 @@ gaps are the organ's own honest, typed refusals (`pronoun_no_candidate`,
 a real activation margin too thin to call), not silence.
 
 **Chain of custody, for the next reader wondering how "prove the Lincoln
-fix" turned into a fix in a shared eoreader6.1 file.** Same incident,
+fix" turned into a fix in a shared the legacy engine.1 file.** Same incident,
 same day, three more real, measured, tested fixes surfaced and landed
 along the way, each following the identical discipline (measure before
 trusting, fix at the source, never chase a closed list of site-specific
@@ -3476,7 +3476,7 @@ chunk — cheap, clean, and complete in a way a single fetched full page
 often is not — after first shipping it as N separate per-result chunks
 and measuring that nine near-identically-scoring candidates racing for
 three retrieval slots is a coin flip on which FACTS survive. And
-`extractSurfaces` (eoreader6.1, shared, widely used) gained `|` to its
+`extractSurfaces` (the legacy engine.1, shared, widely used) gained `|` to its
 run-breaking punctuation set — a web-title convention
 ("Topic | Section | Site") this organ, proven on book prose, had never
 been checked against — found by running real material, not by auditing
@@ -3487,7 +3487,7 @@ separator conventions one character at a time (hyphens next) — the exact
 for succession-box parsing, aimed here at title formatting instead.
 
 **Full test status across every fix in this chain.** the-fold 1003/1003,
-eoreader6.1 1116/1116 (the `extractSurfaces` fix, a shared file with real
+the legacy engine.1 1116/1116 (the `extractSurfaces` fix, a shared file with real
 regression history — CLAUDE.md's own "referent-merge chain of incidents"
 — re-run in full, not spot-checked), both clean before and after.
 
@@ -3606,7 +3606,7 @@ name the same referent while differing by a single character, and a span
 comparison will silently treat them as unrelated. This is READING-POLICY
 P7.2 restated for the-fold's own call sites, not a new rule — the value
 of writing it here is that it now names two concrete, reproduced
-the-fold incidents (not just eoreader6.1's) a future session can grep for
+the-fold incidents (not just the legacy engine.1's) a future session can grep for
 before building the third one.
 
 ## P39 — A claim's identity is threaded through existing fields, never a new mechanism built to carry it
@@ -4047,10 +4047,10 @@ matching node exists). `packages/host/terrains.js` (binding keyed by
 per-call reconciliation, both new Void gap types) +
 `conformance/host-terrains.test.js` (+3 cases, one a REGRESSION test
 against the fragmentation bug on real Frankenstein prose). All in
-eoreader6.1. `the-fold/explore/explore.js` + `explore/explore.css`
+the legacy engine.1. `the-fold/explore/explore.js` + `explore/explore.css`
 (standing rendering) in this repo.
 
-**Measured.** eoreader6.1's full conformance suite: 1094/1091/0 passing
+**Measured.** the legacy engine.1's full conformance suite: 1094/1091/0 passing
 before this pass (3 skipped — the gitignored `goldens/cast` fixture,
 unaffected), 1112/1109/0 after — the +18 delta is exactly this pass' own
 18 new test cases (8+3+4+3), zero regressions, same 3 skips. Both new
@@ -4170,7 +4170,7 @@ rather than a lie).
 
 **Evidence and its environment, disclosed.** Full account:
 `eval/results/reasoning-e2e-no-llm-RESULTS.md`. The sandbox this ran in
-had no checkout at the `../eoreader6.1` compatibility mount `./fold`
+had no checkout at the `../legacy-engine.1` compatibility mount `./fold`
 creates; it was reconstructed the way that script does (submodule init in
 the sibling `eoreader7` checkout, then the mount symlink), and `npm
 install` was never run. Measured via `git stash` on exactly this pass's
@@ -4713,14 +4713,14 @@ THIS REPO, reused rather than re-derived: its two-rule prequential
 firewall (a ground version cannot be frozen retroactively; a turn cannot be
 re-priced once scored) is exactly what "score an ablation against the
 ground as it stood at that turn, permanently" needs. `adaptTaskLog` bridges
-`ground-ledger.js`'s expected shape (built against eoreader6.1's
+`ground-ledger.js`'s expected shape (built against the legacy engine.1's
 `holon/task-log.js`, which carries a `GRAIN_RANK` export) to eoreader7's
 real `native/kernel/task-log.js` + `native/kernel/cube.js` (which carries
 ordinal `GRAINS` instead — `GRAIN_RANK` is that ordinality made explicit,
 not a new fact) — a genuine reconciliation, not an assumed compatibility,
 tested against the real eoreader7 modules end to end, incidentally giving
 `ground-ledger.js`'s own firewall real test coverage in an environment
-where `ground-ledger.test.mjs` itself cannot load (it imports eoreader6.1
+where `ground-ledger.test.mjs` itself cannot load (it imports the legacy engine.1
 directly, which this checkout does not have as a sibling).
 
 The ablation computation itself — "re-run the mechanical grounding with
@@ -4799,7 +4799,7 @@ none of this pass's production code performs a live cross-repo import,
 every eoreader7 dependency arrives injected, cast.js pattern, so there is
 nothing yet to promote to a runtime consumer). Full suite: 722/608/114
 before this pass, 754/640/114 after — the identical 114 pre-existing
-environment failures (missing `../eoreader6.1/` sibling and several
+environment failures (missing `../legacy-engine.1/` sibling and several
 vendored `node_modules`, this checkout's own disclosed gap, unrelated to
 this pass), zero regressions, 32 new tests all genuinely passing — not
 environment-gapped, because eoreader7 is checked out as a real sibling in
@@ -4987,7 +4987,7 @@ import path, real export name, which later increment needs it — and
 [`eoreader-contract.test.mjs`](eoreader-contract.test.mjs) is the assay:
 it reads the JSON and, for each declared entry, dynamically imports the
 REAL checkout at `../eoreader7` by relative path (the same convention
-`build-log.test.mjs` already uses for `../eoreader6.1`) and asserts the
+`build-log.test.mjs` already uses for `../legacy-engine.1`) and asserts the
 export exists and is callable. No stub, no fixture, no hand-copied list to
 drift from the JSON — the test walks the contract's own declaration.
 
@@ -5025,7 +5025,7 @@ aspirational listing that contract exists to prevent.
 **The cheap check that was skipped.** `git fetch && git log origin/main`
 before building, not after. This repo's CLAUDE.md already carries that rule
 by name ("when a fix duplicates work already landed on another branch,
-reconcile before merging"), earned from the same mistake in eoreader6.1,
+reconcile before merging"), earned from the same mistake in the legacy engine.1,
 and it was not run here. The genuinely new work in this pass is the plan
 and the corrected scoping (P47's first half, and the reach finding below),
 not the contract.
@@ -5037,7 +5037,7 @@ application" expected to migrate, not yet migrated.
 **Disclosed, not attempted here.** Whether `deriveIdentityRevision`'s real
 signature (`{fold, supports, attacks, witness, giver,
 canonicalizationFloor}`) actually carries the positional "distance back"
-semantics Increment D's margin needs, or has the same gap eoreader6.1's
+semantics Increment D's margin needs, or has the same gap the legacy engine.1's
 `revision.js` had, is unread — the single highest-value next research step,
 named in `READING-WORKBENCH-ENGINE-PLAN.md` rather than guessed at here.
 Increments B through F are unstarted; B and C in particular touch
@@ -5050,7 +5050,7 @@ against the wrong repo, and reads as solved once read against the right
 one.** The paragraph above disclosed one open question as the highest-value
 next step: whether eoreader7's real `deriveIdentityRevision` carries the
 positional "distance back" semantics Increment D's margin needs, given
-that eoreader6.1's `revision.js` (a different file, read by mistake in the
+that the legacy engine.1's `revision.js` (a different file, read by mistake in the
 first pass) does not. Read directly: it does, via a different and better
 mechanism than the byte/sentence coordinate the first pass went looking
 for. Every `REC` operation's `consequence` names the source edge it
@@ -5081,7 +5081,7 @@ numbers exactly. The open work is adapting `understanding-scoreboard.mjs`'s
 node/eval scoring into something a UI margin renders live per-source, and
 settling the spec's own already-named deferred question (persistent gutter
 vs. opens-on-demand) — not inventing a coordinate space, which was the
-first pass's actual mistake: it read `eoreader6.1/packages/engine/
+first pass's actual mistake: it read `the legacy engine.1/packages/engine/
 emergence/revision.js`'s missing positional field and concluded the
 concept itself was absent from the organ, rather than checking whether the
 real eoreader7 organ addressed the same need a different way.
@@ -5708,7 +5708,7 @@ grid and REAL void-shape; no stubs that matter). `eval/void-loop-e2e.mjs`
 + `eval/results/void-loop-e2e-RESULTS.md` + `void-loop-e2e-transcript.txt`.
 No existing file touched. Suite 805/687/118 before, 841/723/118 after —
 failure names diffed against the baseline, not counted: zero regressions.
-The 118 are pre-existing and environmental (`legacy-eoreader6.1` is an
+The 118 are pre-existing and environmental (`legacy-legacy-engine.1` is an
 uninitialised submodule in this checkout, so `grid.test.mjs` among others
 cannot resolve its imports; `void-loop.test.mjs` therefore imports
 eoreader7's **native** kernel, as `void-shape.test.mjs` already does).
@@ -6484,7 +6484,7 @@ honestly reports `SIG anchor — UNDECLARED` with "who or what it hangs on"
 listed among the open questions — no crash, no guessed anchor, the exact
 degradation this repo's whole discipline asks for.
 
-**Files.** `priors.js` (engine, `eoreader7/legacy-eoreader6.1`): two new
+**Files.** `priors.js` (engine, `eoreader7/legacy-legacy-engine.1`): two new
 closed classes. `web-claim.js`: `declaredSlotShape` gained Path 2, the
 contraction fix, the manner/reason gate, ADP-based anchor recovery, and the
 `anchorHint`/`anchorPreposition` return fields. `void-brief.js`: the
@@ -7815,7 +7815,7 @@ one partially, each on its own honest terms.**
    the claim's own distinguishing word ("עשרים", absent from the real
    edge) are both checked by name. Could not be executed in this
    session's own environment (the file's other real-pipeline cases need
-   `legacy-eoreader6.1`, an uninitialised submodule here, an unrelated
+   `legacy-legacy-engine.1`, an uninitialised submodule here, an unrelated
    pre-existing gap this document already names elsewhere) — verified
    instead by extracting `contentTokens`/`negationCandidates`'s exact
    logic into an isolated script and running it directly against the
@@ -8080,7 +8080,7 @@ Figure-grain and Pattern-grain kind of act now has at least one organ.
 assumed, and the build got cheaper because of it.** The plan gated the
 kinds pair (SIG·Pattern + NUL·Pattern) on "the legacy-engine path
 question" — registering a module this checkout cannot even read
-(`eoreader7/legacy-eoreader6.1`, uninitialised submodule). But eoreader7's
+(`eoreader7/legacy-legacy-engine.1`, uninitialised submodule). But eoreader7's
 NATIVE kernel already carries full ports: `kind-induction.js`
 (`projectKinds`, the induction surface) and `entity-kind-induction.js`
 (`induceEntityKindCandidates`, with a BUILT-IN seeded random-subset
@@ -8191,7 +8191,7 @@ reasoned rows, stated as such.
 127 fail / 2 skipped — the 19 new cases (9 clearance + 10 unravel) all
 passing, and all 127 failure NAMES byte-identical to the standing
 environment baseline (`before-names.txt`, diffed name-by-name — the
-uninitialised `legacy-eoreader6.1` submodule set this checkout has always
+uninitialised `legacy-legacy-engine.1` submodule set this checkout has always
 carried), zero regressions. eoreader7: 178/174/4, same 4 by
 name. `eval/results/capability-coverage.json` regenerated by the live
 driver. moves.test.mjs's counts updated 19/8 → 24/3 with the history
@@ -8372,7 +8372,7 @@ different one.
 **Enforced.** `eoreader7/native/tests/contest.test.js` 18/18,
 `pronouns.test.js` 9/9 unchanged. eoreader7 native suite 212/202/10 →
 230/220/10, failure names diffed rather than counted: identical set, the
-standing uninitialised-`legacy-eoreader6.1` failures, zero regressions.
+standing uninitialised-`legacy-legacy-engine.1` failures, zero regressions.
 the-fold suite 1039/912/125 before and after, failure names identical
 (117 of the 125 are that same submodule).
 
@@ -8639,7 +8639,7 @@ unchanged from the pre-existing behavior). A full live boot of
 `explore-server.mjs` could not be completed in this environment — it
 imports `packages/host/index.js` at module top level, which re-exports
 from `packages/host/assertion-resolution.js`, a file in the FROZEN
-`legacy-eoreader6.1` submodule (pinned commit
+`legacy-legacy-engine.1` submodule (pinned commit
 `e20e441d3cdfb735d605c75037e6d73892e707c0`) carrying a genuine, pre-existing
 syntax error (12 open parens, 11 close, confirmed by direct count) that
 predates this pass entirely and is unrelated to it — `serve.mjs` never
@@ -8694,7 +8694,7 @@ and `text-boundary.test.mjs` (the identical check over
 holding after two new files landed inside the tree they scan.
 
 **One condition of this pass, stated so it is not silently assumed to
-extend further, and not overstated: the `legacy-eoreader6.1` submodule was
+extend further, and not overstated: the `legacy-legacy-engine.1` submodule was
 UNINITIALIZED in THIS session's checkout at this pass's start** (the
 directory held nothing — no `.git`, no files). This is a fact about how
 this particular container was provisioned, not a claim about what any
@@ -9192,7 +9192,7 @@ stopping); a first page against a thin seed is unplaceable and continues
 the hunt (the safe side); and the whole stream is byte-deterministic on
 the declared null seed. 7/7 against the real engine module — runnable in
 this checkout for the first time, because this same session initialized
-the `legacy-eoreader6.1` submodule (which also swelled the honest suite:
+the `legacy-legacy-engine.1` submodule (which also swelled the honest suite:
 1578 tests now execute where 1092 did, the old 125-name environment
 failure set collapsing to 42, identical before/after every change here).
 
@@ -9303,7 +9303,7 @@ amendments above already state — a materially larger, riskier decision
 
 **Verified, on this checkout's own terms — including one gap closed
 along the way.** `node --check app.js` passes. This checkout's own
-`legacy-eoreader6.1` submodule (a real, declared git submodule of
+`legacy-legacy-engine.1` submodule (a real, declared git submodule of
 `eoreader7`, `.gitmodules`-registered but never checked out before this
 pass) was initialized during this reconciliation — a reversible, local,
 read-only clone of a public repo, not a code change — which is why this
@@ -9451,7 +9451,7 @@ full insight of the EO cube in the structure of the solution."*
 pipeline was performing INS without EVA, and SYN at the wrong grain, on
 a Ground that shipped nowhere. Ground first: `serve.mjs`'s
 `/priors-data/` mount pointed EXCLUSIVELY at
-`../eoreader7/legacy-eoreader6.1/scripts/corpus/` — a **gitignored build
+`../eoreader7/legacy-legacy-engine.1/scripts/corpus/` — a **gitignored build
 directory inside a submodule most checkouts never initialize** — so
 `app.js`'s fetch of `pos-prior-eng.json` failed silently everywhere, and
 every organ gated on that prior degraded to off. Not only the door's
@@ -9480,7 +9480,7 @@ fails, plus the TYPED refusal record.
    `derived-priors/pos-priors/`** (still read live off a sibling repo,
    never a copy vendored here — /engine's own discipline), with one
    declared alias at the seam (`pos-prior-eng.json` →
-   `pos-prior-en.json`: eoreader6.1 names files by ISO-3, live_priors by
+   `pos-prior-en.json`: the legacy engine.1 names files by ISO-3, live_priors by
    its LANG_OF codes — THRAX_MAP's own declared-translation precedent).
    live_priors is the Ground repo by construction: the artifact there is
    committed with giver, license, and per-file sha256 (its own
@@ -9554,7 +9554,7 @@ committed a train+dev+test build with per-file sha256 provenance (19,341
 forms). The merge kept both honestly — the serving chain's tier 2
 (availability: present on every checkout of this repo) preferred the
 SMALLER build over the richer one sitting one tier down. Reconciled, not
-deduped (eoreader6.1's own rule): the tier is right to exist and its
+deduped (the legacy engine.1's own rule): the tier is right to exist and its
 CONTENT is now live_priors' artifact, copied byte-for-byte
 (sha256 a5774fa16fd56bd4…, identical on both sides), so the two committed
 copies can never silently drift — a divergence is one hash comparison
@@ -9586,7 +9586,7 @@ reading is actually omnilingual. This repo has no book-length,
 multi-language reading pipeline of its own (`eval/crosslingual-eval.mjs`
 asks an adjacent, narrower question — does the assertion tier honestly
 DISCLOSE its own reach limit — and cannot run in every checkout, since it
-targets the legacy `eoreader7/legacy-eoreader6.1` submodule path); the
+targets the legacy `eoreader7/legacy-legacy-engine.1` submodule path); the
 actual EOT-producing pipeline (`hyperlexicon.js::admit`/`hear`,
 end-to-end, over real fetched sources) lives in **live_priors**, as
 `scripts/eot-sidecar.mjs` — this repo's own hyperlexicon.js and
@@ -9780,7 +9780,7 @@ user's own explicit choice over a single big-bang rename, given the size.
 purpose, the same precedent `hyperlexicon-stance.test.mjs` and
 `hypergraph-vocabulary-candidates.test.mjs` already established:
 `hypergraph.test.mjs` reaches the engine through
-`../eoreader7/legacy-eoreader6.1`, an uninitialised submodule in this
+`../eoreader7/legacy-legacy-engine.1`, an uninitialised submodule in this
 checkout, so a case appended there would silently never execute. Two
 pure-function cases on `arrangementOf` itself, and four against the REAL
 native engine organs, one per construction site, including the `nearest`/
@@ -9891,7 +9891,7 @@ fixable the way a fixture merely falling behind the shape is).
 independent EOT-ledger vocabulary (P57) — `predigest.js` even imports
 `assertionId` directly from `hyperlexicon.js`, matching its exact
 signature, proving the coupling. `explore/explore.js` confirmed to read
-an entirely different organ (eoreader6/7's `sessionRelations`/binding-tie
+an entirely different organ (legacy-engine/7's `sessionRelations`/binding-tie
 output via the standalone Explore app), never hypergraph.js at all.
 `capacities.js` and `proxy-runner.mjs` (found in a final repo-wide sweep
 for every `makeRelationReader` importer, beyond the originally-scoped
@@ -9901,7 +9901,7 @@ object-specificity test hand-builds a `mockRunCapacity` whose claims/
 edges carried only `.object` — widened to also carry `end2`, the correct
 fix per this same section's own established rule, confirmed by tracing
 the test's full logic and every assertion by hand since this file cannot
-execute in this sandbox (the same `legacy-eoreader6.1` gap named below).
+execute in this sandbox (the same `legacy-legacy-engine.1` gap named below).
 Full suite after every step: 1071/944/125, identical failure names,
 zero regressions throughout.
 
@@ -9913,8 +9913,8 @@ file the wipe would edit — has 81 lines across 1,231 directly asserting
 `.subject`/`.verb`/`.object` on REAL claims and edges produced by the
 real engine pipeline (`c.subject === "Lincoln"`, `e.verb === "appointed"`,
 and so on, dozens of times over). That file cannot load in this
-checkout — `legacy-eoreader6.1` is an uninitialised submodule pointing
-at a repository (`eoreader6.1`) outside this session's own GitHub
+checkout — `legacy-legacy-engine.1` is an uninitialised submodule pointing
+at a repository (`the legacy engine.1`) outside this session's own GitHub
 access scope — so there is no way here to update those 81 lines and
 verify the result by running them. A hand-edited, unexecuted change to
 81 assertions in a 1,231-line file is a real, disclosed risk of
@@ -9930,8 +9930,8 @@ need updating first or would silently print `undefined` in place of a
 real value.
 
 **What "ready" now requires, stated plainly so the next pass does not
-have to re-discover it:** a checkout with `legacy-eoreader6.1`
-initialised (or an equivalent working `eoreader6.1` engine checkout), so
+have to re-discover it:** a checkout with `legacy-legacy-engine.1`
+initialised (or an equivalent working `the legacy engine.1` engine checkout), so
 `hypergraph.test.mjs`'s 81 dependent assertions can be migrated to
 `end1`/`label`/`end2` AND VERIFIED BY RUNNING, before the four
 construction sites (`edges.push`'s literal, `judge()`'s claim object,
@@ -11217,7 +11217,7 @@ only count change, the same 11 pre-existing failures both times).
 
 **Suites, failure names diffed.** the-fold 1025 tests: 951 pass / 67 fail → 952 / 66 — the one name that left the set is the P71+ gate. eoreader7: see S64's file list and the audit below.
 
-**The audit, partial — stopped at the user's wrap-up after 3 of 13 drivers; the remainder is named, not implied.** Scope: every offline driver in `eoreader7/native/eval/the-fold/` that both has a committed results doc and reads relation edges — the set the SVO wipe exposed, 13 of 130. Method: re-run each on the pristine organs and `git diff` the results doc it regenerates. **The method's own first finding was that it measures almost nothing:** only five of the thirteen write a tracked results file (`subject-wall`, `vendored-prior-eval`, `mechanical-reasoning`, `pruning-timeline`, `asserted-eval`); the other eight docs are hand transcriptions of stdout, so "diff lines: 0" there is vacuous — and this session's own first note that `admission-gate` "reproduces exactly" was read off exactly that vacuous zero, and is withdrawn. Compared by hand against the docs instead: (1) `admission-gate` — **drifted** by one note in the blind arm (A0 admitted 32 → 31, junk 18 → 17, gate refusals 18 → 17: a `the`-labeled edge the reader no longer extracts); the gated arms A1/B/C are byte-identical (19, 0/19, 14, 0 folds, `sameLemma("withdraws","retreated") = false`) — the finding stands, the arm that measures the defect moved. (2) `asserted-eval` — **unreproducible-by-construction here**: it pins the frozen provider by path (`legacy-eoreader6.1/…/spans.js`), an uninitialized submodule whose remote is outside this session's reach; the migrated tests were given a fall-back-to-native resolution and this driver was not. (3) `cited-source-null` — **unreproducible-by-construction since `5541af4`**: the doc landed 11:20 on 09-04, and the fetched faces it reads were untracked at 11:52 the same day; the walk names 106 faces, 20 exist on this disk, and the driver's `existsSync … continue` narrowed the pool to those 20 and still printed "16 independent sources" — P41 in the driver, a fact about the checkout wearing the material's face. On the residual pool the doc's headline inverts: real 7,271 feasible pairs against 18 null draws ALL above it (7,316–7,672), where the doc reported a 9.6% lift at p ≈ 0.048 — which refutes nothing about the doc's own run and everything about re-running it. The driver was killed at the audit's declared 600 s budget with 18 of 20 draws on record; the audit itself was stopped there at the user's direction. (4) `ordered-read-reach`, found by reading rather than running — the identical silent skip on the identical walk file, so its doc (09-04 11:29) stands in the same place. Both drivers now DISCLOSE the skip (the walk's face count, the absent count, the pool actually used, and that the run is not comparable to the full walk); the skip itself stays, because an absent fixture must not crash a null. **Not run, named:** `full-circuit`, `hyperlexicon-door-probe`, `mechanical-reasoning`, `object-boundary`, `pruning-timeline`, `rashomon-contrast`, `reasoning-e2e-no-llm`, `subject-wall`, `vendored-prior-eval` — nine docs dated 09-02 to 09-04 that this pass can call neither reproduced nor drifted. What the audit earned before it stopped: **a results doc whose driver only prints is enforced by nothing, and a driver whose fixtures are gitignored measures whatever this disk happens to hold.** The second is the 09-04 "untrack regenerable eval output" rule meeting this policy head-on, and it needs a decision — commit the material a doc stands on, or make every such driver refuse rather than narrow — not another audit. `NEXT-PASSES.md` carries the continuation.
+**The audit, partial — stopped at the user's wrap-up after 3 of 13 drivers; the remainder is named, not implied.** Scope: every offline driver in `eoreader7/native/eval/the-fold/` that both has a committed results doc and reads relation edges — the set the SVO wipe exposed, 13 of 130. Method: re-run each on the pristine organs and `git diff` the results doc it regenerates. **The method's own first finding was that it measures almost nothing:** only five of the thirteen write a tracked results file (`subject-wall`, `vendored-prior-eval`, `mechanical-reasoning`, `pruning-timeline`, `asserted-eval`); the other eight docs are hand transcriptions of stdout, so "diff lines: 0" there is vacuous — and this session's own first note that `admission-gate` "reproduces exactly" was read off exactly that vacuous zero, and is withdrawn. Compared by hand against the docs instead: (1) `admission-gate` — **drifted** by one note in the blind arm (A0 admitted 32 → 31, junk 18 → 17, gate refusals 18 → 17: a `the`-labeled edge the reader no longer extracts); the gated arms A1/B/C are byte-identical (19, 0/19, 14, 0 folds, `sameLemma("withdraws","retreated") = false`) — the finding stands, the arm that measures the defect moved. (2) `asserted-eval` — **unreproducible-by-construction here**: it pins the frozen provider by path (`legacy-legacy-engine.1/…/spans.js`), an uninitialized submodule whose remote is outside this session's reach; the migrated tests were given a fall-back-to-native resolution and this driver was not. (3) `cited-source-null` — **unreproducible-by-construction since `5541af4`**: the doc landed 11:20 on 09-04, and the fetched faces it reads were untracked at 11:52 the same day; the walk names 106 faces, 20 exist on this disk, and the driver's `existsSync … continue` narrowed the pool to those 20 and still printed "16 independent sources" — P41 in the driver, a fact about the checkout wearing the material's face. On the residual pool the doc's headline inverts: real 7,271 feasible pairs against 18 null draws ALL above it (7,316–7,672), where the doc reported a 9.6% lift at p ≈ 0.048 — which refutes nothing about the doc's own run and everything about re-running it. The driver was killed at the audit's declared 600 s budget with 18 of 20 draws on record; the audit itself was stopped there at the user's direction. (4) `ordered-read-reach`, found by reading rather than running — the identical silent skip on the identical walk file, so its doc (09-04 11:29) stands in the same place. Both drivers now DISCLOSE the skip (the walk's face count, the absent count, the pool actually used, and that the run is not comparable to the full walk); the skip itself stays, because an absent fixture must not crash a null. **Not run, named:** `full-circuit`, `hyperlexicon-door-probe`, `mechanical-reasoning`, `object-boundary`, `pruning-timeline`, `rashomon-contrast`, `reasoning-e2e-no-llm`, `subject-wall`, `vendored-prior-eval` — nine docs dated 09-02 to 09-04 that this pass can call neither reproduced nor drifted. What the audit earned before it stopped: **a results doc whose driver only prints is enforced by nothing, and a driver whose fixtures are gitignored measures whatever this disk happens to hold.** The second is the 09-04 "untrack regenerable eval output" rule meeting this policy head-on, and it needs a decision — commit the material a doc stands on, or make every such driver refuse rather than narrow — not another audit. `NEXT-PASSES.md` carries the continuation.
 
 ## P95 — The audit, finished: refuse what the checkout lacks, and enforce a transcription by reading its computation (2026-09-05)
 
@@ -11476,7 +11476,7 @@ only count change, the same 11 pre-existing failures both times).
 - `shape.js` — `declaredForm(task)` reads the constraints a task's own words declare (line count, an acrostic, a lipogram letter, must-include / must-exclude words, word bounds, a closing or opening word, one sentence) as a DETERMINATION (P4: the words find the shape), beside `askShape`'s proposal; `checkForm(text, form)` lands typed failures with the bytes that broke each, routes the line extent through void-shape.js's own space (`zeroSpace`/`fill`/`voidsOf`, line i covering [i, i+1)), and refuses rhyme, metre and syllables as `unexamined` rather than approximating them. shape.test.mjs 17/17.
 - eoreader7 `organs/measure.js` — the media path takes DECODED media beside bytes: a decoded image measures as scanline luminance (`channel:luminance`, `frame:<scanlines>`), a decoded video as motion energy per transition (`channel:motion`, `frame:<transitions>`), decoded PCM as rms/flux with its container named; the probe teaches each medium its one channel and, for an undecoded container, says where the decoder lives. Injected `reduce` may now be `{audio, image, video}`; a bare function still means audio. the-fold measure.test.mjs 51/51 unchanged; eoreader7 tests/measure-media.test.js 5/5.
 
-**What was crossed.** The frozen 6.1 audio perceiver (fft, window, resample, chroma, timbre, moments, wav, reading), eoreader6's pure `reduce.js`/`material.js` split (rms, flux, locate), and the 6.1 image and video `material.js` (scanline luminance; motion energy per transition — both decode with ffmpeg, disclosed) now live under eoreader7 `native/adapters/{audio,image,video}/`. `native/conformance/media-perceiver-parity.test.mjs` 4/4: identical units, series and addresses against the frozen provider on the built fixtures (`eval/the-fold/fixtures/media/`: a 5 s tone A4 · silence · C5, a 256² gradient with a white square, a 4 s two-shot video, 60 s of a real recording). This is the first step EOT-BEYOND-TEXT.md names; the second (a line of reading out of a frame) is not built and is not claimed.
+**What was crossed.** The frozen legacy audio perceiver (fft, window, resample, chroma, timbre, moments, wav, reading), the legacy engine's pure `reduce.js`/`material.js` split (rms, flux, locate), and the 6.1 image and video `material.js` (scanline luminance; motion energy per transition — both decode with ffmpeg, disclosed) now live under eoreader7 `native/adapters/{audio,image,video}/`. `native/conformance/media-perceiver-parity.test.mjs` 4/4: identical units, series and addresses against the frozen provider on the built fixtures (`eval/the-fold/fixtures/media/`: a 5 s tone A4 · silence · C5, a 256² gradient with a white square, a 4 s two-shot video, 60 s of a real recording). This is the first step EOT-BEYOND-TEXT.md names; the second (a line of reading out of a frame) is not built and is not claimed.
 
 **The eval.** eoreader7 `eval/the-fold/lib/frontier-25.mjs` — twenty-five tasks, each naming its organ: nine `arithmetic` (claimed), one `numeric` (the mouth's last number against the engine's computation), four `skill` (a candidate from the mouth's fence, admitted only if the task's check passes in the sandbox), two `run` (python through the booted, recorded `/api/run`), one `sql` (term.js's csvTable and the sql worker's own sql.js, headless), three `assay` and one `void` (the product assay's record and the ledger), four `form`. Zero-call arm, read by `tests/frontier-25.test.js` on every run: 13/13 claimed outright, 11/11 witnesses proven able to fail. Five media declarations through the door: 5/5 as expected — including the honest one: on the two-shot video the burstiness/shuffle pairing's null collapses (`degenerate_ground`, a fact about the pairing), while the perceiver's own series addresses the cut at transition 19, 2.0 s. The mouth arm (`MODELS=… node eval/the-fold/frontier-25.mjs`) is a dated record in `results/frontier-25-RESULTS.md`.
 
@@ -11504,7 +11504,7 @@ Llama 3.2 3B, the rung's original single model, is no longer offered: its traini
 
 **Measured, in a browser, 2026-09-05** (Chromium-shaped pane, WebGPU on Apple Metal 3, shader-f16): each rung picked in the model picker, one question each, the answer returned in-tab — OLMo 2 1B "The first rays of dawn painted the sky with soft hues of pink and orange." (415 tokens counted off the engine's telemetry); SmolLM2 1.7B "The capital of France is Paris."; RedPajama-INCITE 3B "Rivers carve canyons and transport sediment over long distances." (the 1.5 GB load plus the answer inside 40 s from localhost). No request to any host but localhost during the three turns.
 
-**The launch pass, the same day** (MVP-LAUNCH-CHECKLIST.md carries the whole list; these are the edits). The maintainer's n8n relay is gone from the GitHub device flow — explore-server.mjs calls github.com's own device and token endpoints, so nothing about a user's login passes anyone but GitHub (verified: a device code issued through this server's route). The Whisper weights no longer download on page load — the first `/transcribe` says what it fetches (huggingface.co, ~150 MB) before it starts, and a fresh page load makes no request beyond its origin and Ollama. `./fold` clones the engine at `../eoreader7`, the path both servers read (it had cloned into `../eoreader6.1`, so a fresh machine came up blank), and `serve.mjs` names a missing mount at boot. `explore-server.mjs` serves `/eoreader7/native/` and `/the-fold/` — the two aliases serve.mjs already carried — so explore.html's own shims (source.js, grounding.js, primary.js) resolve; without them the Explore page half-booted behind its "needs its local server" banner on every checkout. The measuring door is routed from the chat (`/measure` — every media pill had advertised it while nothing routed it). A slash no door claims is a typed refusal naming the doors. A door that throws lands as a typed line and frees the composer (found live: an exception left `state.busy` set and every later message queued forever).
+**The launch pass, the same day** (MVP-LAUNCH-CHECKLIST.md carries the whole list; these are the edits). The maintainer's n8n relay is gone from the GitHub device flow — explore-server.mjs calls github.com's own device and token endpoints, so nothing about a user's login passes anyone but GitHub (verified: a device code issued through this server's route). The Whisper weights no longer download on page load — the first `/transcribe` says what it fetches (huggingface.co, ~150 MB) before it starts, and a fresh page load makes no request beyond its origin and Ollama. `./fold` clones the engine at `../eoreader7`, the path both servers read (it had cloned into `../legacy-engine.1`, so a fresh machine came up blank), and `serve.mjs` names a missing mount at boot. `explore-server.mjs` serves `/eoreader7/native/` and `/the-fold/` — the two aliases serve.mjs already carried — so explore.html's own shims (source.js, grounding.js, primary.js) resolve; without them the Explore page half-booted behind its "needs its local server" banner on every checkout. The measuring door is routed from the chat (`/measure` — every media pill had advertised it while nothing routed it). A slash no door claims is a typed refusal naming the doors. A door that throws lands as a typed line and frees the composer (found live: an exception left `state.busy` set and every later message queued forever).
 
 **The phone layout.** Measured at 375×812 and 768×1024. The narrow layout already made the chat one tab among the panels; what was missing was reach: targets under 36px, 15px inputs (an iOS field under 16px zooms the page on focus), a composer bar whose one-row rule squeezed the model's name to nothing, sheets that overran the viewport, a hover-only reveal on the sources' actions, and on the Explore page a 270px rail beside a 105px stage. The phone blocks (`index.html`, `explore/explore.css`, each kept LAST in its sheet so it wins the cascade — the first cut lost to the base rules above it) set 44–48px targets, 16px inputs, a two-row composer bar with the model named, bottom sheets capped at 88dvh that scroll inside themselves, the safe-area inset on the bottom tab bar, the rail as a drawer above the stage, and `hover: none` fallbacks. Behaviour unchanged.
 
@@ -13284,7 +13284,7 @@ The fold's client-side OCR/vision pipeline (`app.js`'s `/visual` door, `attachIm
 
 **The structural question, asked directly and answered with real investigation, not assumed.** Whether the router's underlying match threshold is simply too permissive was checked by trying the most obvious generalization first — requiring TWO OR MORE independently-meaningful shared terms rather than one — and it was REFUTED before being built: `widget.test.mjs`'s own existing pinned specimens ("the clear button is broken" → resolved on "button" alone; "fix counter" → resolved on "counter" alone; "the colors are wrong" → resolved on "colors"~"color:" alone) are single-term true positives by design, and a blanket two-term floor would have broken every one of them. The task's own second candidate (same-clause locality) does not discriminate either: "whether" sits in the correcting message's own main clause, exactly where a legitimate reference would. **The real, generalizable distinction is not COUNT, it is the KIND of evidence a single shared word actually is.**
 
-**Fix 1 — `CLAUSE_OPENERS` (priors.js's own received closed class, promoted into the engine's register 2026-09-01: subordinators and relative pronouns that OPEN a subordinate clause) is never content evidence, message-side.** These are function words that survive `tokenize()`'s STOPWORDS floor (STOPWORDS predates this class and does not cover most of it — "because"/"although"/"though"/"while"/"whether"/"unless"/"since"/"until"/"whom"/"whose" all slip through) but carry zero content, the identical shape STOPWORDS already excludes for the words it does cover. Optional in `makeWidgetRouter` (falls fully open when the injected priors object lacks it — this file's own test fixture still binds against `legacy-eoreader6.1`'s frozen priors module, which CLAUDE.md's ratchet keeps as a reference and this file may not edit, and which predates this class entirely) — production (`app.js`, `/engine-v7/adapters/text/priors.js`) already carries it, confirmed live.
+**Fix 1 — `CLAUSE_OPENERS` (priors.js's own received closed class, promoted into the engine's register 2026-09-01: subordinators and relative pronouns that OPEN a subordinate clause) is never content evidence, message-side.** These are function words that survive `tokenize()`'s STOPWORDS floor (STOPWORDS predates this class and does not cover most of it — "because"/"although"/"though"/"while"/"whether"/"unless"/"since"/"until"/"whom"/"whose" all slip through) but carry zero content, the identical shape STOPWORDS already excludes for the words it does cover. Optional in `makeWidgetRouter` (falls fully open when the injected priors object lacks it — this file's own test fixture still binds against `legacy-legacy-engine.1`'s frozen priors module, which CLAUDE.md's ratchet keeps as a reference and this file may not edit, and which predates this class entirely) — production (`app.js`, `/engine-v7/adapters/text/priors.js`) already carries it, confirmed live.
 
 **Fix 2 — a morphological (non-exact) `sameForm` match is now POS-gated, reusing the SAME injected UD-treebank prior `anaphoraTell` already trusts (wordclass.js's `classifyWord`/`dominantClass` — no second guessed rule).** A pair that folds by suffix, not identity, must have every side the prior can classify (found, and clearing `dominantClass`'s own declared 0.5 floor) read as NOUN or PROPN. Measured directly against the real, committed treebank prior (`priors-data/pos-prior-eng.json`, the same file app.js fetches): "button"/"buttons" and "color"/"colors" are NOUN at every observed occurrence (kept); "great" is ADJ at a 0.99 share, "greatest" ADJ at 1.0 (excluded); "backward" is ADV at 1.0 share, "backwards" itself out-of-vocabulary in the treebank — its OOV absence is never held against the pair on its own, only the other side's real classification is, the identical "OOV is absence of evidence, not evidence against" posture `anaphoraTell`'s own out-of-vocabulary rule already takes one function up. Falls fully open when the POS prior is unavailable, and is never consulted for an EXACT match at all (`t === s`, matchedTerms' first branch) — a real code identifier shared verbatim ("counter", "is_prime") is untouched.
 
@@ -14274,7 +14274,7 @@ yet widely carry — untouched, as this entry's own body already said.
 **A NEW finding, from proving extraction rather than assuming it:**
 re-running `mine-1-unimorph.mjs`'s exact protocol against the CURRENT
 native organs (a fresh driver was needed — the committed script still
-imports the frozen `legacy-eoreader6.1` provider, which exercises none of
+imports the frozen `legacy-legacy-engine.1` provider, which exercises none of
 today's fixes) reproduced the historical baseline almost exactly — 33.4%/
 38.0% native vs 33.7%/38.3% historical, zero crashes, confirming the
 native-engine migration and today's fixes together did not regress this

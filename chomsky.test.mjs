@@ -38,7 +38,7 @@ const recursiveSrc = read(path.join(HERE, "..", "eoreader7", "native", "adapters
 test("the fold's page reader routes through the language dispatch — never the legacy English-SVO extractor directly", () => {
   // Chomsky's law, wired: app.js (and the rig's mirror, product-assay.mjs)
   // must select the relation reader through relationExtractorsFor. The
-  // legacy eoreader6 SVO extractor (adapters/text/relations.js) is the
+  // legacy the legacy engine SVO extractor (adapters/text/relations.js) is the
   // universal-by-default this pin exists to retire.
   for (const [name, src] of [["app.js", appSrc], ["product-assay.mjs", assaySrc]]) {
     assert.match(src, /relationExtractorsFor/, `${name} must route the relation reader through the language dispatch`);

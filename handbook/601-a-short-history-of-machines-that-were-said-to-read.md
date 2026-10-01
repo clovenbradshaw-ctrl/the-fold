@@ -114,7 +114,7 @@ by its own outside reviewer's account, implicitly proposing a fifth
 definition of reading, and Chapter 6.3 is about what makes that one
 different in kind rather than just newer.
 
-**Where this comes from:** `eoreader6/prior-art-teachable-language-
+**Where this comes from:** `legacy-engine/prior-art-teachable-language-
 comprehender.md`, §II, "Reading has been redefined four times, each time by
 its scoreboard." Every passage in quotation marks above is verbatim from
 that section. The named systems and studies — Schank's conceptual
@@ -138,14 +138,14 @@ the philosophy of science, not something the codebase itself cites.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “Reading is whatever the current benchmark measures. That…” → `eoreader6/prior-art-teachable-language-comprehender.md#b2713-2860`
-- “John gave Mary a book becomes an ATRANS…” → `eoreader6/prior-art-teachable-language-comprehender.md#b3214-3334`
-- “This was real reading in a way that…” → `eoreader6/prior-art-teachable-language-comprehender.md#b3406-3640`
-- “Every script was hand-built. The restaurant script did…” → `eoreader6/prior-art-teachable-language-comprehender.md#b3692-4059`
-- “It is not really a definition, it is…” → `eoreader6/prior-art-teachable-language-comprehender.md#b6219-6482`
-- “Reading is whatever the current benchmark measures” → `eoreader6/prior-art-teachable-language-comprehender.md#b2713-2763`
-- “Reading has been redefined four times, each time…” → `eoreader6/prior-art-teachable-language-comprehender.md#b2558-2624`
-- “Prior art is cited from memory and has…” → `eoreader6/prior-art-teachable-language-comprehender.md#b27642-27712`, `eoreader6/prior-art-teachable-language-comprehender.md#b28852-28925`
+- “Reading is whatever the current benchmark measures. That…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b2713-2860`
+- “John gave Mary a book becomes an ATRANS…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b3214-3334`
+- “This was real reading in a way that…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b3406-3640`
+- “Every script was hand-built. The restaurant script did…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b3692-4059`
+- “It is not really a definition, it is…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b6219-6482`
+- “Reading is whatever the current benchmark measures” → `legacy-engine/prior-art-teachable-language-comprehender.md#b2713-2763`
+- “Reading has been redefined four times, each time…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b2558-2624`
+- “Prior art is cited from memory and has…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b27642-27712`, `legacy-engine/prior-art-teachable-language-comprehender.md#b28852-28925`
 
 <!-- anchors:end -->
 

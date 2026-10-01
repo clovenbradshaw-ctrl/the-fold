@@ -122,9 +122,9 @@ actually happened in an order that makes the claim mean something.
 
 **Where this comes from:** the grain axis (Ground, Figure, Pattern) as one
 of the cube's three axes, alongside mode and domain, is set out in
-`eoreader6/CUBE.md`, lines 19-21 — *"`GRAINS` is the triad from `SEED.md`.
+`legacy-engine/CUBE.md`, lines 19-21 — *"`GRAINS` is the triad from `SEED.md`.
 It is the same three terms; the seed's unit is one axis of this
-instrument."* The binding-organ dependency is from `eoreader6/SEED.md`,
+instrument."* The binding-organ dependency is from `legacy-engine/SEED.md`,
 Amendment X: *"The binding organ ... reads an entity register — arrival
 indices of beings already admitted through the witness gate."* The
 dependency-graph and dependent-typing connections above are this book's
@@ -141,8 +141,8 @@ from outside.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “`GRAINS` is the triad from `SEED.md`. It is…” → `eoreader6/CUBE.md#b943-1054`
-- “The binding organ ... reads an entity register…” → `eoreader6/SEED.md#b33689-33785`
+- “`GRAINS` is the triad from `SEED.md`. It is…” → `legacy-engine/CUBE.md#b943-1054`
+- “The binding organ ... reads an entity register…” → `legacy-engine/SEED.md#b33689-33785`
 
 Not located because a source this chapter names is **not yet obtained** (`eoreader4.2/docs/eo-wiki.md` — see the manifest's `unobtained` list for each one's reason):
 

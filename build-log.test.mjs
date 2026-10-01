@@ -1,6 +1,6 @@
 // build-log.test.mjs — the walls themselves, against the real engine.
 //
-// Every test here runs build-log.js over eoreader6's actual
+// Every test here runs build-log.js over the legacy engine's actual
 // engine/holon/task-log.js (imported by relative path, the same way the
 // page imports it from /engine) — no stub carries these walls. What is
 // pinned: the EO typing of constitutive entries, that the past is kept,

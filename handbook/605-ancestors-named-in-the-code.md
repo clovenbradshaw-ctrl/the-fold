@@ -21,7 +21,7 @@ here, at full size.
 The first audit (Chapter 6.3's source) drew the Quillian line by hand, in
 an essay. The second audit went further: it put the lineage into the
 files, next to the mechanisms. The memory organ's own header
-(`eoreader6/packages/engine/emergence/activation.js`) now names its
+(`legacy-engine/packages/engine/emergence/activation.js`) now names its
 ancestors and — just as carefully — the lineage it is *not*:
 
 > "sparse coding at the dentate gyrus and one-shot pattern completion at
@@ -107,7 +107,7 @@ The same audit caught the project — and, by inheritance, this book —
 citing a dead result. Chapter 6.4 told you the count of prior passages
 that respond to a cue carries real signal. The figure behind that claim
 ("22/24, p≈0.005") turned out to have been measured against a fixture
-path from a legacy repository that doesn't exist in eoreader6, and it
+path from a legacy repository that doesn't exist in the legacy engine, and it
 does not reproduce on the fixture actually committed there. The audit
 re-ran it: **8/24 causal recall, p≈0.046** — still a real signal, several
 times weaker than the number in circulation. Its own words: *"The number
@@ -148,13 +148,13 @@ could not be located, and did not invent a citation to fill the slot —
 Chapter 3.5's "a gap is a result," applied to a bibliography.
 
 **Where this comes from:** everything in this chapter is
-`eoreader6/prior-art-surprise-segmentation-and-memory.md` (all six
+`legacy-engine/prior-art-surprise-segmentation-and-memory.md` (all six
 sections), plus the two code headers it edited, quoted above directly
-from `eoreader6/packages/engine/emergence/activation.js` and
-`eoreader6/packages/engine/emergence/tiers.js` as they now stand. The
+from `legacy-engine/packages/engine/emergence/activation.js` and
+`legacy-engine/packages/engine/emergence/tiers.js` as they now stand. The
 measured table (Pk/WindowDiff for this repo's detector, TextTiling, and
 C99, natural and oracle modes) is that essay's §4; the stale-number
-correction is §4, agreeing with `eoreader6/scripts/RESULTS.md`, "(3) The
+correction is §4, agreeing with `legacy-engine/scripts/RESULTS.md`, "(3) The
 premise number does not reproduce"; the Assembly C citations are §3; the
 HippoRAG 2 dependency comparison and the refused benchmark are §5; the
 refused Nikolopoulos citation is §6. The one-line summaries of Foote
@@ -169,17 +169,17 @@ the essay's, not this book's.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “sparse coding at the dentate gyrus and one-shot…” → `eoreader6/packages/engine/emergence/activation.js#b1562-1601`, `eoreader6/packages/engine/emergence/activation.js#b1805-1845`, `eoreader6/packages/engine/emergence/activation.js#b1950-1991`, `eoreader6/packages/engine/emergence/activation.js#b2029-2071`, `eoreader6/packages/engine/emergence/activation.js#b2106-2144` *(+8 segment(s) not located)*
-- “fifty-seven years apart, same mechanism,” → `eoreader6/prior-art-surprise-segmentation-and-memory.md#b712-751`
-- “runs of exceedance ARE the windows.” → `eoreader6/packages/engine/emergence/tiers.js#b3626-3660`
-- “unsupervised text/audio segmentation by local statistical departure, >…” → `eoreader6/packages/engine/emergence/tiers.js#b4011-4059`, `eoreader6/packages/engine/emergence/tiers.js#b4369-4419` *(+8 segment(s) not located)*
-- “The modelless novelty detector does not clearly beat…” → `eoreader6/prior-art-surprise-segmentation-and-memory.md#b7103-7170` *(+3 segment(s) not located)*
-- “because on this run it does not clearly…” → `eoreader6/prior-art-surprise-segmentation-and-memory.md#b7694-7741`
-- “The number this repo has been citing for…” → `eoreader6/prior-art-surprise-segmentation-and-memory.md#b4119-4184`
-- “recorded so the comparison is available when C…” → `eoreader6/prior-art-surprise-segmentation-and-memory.md#b3385-3489`
-- “this repo has no multi-hop retrieval mode to…” → `eoreader6/prior-art-surprise-segmentation-and-memory.md#b9040-9097`
-- “a gap is a result,” → `eoreader6/11-terrain-occupancy-and-the-two-ascents.md#b520-537`
-- “(3) The premise number does not reproduce” → `eoreader6/prior-art-surprise-segmentation-and-memory.md#b4398-4438`
+- “sparse coding at the dentate gyrus and one-shot…” → `legacy-engine/packages/engine/emergence/activation.js#b1562-1601`, `legacy-engine/packages/engine/emergence/activation.js#b1805-1845`, `legacy-engine/packages/engine/emergence/activation.js#b1950-1991`, `legacy-engine/packages/engine/emergence/activation.js#b2029-2071`, `legacy-engine/packages/engine/emergence/activation.js#b2106-2144` *(+8 segment(s) not located)*
+- “fifty-seven years apart, same mechanism,” → `legacy-engine/prior-art-surprise-segmentation-and-memory.md#b712-751`
+- “runs of exceedance ARE the windows.” → `legacy-engine/packages/engine/emergence/tiers.js#b3626-3660`
+- “unsupervised text/audio segmentation by local statistical departure, >…” → `legacy-engine/packages/engine/emergence/tiers.js#b4011-4059`, `legacy-engine/packages/engine/emergence/tiers.js#b4369-4419` *(+8 segment(s) not located)*
+- “The modelless novelty detector does not clearly beat…” → `legacy-engine/prior-art-surprise-segmentation-and-memory.md#b7103-7170` *(+3 segment(s) not located)*
+- “because on this run it does not clearly…” → `legacy-engine/prior-art-surprise-segmentation-and-memory.md#b7694-7741`
+- “The number this repo has been citing for…” → `legacy-engine/prior-art-surprise-segmentation-and-memory.md#b4119-4184`
+- “recorded so the comparison is available when C…” → `legacy-engine/prior-art-surprise-segmentation-and-memory.md#b3385-3489`
+- “this repo has no multi-hop retrieval mode to…” → `legacy-engine/prior-art-surprise-segmentation-and-memory.md#b9040-9097`
+- “a gap is a result,” → `legacy-engine/11-terrain-occupancy-and-the-two-ascents.md#b520-537`
+- “(3) The premise number does not reproduce” → `legacy-engine/prior-art-surprise-segmentation-and-memory.md#b4398-4438`
 
 Quoted spans **not located in any obtained source** and not explained by a known gap — each is either the book's own illustrative speech, or a passage that reads as verbatim and is not, which is itself a finding to resolve:
 

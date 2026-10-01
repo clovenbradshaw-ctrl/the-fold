@@ -21,7 +21,7 @@ The original study's logic: ask blind judges three plain-language
 questions about real sentences, embed the sentences with a model that
 never sees the labels, and check whether sentences that answered the same
 way sit closer together than chance. This experiment
-(`eoreader6/scripts/experiments/rival-triads/`) reran that logic on 360
+(`legacy-engine/scripts/experiments/rival-triads/`) reran that logic on 360
 fresh English sentences from twelve sources across seven registers — and
 added the control: a **rival triad**, assembled deliberately from
 off-the-shelf linguistics that owes nothing to this project. Its three
@@ -109,7 +109,7 @@ that was tested, and it didn't hold.
 
 **Where this comes from:** the experiment, its locked predictions, its
 raw judge labels, and its full numbers are
-`eoreader6/scripts/experiments/rival-triads/` — `PREREGISTRATION.md`
+`legacy-engine/scripts/experiments/rival-triads/` — `PREREGISTRATION.md`
 (written before judging, with its own note on how that ordering is
 attested; the falsification rule above is quoted from it verbatim),
 `RESULTS.md` (all quoted verdicts), `results.json`, and `labels/`. The original study it extends is the one Chapter 2.6

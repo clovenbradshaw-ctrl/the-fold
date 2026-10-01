@@ -96,10 +96,10 @@ gets treated as an open question, not quietly filed away as its own new
 box.
 
 **Where this comes from:** `eo-constitution/CONSTITUTION.md`, Article I,
-"The domain" — I.1 through I.5, including *"The engine is `eoreader6`...
+"The domain" — I.1 through I.5, including *"The engine is `the legacy engine`...
 the current, re-earned implementation of the one operation"*; I.2 on
 legacy, *"Their dead-end logs are load-bearing and must be trusted... every
-organ is re-earned in eoreader6 or it does not come"*; I.4 on applications,
+organ is re-earned in the legacy engine or it does not come"*; I.4 on applications,
 *"Deleting an application must change no engine reading"*; and I.5, *"No
 other domain exists. A thing that fits none of the four is a gap, not a new
 category."* The Montesquieu and separation-of-concerns connections above
@@ -117,7 +117,7 @@ Not located because a source this chapter names is **not yet obtained** (`eo-con
 
 - “keep these apart, on purpose”
 - “Deleting an application must change no engine reading”
-- “The engine is `eoreader6`... the current, re-earned implementation…”
+- “The engine is `the legacy engine`... the current, re-earned implementation…”
 - “Their dead-end logs are load-bearing and must be…”
 - “No other domain exists. A thing that fits…”
 

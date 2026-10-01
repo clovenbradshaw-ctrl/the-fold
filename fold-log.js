@@ -2,7 +2,7 @@
 //
 // A fold (a code artifact, a table, an html/svg render — anything the
 // conversation produces and keeps) is never a mutable object. It is a thread
-// on the engine's own task log (eoreader6 engine/holon/task-log.js): its
+// on the engine's own task log (the legacy engine engine/holon/task-log.js): its
 // birth is a PROPOSE, every edit is a SUPERSEDE that keeps the past, every
 // run attaches a RESULT, and what the app shows is a PROJECTION over the
 // entries — the current fold, at whatever cursor position the reader has

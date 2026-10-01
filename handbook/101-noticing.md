@@ -103,7 +103,7 @@ failure mode this book comes back to properly in Chapter 1.4. Noticing, in
 this system, is never a lookup. It's always a fresh comparison against
 something rebuilt for the occasion.
 
-**Where this comes from:** `eoreader6/SEED.md`, "One operation" — *"A
+**Where this comes from:** `legacy-engine/SEED.md`, "One operation" — *"A
 ground is a nothing constructed by perturbing what is present. Everything is
 a difference against one."* The *E. coli* comparison is drawn from
 `eo-constitution/CONSTITUTION.md` Article II.7, "The convergence test":
@@ -120,7 +120,7 @@ codebase itself cites.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “A ground is a nothing constructed by perturbing…” → `eoreader6/SEED.md#b615-722`
+- “A ground is a nothing constructed by perturbing…” → `legacy-engine/SEED.md#b615-722`
 
 Not located because a source this chapter names is **not yet obtained** (`eo-constitution/CONSTITUTION.md` — see the manifest's `unobtained` list for each one's reason):
 

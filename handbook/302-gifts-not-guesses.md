@@ -136,7 +136,7 @@ cannot, today, help decide whether a specific word like "the" belongs at a
 specific spot in a sentence. That boundary is named as a real limit, not
 smoothed over.
 
-**Where this comes from:** `eoreader6/SEED.md`, "What follows" clause 1
+**Where this comes from:** `legacy-engine/SEED.md`, "What follows" clause 1
 ("The first ground is received, never derived... Deriving the origin is a
 wall, not a hard problem") and Amendment IV in full, "A prior is relevant
 exactly insofar as it lowers the surprise of what is encountered" — *"Relevance
@@ -144,7 +144,7 @@ is not a property of a prior. It is a property of the meeting between a
 prior and this material, and its measure is the surprise that did not
 happen"* — including its four numbered consequences and the cross-modal
 boundary drawn in its final paragraph. The Benford's Law worked example is
-`eoreader6/goldens/surprise/README.md`, "B3 (Benford's Law)" — a real,
+`legacy-engine/goldens/surprise/README.md`, "B3 (Benford's Law)" — a real,
 current test in the engine's own suite, quoted directly above, not an
 outside comparison this book is drawing. The Bayesian-statistics
 comparison above it is this book's own added link to that field,
@@ -157,10 +157,10 @@ something the codebase itself cites.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “Benford's Law (Newcomb 1881 / Benford 1938) —…” → `eoreader6/goldens/surprise/README.md#b4666-4752`
-- “The first ground is received, never derived... Deriving…” → `eoreader6/SEED.md#b3101-3144`, `eoreader6/SEED.md#b3194-3243`
-- “A prior is relevant exactly insofar as it…” → `eoreader6/SEED.md#b15233-15317`
-- “Relevance is not a property of a prior.…” → `eoreader6/SEED.md#b15576-15738`
+- “Benford's Law (Newcomb 1881 / Benford 1938) —…” → `legacy-engine/goldens/surprise/README.md#b4666-4752`
+- “The first ground is received, never derived... Deriving…” → `legacy-engine/SEED.md#b3101-3144`, `legacy-engine/SEED.md#b3194-3243`
+- “A prior is relevant exactly insofar as it…” → `legacy-engine/SEED.md#b15233-15317`
+- “Relevance is not a property of a prior.…” → `legacy-engine/SEED.md#b15576-15738`
 
 Quoted spans **not located in any obtained source** and not explained by a known gap — each is either the book's own illustrative speech, or a passage that reads as verbatim and is not, which is itself a finding to resolve:
 

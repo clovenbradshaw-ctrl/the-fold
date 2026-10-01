@@ -6,7 +6,7 @@
 // re-opened. What neither one has ever measured is the THIRD thing the
 // engine's own canon already names for exactly this shape.
 //
-// `eoreader6.1/nul/index.js` is not a metaphor here — it is the literal
+// `the legacy engine.1/nul/index.js` is not a metaphor here — it is the literal
 // module this file leans on, and its own header states the vocabulary
 // first: "figure — difference from its own ground; pattern — the
 // difference that figure made to the next ground." Pattern is Bateson's, a
@@ -19,7 +19,7 @@
 //
 // What this file DOES do is give S1 the Ground+Figure half of that triad,
 // using the organ already licensed for exactly this shape: reflex.js wires
-// eoreader6's emergence/tiers.js (createTierStack/foldThrough, over
+// the legacy engine's emergence/tiers.js (createTierStack/foldThrough, over
 // surprise.js's bayesianSurprise and priorContinuationNull) to the SELF
 // plane — the instrument's own acts. This module wires the SAME organ, the
 // SAME declared numbers (SURPRISE_WINDOW/DRAWS/ALPHA/SEED — reflex.js names
@@ -152,7 +152,7 @@ export function meterSnapshot(meter) {
 /**
  * `makeApertureMeter(organs)` → `{ create, observe }`. Same shape as
  * reflex.js's `makeReflexMeter`, same injected organs (createTierStack/
- * foldThrough from eoreader6 emergence/tiers.js — the page loads them from
+ * foldThrough from the legacy engine emergence/tiers.js — the page loads them from
  * /engine, the tests import the real module by relative path), so this
  * file stays pure and node-testable while sharing nothing at runtime with
  * the self-plane meter but the physiology.
@@ -268,7 +268,7 @@ export function makeApertureMeter({ createTierStack, foldThrough }) {
  * stayed "Harbor Traffic in Spring" for the rest of the run while the
  * conversation had moved to crops in volcanic soil — a real correctness
  * defect, caught by running a live turn rather than a synthetic fixture
- * (the same lesson eoreader6.1's own CLAUDE.md names the network golden
+ * (the same lesson the legacy engine.1's own CLAUDE.md names the network golden
  * for: search AND run before trusting a gate). `rank > 0.5` catches
  * exactly this arrival (0.01 « 0.5) while still holding the six settled
  * exchanges around it — re-measured after the fix, same eval script.

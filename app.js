@@ -887,7 +887,7 @@ const handlesFor = makeCastHandles({
 });
 
 // POSPrior@1 — real Universal Dependencies treebank evidence
-// (eoreader6.1/scripts/build-pos-prior.mjs's own output, served live off
+// (the legacy engine.1/scripts/build-pos-prior.mjs's own output, served live off
 // its own gitignored, locally-reproducible build directory via serve.mjs/
 // explore-server.mjs's /priors-data/ mount — never vendored into this
 // repo, so a rebuilt prior is picked up with no stale copy). Fetched once,
@@ -10663,7 +10663,7 @@ const PATCH_SCHEMA = {
 /** The delta a reply carried, read mechanically — skills.js's own balanced
  * walk (`extractObject`, the object twin of holon.js's extractArray),
  * REUSED rather than re-derived: a third reading of "the JSON in a reply"
- * is exactly the drift eoreader6's reconcile-don't-dedupe rule forbids.
+ * is exactly the drift the legacy engine's reconcile-don't-dedupe rule forbids.
  * The operator typing is build-log.js's `readOps`, off the bytes. A miss is
  * `null` and the caller types it as a gap. */
 function parseOps(text) {
@@ -11149,7 +11149,7 @@ async function boundTurn(question, typed) {
   // specimen, 2026-09-15: /bound on a runbook question). Only the first
   // shape should ever reach the reader as "the raw text"; the second always
   // gets the plain, typed message instead.
-  const boundLooksLikeJson = (() => { try { JSON.parse(String(boundRaw ?? "").trim() || " "); return true; } catch { return false; } })();
+  const boundLooksLikeJson = (() => { try { JSON.parse(String(boundRaw ?? "").trim() || "the legacy engine"); return true; } catch { return false; } })();
   const flat = stripSelfCitations(
     parsed.degraded
       ? (boundRaw && !boundLooksLikeJson ? boundRaw : "(bound reply unusable — typed degradation)")
@@ -17901,7 +17901,7 @@ async function gatherPreflightMaterial(task, discourse = "", onStep = null, { pa
   // (this organ's original proving ground) essentially never does, and each
   // one glued adjacent names into a spurious combined surface
   // (extractSurfaces's own run-breaking punctuation set, fixed for `|` at
-  // the source the same day — eoreader6.1's surfaces.js — but a title's OWN
+  // the source the same day — the legacy engine.1's surfaces.js — but a title's OWN
   // separator vocabulary is open-ended by web convention: chasing every
   // site's own title-punctuation style one character at a time is the exact
   // "cannot be formatted to specific sites" trap this repo already refused

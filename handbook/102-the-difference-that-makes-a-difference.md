@@ -123,7 +123,7 @@ next.** Everything from here on — what the system is willing to say out
 loud, what it refuses, what counts as evidence at all — is built on top of
 that one test.
 
-**Where this comes from:** `eoreader6/SEED.md`, "One operation" — *"Pattern
+**Where this comes from:** `legacy-engine/SEED.md`, "One operation" — *"Pattern
 is Bateson's: a difference that makes a difference... A figure earns pattern
 by changing what happens next, and the only next available is the ground."*
 The Bateson quotes above are from *Steps to an Ecology of Mind* (1987
@@ -145,8 +145,8 @@ only claim is SEED.md's attribution line quoted above.
 
 - “A Mathematical Theory of Communication” → `shannon-1948#b124-162`
 - “The fundamental problem of communication is that of…” → `shannon-1948#b775-957`, `shannon-1948#b1070-1151`
-- “a difference that made no difference is not…” → `eoreader6/SEED.md#b1858-1913`
-- “Pattern is Bateson's: a difference that makes a…” → `eoreader6/SEED.md#b1046-1104`, `eoreader6/SEED.md#b1231-1326`
+- “a difference that made no difference is not…” → `legacy-engine/SEED.md#b1858-1913`
+- “Pattern is Bateson's: a difference that makes a…” → `legacy-engine/SEED.md#b1046-1104`, `legacy-engine/SEED.md#b1231-1326`
 
 **Attested by secondary witnesses** — the primary is not obtained (see the manifest's `unobtained` list), so the anchor names the bytes of an independent source that quotes the passage. A witness says what the witness quotes, never what the primary's own edition reads:
 

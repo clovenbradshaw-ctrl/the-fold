@@ -38,7 +38,7 @@
 // passes through before computing anything.
 //
 // FIVE cells are already real, and this module SURFACES them — never
-// duplicates them (eoreader6.1's own standing rule, "search for the organ
+// duplicates them (the legacy engine.1's own standing rule, "search for the organ
 // before you write one," applied to this repo's own checking ladder):
 //   Void     — hypergraph.js's `report.examined` (is there any material at all)
 //   Entity   — hypergraph.js's `beyond-reach` split for the verdict (does

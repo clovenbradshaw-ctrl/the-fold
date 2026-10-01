@@ -103,7 +103,7 @@ breaks one of them is a mistake in the book, not a stylistic choice:
 out in `HANDBOOK-SPEC.md` §3, and previews the running
 examples decided in §5 (Example A: `eochat/essay.md`; Example B: the
 domain-invariant triad from the `writing-code-in-eo` reference) and the two
-deaths named in `eoreader6/SEED.md`, "The entelechy."
+deaths named in `legacy-engine/SEED.md`, "The entelechy."
 
 <!-- anchors:start -->
 

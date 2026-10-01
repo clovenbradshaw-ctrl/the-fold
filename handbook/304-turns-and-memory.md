@@ -95,7 +95,7 @@ from. It's a handoff, not a growing ledger — which is exactly what keeps
 this small enough to avoid becoming the regress `frame` already refused to
 build.
 
-**Where this comes from:** `eoreader6/SEED.md`, Amendment IX, "Firstness,
+**Where this comes from:** `legacy-engine/SEED.md`, Amendment IX, "Firstness,
 partially earned: the turn holds a sequence" — *"`runTurn` now receives a
 `register`... and hands its own back, so the engine holds the sequence
 locally at the turn boundary... What is still not earned is the enforcement
@@ -111,8 +111,8 @@ cites.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “Firstness, partially earned: the turn holds a sequence” → `eoreader6/SEED.md#b31582-31636`
-- “`runTurn` now receives a `register`... and hands its…” → `eoreader6/SEED.md#b31888-31921`, `eoreader6/SEED.md#b32025-32110`, `eoreader6/SEED.md#b32714-32864`, `eoreader6/SEED.md#b32935-33021`
+- “Firstness, partially earned: the turn holds a sequence” → `legacy-engine/SEED.md#b31582-31636`
+- “`runTurn` now receives a `register`... and hands its…” → `legacy-engine/SEED.md#b31888-31921`, `legacy-engine/SEED.md#b32025-32110`, `legacy-engine/SEED.md#b32714-32864`, `legacy-engine/SEED.md#b32935-33021`
 
 <!-- anchors:end -->
 

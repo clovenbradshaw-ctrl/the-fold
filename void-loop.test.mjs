@@ -9,7 +9,7 @@
 // eoreader7's NATIVE kernel (`native/kernel/cube.js`, `native/kernel/
 // task-log.js`), which is what `void-shape.test.mjs` — the module this one
 // builds directly on — already imports, and what the repo's own
-// "Retire eoreader6.1: the-fold depends on eoreader7 alone" direction
+// "Retire the legacy engine.1: the-fold depends on eoreader7 alone" direction
 // points at. `grid.test.mjs` still imports the frozen legacy engine path,
 // which is an uninitialised submodule in this checkout, so that file cannot
 // run here at all. One

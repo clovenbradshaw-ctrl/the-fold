@@ -26,7 +26,7 @@
 // The nine operators, terrains and their (mode, domain, grain) derivation
 // are NOT reinvented here. `packages/engine/operators.js` already states
 // "THE ALGEBRA IS THE SINGLE SOURCE OF TRUTH" and this repo's standing rule
-// is to leave everything possible in eoreader6.1 — so the terrain grid
+// is to leave everything possible in the legacy engine.1 — so the terrain grid
 // (`TERRAIN_BY_DOMAIN`), the operator letters (NUL SIG INS SEG CON SYN DEF
 // EVA REC — literally the same nine letters the Terminal Language document
 // names), the real dependency order (`OPERATOR_ORDER`), and the append-only

@@ -113,7 +113,7 @@ propose, humans dispose"*), and IV.6 (*"Amendments are numbered in the
 order they change the test"*), together with the closing footnote
 preserving the tenth amendment's number even though it "remains a draft
 proposal... and is not entered here." The renaming discipline is
-`eoreader6/SEED.md`, Amendment XVII (*"The name is superseded, not
+`legacy-engine/SEED.md`, Amendment XVII (*"The name is superseded, not
 erased"*). The draft-vs-applied tension is visible by comparing
 `CONSTITUTION.md`'s own amendment log (lines 333-359) against
 `AMENDMENT-8-PROPOSAL.md`, `AMENDMENT-9-PROPOSAL.md`, and
@@ -129,7 +129,7 @@ codebase itself cites.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “The name is superseded, not erased” → `eoreader6/SEED.md#b6151-6185`
+- “The name is superseded, not erased” → `legacy-engine/SEED.md#b6151-6185`
 
 Not located because a source this chapter names is **not yet obtained** (`eo-constitution/CONSTITUTION.md` — see the manifest's `unobtained` list for each one's reason):
 

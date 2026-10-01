@@ -137,7 +137,7 @@ lineage plainly: *"the nine operators as implemented in eoreader4.1
 table and the "propose; the kernel disposes" line are from "Layer 0 — The
 Legend." The linear dependency chain ("the helix") and its claim about
 1,295 of 1,296 orderings failing is from "Layer 1 — The Nine Operators."
-The contrast with `eoreader6/CUBE.md`'s "instrument, not runtime" framing
+The contrast with `legacy-engine/CUBE.md`'s "instrument, not runtime" framing
 is drawn from that file directly, discussed in Chapter 2.5. The Design-by-
 Contract connection above is this book's own added link to programming
 language history (Bertrand Meyer's Eiffel, from 1986 onward), not

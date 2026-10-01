@@ -116,7 +116,7 @@ real material and decides what category it belongs to.
 One more example is worth adding here, not because it's about this
 chapter's cube directly, but because it's a live instance of exactly the
 honesty this whole book has tried to practice about resemblance. A later
-audit of eoreader6 (`eoreader4.2/docs/kernel-probe-2026-07.md`) went
+audit of the legacy engine (`eoreader4.2/docs/kernel-probe-2026-07.md`) went
 looking for a real code mechanism that checks whether two "frames" a
 reading produced are compatible with each other — and found one:
 `commutator()`, a genuine test of whether two readings' bases agree,
@@ -133,7 +133,7 @@ generation — noticing a real resemblance, checking whether it was actually
 being claimed, and reporting honestly that it wasn't.
 
 **Where this comes from:** the coherence rule and the worked contradiction
-are both from `eoreader6/CUBE.md`. The over-determination principle is
+are both from `legacy-engine/CUBE.md`. The over-determination principle is
 lines 50-53: *"Terrain and stance both carry grain, so grain is claimed
 twice — and that redundancy is the whole point. Over-determination is what
 makes an address falsifiable."* The `eoreader5` contradiction, including
@@ -153,8 +153,8 @@ own finding and own words, not this book's addition.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “Terrain and stance both carry grain, so grain…” → `eoreader6/CUBE.md#b2079-2241`
-- “A known contradiction in the prior engine,” → `eoreader6/CUBE.md#b8394-8435`
+- “Terrain and stance both carry grain, so grain…” → `legacy-engine/CUBE.md#b2079-2241`
+- “A known contradiction in the prior engine,” → `legacy-engine/CUBE.md#b8394-8435`
 
 Quoted spans **not located in any obtained source** and not explained by a known gap — each is either the book's own illustrative speech, or a passage that reads as verbatim and is not, which is itself a finding to resolve:
 

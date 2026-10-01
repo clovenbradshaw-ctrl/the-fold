@@ -25,7 +25,7 @@ is the full record.
 **2. `deriveIdentityRevision` was NOT the blocker the first pass called it.**
 The section below ("§5, the real blocker") argued this organ has "nothing
 to derive its central quantity from" because `revision.js` (the
-**eoreader6.1** file it was reading) carries no positional field. That
+**the legacy engine.1** file it was reading) carries no positional field. That
 reasoning does not transfer to eoreader7's real `identity.js` — a
 different file, doing a different (and better-fitted) thing.
 
@@ -94,7 +94,7 @@ that correction landed: cloned to `/Users/mlacy/Documents/3.0/eoreader7`,
 confirmed via `gh repo view`.
 
 **What's actually there.** `native/kernel/` is a real, native recursive-reading
-kernel with no implementation dependency on eoreader6.1 (the repo's own
+kernel with no implementation dependency on the legacy engine.1 (the repo's own
 README says this in as many words). It exports, as real functions with real
 tests:
 
@@ -116,7 +116,7 @@ them touch identity-revision or omnimodal-kernel, both of which pass clean).
 
 **What's still true from the first pass, narrowed to its correct scope.**
 `eoreader-contract.json` and `eoreader-contract.test.mjs` genuinely do not
-exist anywhere — not in eoreader7, not in the-fold, not in eoreader6.1.
+exist anywhere — not in eoreader7, not in the-fold, not in the legacy engine.1.
 Increment A's gate still has nothing to run against. And the README itself
 says the important thing about scope: **"The Fold is the reference
 compatibility application: it currently consumes EOReader 7 through the
@@ -131,10 +131,10 @@ estimate below.
 
 **What this means for the estimate.** The five organs are not a build. They
 are an **integration**: vendor or submodule eoreader7 into the-fold (the repo
-ships a `legacy-eoreader6.1` submodule specifically for compat during this
+ships a `legacy-legacy-engine.1` submodule specifically for compat during this
 exact migration), write the actually-missing contract file and its test
 against the real checkout now sitting on disk, and re-point the-fold's engine
-imports from `eoreader6.1/packages/...` paths to `eoreader7/kernel.js`. That
+imports from `the legacy engine.1/packages/...` paths to `eoreader7/kernel.js`. That
 is days, not weeks — Increment A's gate can be written and run today. The
 open design question the first pass raised for `deriveIdentityRevision` — what
 coordinate space does "position" live in — is still open and still worth
@@ -154,7 +154,7 @@ few-days one) earns a second check even from a trusted source.
 
 *The original document follows, unedited except for this note. Read it for
 the still-accurate parts (increment A's contract gate, the multi-session
-ownership disclosure, the `sessionTerrains`/`asOf` detail on the eoreader6.1
+ownership disclosure, the `sessionTerrains`/`asOf` detail on the legacy engine.1
 side, which remains true of that repo regardless of v7's existence) and treat
 every "does not exist" claim about eoreader7 itself as superseded above.*
 
@@ -173,11 +173,11 @@ actually uses:
 | `eoreader-contract.test.mjs` | no such file, in any repo — still true |
 | `understanding-scoreboard.mjs` | ~~no such file — increment D's own gate has no referee~~ **exists at `eoreader7/native/eval/understanding-scoreboard.mjs` — see erratum above** |
 | `omnimodal-kernel.test.js` | ~~no such file — the medium-blindness claim is unproven~~ **exists at `eoreader7/native/tests/omnimodal-kernel.test.js`, passes clean — see erratum above** |
-| `binding.js`'s `WITNESS_FLOOR` | `binding.js` is real (`eoreader6.1/packages/engine/emergence/binding.js`); the constant is not in it. `WITNESS_FLOOR = 2` lives **here**, in [`asserted.js:117`](asserted.js:117) |
+| `binding.js`'s `WITNESS_FLOOR` | `binding.js` is real (`the legacy engine.1/packages/engine/emergence/binding.js`); the constant is not in it. `WITNESS_FLOOR = 2` lives **here**, in [`asserted.js:117`](asserted.js:117) |
 
-`.claude/worktrees/eoreader6.1` is a symlink to `/Users/mlacy/Documents/3.0/eoreader6.1`
+`.claude/worktrees/legacy-engine.1` is a symlink to `/Users/mlacy/Documents/3.0/legacy-engine.1`
 — a genuine, distinct engine repo, and genuinely a 6.1, not a v7 under another name.
-**This remains true and is not affected by the erratum: eoreader6.1 and
+**This remains true and is not affected by the erratum: the legacy engine.1 and
 eoreader7 are two different, real repos, and the-fold currently imports from
 the former, not the latter.**
 
@@ -187,13 +187,13 @@ file itself.
 
 ---
 
-## The five organs, re-scoped against real code (eoreader6.1 read, superseded by eoreader7 where noted)
+## The five organs, re-scoped against real code (the legacy engine.1 read, superseded by eoreader7 where noted)
 
 *Everything below this line reflects the first pass's reading of
-`eoreader6.1`, before eoreader7 was known to exist. It is kept for its detail
-on `eoreader6.1`'s own organs (still accurate about that repo) but no longer
+`the legacy engine.1`, before eoreader7 was known to exist. It is kept for its detail
+on `the legacy engine.1`'s own organs (still accurate about that repo) but no longer
 governs the estimate — see the erratum. A second pass reading eoreader7's
-`native/kernel/` directly, rather than reasoning from its eoreader6.1
+`native/kernel/` directly, rather than reasoning from its the legacy engine.1
 predecessor, is the next real step and is not done here.*
 
 A first estimate ranked these by apparent difficulty and got the order **nearly
@@ -245,7 +245,7 @@ The first estimate called this the heaviest lift, on the grounds that nothing
 supports "the graph as of tick T." That is wrong on both halves.
 
 **The as-of query is real, and constitutionally argued.**
-`eoreader6.1/event_log/index.js:64`:
+`the legacy engine.1/event_log/index.js:64`:
 
 ```js
 export const asOf = (log, cursor) => { … log.events.filter((e) => e.tick < cursor) }
@@ -259,7 +259,7 @@ reasoning is already paid for; it must not be re-derived or loosened.
 
 **The staged snapshots are real too.** `sessionTerrains` already admits the
 belief graph in stages and snapshots each one —
-`eoreader6.1/packages/host/terrains.js:324-334`, the local `snap()` closure,
+`the legacy engine.1/packages/host/terrains.js:324-334`, the local `snap()` closure,
 pushing `{label, upTo, of, tick: graph.tick, nodes, edges, nodeCount, edgeCount}`.
 `GRAPH_STAGES = 12` plus one stage per binding organ. Each stage is a full copy
 (capped at `GRAPH_LIMIT = 240` nodes and the 240 strongest edges), and the
@@ -302,7 +302,7 @@ the thing keeping S1 honest.**
 verbatim — `expectationTransition(current, state, {witness, consequence,
 grain, reframes})` at `native/kernel/expectations.js:11`. If this is adopted,
 the medium-effort mutation-to-transition conversion described above may not
-need to happen in eoreader6.1 at all — it already happened, upstream, in v7.)*
+need to happen in the legacy engine.1 at all — it already happened, upstream, in v7.)*
 
 ### 4. `projectTerrainState` — statefulness exists, but as a cache, not a projection
 
@@ -343,8 +343,8 @@ transfer at all; it needs its own read of `terrain-state.js`, not done here.)*
 This is increment D, the increment the spec itself says "has to be right — it is
 the claim the whole product rests on."
 
-`eoreader6.1/packages/engine/emergence/revision.js` is the canonical copy (463
-lines, vs eoreader6's 455; same export set). It genuinely measures revision:
+`the legacy engine.1/packages/engine/emergence/revision.js` is the canonical copy (463
+lines, vs the legacy engine's 455; same export set). It genuinely measures revision:
 `snapshot(graph)` returns a structural copy, `revise` produces a record carrying
 `arrival`, `triples`, `operator_changes`, `counts`, `vector`, `REC`,
 `breadth {nodesMoved, nodesHeld, edgesTouched, edgesHeld}`, `depth`,
@@ -456,7 +456,7 @@ see below.
   three `const` → `export const` promotions in 6.1 (`CHUNK_WORDS`,
   `ATMOSPHERE_REGIME`, `mulberry`). Cite 6.1 — but see the erratum: this whole
   comparison may be moot if the-fold migrates to eoreader7's kernel instead.
-- **This plan measured nothing itself, on the eoreader6.1 side.** Every number
+- **This plan measured nothing itself, on the legacy engine.1 side.** Every number
   in the superseded sections is a line count, a file path, or a constant read
   off disk. No claim about what the organs would *score* is made, because none
   was run. **The eoreader7 side is different: `node --test native/tests/*.test.js`
@@ -469,10 +469,10 @@ see below.
 - **A third repo, `commoncite`, exists** at `/Users/mlacy/Documents/3.0/commoncite`,
   built by a different peer session this same day, with its own vendored copy
   of eoreader7 and a working end-to-end import already run through it. Its
-  root `package.json` briefly read `"name": "eoreader6"` (stale from
+  root `package.json` briefly read `"name": "the legacy engine"` (stale from
   vendoring) — flagged independently by two peer sessions and fixed same-day,
   commit `587631a`; it now correctly reads `"name": "eoreader7"`, so a
-  name-based grep will find it fine. (`legacy-eoreader6.1/package.json`
-  underneath it is untouched and correctly still says `eoreader6` — that one
+  name-based grep will find it fine. (`legacy-legacy-engine.1/package.json`
+  underneath it is untouched and correctly still says `the legacy engine` — that one
   is a faithful copy of the real upstream submodule, not a mislabel.) Worth
   reading before vendoring eoreader7 a second, independent way into the-fold.

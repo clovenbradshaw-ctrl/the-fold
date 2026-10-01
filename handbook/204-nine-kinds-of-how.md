@@ -99,7 +99,7 @@ exactly the promise Chapter 0.3 made at the time: "you'll meet this again
 shortly," cashed in.
 
 **Where this comes from:** the stance grid (`stance = (mode, grain)`) and
-its nine names are defined in `eoreader6/CUBE.md`, lines 45-47, including
+its nine names are defined in `legacy-engine/CUBE.md`, lines 45-47, including
 the rule that "A stance is not a mood and cannot be chosen" (line 50). The
 Aristotle connection above is this book's own added link to the history of
 philosophy, not something the codebase itself cites.
@@ -110,7 +110,7 @@ philosophy, not something the codebase itself cites.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “A stance is not a mood and cannot…” → `eoreader6/CUBE.md#b1977-2020`
+- “A stance is not a mood and cannot…” → `legacy-engine/CUBE.md#b1977-2020`
 
 Quoted spans **not located in any obtained source** and not explained by a known gap — each is either the book's own illustrative speech, or a passage that reads as verbatim and is not, which is itself a finding to resolve:
 

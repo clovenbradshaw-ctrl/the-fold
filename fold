@@ -57,9 +57,9 @@ fi
 # serve.mjs and explore-server.mjs resolve the engine at ../eoreader7:
 # ENGINE = ../eoreader7/native/legacy-ported/packages/engine, NUL =
 # ../eoreader7/native/legacy-ported/nul, ENGINE_V7 = ../eoreader7/native
-# (v7's own kernel and organs). The eoreader6.1 cut is retired and no longer
-# fetched (eoreader7/LEGACY-EOREADER6.1.md). Until 2026-09-05 this
-# script cloned eoreader7 into ../eoreader6.1 — a mount name nothing in
+# (v7's own kernel and organs). The the legacy engine.1 cut is retired and no longer
+# fetched (eoreader7/LEGACY-ENGINE.md). Until 2026-09-05 this
+# script cloned eoreader7 into ../legacy-engine.1 — a mount name nothing in
 # either server reads any more — so a fresh machine came up with every
 # engine import 404ing behind a blank page. The check at the end names the
 # exact files the servers need, so a half-initialized clone fails here,

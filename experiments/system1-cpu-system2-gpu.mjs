@@ -36,7 +36,7 @@
 //     null` gate; topic: null hides System 1 from buildSummarySystemMessage's
 //     own `if (!summary?.topic) return null` gate) — never by re-deriving
 //     what those functions already decide.
-//   - eoreader6.1/packages/engine/holon/task-log.js — the real append-only
+//   - the legacy engine.1/packages/engine/holon/task-log.js — the real append-only
 //     ledger, same as wide-vs-narrow.mjs's own usage.
 //
 // WHAT IS NEW HERE, disclosed rather than smuggled in as if established:
@@ -68,7 +68,7 @@
 // system framing (NEUTRAL_BASE below).
 //
 // Layout assumption, unchanged from grid.test.mjs / wide-vs-narrow.mjs: the
-// -fold and eoreader6.1 are SIBLING directories. Run from the-fold's own
+// -fold and the legacy engine.1 are SIBLING directories. Run from the-fold's own
 // root:
 //   node experiments/system1-cpu-system2-gpu.mjs --self-test
 //   node experiments/system1-cpu-system2-gpu.mjs --topic=cumberland
@@ -591,7 +591,7 @@ async function main() {
   report(`GPU / System 2 — ${args.gpuModel}`, gpu, gpuChecks);
 
   const flags = taskLog.checkCubeProgression(log);
-  console.log(`ledger: ${log.entries.length} entries on a real eoreader6.1 task-log; checkCubeProgression flags: ${flags.length}`);
+  console.log(`ledger: ${log.entries.length} entries on a real the legacy engine.1 task-log; checkCubeProgression flags: ${flags.length}`);
 
   await writeFile(
     args.out,

@@ -54,7 +54,7 @@ without settling is not comprehension."*
 
 One of the three the project actually got *right*, and the reviewer says
 so: the resonance model holds that reactivation from long-term memory is
-passive, cue-driven, and unguided by discourse focus — *"which eoreader6
+passive, cue-driven, and unguided by discourse focus — *"which the legacy engine
 committed to explicitly, in the conformance test that says activation
 beats recency. This is the half the project got right, and getting it
 right was a real theoretical choice, not a default."* What's missing is
@@ -85,7 +85,7 @@ space, causation, motivation, and protagonist."* (One precision the
 retrieval forced: the five dimensions are named in the paper's body, not
 its abstract, and the paper itself alternates between "motivation" and
 "intentionality" for the fourth dimension across sections.) Checked against this project's organs, in the
-reviewer's own words: *"eoreader6 tracks protagonist (referents, well),
+reviewer's own words: *"the legacy engine tracks protagonist (referents, well),
 something adjacent to causation (surprise and strain, indirectly), time
 only as reading order rather than as narrated time, and neither space nor
 motivation at all."* Stated as what it is: not a criticism so much as a
@@ -117,7 +117,7 @@ and van Dijk, 1978; Kintsch's construction-integration model, 1988;
 Gernsbacher's Structure Building Framework, 1990; Myers and O'Brien's
 resonance model, 1996–98 — all three-plus-one named there, and every
 sentence quoted above is verbatim from there) are from
-`eoreader6/prior-art-teachable-language-comprehender.md`, §V. Zwaan and
+`legacy-engine/prior-art-teachable-language-comprehender.md`, §V. Zwaan and
 Radvansky's five-dimension situation-model checklist and its comparison
 against this project's organs is from the same file, end of §V. Both are
 explicitly the outside reviewer's own analysis, stated as such in the
@@ -126,7 +126,7 @@ the engine's behaviour are mine and have not been checked against anyone
 else's reading of it."* The stale-number correction (22/24 p≈0.005 →
 8/24 p≈0.046) and the fact that `activation.js` and `tiers.js` now carry
 their own citations in-file are from
-`eoreader6/prior-art-surprise-segmentation-and-memory.md`, §4 and §1,
+`legacy-engine/prior-art-surprise-segmentation-and-memory.md`, §4 and §1,
 covered in full in Chapter 6.5. The Zwaan & Radvansky sentence is quoted
 from the paper itself (*Psychological Bulletin* 123(2), 1998, retrieved
 in full). Kintsch's 1988 *Psychological Review* paper and Gernsbacher's
@@ -142,12 +142,12 @@ verified-against-the-printing are different claims.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “Three theories, developed independently over twenty years, all…” → `eoreader6/prior-art-teachable-language-comprehender.md#b16480-16611`
-- “which eoreader6 committed to explicitly, in the conformance…” → `eoreader6/prior-art-teachable-language-comprehender.md#b15312-15518`
-- “I would call this the single highest-value unbuilt…” → `eoreader6/prior-art-teachable-language-comprehender.md#b17085-17230`
-- “Each event can be indexed on each of…” → `eoreader6/prior-art-teachable-language-comprehender.md#b17311-17379` *(+1 segment(s) not located)*
-- “eoreader6 tracks protagonist (referents, well), something adjacent to…” → `eoreader6/prior-art-teachable-language-comprehender.md#b17481-17692`
-- “The connections drawn between this literature and the…” → `eoreader6/prior-art-teachable-language-comprehender.md#b28927-29070`
+- “Three theories, developed independently over twenty years, all…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b16480-16611`
+- “which the legacy engine committed to explicitly, in the conformance…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b15312-15518`
+- “I would call this the single highest-value unbuilt…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b17085-17230`
+- “Each event can be indexed on each of…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b17311-17379` *(+1 segment(s) not located)*
+- “the legacy engine tracks protagonist (referents, well), something adjacent to…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b17481-17692`
+- “The connections drawn between this literature and the…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b28927-29070`
 
 <!-- anchors:end -->
 

@@ -19,10 +19,10 @@ prior-art chapters 6.2–6.4) now also carries a short section naming real
 prior art from a field outside this project — a parallel, or an honest
 divergence — clearly marked in each chapter's own closing note as the
 handbook's own added connection, not something the codebase itself cites.
-A second pass (v0.6) then read `eoreader5`, `eoreader6`, and `eoreader4.2`
+A second pass (v0.6) then read `eoreader5`, `the legacy engine`, and `eoreader4.2`
 directly and sharpened six of those chapters with material actually found
 there — including a real, current worked example already living in
-eoreader6's own test suite. A third pass (v0.7) added Chapter 2.6, a
+the legacy engine's own test suite. A third pass (v0.7) added Chapter 2.6, a
 related generation's own empirical, cross-linguistic test of the
 three-axis structure Part II teaches — including its honestly-reported
 failures — and opened Part VIII with a scorecard (Chapter 8.1) auditing

@@ -7,7 +7,7 @@ node_modules/
 
 # eval/crosslingual-eval.mjs's own raw corpora — full-work translations
 # fetched for the cross-lingual limits-disclosure test, kept local like
-# pg2600.txt above (eoreader6.1's own CLAUDE.md convention: raw corpora are
+# pg2600.txt above (the legacy engine.1's own CLAUDE.md convention: raw corpora are
 # gitignored, only the derived results are committed)
 eval/corpus/
 

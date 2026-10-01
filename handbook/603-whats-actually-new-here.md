@@ -124,7 +124,7 @@ didn't actually earn — because the ledger isn't the output itself, it's
 the record of how the output came to exist, and forging that record
 convincingly would require doing the actual work it claims to record.
 
-**Where this comes from:** the Quillian correspondence is from `eoreader6/
+**Where this comes from:** the Quillian correspondence is from `legacy-engine/
 prior-art-teachable-language-comprehender.md`, §I: *"Fifty-seven years
 apart. Same mechanism. Nobody ported anything; the file's own header
 derives it from hippocampal function... and re-earns it against a memory
@@ -152,14 +152,14 @@ output — it is the record of how the output came to be."*
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “`resolvePronouns` returns 638 bindings and 820 gaps, and…” → `eoreader6/prior-art-teachable-language-comprehender.md#b21252-21631`
-- “Knowledge Vault had confidence; PROV-O has provenance vocabulary;…” → `eoreader6/prior-art-teachable-language-comprehender.md#b21919-22050`
-- “The closest prior art is the LCF proof-kernel…” → `eoreader6/prior-art-teachable-language-comprehender.md#b22617-22931`
-- “Machine reading, as a field, has approximately no…” → `eoreader6/prior-art-teachable-language-comprehender.md#b23099-23166`
-- “the empirical evidence that the risk is real…” → `eoreader6/prior-art-teachable-language-comprehender.md#b19576-19644`
-- “Fifty-seven years apart. Same mechanism. Nobody ported anything;…” → `eoreader6/prior-art-teachable-language-comprehender.md#b1516-1639`, `eoreader6/prior-art-teachable-language-comprehender.md#b1673-1747`
-- “What this project has that none of them…” → `eoreader6/prior-art-teachable-language-comprehender.md#b20890-20933`
-- “You cannot fake a ledger you did not…” → `eoreader6/prior-art-teachable-language-comprehender.md#b26598-26727`
+- “`resolvePronouns` returns 638 bindings and 820 gaps, and…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b21252-21631`
+- “Knowledge Vault had confidence; PROV-O has provenance vocabulary;…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b21919-22050`
+- “The closest prior art is the LCF proof-kernel…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b22617-22931`
+- “Machine reading, as a field, has approximately no…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b23099-23166`
+- “the empirical evidence that the risk is real…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b19576-19644`
+- “Fifty-seven years apart. Same mechanism. Nobody ported anything;…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b1516-1639`, `legacy-engine/prior-art-teachable-language-comprehender.md#b1673-1747`
+- “What this project has that none of them…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b20890-20933`
+- “You cannot fake a ledger you did not…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b26598-26727`
 
 Quoted spans **not located in any obtained source** and not explained by a known gap — each is either the book's own illustrative speech, or a passage that reads as verbatim and is not, which is itself a finding to resolve:
 

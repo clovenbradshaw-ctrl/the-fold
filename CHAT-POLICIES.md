@@ -161,7 +161,7 @@ Investigation: "chase getting Claude like chat with the local model,"
 against `gemma2:2b` on CPU-only local Ollama, using the real
 `twoPassTurn`/`runHolonicTask` pipeline (not a simplified stand-in),
 composed from eoreader7's `native/adapters/text/` organs standing in for
-the unavailable `../eoreader6.1/` sibling — confirmed elsewhere this same
+the unavailable `../legacy-engine.1/` sibling — confirmed elsewhere this same
 pass to be name-for-name compatible for exactly this bundle
 (`splitSentences`, `extractSurfaces`, `discoverReferents`, `namesCorefer`,
 `diaNorm`, `resolvePronouns`, `discoverRelationVocab`, `extractRelations`,

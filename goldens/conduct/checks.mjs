@@ -2,7 +2,7 @@
 //
 // Every check here is a STRUCTURAL PREDICATE over a turn's observation. None
 // of them carries a tuned threshold, and none of them may be tuned by watching
-// what it does to this golden's own score — eoreader6 `CLAUDE.md`, "never tune
+// what it does to this golden's own score — the legacy engine `CLAUDE.md`, "never tune
 // a parameter by checking what it does to a golden's own score". A check that
 // cannot decide returns `undecidable` and says so; it never guesses, and an
 // undecidable check is a defect in the check, not a pass for the instrument.
@@ -157,7 +157,7 @@ export function makeChecks({ splitSentences }) {
    *  abstained in prose alone, or INVENTED. "Invented" is read off the
    *  turn's OWN grounding check (grounding.js), never re-derived here: the
    *  scorer must not grow a second, private opinion about what the material
-   *  contains — eoreader6 `CLAUDE.md`, "search for the organ". */
+   *  contains — the legacy engine `CLAUDE.md`, "search for the organ". */
   const abstainsCheck = (obs) => {
     const invented = (obs.unsupported ?? []).length > 0;
     if (invented) return { verdict: "invented", pass: false, unsupported: obs.unsupported };

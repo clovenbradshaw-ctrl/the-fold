@@ -91,7 +91,7 @@ properties are already known in advance. This project never assumes that —
 the ground itself has to be freshly built, every time, before anything can
 even be checked against it.
 
-**Where this comes from:** `eoreader6/SEED.md`, "The unit of record" — *"All
+**Where this comes from:** `legacy-engine/SEED.md`, "The unit of record" — *"All
 three terms, or it is not a record. `witness` refuses a figure whose pattern
 did not move the ground — a difference that made no difference is not
 information, so it is not testimony either... The system may perceive
@@ -105,7 +105,7 @@ to those fields, not something the codebase itself cites.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “All three terms, or it is not a…” → `eoreader6/SEED.md#b1747-1944`, `eoreader6/SEED.md#b2007-2085`
+- “All three terms, or it is not a…” → `legacy-engine/SEED.md#b1747-1944`, `legacy-engine/SEED.md#b2007-2085`
 
 Quoted spans **not located in any obtained source** and not explained by a known gap — each is either the book's own illustrative speech, or a passage that reads as verbatim and is not, which is itself a finding to resolve:
 

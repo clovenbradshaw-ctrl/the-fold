@@ -96,7 +96,7 @@ answers "what got established, by which kind of act."
 Worth being precise about what follows: it isn't an outside field
 converging on this grid independently. It's a related, later generation of
 this very project (`eoreader4.2`, in its own internal wiki notes — again,
-describing that generation's own thinking, not eoreader6 or the current
+describing that generation's own thinking, not the legacy engine or the current
 engine) reusing these same nine terrain names — Void, Entity, Kind, Field,
 Link, Network, Atmosphere, Lens, Paradigm, unchanged — to make a historical
 argument about Aristotle's actual descendants. nearly every major formal ontology
@@ -142,11 +142,11 @@ of "where" are a property of *how attention can be organized at all*, not a
 property of hospitals, maps, or books.
 
 **Where this comes from:** the terrain grid (`terrain = (domain, grain)`)
-and its nine names are defined in `eoreader6/CUBE.md`, lines 41-43. `Kind`
+and its nine names are defined in `legacy-engine/CUBE.md`, lines 41-43. `Kind`
 and `Network`'s operational glosses ("`Kind` is induced over relation
 *terms*; `Network` is a graph over admitted Entities and Links") and
 `Atmosphere`'s definition ("the span between two re-zero events over the
-reader's accumulated ground") are from `eoreader6/11-terrain-occupancy-and-
+reader's accumulated ground") are from `legacy-engine/11-terrain-occupancy-and-
 the-two-ascents.md`, lines 17-19 and 135-136. `Paradigm`'s gloss ("the
 current set of induced Kinds plus their core fields") is from the same
 file, line 19. The neighborhood-map and reading-group domains are the same
@@ -158,7 +158,7 @@ The Porphyry/Linnaeus/Frege-Russell/Codd/BFO lineage is drawn from
 `eoreader4.2/docs/eo-wiki.md`, "Most Ontologies: 'It's all Entities.' EO:
 'Entities are only one of many'" — the same later generation's own wiki,
 reusing this chapter's nine terrain names to make its own historical
-argument, not a claim eoreader6 itself makes.
+argument, not a claim the legacy engine itself makes.
 
 <!-- anchors:start -->
 
@@ -166,9 +166,9 @@ argument, not a claim eoreader6 itself makes.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “`Kind` is induced over relation *terms*; `Network` is…” → `eoreader6/11-terrain-occupancy-and-the-two-ascents.md#b754-847`
-- “the span between two re-zero events over the…” → `eoreader6/11-terrain-occupancy-and-the-two-ascents.md#b6945-7017`
-- “the current set of induced Kinds plus their…” → `eoreader6/11-terrain-occupancy-and-the-two-ascents.md#b863-918`
+- “`Kind` is induced over relation *terms*; `Network` is…” → `legacy-engine/11-terrain-occupancy-and-the-two-ascents.md#b754-847`
+- “the span between two re-zero events over the…” → `legacy-engine/11-terrain-occupancy-and-the-two-ascents.md#b6945-7017`
+- “the current set of induced Kinds plus their…” → `legacy-engine/11-terrain-occupancy-and-the-two-ascents.md#b863-918`
 
 Not located because a source this chapter names is **not yet obtained** (`eoreader4.2/docs/eo-wiki.md`, `eoreader4.2/docs/eo-for-coders.md` — see the manifest's `unobtained` list for each one's reason):
 

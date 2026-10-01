@@ -8,7 +8,7 @@
 // on incidental co-occurring words ("fixed"/"function"/"error") whenever the
 // named identifier recurs too often as cross-referenced vocabulary to be
 // "most selective" (ground 113x / difference 27x / witness 12x in
-// eoreader6.1's nul/index.js), and returning a wrong span instead of null
+// the legacy engine.1's nul/index.js), and returning a wrong span instead of null
 // when the instruction named something truly absent ("frobnicate").
 //
 // The same measurement drove the second half of this module: every failure
@@ -304,7 +304,7 @@ export function declaredReferents(code) {
 // candidate's own definition decides — a quote can only come from the
 // referent that holds those bytes. Two designs were tried and refuted on the
 // real witness case before this one (kept here so they are not retried,
-// eoreader6.1's own reconcile-don't-retry discipline): (1) distinct-word
+// the legacy engine.1's own reconcile-don't-retry discipline): (1) distinct-word
 // containment counting scored pattern 28 vs witness 11 purely because
 // pattern's definition is ~12x longer — sheer span size hoards vocabulary;
 // (2) discriminative exclusive-word voting (only words present in exactly

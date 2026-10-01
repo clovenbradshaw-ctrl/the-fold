@@ -43,7 +43,7 @@ import { stripContainer } from "./source.js";
 // best few are read whole. 12 is an engineering starting point — giver: this
 // file — roughly one screenful of document rows in a disclosure; the true
 // candidate count always rides the result so the bound is visible, never
-// silent. A PROPER index would be eoreader6 host ingestion of the corpus
+// silent. A PROPER index would be the legacy engine host ingestion of the corpus
 // (createSession/admitChunked, then searchSpans returning {span_id,
 // source_id, byte_start, byte_end, text} — the same address shape this
 // repo's refs already use). At the engine's measured 8.4s per 3.3MB,

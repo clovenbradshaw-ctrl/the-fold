@@ -148,11 +148,11 @@ narrowest, most literal sense — the engine's own working notes name the
 fields directly, and Chapter 6.2 walks through exactly what was and wasn't
 carried over from each one.
 
-**Where this comes from:** the growth rule itself is `eoreader6/SEED.md`,
+**Where this comes from:** the growth rule itself is `legacy-engine/SEED.md`,
 "The growth rule" — *"An organ joins only when the level test returns
 `above` against the core... Unwired is failing."* The turbulence case is
 Amendments XIV and XV in the same file. The role-fold arc is drawn from
-`eoreader6/scripts/experiments/README.md` and `FINDINGS.md` (PRs #44–48):
+`legacy-engine/scripts/experiments/README.md` and `FINDINGS.md` (PRs #44–48):
 the 87% recall-loss figure and its source golden (`goldens/agency-civic/`,
 PR #44); the verb-island reordering and its citation of Tomasello's
 usage-based acquisition research (`role-fold-verb-island.mjs`, README.md);
@@ -172,9 +172,9 @@ experimental science, not something the codebase itself cites.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “An organ joins only when the level test…” → `eoreader6/SEED.md#b6316-6388`
-- “the mouth is language-specific by construction, the organ…” → `eoreader6/scripts/experiments/README.md#b6685-6748`
-- “EXPERIMENTAL. Unwired. Not a golden, not a certified…” → `eoreader6/scripts/experiments/README.md#b27-85`
+- “An organ joins only when the level test…” → `legacy-engine/SEED.md#b6316-6388`
+- “the mouth is language-specific by construction, the organ…” → `legacy-engine/scripts/experiments/README.md#b6685-6748`
+- “EXPERIMENTAL. Unwired. Not a golden, not a certified…” → `legacy-engine/scripts/experiments/README.md#b27-85`
 
 <!-- anchors:end -->
 

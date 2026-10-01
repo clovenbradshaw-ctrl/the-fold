@@ -4,7 +4,7 @@
 // native/kernel/cube.js, checked out at ../eoreader7 in this session — so
 // this file exercises ground-ledger.js's own prequential firewall for
 // real too, in an environment where ground-ledger.test.mjs itself cannot
-// load (it imports eoreader6.1's holon/task-log.js directly, a sibling
+// load (it imports the legacy engine.1's holon/task-log.js directly, a sibling
 // this checkout does not have). Degrades to a typed skip without the
 // eoreader7 sibling, matching every other cast.js-pattern test here.
 

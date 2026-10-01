@@ -79,7 +79,7 @@
 // like the colors" has no surface at all (priors.js::NEVER_A_NAME excludes
 // "I"), so the ladder measures an empty vocabulary and extractRelations
 // returns nothing. Named here rather than assumed, the way segments.js's
-// `outlineOfIndex` was tried and refused on the merits in eoreader6's own
+// `outlineOfIndex` was tried and refused on the merits in the legacy engine's own
 // goldens/network before a new splitter was written.
 //
 // Pure and browser-safe; organs injected (the cast.js pattern) so the page

@@ -16,8 +16,8 @@
 //
 // REUSES, NOT REBUILDS (the standing rule — leave everything possible in
 // the engine — held here by import, not by copying):
-//   - eoreader6.1/packages/engine/operators.js   (OPERATOR_ORDER, GRAINS)
-//   - eoreader6.1/packages/engine/holon/task-log.js (the real append-only
+//   - the legacy engine.1/packages/engine/operators.js   (OPERATOR_ORDER, GRAINS)
+//   - the legacy engine.1/packages/engine/holon/task-log.js (the real append-only
 //     ledger — every sample this script generates lands on it for real,
 //     not a simulation of one)
 //   - the-fold/witness.js::witnessCode            (the real syntax gate)
@@ -49,7 +49,7 @@
 //     be entered as `as:` (see measure.js's own admit() gate 2).
 //
 // Layout assumption, unchanged from grid.test.mjs: the-fold and
-// eoreader6.1 are SIBLING directories. Run from the-fold's own root:
+// the legacy engine.1 are SIBLING directories. Run from the-fold's own root:
 //   node experiments/wide-vs-narrow.mjs --self-test
 //   node experiments/wide-vs-narrow.mjs --model=gemma2:2b --wide-n=16
 
@@ -222,7 +222,7 @@ function selectBest(passing) {
   return [...passing].sort((a, b) => a.code.length - b.code.length || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0))[0];
 }
 
-// ── landing every sample on a REAL eoreader6.1 task-log ─────────────────
+// ── landing every sample on a REAL the legacy engine.1 task-log ─────────────────
 //
 // Mirrors build-log.js's own empirically-established mapping (its header:
 // "PROPOSE → INS · Figure · produced — BIRTH") rather than inventing a
@@ -386,7 +386,7 @@ async function main() {
   console.log(`  rank against ${test.draws} label-shuffles, direction=above: ${test.rank.toFixed(4)}${test.censoredAtFloor ? " (censored at floor — 1/draws)" : ""}`);
 
   const flags = taskLog.checkCubeProgression(log.value);
-  console.log(`\nledger: ${log.value.entries.length} entries on a real eoreader6.1 task-log; checkCubeProgression flags: ${flags.length}`);
+  console.log(`\nledger: ${log.value.entries.length} entries on a real the legacy engine.1 task-log; checkCubeProgression flags: ${flags.length}`);
 
   const outPath = args.out;
   await writeFile(outPath, JSON.stringify({ args, perTask, outcomes, test, ledgerEntries: log.value.entries, checkCubeProgressionFlags: flags }, null, 2));
@@ -437,7 +437,7 @@ async function selfTest() {
   assert(best === pool[1] || best.code.length <= pool[0].code.length, "selection should keep the shortest passer");
 
   // Ledger: land a passing sample, a refused sample, and a RESULT — on a
-  // REAL eoreader6.1 task-log — then check checkCubeProgression is happy.
+  // REAL the legacy engine.1 task-log — then check checkCubeProgression is happy.
   let log = taskLog.createTaskLog();
   log = landSample(log, { taskId: "sum-digits", arm: "narrow", sampleIx: 0, code: good, gate1: w1, gate2: f1 });
   log = landSample(log, { taskId: "sum-digits", arm: "wide", sampleIx: 0, code: null, gate1: null, gate2: null });

@@ -1,6 +1,6 @@
 // goldens/conduct/fetch.mjs — pull the corpus and freeze it.
 //
-// The same discipline as eoreader6 `goldens/cast/fetch.mjs`: the text is a
+// The same discipline as the legacy engine `goldens/cast/fetch.mjs`: the text is a
 // received gift, it is pinned by sha256, and `texts/` is gitignored while the
 // lock file is committed. A score against an unpinned corpus is
 // uninterpretable a year later — the number moves and nobody can say whether

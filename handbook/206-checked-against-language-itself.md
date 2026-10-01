@@ -8,7 +8,7 @@
 
 **Why this matters, and a boundary to draw first:** this chapter, like Part
 VII, describes a related but separate generation of this project
-(`eoreader4.2`), not eoreader6 or the current engine — but unlike Part VII,
+(`eoreader4.2`), not the legacy engine or the current engine — but unlike Part VII,
 what it describes isn't a different design choice. It's an actual empirical
 test of the very three-axis structure Chapters 2.1, 2.3, and 2.4 just taught
 you, run against real sentences in 41 languages, with its predictions
@@ -19,7 +19,7 @@ locked in advance and its failures reported as plainly as its successes.
 Chapters 2.1 through 2.4 crossed three yes-or-no-or-neither questions —
 what kind of change, what kind of territory, what grain — to build three
 nine-cell grids. That's a claim about the shape of *any* transformation,
-not just something read into eoreader6's own material after the fact. A
+not just something read into the legacy engine's own material after the fact. A
 claim that general ought to be checkable against something completely
 outside the project — and a related generation of this lineage actually
 went and checked it, against language itself, across dozens of languages,
@@ -131,7 +131,7 @@ eo-wiki.md`, "EO Lexical Analysis v2 — Results Report" and its companion
 entry "The Lexical Analysis: EO's Preliminary Empirical Grounding" (the
 latter carrying the exact epistemic-status line quoted above and the full
 pre-committed-prediction table), describing a related but separate
-generation's own empirical work — not eoreader6, and not a claim this book
+generation's own empirical work — not the legacy engine, and not a claim this book
 is making about the current engine. The corpus size (19,764 clauses
 embedded, 9,221 in consensus across 41 languages), the three-question
 design and its verbatim prompt text, the z-scores and monotonicity result,

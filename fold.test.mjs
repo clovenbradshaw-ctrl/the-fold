@@ -32,7 +32,7 @@ import {
 // The one sibling-repo import in this file: eoreader7's real, tested
 // dmdWindow — checked out at ../eoreader7 in this session, same relative-
 // import convention every cast.js-pattern test in this repo already uses
-// for eoreader6.1 (ground-ledger.test.mjs, build-log.test.mjs, …). Kept in
+// for the legacy engine.1 (ground-ledger.test.mjs, build-log.test.mjs, …). Kept in
 // its own try/import so a checkout without eoreader7 as a sibling degrades
 // to a typed skip rather than failing the whole file to load.
 let dmdWindow = null;

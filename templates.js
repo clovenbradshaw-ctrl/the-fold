@@ -1,7 +1,7 @@
 // templates.js — the nine ways to show data, and the familiar forms that are
 // instances of them.
 //
-// eoreader6's `12-nine-terrains-as-representation-standard.md` (RATIFIED
+// the legacy engine's `12-nine-terrains-as-representation-standard.md` (RATIFIED
 // 2026-08-14) makes a claim this module takes literally: every representation
 // has ONE native terrain — the Site-face cell its structure is built to hold —
 // and the catalog is closed at nine. A spreadsheet, a graph, a legend and an

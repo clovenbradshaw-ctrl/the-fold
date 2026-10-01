@@ -1,7 +1,7 @@
 // store.test.mjs — the walls themselves, against the real engine and the
 // real sql.js package.
 //
-// Every test here runs store.js over eoreader6's actual
+// Every test here runs store.js over the legacy engine's actual
 // engine/holon/task-log.js (imported by relative path, the same way
 // build-log.test.mjs/grid.test.mjs already do it) — no stub carries these
 // walls. materializeSql is exercised against the REAL sql.js npm package

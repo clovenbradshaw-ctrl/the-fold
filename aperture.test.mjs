@@ -2,7 +2,7 @@
 //
 // What must hold: this module runs on the SAME declared numbers reflex.js
 // already named givers for, not a second set; the meter runs against the
-// ENGINE'S REAL ORGANS (eoreader6 emergence/tiers.js), not a stub, the same
+// ENGINE'S REAL ORGANS (the legacy engine emergence/tiers.js), not a stub, the same
 // discipline reflex.test.mjs and grounding.test.mjs already set; the first
 // arrival is a typed gap exactly as SEED.md #1 requires, same as the self
 // plane's own meter; and the entropy reading actually responds to what it

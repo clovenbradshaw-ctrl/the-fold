@@ -94,7 +94,7 @@ connection exists that a closer search might still find.
 | 0.4 | Bender et al., "Stochastic Parrots" (2021) | Rhymes | Not named in any source material |
 | 0.4 | Vaswani et al., "Attention Is All You Need" (2017) | Background fact | Names what the mechanism the chapter already discusses actually is; not a resemblance claim |
 | 1.1 | Gestalt psychology's ground/figure (Rubin, 1915; Koffka) | Rhymes | "Ground" and "figure" are common enough words that this book cannot rule out independent coinage; no source names Gestalt psychology |
-| 1.2 | Bateson, *Steps to an Ecology of Mind* (1972) | **Witnessed** | `eoreader6/SEED.md` names it directly: *"Pattern is Bateson's: a difference that makes a difference"* |
+| 1.2 | Bateson, *Steps to an Ecology of Mind* (1972) | **Witnessed** | `legacy-engine/SEED.md` names it directly: *"Pattern is Bateson's: a difference that makes a difference"* |
 | 1.2 | Shannon's information theory (1948) | Rhymes | Not named in any source material |
 | 1.3 | Legal witness/hearsay standards; signal detection theory (Green & Swets, 1966) | Rhymes | Not named in any source material |
 | 1.4 | Clinical "confabulation" (Korsakoff's syndrome) | **Unreceived origin, now named** | `SEED.md` uses the precise clinical term itself — *"Confabulation — it speaks without witness"* — without ever citing its clinical origin; a term this specific is unlikely to be independent coinage, though this book cannot confirm intent |
@@ -120,14 +120,14 @@ connection exists that a closer search might still find.
 | Chapter | Connection | Verdict | Evidence |
 |---|---|---|---|
 | 3.1 | Close reading / New Criticism | Rhymes | Not named in any source material |
-| 3.2 | Benford's Law (Newcomb, 1881; Benford, 1938) | **Witnessed** | Named directly, in code, in `eoreader6/goldens/surprise/README.md`: *"Benford's Law (Newcomb 1881 / Benford 1938) — received, not derived"* |
+| 3.2 | Benford's Law (Newcomb, 1881; Benford, 1938) | **Witnessed** | Named directly, in code, in `legacy-engine/goldens/surprise/README.md`: *"Benford's Law (Newcomb 1881 / Benford 1938) — received, not derived"* |
 | 3.2 | Bayesian statistics' "prior" (Bayes, 1763) | Rhymes (flagged as a false friend) | The chapter itself argues the shared word does *not* imply a shared test — offered as a warning against conflation, not a claimed connection |
 | 3.3 | Fodor's *Modularity of Mind* (1983); the homunculus regress | Rhymes | Not named in any source material |
 | 3.4 | HTTP statelessness; Baddeley's working-memory model | Rhymes | Not named in any source material |
 | 3.5 | Chow's reject option (1970); Rubin's missing-data taxonomy (1976); Scots "not proven" | Rhymes | Not named in any source material |
 | 3.5 | Łukasiewicz (1920) → Codd's NULL problem (1970/1990) | **Witnessed** | `eoreader4.2/docs/eo-wiki.md`, "EO and Codd's Null Problem," makes this exact historical argument itself |
 | 3.6 | Negative controls | Rhymes | Not named in any source material |
-| 3.6 | Preregistration | **Witnessed** *(corrected — was "Rhymes" in this table's first edition)* | `eoreader6/prior-art-teachable-language-comprehender.md` §VII names it as a claimed differentiator — *"And pre-registration. `reach` was predicted to spike at boundaries. It didn't... Machine reading, as a field, has approximately no tradition of this"* — with the failed prediction kept in the results file as the receipt. The first edition of this table scored it "not named in any source material," which was simply wrong; recorded here rather than silently fixed |
+| 3.6 | Preregistration | **Witnessed** *(corrected — was "Rhymes" in this table's first edition)* | `legacy-engine/prior-art-teachable-language-comprehender.md` §VII names it as a claimed differentiator — *"And pre-registration. `reach` was predicted to spike at boundaries. It didn't... Machine reading, as a field, has approximately no tradition of this"* — with the failed prediction kept in the results file as the receipt. The first edition of this table scored it "not named in any source material," which was simply wrong; recorded here rather than silently fixed |
 
 ## The scorecard — Part IV and Part V
 
@@ -155,7 +155,7 @@ connection exists that a closer search might still find.
 
 ## The scorecard — the second audit, and the chapters added with it
 
-A second citation audit (`eoreader6/prior-art-surprise-segmentation-and-
+A second citation audit (`legacy-engine/prior-art-surprise-segmentation-and-
 memory.md`) landed after this table's first edition, and it changed the
 shape of the evidence in one important way: it put citations *into the
 code files themselves*, next to the mechanisms they describe. A citation
@@ -166,10 +166,10 @@ full; the rows here are the audit trail.
 
 | Chapter | Connection | Verdict | Evidence |
 |---|---|---|---|
-| 6.5 | Marr (1971) archicortex model; McClelland, McNaughton & O'Reilly (1995) | **Witnessed, in-file** | Named in `eoreader6/packages/engine/emergence/activation.js`'s own header as the mechanism's ancestors |
+| 6.5 | Marr (1971) archicortex model; McClelland, McNaughton & O'Reilly (1995) | **Witnessed, in-file** | Named in `legacy-engine/packages/engine/emergence/activation.js`'s own header as the mechanism's ancestors |
 | 6.5 | Collins & Loftus (1975); Crestani (1997) | **Witnessed, as named divergence** | Same header, cited explicitly as *"the mechanism this one is not"* — an ancestor named in order to state a departure, not a lineage claimed |
-| 6.5 | Foote (2000); Hearst (1997), TextTiling | **Witnessed, in-file** | Named in `eoreader6/packages/engine/emergence/tiers.js`'s header, with the divergence stated: *"a different statistic solving the same problem, not an instance of theirs"* |
-| 6.5 | C99 (Choi); Pk (Beeferman, Berger & Lafferty 1999); WindowDiff (Pevzner & Hearst 2002) | **Witnessed** | Reimplemented and run in `eoreader6/scripts/lib/segmentation-baselines.mjs` and `segmentation-metrics.mjs`; the measured comparison — including where this project's own detector did *not* clearly win — is the essay's §4 |
+| 6.5 | Foote (2000); Hearst (1997), TextTiling | **Witnessed, in-file** | Named in `legacy-engine/packages/engine/emergence/tiers.js`'s header, with the divergence stated: *"a different statistic solving the same problem, not an instance of theirs"* |
+| 6.5 | C99 (Choi); Pk (Beeferman, Berger & Lafferty 1999); WindowDiff (Pevzner & Hearst 2002) | **Witnessed** | Reimplemented and run in `legacy-engine/scripts/lib/segmentation-baselines.mjs` and `segmentation-metrics.mjs`; the measured comparison — including where this project's own detector did *not* clearly win — is the essay's §4 |
 | 6.5 | Fortescue, Kershenbaum & Ydstie (1981); DDM (Gama et al. 2004); ADWIN (Bifet & Gavaldà 2007) | **Witnessed** | Cited in `reading-regime.js`'s header and the Assembly C design doc for a mechanism that is *not yet built* — prior art filed in advance |
 | 6.5 | HippoRAG 2 (Gutiérrez et al., 2025) | **Witnessed** | The essay's §5 runs the dependency comparison itself, and declines the recall benchmark for a stated structural reason |
 | 6.1–6.3 | Schank (1972); Schank & Abelson (1977); SAM/PAM/FRUMP; Lenat's CYC; MUC (1987–98) and MUC-6; Hirschman's Deep Read (1999); Hermann et al. (2015); Rajpurkar et al., SQuAD (2016); Chen, Bolton & Manning (2016); Jia & Liang (2017); Levesque (2011); TextRunner (2007); ReVerb (2011); NELL (2010); Landauer & Dumais (1997); Knowledge Vault; PROV-O; LCF / de Bruijn | **Witnessed** *(now also named in this book's own chapter bodies, not only in footers)* | All named in `prior-art-teachable-language-comprehender.md` §§II–VII, which those chapters quote verbatim as of this edition. Previously excluded from this table only because Part VI's chapters *are* the prior-art chapters; listed now so the table is complete |
@@ -250,13 +250,13 @@ citation this table's evidence column compresses.
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
 - “Attention Is All You Need” → `attention-2017#b174-199`
-- “Pattern is Bateson's: a difference that makes a…” → `eoreader6/SEED.md#b1046-1104`
-- “Confabulation — it speaks without witness” → `eoreader6/SEED.md#b2712-2757`
-- “Benford's Law (Newcomb 1881 / Benford 1938) —…” → `eoreader6/goldens/surprise/README.md#b4666-4735`
-- “And pre-registration. `reach` was predicted to spike at…” → `eoreader6/prior-art-teachable-language-comprehender.md#b22934-23015`, `eoreader6/prior-art-teachable-language-comprehender.md#b23099-23166`
-- “the mechanism this one is not” → `eoreader6/packages/engine/emergence/activation.js#b1884-1913`
-- “Prior art is cited from memory and has…” → `eoreader6/prior-art-teachable-language-comprehender.md#b27642-27712`
-- “The number this repo has been citing for…” → `eoreader6/prior-art-surprise-segmentation-and-memory.md#b4119-4184`
+- “Pattern is Bateson's: a difference that makes a…” → `legacy-engine/SEED.md#b1046-1104`
+- “Confabulation — it speaks without witness” → `legacy-engine/SEED.md#b2712-2757`
+- “Benford's Law (Newcomb 1881 / Benford 1938) —…” → `legacy-engine/goldens/surprise/README.md#b4666-4735`
+- “And pre-registration. `reach` was predicted to spike at…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b22934-23015`, `legacy-engine/prior-art-teachable-language-comprehender.md#b23099-23166`
+- “the mechanism this one is not” → `legacy-engine/packages/engine/emergence/activation.js#b1884-1913`
+- “Prior art is cited from memory and has…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b27642-27712`
+- “The number this repo has been citing for…” → `legacy-engine/prior-art-surprise-segmentation-and-memory.md#b4119-4184`
 
 Not located because a source this chapter names is **not yet obtained** (`eoreader4.2/docs/eo-wiki.md`, `eoreader4.2/docs/eo-for-coders.md`, `bateson-1972-steps-to-an-ecology-of-mind`, `bender-gebru-2021-stochastic-parrots`, `chow-1970-optimum-recognition-error`, `morris-1938-foundations-theory-of-signs` — see the manifest's `unobtained` list for each one's reason):
 

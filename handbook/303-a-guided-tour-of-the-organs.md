@@ -111,7 +111,7 @@ covered" than a confident-sounding paragraph this book couldn't actually
 back with a citation.
 
 **Where this comes from:** `nul` is the organ performing the operation set
-out across `eoreader6/SEED.md`, "One operation" and "The unit of record."
+out across `legacy-engine/SEED.md`, "One operation" and "The unit of record."
 `frame` and its refusal of the self-watching regress are from SEED.md
 Amendment VIII, *"an organ that reads the reading's own trail, then an organ that reads that organ, collapses into a clock reading its own arithmetic... The frame refuses the regress by type."* `temporality`'s
 three-way distinction (ordered / directional / temporal) is from Amendment
@@ -119,7 +119,7 @@ V, *"Order is measured. Time may be received, discovered, or remain
 unresolved."* The binding organ is from Amendment X, *"It is modality-blind
 by construction: it reads arrival positions, never surfaces, never words,
 never a language... Meaning, when it comes, is earned by higher organs."*
-`verdict` and `cascade` are named in `eoreader6/CUBE.md` line 120 and in
+`verdict` and `cascade` are named in `legacy-engine/CUBE.md` line 120 and in
 several places across SEED.md's amendments (e.g. Amendment XV, *"the same
 standing `cascade` already holds"*), without a passage this book found
 sufficient to teach them fully. The Fodor and homunculus-regress
@@ -132,10 +132,10 @@ not something the codebase itself cites.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “an organ that reads the reading's own trail,…” → `eoreader6/SEED.md#b30423-30554`, `eoreader6/SEED.md#b30758-30795`
-- “Order is measured. Time may be received, discovered,…” → `eoreader6/SEED.md#b21794-21867`
-- “It is modality-blind by construction: it reads arrival…” → `eoreader6/SEED.md#b33840-33951`, `eoreader6/SEED.md#b34106-34156`
-- “the same standing `cascade` already holds” → `eoreader6/SEED.md#b40568-40609`
+- “an organ that reads the reading's own trail,…” → `legacy-engine/SEED.md#b30423-30554`, `legacy-engine/SEED.md#b30758-30795`
+- “Order is measured. Time may be received, discovered,…” → `legacy-engine/SEED.md#b21794-21867`
+- “It is modality-blind by construction: it reads arrival…” → `legacy-engine/SEED.md#b33840-33951`, `legacy-engine/SEED.md#b34106-34156`
+- “the same standing `cascade` already holds” → `legacy-engine/SEED.md#b40568-40609`
 
 Quoted spans **not located in any obtained source** and not explained by a known gap — each is either the book's own illustrative speech, or a passage that reads as verbatim and is not, which is itself a finding to resolve:
 

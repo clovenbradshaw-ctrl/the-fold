@@ -20,13 +20,13 @@
 
 | item | found | status |
 |---|---|---|
-| `./fold` cloned the engine into `../eoreader6.1` while both servers read `../eoreader7` | a fresh machine came up with every engine import 404ing behind a blank page | **fixed** — clones `../eoreader7` with its submodule, checks the three mounts by name |
+| `./fold` cloned the engine into `../legacy-engine.1` while both servers read `../eoreader7` | a fresh machine came up with every engine import 404ing behind a blank page | **fixed** — clones `../eoreader7` with its submodule, checks the three mounts by name |
 | A missing mount surfaced as a blank page | `serve.mjs` served 404s silently | **fixed** — boot check names the path and the repair, exits 2 |
 | The Explore page half-booted on every checkout | `explore-server.mjs` never served `/eoreader7/native/…`, which explore.html's own shims import; the page showed its "needs its local server" banner | **fixed** — the two aliases serve.mjs already carried; verified on a phone-sized viewport |
 | live_priors (~250 MB) is best-effort | typed gap in the priors tab without it | clean |
 | Ollama absent | before: no model at all; now the in-tab roster is offered when WebGPU is present, and the blocker's own fix is stated otherwise | **fixed** |
 | No LICENSE file | `package.json` is `private: true`; nothing states the licence of the code | **decision** — pick one before launch |
-| README named the wrong engine repo | "clones eoreader6.1" | **fixed** |
+| README named the wrong engine repo | "clones the legacy engine.1" | **fixed** |
 | Explore server hardcoded to `:8812` | reused across sessions; a collision is a typed line in the chat (`/reopen`) | clean, documented |
 
 ## 3. It always shows its work
@@ -169,5 +169,5 @@ Ollama with `gemma2:2b` pulled).
 
 - A model trained only on licensed / public-domain text (Common Corpus, Common Pile) is not in the vendored catalog; offering one means compiling it with mlc_llm.
 - The static-site deployment itself (a hosted origin serving this repo + `models/`) was not stood up here; the localhost page exercised the identical code path with `isLocalPage` true.
-- The-fold's `measure.test.mjs` still imports `../eoreader6` (nul and binding) and needs that sibling beside the repo.
+- The-fold's `measure.test.mjs` still imports `../legacy-engine` (nul and binding) and needs that sibling beside the repo.
 - Phone testing was done in a Chromium-shaped pane with device emulation, not on a physical phone; WebGPU on iOS needs Safari 26+ or Chrome with the flag on, and a 1B model needs ~1 GB free on the device.

@@ -3,7 +3,7 @@
 // This is the whole path the user asked for, run over the REAL modules with
 // no stub anywhere in the chain: the model's answer text → artifact.js's
 // segment parse → widget.js's mechanical routing off the OPERATOR's words →
-// build-log.js's append-only log over eoreader6's actual
+// build-log.js's append-only log over the legacy engine's actual
 // engine/holon/task-log.js → the projection, the cursor, the download, the
 // replay. The one thing that is faked is the model, and only the model:
 // every "answer" below is a literal string standing in for a turn's output,

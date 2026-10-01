@@ -2,7 +2,7 @@
 //
 // CANDIDATE MECHANISM: "mechanical-first". Before any free-form model call,
 // try to answer "who were Lincoln's vice presidents?" MECHANICALLY, using
-// this repo's real relation-tier organs (hypergraph.js + the eoreader6.1
+// this repo's real relation-tier organs (hypergraph.js + the legacy engine.1
 // engine's perceiver/text organs) — the SAME construction pattern
 // hypergraph.test.mjs uses, no model call in this path at all. Only if that
 // mechanical path yields nothing real do we fall back to ONE real gemma2:2b

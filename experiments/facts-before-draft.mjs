@@ -25,14 +25,14 @@
 //       for whatever the facts don't cover — the proposed design).
 //
 // REUSES, NOT REBUILDS:
-//   - eoreader6.1/packages/engine/perceiver/text/relations.js —
+//   - the legacy engine.1/packages/engine/perceiver/text/relations.js —
 //     discoverRelationVocab, extractRelations. The exact functions
 //     hypergraph.js already calls; not re-implemented here.
 //   - grounding.js — wordSet, hasWord (question-anchored triple filtering,
 //     the same "retrieval is a function of the question's own words"
 //     discipline READING-POLICY P4 states); checkGrounding, corroborateAtoms
 //     for the secondary (not primary) grounding-cleanliness read.
-//   - eoreader6.1/packages/engine/holon/task-log.js — the real ledger.
+//   - the legacy engine.1/packages/engine/holon/task-log.js — the real ledger.
 //   - The REAL production system prompt, copied verbatim from the actual
 //     sent-prompt disclosure pasted into chat during the live incident,
 //     not reconstructed from memory — see EXECUTE_SYSTEM_PROMPT below.
@@ -46,7 +46,7 @@
 //     point). Disclosed simplification, not a threshold tuned to the
 //     outcome: it is exactly the material's own named entities, readable
 //     off the fixture text by anyone, not chosen by checking what it does
-//     to the result (the eoreader6.1 CLAUDE.md's own standing rule against
+//     to the result (the legacy engine.1 CLAUDE.md's own standing rule against
 //     exactly that move).
 //   - `buildFactsBlock`: filters extracted triples to the ones whose
 //     OBJECT shares a content word with the question (here, "vice

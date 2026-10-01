@@ -53,7 +53,7 @@ const ENGINE = resolve(ROOT, "..", "eoreader7", "native", "legacy-ported", "pack
 const NUL = resolve(ROOT, "..", "eoreader7", "native", "legacy-ported", "nul");
 // eoreader7's NATIVE tree, mounted separately from the legacy /engine path
 // because they are different engines, not different folders: /engine is the
-// frozen 6.1 compatibility surface, /engine-v7 is v7's own kernel. Kept
+// frozen legacy compatibility surface, /engine-v7 is v7's own kernel. Kept
 // apart by name so a reader of an import line always knows which one a
 // module came from, and so retiring the legacy mount later is a deletion
 // rather than an untangling. Used, never copied — the same discipline
@@ -79,7 +79,7 @@ for (const [name, dir] of [["../eoreader7/native", ENGINE_V7], ["../eoreader7/na
 // of. The primary now points at eoreader7's native committed fixtures
 // (native/eval/the-fold/fixtures — the same byte-identical artifact this
 // repo's own priors-data/ and live_priors commit). It used to point at
-// eoreader6.1's scripts/corpus/ gitignored build dir, but that dir on disk
+// the legacy engine.1's scripts/corpus/ gitignored build dir, but that dir on disk
 // held only the raw corpora (en_ewt-ud-train.conllu,
 // pg2600-war-and-peace.txt) — never the derived prior — so the old primary
 // had actually been served by the fallback chain below the whole time.
@@ -93,7 +93,7 @@ const PRIORS_DATA = resolve(ROOT, "..", "eoreader7", "native", "eval", "the-fold
 // own committed artifact (priors-data/, present on every checkout of this
 // repo, no sibling needed) → live_priors' committed artifact (for names
 // this repo does not vendor). The alias is a DECLARED translation between
-// two naming conventions (eoreader6.1 keys files by ISO-3 "eng";
+// two naming conventions (the legacy engine.1 keys files by ISO-3 "eng";
 // live_priors by its own LANG_OF codes, "en") — THRAX_MAP's own precedent:
 // named at the seam, once.
 const PRIORS_DATA_SHIPPED = resolve(ROOT, "..", "live_priors", "derived-priors", "pos-priors");
@@ -767,7 +767,7 @@ createServer((req, res) => {
     return;
   }
 
-  // The reading engine is used, not copied. /engine/* serves eoreader6's
+  // The reading engine is used, not copied. /engine/* serves the legacy engine's
   // packages/engine so the page imports the real organs — one source of truth
   // for how a boundary is found, and no vendored fork to drift.
   if (rel.startsWith("/engine/")) {

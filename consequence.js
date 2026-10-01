@@ -28,7 +28,7 @@
 // (`{createTaskLog, append, ENTRY_KINDS, OPERATOR_BASIS, GRAIN_RANK}`),
 // which `adaptTaskLog` below builds from eoreader7's real
 // `native/kernel/task-log.js` + `native/kernel/cube.js` — a genuinely
-// different module than eoreader6.1's `holon/task-log.js` ground-ledger.js
+// different module than the legacy engine.1's `holon/task-log.js` ground-ledger.js
 // was originally written against (no GRAIN_RANK export; GRAINS is ordinal
 // instead), reconciled here rather than assumed compatible.
 //

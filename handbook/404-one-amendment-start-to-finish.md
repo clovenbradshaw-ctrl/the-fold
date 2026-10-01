@@ -106,7 +106,7 @@ concept — got tracked down and corrected separately, so the same word
 wouldn't quietly mean two different things in two different places. Nothing
 about this was treated as too small to bother getting exactly right.
 
-**Where this comes from:** `eoreader6/SEED.md`, Amendment XVII, "A
+**Where this comes from:** `legacy-engine/SEED.md`, Amendment XVII, "A
 quantity's name is a claim about what it is" — *"`ananda` is now `aperture`,
 everywhere: 252 occurrences across 36 files... The measurement did not
 change... Ananda means bliss. The identifier therefore asserted that an
@@ -125,9 +125,9 @@ codebase itself cites.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “A quantity's name is a claim about what…” → `eoreader6/SEED.md#b49621-49666`
-- “`ananda` is now `aperture`, everywhere: 252 occurrences across…” → `eoreader6/SEED.md#b49713-49783`, `eoreader6/SEED.md#b49847-49877`, `eoreader6/SEED.md#b50129-50279`, `eoreader6/SEED.md#b50825-50889`
-- “This quantity was called `ananda` until 2026-08-04. The…” → `eoreader6/SEED.md#b6099-6185`
+- “A quantity's name is a claim about what…” → `legacy-engine/SEED.md#b49621-49666`
+- “`ananda` is now `aperture`, everywhere: 252 occurrences across…” → `legacy-engine/SEED.md#b49713-49783`, `legacy-engine/SEED.md#b49847-49877`, `legacy-engine/SEED.md#b50129-50279`, `legacy-engine/SEED.md#b50825-50889`
+- “This quantity was called `ananda` until 2026-08-04. The…” → `legacy-engine/SEED.md#b6099-6185`
 
 Not located because a source this chapter names is **not yet obtained** (`eo-constitution/CONSTITUTION.md` — see the manifest's `unobtained` list for each one's reason):
 

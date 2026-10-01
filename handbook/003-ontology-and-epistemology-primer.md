@@ -161,7 +161,7 @@ Taoist/Buddhist/Kabbalistic mapping is real and documented: see
 `HANDBOOK-SPEC.md`, v0.6 changelog ("Material considered and deliberately
 left out of this pass"), which records both it and the reason it stayed
 out. The cube's demotion from classifier to instrument is
-`eoreader6/CUBE.md`: *"As a classifier — deriving a cell from content —
+`legacy-engine/CUBE.md`: *"As a classifier — deriving a cell from content —
 this was already measured and refuted... It is promoted out of the
 code."*
 
@@ -171,10 +171,10 @@ code."*
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “what kind of thing is this?” → `eoreader6/SEED.md#b92109-92135`
-- “what *kind* of thing is this — a…” → `eoreader6/SEED.md#b92109-92135` *(+1 segment(s) not located)*
+- “what kind of thing is this?” → `legacy-engine/SEED.md#b92109-92135`
+- “what *kind* of thing is this — a…” → `legacy-engine/SEED.md#b92109-92135` *(+1 segment(s) not located)*
 - “To be is to be the value of…” → `quine-1948#b32023-32061`
-- “As a classifier — deriving a cell from…” → `eoreader6/CUBE.md#b406-498`, `eoreader6/CUBE.md#b750-780`
+- “As a classifier — deriving a cell from…” → `legacy-engine/CUBE.md#b406-498`, `legacy-engine/CUBE.md#b750-780`
 
 Quoted spans **not located in any obtained source** and not explained by a known gap — each is either the book's own illustrative speech, or a passage that reads as verbatim and is not, which is itself a finding to resolve:
 

@@ -101,7 +101,7 @@ test("testTimeConsumers: every declared eoreader7-native module path is actually
 });
 
 test("contract pins the 6.1 reference head used to begin the v7 compatibility baseline", () => {
-  assert.equal(contract.reference.repository, "clovenbradshaw-ctrl/eoreader6.1");
+  assert.equal(contract.reference.repository, "clovenbradshaw-ctrl/legacy-engine.1");
   assert.match(contract.reference.observedHead, /^[0-9a-f]{40}$/);
   assert.ok(contract.semanticCapabilities.length >= 10, "semantic compatibility floor should remain explicit");
   assert.ok(contract.migrationLaw.some((line) => /without requiring The Fold runtime changes/.test(line)));

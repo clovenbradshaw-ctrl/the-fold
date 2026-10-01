@@ -129,7 +129,7 @@ nine cells it lives in.
 
 **Where this comes from:** the mode/domain grid and the operator labels
 (`NUL`, `SIG`, `INS`, `SEG`, `CON`, `SYN`, `DEF`, `EVA`, `REC`) are defined in
-`eoreader6/CUBE.md`, lines 19-21 and 39. Four of the nine are pinned down
+`legacy-engine/CUBE.md`, lines 19-21 and 39. Four of the nine are pinned down
 directly by name, with a worked example, in CUBE.md's own text: `NUL·Void·
 Clearing` ("Clearing the ground of existence"), `gap()` as `DEF ·
 Interpretation` ("the engine refusing a claim"), `witness()` as `EVA ·
@@ -143,12 +143,12 @@ position within the group fixes the mode). The Peirce quotes above are
 from the electronic edition of the Harvard *Collected Papers* (CP 2.228
 and 2.247–248), retrieved and checked directly rather than re-quoted
 from a summary. `CON` is independently
-corroborated as `Relate · Structure` by `eoreader6/SEED.md` Amendment X,
+corroborated as `Relate · Structure` by `legacy-engine/SEED.md` Amendment X,
 which describes the binding organ's output as "Structure-tier relations
 (Figure cell on the operator grid)." `SYN`'s gloss ("synthesize a ward from
 beds") is from a related but separate generation of this project,
 `eoreader4.2/docs/eo-for-coders.md` line 249 — flagged as such because it
-does not describe eoreader6 itself; see Part VII for why that document
+does not describe the legacy engine itself; see Part VII for why that document
 belongs to a different generation. The Peirce connection earlier in this
 chapter is this book's own added link to the history of semiotics, not
 something the codebase itself cites.
@@ -159,10 +159,10 @@ something the codebase itself cites.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “Clearing the ground of existence” → `eoreader6/CUBE.md#b3191-3225`
-- “the engine refusing a claim” → `eoreader6/CUBE.md#b4673-4700`
-- “it structurally *requires* `pattern.moved === true`” → `eoreader6/CUBE.md#b5353-5403`
-- “Structure-tier relations (Figure cell on the operator grid).” → `eoreader6/SEED.md#b33976-34034`
+- “Clearing the ground of existence” → `legacy-engine/CUBE.md#b3191-3225`
+- “the engine refusing a claim” → `legacy-engine/CUBE.md#b4673-4700`
+- “it structurally *requires* `pattern.moved === true`” → `legacy-engine/CUBE.md#b5353-5403`
+- “Structure-tier relations (Figure cell on the operator grid).” → `legacy-engine/SEED.md#b33976-34034`
 
 **Attested by secondary witnesses** — the primary is not obtained (see the manifest's `unobtained` list), so the anchor names the bytes of an independent source that quotes the passage. A witness says what the witness quotes, never what the primary's own edition reads:
 

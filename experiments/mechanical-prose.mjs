@@ -18,7 +18,7 @@
 // grounding-tier organ (unchanged, imported); the engine organs it needs
 // (splitSentences, extractSurfaces, discoverReferents, namesCorefer,
 // diaNorm, discoverRelationVocab, extractRelations, tokenize) are the
-// SAME real ones hypergraph.test.mjs loads, from eoreader6.1 next door —
+// SAME real ones hypergraph.test.mjs loads, from the legacy engine.1 next door —
 // no stand-ins, no hand-listed verbs. WHAT IS NEW HERE: only the render
 // step at the bottom (edgeToSentence / renderProfile), which is the thing
 // under test and does not exist anywhere else in the repo.

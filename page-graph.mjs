@@ -27,7 +27,7 @@
 // `documents` result field), so a reader can see what is not being scanned
 // and why, instead of trusting that the walk was complete:
 //
-//   /engine/*, /nul/*   another repo's code (eoreader6), served through a
+//   /engine/*, /nul/*   another repo's code (the legacy engine), served through a
 //                       server mount. Governed by that repo's own tests; this
 //                       repo does not own the bytes and must not pretend to
 //                       audit them. Reported as `external`.
@@ -53,12 +53,12 @@ import { dirname, join, normalize, relative, resolve } from "node:path";
 
 // Server mounts: paths the page loads that are served from another repo.
 // serve.mjs and explore-server.mjs both carry these two (the page dies at
-// import time without either), and both resolve them under ../eoreader6.
+// import time without either), and both resolve them under ../legacy-engine.
 export const MOUNTS = [
   {
     prefix: "/engine/",
     root: ["..", "eoreader7", "native", "legacy-ported", "packages", "engine"],
-    why: "eoreader6's engine, used not copied — another repo's bytes, governed by its own tests",
+    why: "the legacy engine's engine, used not copied — another repo's bytes, governed by its own tests",
   },
   {
     prefix: "/engine-v7/",

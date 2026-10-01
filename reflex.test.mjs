@@ -6,7 +6,7 @@
 // the record; the surprise meter's numbers are the declared ones with their
 // givers, its first ground is a typed gap, and its ranking is deterministic
 // and mechanical. The meter runs against the ENGINE'S REAL ORGANS
-// (eoreader6 emergence/tiers.js), not a stub — the same discipline
+// (the legacy engine emergence/tiers.js), not a stub — the same discipline
 // grounding.test.mjs set.
 
 import { test } from "node:test";

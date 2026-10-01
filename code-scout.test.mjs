@@ -1,5 +1,5 @@
 // code-scout.test.mjs — conformance for the referent scout and the
-// byte-derived delta. Run against the REAL eoreader6.1 nul/index.js (house
+// byte-derived delta. Run against the REAL the legacy engine.1 nul/index.js (house
 // style: real modules, no stubs) — the exact file whose measured failures
 // (eval/results/local-llm-nul-index-improve-RESULTS.md) this organ exists
 // to close: scoutSpan anchoring on incidental words instead of the named

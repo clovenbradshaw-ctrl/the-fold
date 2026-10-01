@@ -130,7 +130,7 @@ occurrence count in `items.json` is an answer key against those exact bytes.
 
 ## No number is tuned against this golden's own score
 
-Per eoreader6 `CLAUDE.md`: every predicate here is structural — a count, a
+Per the legacy engine `CLAUDE.md`: every predicate here is structural — a count, a
 containment, a clause split, a set intersection. There is no threshold to walk,
 so there is nothing to calibrate against the answer key. The two closed cue
 lists (`CONTRAST_CUES`, `ABSTENTION_CUES`, `AMBIGUITY_CUES`) are the one place
@@ -225,7 +225,7 @@ modules are the app, which is what makes this scoreable at all.
 
 ## What was searched before this was written
 
-Per eoreader6 `CLAUDE.md`'s first rule. `eval/dialogue.mjs` already drives the
+Per the legacy engine `CLAUDE.md`'s first rule. `eval/dialogue.mjs` already drives the
 real turn headless with two mouths and writes scoreable JSONL — it is the organ
 this golden's driver is built on rather than beside, and `runItem` is its
 `answer()` with a scripted question list instead of an asker. `reflex.js`
@@ -233,7 +233,7 @@ already measures the conversation's own cognition, but on the self plane, about
 surprise and pace, not against an external behavioral standard. `grounding.js`,
 `quotes.js` and `hypergraph.js` already check whether an answer is *true to the
 material*; none of them checks whether it *did what was asked*. The nine
-goldens in `eoreader6/goldens/` are all engine-facing; `goldens/surprise`'s
+goldens in `legacy-engine/goldens/` are all engine-facing; `goldens/surprise`'s
 tier split is the design this one's rung and control gate are modelled on.
 Nothing here scored conduct, which is why this is new code rather than a
 wrapper.

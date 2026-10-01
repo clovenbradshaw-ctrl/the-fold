@@ -674,7 +674,7 @@ test("landAct: a computed EVA verdict's RESULT names its own experiencer — who
 const CONNECTOR_POS_PRIOR = {
   schema: "POSPrior@1",
   forms: {
-    // Real counts, copied verbatim from eoreader6.1/scripts/corpus/
+    // Real counts, copied verbatim from the legacy engine.1/scripts/corpus/
     // pos-prior-eng.json (the real UD_English-EWT-built prior), the same
     // way grammar-lens.test.mjs's own POS_PRIOR fixture is sourced.
     always: { ADV: 102 },

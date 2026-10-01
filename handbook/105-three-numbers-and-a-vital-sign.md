@@ -118,7 +118,7 @@ measurement hadn't earned. So it was renamed, and the old name wasn't
 quietly erased — it's on the record, with the date and the reason, exactly
 the way this book tries to handle its own claims.
 
-**Where this comes from:** `eoreader6/SEED.md`, "Three declared numbers" and
+**Where this comes from:** `legacy-engine/SEED.md`, "Three declared numbers" and
 "The sign of health" — *"They are the whole physiology. None of them is
 ever a default"* and *"Aperture is the volume of the ground... Never a
 gate, never a score: the warmth you check for."* The rename is recorded in
@@ -135,11 +135,11 @@ physiology, not something the codebase itself cites.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “the warmth you check for.” → `eoreader6/SEED.md#b6014-6038`
-- “They are the whole physiology. None of them…” → `eoreader6/SEED.md#b5127-5188`
-- “Aperture is the volume of the ground... Never…” → `eoreader6/SEED.md#b5550-5586`, `eoreader6/SEED.md#b5985-6038`
-- “A quantity's name is a claim about what…” → `eoreader6/SEED.md#b49621-49666`
-- “Ananda means bliss. The identifier therefore asserted that…” → `eoreader6/SEED.md#b50129-50279`
+- “the warmth you check for.” → `legacy-engine/SEED.md#b6014-6038`
+- “They are the whole physiology. None of them…” → `legacy-engine/SEED.md#b5127-5188`
+- “Aperture is the volume of the ground... Never…” → `legacy-engine/SEED.md#b5550-5586`, `legacy-engine/SEED.md#b5985-6038`
+- “A quantity's name is a claim about what…” → `legacy-engine/SEED.md#b49621-49666`
+- “Ananda means bliss. The identifier therefore asserted that…” → `legacy-engine/SEED.md#b50129-50279`
 
 Quoted spans **not located in any obtained source** and not explained by a known gap — each is either the book's own illustrative speech, or a passage that reads as verbatim and is not, which is itself a finding to resolve:
 

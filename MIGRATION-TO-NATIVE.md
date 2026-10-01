@@ -1,9 +1,9 @@
-# The-fold → eoreader7 native migration (legacy-eoreader6.1 retired)
+# The-fold → eoreader7 native migration (legacy-legacy-engine.1 retired)
 
 Prepared 2026-09-15 after `eoreader7@8445a84` retired the
-`legacy-eoreader6.1` submodule and its 28 root compatibility symlinks.
+`legacy-legacy-engine.1` submodule and its 28 root compatibility symlinks.
 This is the SIZING and PLAN, not the migration. The pointer doc
-(`eoreader7/LEGACY-EOREADER6.1.md`) names this as the owning consumer's
+(`eoreader7/LEGACY-ENGINE.md`) names this as the owning consumer's
 pass; this file is the fold's half of that handoff.
 
 ## The pairing rule this migration serves
@@ -12,7 +12,7 @@ pass; this file is the fold's half of that handoff.
 never the reverse. Cloning either repo from GitHub provides the pair.
 After this migration the fold's only eoreader7 imports resolve
 `../eoreader7/kernel.js` or `../eoreader7/native/…` — the retired
-`../eoreader7/legacy-eoreader6.1/…` surface never appears again.
+`../eoreader7/legacy-legacy-engine.1/…` surface never appears again.
 
 ## Shipped 2026-09-15 (this pass)
 
@@ -27,7 +27,7 @@ After this migration the fold's only eoreader7 imports resolve
 - **Contract updated** — `eoreader-contract.json` filesystemMounts now
   lists `native/eval/the-fold/fixtures` for both servers (was
   `scripts/corpus`); `eoreader-contract.test.mjs` 7/7 (its
-  `"eoreader7", "legacy-eoreader6.1"` sibling-mount assertion still holds
+  `"eoreader7", "legacy-legacy-engine.1"` sibling-mount assertion still holds
   on the retained ENGINE/NUL mounts).
 - **`network.test.mjs` control** — its direct text-organ imports repointed
   to `native/adapters/text/` (exact export-name match for all ten names;
@@ -43,8 +43,8 @@ Fresh clones of both repos (the `./fold` quickstart layout):
 ```
 OK   eoreader7 kernel.js (native)                       — v7 loads
 OK   the-fold → eoreader7/native/organs/index.js (seam) — surface path resolves
-FAIL the-fold → eoreader7/legacy-eoreader6.1/…          — 57 files, RETIRED path
-OK   no legacy-eoreader6.1, no .gitmodules in clone     — retirement is real
+FAIL the-fold → eoreader7/legacy-legacy-engine.1/…          — 57 files, RETIRED path
+OK   no legacy-legacy-engine.1, no .gitmodules in clone     — retirement is real
 ```
 
 ## Size
@@ -78,7 +78,7 @@ OK   no legacy-eoreader6.1, no .gitmodules in clone     — retirement is real
 | `…/emergence/binding.js` | arrivals floor / co-arrival binding (`network.js`, `clippy.js` gates) | check for a native co-arrival/binding home (`native/` search first); if none, this is the second genuinely-ported organ |
 | `…/engine/referents/index.js` | `projectReferents` (`eval/`, `explore`) | native referent home is `native/adapters/text/surfaces.js` + `native/organs/cast.js`; verify `projectReferents`' caller needs |
 | `…/nul/index.js` | the statistics subsystem (`measure.js` reads it; ~1,306 lines, `LICENSED` table, `ground/difference/extremeGround`) | **native has no `nul`**. P69 left it on `/engine/` deliberately. This is the largest port: the statistics engine itself. NOT a one-line repoint. |
-| `…/nul/` + `…/nul/index.js` (paths) | server mount `"/nul/" → eoreader7/legacy-eoreader6.1/nul/` (`serve.mjs`, `explore-server.mjs`, `deploy/build-site.mjs`) | a served mount, not an import — repoint the mount or drop it with nul's port |
+| `…/nul/` + `…/nul/index.js` (paths) | server mount `"/nul/" → eoreader7/legacy-legacy-engine.1/nul/` (`serve.mjs`, `explore-server.mjs`, `deploy/build-site.mjs`) | a served mount, not an import — repoint the mount or drop it with nul's port |
 | `…/bin/priors/pos/en-ud-ewt.json` | POS prior (`grid.test.mjs` etc.) | eoreader7's CLI already BUNDLES this (`cli/priors/pos-prior-en.json`, per `cli/eoreader7.mjs` header). Point tests at the bundled copy. |
 | `…/scripts/corpus/pos-prior-eng.json` | POS prior (train/dev/test build) | **SHIPPED**: served mount primary repointed to `native/eval/the-fold/fixtures/` (the byte-identical POSPrior@1 committed there); OWN → SHIPPED fallback chain retained (P73/P74) |
 | `…/odyssey-greek.txt` | corpus fixture (`web-claim.test.mjs` etc.) | a DATA fixture, not code — migrate to `native/eval/the-fold/fixtures/` |
@@ -104,8 +104,8 @@ OK   no legacy-eoreader6.1, no .gitmodules in clone     — retirement is real
 - The pair-proof fresh-clone check flips from `FAIL` to `OK` for the
   fold's runtime entrypoints (`proxy-runner.mjs`, `serve.mjs`,
   `explore-server.mjs`).
-- Zero occurrences of `legacy-eoreader6.1` in the fold's committed tree
-  (the acceptance gate: `git grep -l "eoreader7/legacy-eoreader6.1"` is empty).
+- Zero occurrences of `legacy-legacy-engine.1` in the fold's committed tree
+  (the acceptance gate: `git grep -l "eoreader7/legacy-legacy-engine.1"` is empty).
 
 ## Out of scope (named, not silently dropped)
 

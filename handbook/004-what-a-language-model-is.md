@@ -116,7 +116,7 @@ technical one — not something the mechanism's own inventors asserted.
 `eo-constitution/CONSTITUTION.md` Article II.8, "The difference test" (*"Does
 this mechanism build a nothing, or weight what is present? ... Attention is
 the canonical instance and is refused wherever it is the measurement"*), and
-from `eoreader6/prior-art-teachable-language-comprehender.md` §VI, on the
+from `legacy-engine/prior-art-teachable-language-comprehender.md` §VI, on the
 "absorb it" strategy and its cost: *"there is no ledger. You cannot ask
 which of its knowledge was used, or what it declined to conclude, or what it
 discarded."* The Vaswani et al. and Bender et al. connections above are
@@ -130,7 +130,7 @@ codebase itself cites.
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
 - “Attention Is All You Need” → `attention-2017#b174-199`
-- “there is no ledger. You cannot ask which…” → `eoreader6/prior-art-teachable-language-comprehender.md#b20194-20315`
+- “there is no ledger. You cannot ask which…” → `legacy-engine/prior-art-teachable-language-comprehender.md#b20194-20315`
 
 **Attested by secondary witnesses** — the primary is not obtained (see the manifest's `unobtained` list), so the anchor names the bytes of an independent source that quotes the passage. A witness says what the witness quotes, never what the primary's own edition reads:
 

@@ -98,7 +98,7 @@ the gate" rather than forcing every case into a binary.
 ## A related generation's own diagnosis of the same trap, in databases
 
 A different, later generation of this project (`eoreader4.2`, in its own
-internal wiki notes — not describing eoreader6 or any part of the current
+internal wiki notes — not describing the legacy engine or any part of the current
 engine, but worth hearing out on this specific point) traces a precise
 parallel through the history of database design, and it sharpens exactly
 why three separate gap types matter rather than one. Edgar F. Codd's 1970
@@ -136,11 +136,11 @@ evidence. Measurement is reserved for claims that are at least well-formed
 enough to be worth measuring. Never spend a measurement on what the algebra
 already caught for free.
 
-**Where this comes from:** the three gap types are named in `eoreader6/
+**Where this comes from:** the three gap types are named in `legacy-engine/
 CUBE.md`, lines 95-97, as "this same act at different grains, not three
 unrelated failure modes." The two-tier refusal rule ("type error before
 null... Never spend a measurement on what the algebra catches") is
-`eoreader6/SEED.md`, "What follows," clause 7. The worked example is
+`legacy-engine/SEED.md`, "What follows," clause 7. The worked example is
 `eochat/essay.md`, "What this leaves out" — including the exact phrase "not
 printed rather than printed unsupported." The reject-option, missing-data,
 and "not proven" connections above are this book's own added links to
@@ -148,7 +148,7 @@ pattern recognition, statistics, and law, not something the codebase
 itself cites. The Codd/NULL and Łukasiewicz history is drawn from
 `eoreader4.2/docs/eo-wiki.md`, "EO and Codd's Null Problem" — a related but
 separate generation's own internal notes, cited here because the parallel
-is precise, not because it describes eoreader6 itself.
+is precise, not because it describes the legacy engine itself.
 
 <!-- anchors:start -->
 
@@ -156,8 +156,8 @@ is precise, not because it describes eoreader6 itself.
 
 **Byte anchors** (generated — `node scripts/anchor-quotes.mjs`, verified by `--verify`; sources and their provenance in `sources/MANIFEST.json`). Each anchor is the UTF-8 byte range of the quoted words in the snapshot the manifest names:
 
-- “this same act at different grains, not three…” → `eoreader6/CUBE.md#b5200-5270`
-- “type error before null... Never spend a measurement…” → `eoreader6/SEED.md#b4777-4833`
+- “this same act at different grains, not three…” → `legacy-engine/CUBE.md#b5200-5270`
+- “type error before null... Never spend a measurement…” → `legacy-engine/SEED.md#b4777-4833`
 
 **Attested by secondary witnesses** — the primary is not obtained (see the manifest's `unobtained` list), so the anchor names the bytes of an independent source that quotes the passage. A witness says what the witness quotes, never what the primary's own edition reads:
 

@@ -6,10 +6,10 @@
 # What this does, in order, each step skipped if already satisfied:
 #   - installs Node.js if it's missing (Homebrew on macOS; prints
 #     instructions on Linux/Windows, since there's no one safe installer)
-#   - clones EOReader 7 next to this repo into the legacy eoreader6.1 mount
-#     name if it isn't there yet. The Fold runtime deliberately remains
+#   - clones EOReader 7 next to this repo and the frozen 6.1 source beside it
+#     if it isn't there yet. The Fold runtime deliberately remains
 #     unchanged while v7 proves the frozen 6.1 compatibility contract.
-#   - initializes EOReader 7's pinned legacy source submodule when needed
+#   - fetches the frozen 6.1 sibling source when needed
 #   - clones live_priors next to this repo if it isn't there yet (the
 #     priors organ's corpus, ~250MB; soft dependency — explore-server.mjs
 #     degrades to a typed gap without it, so this is best-effort)
@@ -57,8 +57,8 @@ fi
 # ── EOReader 7, at the path both servers actually read ───────────────────────
 #
 # serve.mjs and explore-server.mjs resolve the engine at ../eoreader7:
-# ENGINE = ../eoreader7/legacy-eoreader6.1/packages/engine (the frozen 6.1
-# cut, a submodule), NUL = ../eoreader7/legacy-eoreader6.1/nul, ENGINE_V7 =
+# ENGINE = ../eoreader6.1/packages/engine (the frozen 6.1
+# cut, a submodule), NUL = ../eoreader6.1/nul, ENGINE_V7 =
 # ../eoreader7/native (v7's own kernel and organs). Until 2026-09-05 this
 # script cloned eoreader7 into ../eoreader6.1 — a mount name nothing in
 # either server reads any more — so a fresh machine came up with every
@@ -67,6 +67,7 @@ fi
 # out loud, instead of later as a module-not-found stack.
 
 EOREADER="$DIR/../eoreader7"
+LEGACY="$DIR/../eoreader6.1"
 
 # Clone only when there is no checkout there. A checkout with an
 # uninitialized submodule must be repaired in place, not mistaken for an
@@ -85,27 +86,20 @@ fi
 # now, and the /engine and /nul mounts read it at ../eoreader7/
 # legacy-eoreader6.1. Clone it there when it is absent so a fresh machine
 # still comes up whole. Idempotent; a no-op for a complete checkout.
-if [ ! -d "$EOREADER/legacy-eoreader6.1/.git" ] && [ ! -f "$EOREADER/legacy-eoreader6.1/.git" ]; then
+if [ ! -d "$LEGACY/.git" ] && [ ! -f "$LEGACY/.git" ]; then
   if ! command -v git >/dev/null 2>&1; then
     echo "error: git is required to fetch EOReader 7's frozen 6.1 cut" >&2
     exit 1
   fi
   echo "cloning the frozen 6.1 cut (retired submodule) into the legacy mount..."
-  git clone https://github.com/clovenbradshaw-ctrl/eoreader6.1.git "$EOREADER/legacy-eoreader6.1"
+  git clone https://github.com/clovenbradshaw-ctrl/eoreader6.1.git "$LEGACY"
 fi
 
-# An older eoreader7 checkout may still pin the cut as a submodule; keep
-# that path working. Idempotent; a no-op where nothing declares one.
-if [ -f "$EOREADER/.gitmodules" ]; then
-  if ! command -v git >/dev/null 2>&1; then
-    echo "error: git is required to initialize EOReader 7's source pin" >&2
-    exit 1
-  fi
-  (cd "$EOREADER" && git submodule update --init --recursive)
-fi
-
-# The three mounts the servers read, checked by name.
-for need in "$EOREADER/native/organs/index.js" "$EOREADER/legacy-eoreader6.1/packages/engine" "$EOREADER/legacy-eoreader6.1/nul/index.js"; do
+# EOReader 7 no longer owns the frozen 6.1 source as a submodule.
+# The compatibility source is a separate sibling checkout at $LEGACY.
+# This keeps old runtime imports working without restoring the retired
+# internal mount.\n\n# The three mounts the servers read, checked by name.
+for need in "$EOREADER/native/organs/index.js" "$LEGACY/packages/engine" "$LEGACY/nul/index.js"; do
   if [ ! -e "$need" ]; then
     echo "error: EOReader 7 is incomplete: $need is missing" >&2
     echo "  run: (cd $EOREADER && git submodule update --init --recursive), or remove $EOREADER and re-run ./fold" >&2

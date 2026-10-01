@@ -145,6 +145,7 @@ import { passkeySupported, registerPasskeyKey, unlockWithPasskey, storedPasskeyI
 
 import { makeGrid } from "./grid.js";
 import { findCapacity, listCapacities, unresolvedCapacity } from "../eoreader7/native/organs/index.js";
+import { terminalEncliticFold } from "../eoreader7/native/organs/index.js"; // identity-routes.js, P263 — see encliticRoute below
 import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony, landContest, makeDerivation } from "../eoreader7/native/organs/index.js";
 // THE PATHOS SYSTEM, NOT OPTIONAL (2026-09-13): the felt shape of the
 // conversation's recent voice, run on EVERY finished exchange (observeExchange),
@@ -298,7 +299,7 @@ import { createLemmatizer as nativeLemmatizer, morphologyFromPrior } from "/engi
 // furniture, never an engine notion) — imported below alongside this
 // file's other source.js symbols and bound with declared numbers at the
 // hypergraph.js injection site.
-import { extractSurfaces, extractLeadingSurfaces, discoverReferents, namesCorefer, diaNorm, opticalReferentForm, isNearMissSpelling } from "/engine-v7/adapters/text/surfaces.js";
+import { extractSurfaces, extractLeadingSurfaces, discoverReferents, namesCorefer, diaNorm, opticalReferentForm, isNearMissSpelling, stripPossessive, isRomanNumeral } from "/engine-v7/adapters/text/surfaces.js";
 import { resolvePronouns } from "/engine-v7/adapters/text/pronouns.js";
 import { makeCastResolver, makeCastHandles, makeReferentIndex } from "./cast.js";
 import { makeShapeFallback } from "./shape-fallback.js";
@@ -808,6 +809,17 @@ import {
 // what counts as furniture.
 const castBlankFurniture = (text) => blankLabelRows(text, { minRun: 4, maxCell: 60 });
 
+// THE ENCLITIC ROUTE (identity-routes.js, P263). A name asked with the possessive mark ("Anna's") reaches what the bare name reaches, and a person
+// the material names only with it (a sentence-opener keeps the mark; extraction strips it from every other mention) is reachable by the bare name.
+// The language is DECLARED, never defaulted (Chomsky: a language's own marks): an undeclared or unregistered language is a typed gap and the
+// index is byte-identical. It reads the LAST token of a name only, and it is consulted only when the name asked as written resolved to NOTHING,
+// so no answer the index gave by an exact match changes — 0 of 21,886 queries over 55 documents, and 5,165 of 5,321 possessive-form questions
+// went from nothing to the bare name's referents (eval/the-fold/results/possessive-audit-RESULTS.md). Not carried by the relation reader's own
+// index (RELATION_READER_OPTIONS: a new key would change the reader's recipe identity, P90) nor by holographIndex's replica of resolve() below.
+const MATERIAL_LANGUAGE = "eng"; // the same declaration relationExtractorsFor makes further down
+const encliticRoute = terminalEncliticFold({ language: MATERIAL_LANGUAGE, stripEnclitic: stripPossessive, isNumeral: isRomanNumeral });
+if (encliticRoute.gap) console.warn("enclitic route off:", encliticRoute.gap.type, encliticRoute.gap.detail);
+
 const castFor = makeCastResolver({
   splitSentences: engineSentences,
   extractSurfaces,
@@ -816,6 +828,7 @@ const castFor = makeCastResolver({
   diaNorm,
   blankFurniture: castBlankFurniture,
   leadingSurfaces: extractLeadingSurfaces,
+  surfaceFold: encliticRoute.fold,
 });
 
 // Same organ bundle as castFor above, one level less collapsed — the
@@ -845,6 +858,7 @@ const referentIndexFor = makeReferentIndex({
   leadingSurfaces: extractLeadingSurfaces,
   nameFold: opticalReferentForm,
   nameVariant: isNearMissSpelling,
+  surfaceFold: encliticRoute.fold,
 });
 
 // shape-fallback.js's tie-triggered re-rank for source.js::retrieve() (built

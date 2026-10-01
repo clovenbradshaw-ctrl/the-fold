@@ -129,7 +129,7 @@ pins that at 400 turns.
 See [Quickstart](#quickstart) above for the one-command path. In full,
 `./fold` installs Node.js if missing (Homebrew on macOS), clones
 `eoreader7` next to this repo if it isn't there (the engine both servers
-mount: its `native/` kernel and the frozen 6.1 cut it pins as a submodule), clones `live_priors` next to this repo if it isn't there (the priors
+mount: its `native/` kernel, while the frozen 6.1 compatibility engine is mounted from the sibling `../eoreader6.1` checkout), clones `live_priors` next to this repo if it isn't there (the priors
 organ's corpus — soft dependency, explore-server.mjs shows a typed gap
 without it, so this is best-effort and never blocks the rest of the launch),
 installs `node_modules`, installs Ollama if missing and starts it if it

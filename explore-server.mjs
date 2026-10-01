@@ -34,7 +34,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { foldExtract } from "../eoreader7/legacy-eoreader6.1/packages/host/index.js";
+import { foldExtract } from "../eoreader6.1/packages/host/index.js";
 import { foldLibrary, sanitizeFileName, LIBRARY_UPLOAD_MAX_BYTES } from "./library.js";
 // the priors organ's GATE (toggle ledger fold, most-specific-wins
 // resolution, papers via priors.js's one frontmatter reading) — this file

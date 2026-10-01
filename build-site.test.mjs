@@ -15,8 +15,8 @@ test("rewriteMounts: every mount prefix becomes a relative path from the file's 
   const src = `import a from "/engine-v7/organs/index.js";\nimport b from '/engine/emergence/tiers.js';\nconst c = "/nul/index.js";\nconst d = \`/node_modules/pyodide/\`;\nfetch("/api/run");\nimport e from "../eoreader7/native/x.js";\nconst f = "/priors-data/pos-prior-eng.json";`;
   const d1 = rewriteMounts(src, 1);
   assert.match(d1, /from "\.\.\/eoreader7\/native\/organs\/index\.js"/);
-  assert.match(d1, /from '\.\.\/eoreader7\/legacy-eoreader6\.1\/packages\/engine\/emergence\/tiers\.js'/);
-  assert.match(d1, /"\.\.\/eoreader7\/legacy-eoreader6\.1\/nul\/index\.js"/);
+  assert.match(d1, /from '\.\.\/eoreader7\/native\/legacy-ported\/packages\/engine\/emergence\/tiers\.js'/);
+  assert.match(d1, /"\.\.\/eoreader7\/native\/legacy-ported\/nul\/index\.js"/);
   assert.match(d1, /`\.\.\/node_modules\/pyodide\/`/);
   assert.match(d1, /"\.\.\/the-fold\/priors-data\/pos-prior-eng\.json"/);
   assert.match(d1, /fetch\("\/api\/run"\)/, "/api is not a mount and stays absolute");
@@ -125,7 +125,7 @@ test("a real --no-vendor build: every page file present, no mount specifier left
     const rec = await build({ out, models: "none", mirror: "https://archive.org/download/the-fold-pin/models", extension: true, vendor: false });
     assert.ok(rec.files > 200);
     assert.ok(existsSync(join(out, "the-fold", "index.html")) && existsSync(join(out, "the-fold", "app.js")) && existsSync(join(out, "the-fold", "term-py-worker.mjs")));
-    for (const tree of ["eoreader7/native/organs/index.js", "eoreader7/native/kernel/notes.js", "eoreader7/legacy-eoreader6.1/packages/engine/emergence/tiers.js", "eoreader7/legacy-eoreader6.1/nul/index.js"]) assert.ok(existsSync(join(out, tree)), `${tree} carried`);
+    for (const tree of ["eoreader7/native/organs/index.js", "eoreader7/native/kernel/notes.js", "eoreader7/native/legacy-ported/packages/engine/emergence/tiers.js", "eoreader7/native/legacy-ported/nul/index.js"]) assert.ok(existsSync(join(out, tree)), `${tree} carried`);
     const walk = (d) => readdirSync(d).flatMap((n) => { const p = join(d, n); return statSync(p).isDirectory() ? walk(p) : [p]; });
     const left = walk(join(out, "the-fold")).filter((p) => /\.(js|mjs|html|css)$/.test(p)).filter((p) => { const s = readFileSync(p, "utf8"); return Object.keys(MOUNT_TARGETS).some((m) => s.includes(`"${m}`) || s.includes(`'${m}`) || s.includes(`\`${m}`)); });
     assert.deepEqual(left.map((p) => p.slice(out.length)), []);

@@ -54,7 +54,7 @@ test("offsetsOf: word-boundary matched, case-sensitive, no false hits inside a l
 });
 
 test("measuredFold: THE REAL SPECIMEN — bare 'Van' folds into 'Van Helsing' on real Dracula text, exact — every occurrence accounted for, including wrapped lines", () => {
-  const abs = "/Users/mlacy/Documents/3.0/live_priors/01-literature-books/gutenberg/pg345_Dracula.txt";
+  const abs = new URL("../live_priors/01-literature-books/gutenberg/pg345_Dracula.txt", import.meta.url).pathname;
   const text = fs.readFileSync(abs, "utf8");
   const r = measuredFold(text, "Van", "Van Helsing");
   assert.equal(r.folds, true, `expected an exact fold; got fraction ${r.fraction} (${r.coveredCount}/${r.bareCount})`);
@@ -69,7 +69,7 @@ test("offsetsOf: a hard-wrapped compound (CRLF splitting the two words) still co
 });
 
 test("measuredFold: THE SUFFIX SPECIMEN, real and live-observed — bare 'Helsing' folds into 'Van Helsing', which the prefix-only version of this module silently missed (screenshotted by the user, 62 mentions never folded)", () => {
-  const abs = "/Users/mlacy/Documents/3.0/live_priors/01-literature-books/gutenberg/pg345_Dracula.txt";
+  const abs = new URL("../live_priors/01-literature-books/gutenberg/pg345_Dracula.txt", import.meta.url).pathname;
   const text = fs.readFileSync(abs, "utf8");
   const r = measuredFold(text, "Helsing", "Van Helsing");
   assert.equal(r.folds, true, `expected an exact fold; got fraction ${r.fraction} (${r.coveredCount}/${r.bareCount})`);
@@ -85,7 +85,7 @@ test("spansOf: a suffix candidate's own span starts INSIDE the compound's span, 
 });
 
 test("measuredFold: a bare surface with GENUINE independent existence does NOT fold — refuses, never guesses", () => {
-  const abs = "/Users/mlacy/Documents/3.0/live_priors/01-literature-books/gutenberg/pg345_Dracula.txt";
+  const abs = new URL("../live_priors/01-literature-books/gutenberg/pg345_Dracula.txt", import.meta.url).pathname;
   const text = fs.readFileSync(abs, "utf8");
   // "Mina" stands alone constantly in this book, independent of "Mina Murray"/
   // "Madam Mina" — the control case proving this organ does not fold everything.

@@ -24,7 +24,7 @@ const organs = async () => {
   const { tokenize, buildFrequencyTable, functionWordSet } = await import(
     "../eoreader7/native/adapters/text/material.js"
   );
-  const { projectReferents } = await import("../eoreader7/legacy-eoreader6.1/packages/engine/referents/index.js");
+  const { projectReferents } = await import("../eoreader7/native/legacy-ported/packages/engine/referents/index.js");
   return { splitSentences, extractSurfaces, discoverReferents, diaNorm, discoverRelationVocab, extractRelations, tokenize, buildFrequencyTable, functionWordSet, projectReferents };
 };
 

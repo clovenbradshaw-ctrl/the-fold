@@ -21,7 +21,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { makeHuntMeter, huntSettled } from "./metacognition.js";
-import { createTierStack, foldThrough } from "../eoreader7/legacy-eoreader6.1/packages/engine/emergence/tiers.js";
+import { createTierStack, foldThrough } from "../eoreader7/native/legacy-ported/packages/engine/emergence/tiers.js";
 
 const hm = makeHuntMeter({ createTierStack, foldThrough });
 

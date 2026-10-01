@@ -73,7 +73,7 @@ test("foldTitleFragments: no anchor entry, no merge — a fragment with no bare 
 });
 
 test("foldTitleFragments: THE REAL FULL-BOOK SPECIMEN — real Dracula text, real cast shape", () => {
-  const abs = "/Users/mlacy/Documents/3.0/live_priors/01-literature-books/gutenberg/pg345_Dracula.txt";
+  const abs = new URL("../live_priors/01-literature-books/gutenberg/pg345_Dracula.txt", import.meta.url).pathname;
   const body = fs.readFileSync(abs, "utf8");
   const entries = [
     { name: "Van Helsing", mentions: 527 },

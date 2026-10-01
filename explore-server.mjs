@@ -27,14 +27,12 @@
 // nothing remote (web.test.mjs pins that seam).
 
 import http from "node:http";
-import { Worker } from "node:worker_threads";
 import { spawn, spawnSync } from "node:child_process";
 import { createReadStream, statSync, readdirSync, openSync, readSync, closeSync, mkdirSync, appendFileSync, existsSync, writeFileSync, readFileSync, rmSync, unlinkSync } from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { foldExtract } from "../eoreader7/legacy-eoreader6.1/packages/host/index.js";
 import { foldLibrary, sanitizeFileName, LIBRARY_UPLOAD_MAX_BYTES } from "./library.js";
 // the priors organ's GATE (toggle ledger fold, most-specific-wins
 // resolution, papers via priors.js's one frontmatter reading) — this file
@@ -131,7 +129,7 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 // serve.mjs's own engine mount, unchanged: the Converse page imports the
 // reader's engine as /engine/… modules, so this server carries the same
 // mapping and one process serves the whole instrument.
-const ENGINE = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "packages", "engine");
+const ENGINE = path.resolve(ROOT, "..", "eoreader7", "native", "legacy-ported", "packages", "engine");
 // serve.mjs's engine-v7 mount, carried here for the same reason: the chat
 // page's own ratchet pass (2026-08-29 — CLAUDE.md's "The connection pass" /
 // "finish the ratchet" section) moved app.js's text organs off /engine and
@@ -146,7 +144,7 @@ const ENGINE_V7 = path.resolve(ROOT, "..", "eoreader7", "native");
 // serve.mjs's nul mount, carried here for the same reason as /engine:
 // tiers.js imports ../../../nul/index.js, which resolves to /nul/… in the
 // browser, and this server also serves the chat page whole.
-const NUL = path.resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "nul");
+const NUL = path.resolve(ROOT, "..", "eoreader7", "native", "legacy-ported", "nul");
 // serve.mjs's priors-data mount, carried here for the same reason as
 // /engine and /nul: real, giver-cited data (POSPrior@1 — UD_English-EWT)
 // read live off eoreader7's native committed fixtures
@@ -209,21 +207,6 @@ const TREE_PAGE = 400;
 const HEX_PAGE_MAX = 4096;
 const HEX_PAGE_DEFAULT = 1024;
 const DEPOSIT_MAX_BYTES = 25_000_000; // same bound terrain-explorer/server.mjs declares for a request body
-
-// Kinds option sets. Givers: terrain-explorer/server.mjs's own declared
-// starting points ("an interactive-speed starting point ... not a measured
-// constant"), with reseeds raised to 2 — the floor induceKinds itself
-// enforces — and nullArmDraws per FOLD-CONSTITUTION II.4: the finest rank
-// sayable is 1/draws, so QUICK buys the coarsest honest statement and
-// THOROUGH a 1-in-5 one. The arm itself always runs deferred (the kinds
-// render provisional until it lands) — declining it is not offered here.
-const KINDS_QUICK = { minPrevalence: 0.03, minKindSize: 5, permutations: 20, quantile: 0.95, seed: 42, reseeds: 2, nullArmDraws: 1 };
-const KINDS_THOROUGH = { minPrevalence: 0.02, minKindSize: 8, permutations: 50, quantile: 0.95, seed: 42, reseeds: 2, nullArmDraws: 5 };
-
-// The fold's resolution — how many sentences an extractive fold keeps. A
-// declared interactive dial (the result always states kept-of-N); giver:
-// this file, engineering starting point.
-const FOLD_BUDGET_SENTENCES = 7;
 
 // Search: a filename walk under the browse root. The skip list is a
 // declared rule (dependency and build trees are machinery, not material),
@@ -865,7 +848,9 @@ async function fetchAndKeep(url, { forceArchive = false } = {}) {
   let fold = null;
   if (text?.length) {
     try {
-      fold = { ...foldExtract({ text, budgetSentences: FOLD_BUDGET_SENTENCES }), budget: FOLD_BUDGET_SENTENCES };
+      // foldExtract belonged to the retired 6.1 host reader (eoreader7/LEGACY-EOREADER6.1.md) and
+      // has no native counterpart yet: the saved page keeps everything, and salience is a typed gap.
+      fold = { gap: { reason: "fold_retired", detail: "salience (foldExtract) lived in the retired eoreader6.1 host; no native equivalent yet" } };
     } catch (e) {
       fold = { gap: { reason: "fold_failed", detail: e.message } };
     }
@@ -1061,47 +1046,6 @@ function sniff(abs, size) {
   if (ext === ".json" || ext === ".jsonl") return { modality: "json", mime: MIME[ext] ?? MIME[".json"], magic: null };
   if (CODE_EXTS.has(ext)) return { modality: "code", mime: MIME[ext] ?? "text/plain; charset=utf-8", magic: null, language: ext.slice(1) };
   return { modality: "text", mime: MIME[ext] ?? "text/plain; charset=utf-8", magic: null };
-}
-
-// ── jobs ────────────────────────────────────────────────────────────────────
-const jobs = new Map();
-
-function startJob(kind, workerData, meta) {
-  const id = crypto.randomUUID();
-  const job = { id, kind, phase: "queued", startedAt: Date.now(), meta, phases: [], result: null, nullArm: null, error: null };
-  jobs.set(id, job);
-  record(`${kind}-start`, { job: id, ...meta });
-
-  const worker = new Worker(new URL("./explore-worker.mjs", import.meta.url), { workerData });
-  job.worker = worker;
-  worker.on("message", (msg) => {
-    job.phase = msg.phase;
-    job.updatedAt = msg.at;
-    job.phases.push({ phase: msg.phase, at: msg.at, ...(msg.note ? { note: msg.note } : {}) });
-    if (msg.surface) {
-      // a streamed surface — accumulated so a poll mid-read serves what exists
-      job.partial ??= {};
-      job.partial[msg.surface] = msg.data;
-    }
-    if (msg.result !== undefined) job.result = msg.result;
-    if (msg.nullArm !== undefined) job.nullArm = msg.nullArm;
-    if (msg.phase === "done") {
-      record(`${kind}-done`, { job: id, elapsedMs: msg.at - job.startedAt, ...(msg.summary ?? {}) });
-    }
-    if (msg.phase === "error") {
-      job.error = msg.error;
-      record(`${kind}-error`, { job: id, error: msg.error?.message });
-    }
-  });
-  worker.on("error", (err) => {
-    job.phase = "error";
-    job.error = { message: err.message, stack: err.stack };
-    record(`${kind}-error`, { job: id, error: err.message });
-  });
-  worker.on("exit", () => {
-    job.worker = null;
-  });
-  return id;
 }
 
 // ── http plumbing ───────────────────────────────────────────────────────────
@@ -1390,48 +1334,6 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { offset, length, total: st.size, pageMax: HEX_PAGE_MAX, rows });
     }
 
-    // ---- read job: admit + sessionTerrains in a worker. A read is
-    // deterministic in the file's content, so a completed job is reused for
-    // the same (path, mtime, size) — a re-open reports the same reading
-    // rather than re-deriving it (and the reuse is recorded, not silent).
-    if (req.method === "POST" && p === "/api/read") {
-      const body = await readJsonBody(req);
-      const abs = confine(body.path ?? "");
-      if (!abs) return send(res, 400, { error: "path escapes the browse root" });
-      let st;
-      try {
-        st = statSync(abs);
-      } catch (e) {
-        return send(res, 404, { error: e.message });
-      }
-      const s = sniff(abs, st.size);
-      const cacheKey = `${relOf(abs)}·${st.mtimeMs}·${st.size}`;
-      const cached = [...jobs.values()].find((j) => j.kind === "read" && j.cacheKey === cacheKey && (j.phase === "done" || j.phase !== "error"));
-      if (cached) {
-        record("read-reused", { job: cached.id, path: relOf(abs) });
-        return send(res, 200, { jobId: cached.id, modality: s.modality, bytes: st.size, reused: true });
-      }
-      const jobId = startJob("read", { mode: "read", filePath: abs, rel: relOf(abs) }, { path: relOf(abs), bytes: st.size, modality: s.modality });
-      jobs.get(jobId).cacheKey = cacheKey;
-      return send(res, 200, { jobId, modality: s.modality, bytes: st.size });
-    }
-
-    // ---- kinds job: records + induceKinds + deferred null arm in a worker.
-    if (req.method === "POST" && p === "/api/kinds") {
-      const body = await readJsonBody(req);
-      const abs = confine(body.path ?? "");
-      if (!abs) return send(res, 400, { error: "path escapes the browse root" });
-      let st;
-      try {
-        st = statSync(abs);
-      } catch (e) {
-        return send(res, 404, { error: e.message });
-      }
-      const opts = body.quick === false ? KINDS_THOROUGH : KINDS_QUICK;
-      const jobId = startJob("kinds", { mode: "kinds", filePath: abs, rel: relOf(abs), opts }, { path: relOf(abs), bytes: st.size, opts });
-      return send(res, 200, { jobId, opts });
-    }
-
     // ---- find: filename search under the browse root (or a subtree).
     if (req.method === "GET" && p === "/api/find") {
       const q = (url.searchParams.get("q") ?? "").toLowerCase().trim();
@@ -1512,46 +1414,6 @@ const server = http.createServer(async (req, res) => {
       } catch {
         return send(res, 200, { peek: null, binary: true, of: st.size });
       }
-    }
-
-    // ---- fold: an extractive summary of an arbitrary place — whole source,
-    // char range, or a word's arrival sentences. Engine-computed, verbatim,
-    // addressed; no model. Synchronous (milliseconds) and recorded.
-    if (req.method === "POST" && p === "/api/fold") {
-      const body = await readJsonBody(req);
-      const abs = confine(body.path ?? "");
-      if (!abs) return send(res, 400, { error: "path escapes the browse root" });
-      let text;
-      try {
-        text = new TextDecoder("utf-8", { fatal: true }).decode(readFileSync(abs));
-      } catch (e) {
-        return send(res, 400, { error: `not foldable: ${e.code === "ENOENT" ? e.message : "not valid UTF-8"}` });
-      }
-      const out = foldExtract({
-        text,
-        charStart: Number.isInteger(body.c0) ? body.c0 : undefined,
-        charEnd: Number.isInteger(body.c1) ? body.c1 : undefined,
-        word: typeof body.word === "string" && body.word ? body.word : undefined,
-        budgetSentences: FOLD_BUDGET_SENTENCES,
-      });
-      record("fold", { path: relOf(abs), scope: out.scope ?? null, kept: out.kept ?? 0, of: out.of ?? 0, gap: out.gap ?? null });
-      return send(res, 200, { ...out, budget: FOLD_BUDGET_SENTENCES });
-    }
-
-    // ---- job poll.
-    if (req.method === "GET" && p.startsWith("/api/jobs/")) {
-      const job = jobs.get(p.slice("/api/jobs/".length));
-      if (!job) return send(res, 404, { error: "no such job" });
-      return send(res, 200, {
-        kind: job.kind,
-        phase: job.phase,
-        phases: job.phases,
-        partial: job.result ? null : (job.partial ?? null),
-        result: job.result,
-        nullArm: job.nullArm,
-        error: job.error,
-        elapsedMs: (job.updatedAt ?? Date.now()) - job.startedAt,
-      });
     }
 
     // ---- deposit: Converse hands a source over so Explore can open it by

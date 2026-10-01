@@ -45,12 +45,12 @@ import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
 
 const ROOT = resolve(import.meta.dirname);
-const ENGINE = resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "packages", "engine");
+const ENGINE = resolve(ROOT, "..", "eoreader7", "native", "legacy-ported", "packages", "engine");
 // The engine's own null module. tiers.js (the surprise ladder) imports it as
 // ../../../nul/index.js, which resolves above the /engine mount — so nul gets
 // its own mount at the path that import lands on. Used, never copied, same as
 // the engine itself.
-const NUL = resolve(ROOT, "..", "eoreader7", "legacy-eoreader6.1", "nul");
+const NUL = resolve(ROOT, "..", "eoreader7", "native", "legacy-ported", "nul");
 // eoreader7's NATIVE tree, mounted separately from the legacy /engine path
 // because they are different engines, not different folders: /engine is the
 // frozen 6.1 compatibility surface, /engine-v7 is v7's own kernel. Kept
@@ -68,7 +68,7 @@ const ENGINE_V7 = resolve(ROOT, "..", "eoreader7", "native");
 const EOREADER7_ROOT = resolve(ROOT, "..", "eoreader7");
 // Boot check (2026-09-05): a missing mount used to surface as every engine
 // import 404ing behind a blank page. Name the path and the repair here.
-for (const [name, dir] of [["../eoreader7/native", ENGINE_V7], ["../eoreader7/legacy-eoreader6.1/packages/engine", ENGINE], ["../eoreader7/legacy-eoreader6.1/nul", NUL]]) {
+for (const [name, dir] of [["../eoreader7/native", ENGINE_V7], ["../eoreader7/native/legacy-ported/packages/engine", ENGINE], ["../eoreader7/native/legacy-ported/nul", NUL]]) {
   if (!existsSync(dir)) {
     console.error(`serve.mjs: ${name} is missing (${dir}).\n  The Fold reads the engine from ../eoreader7 — run ./fold, or: git clone --recurse-submodules https://github.com/clovenbradshaw-ctrl/eoreader7.git ${resolve(ROOT, "..", "eoreader7")}`);
     process.exit(2);

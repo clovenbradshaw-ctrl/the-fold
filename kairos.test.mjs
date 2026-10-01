@@ -14,7 +14,7 @@ import { huntSettled } from "./metacognition.js";
 import {
   createTierStack,
   foldThrough,
-} from "../eoreader7/legacy-eoreader6.1/packages/engine/emergence/tiers.js";
+} from "../eoreader7/native/legacy-ported/packages/engine/emergence/tiers.js";
 
 const meterOrgans = makeApertureMeter({ createTierStack, foldThrough });
 

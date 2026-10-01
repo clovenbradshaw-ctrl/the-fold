@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 
 import { makeChecks, verify, scoreFamilies, CONTRAST_CUES } from "./checks.mjs";
 import { STRATEGIES } from "./strategies.mjs";
-import { splitSentences } from "../../../eoreader6/packages/engine/perceiver/text/spans.js";
+import { splitSentences } from "../../../eoreader7/native/legacy-ported/packages/engine/perceiver/text/spans.js";
 import { tokenize } from "../../source.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));

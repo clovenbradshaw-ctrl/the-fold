@@ -48,14 +48,14 @@ import { CONSTITUTION_PROMPT } from "../../constitution.js";
 import { makeCastResolver } from "../../cast.js";
 import { ROUTE_KINDS, routeModel } from "../../model-routing.js";
 
-import { lineIndex, outlineOfIndex } from "../../../eoreader6/packages/engine/perceiver/text/segments.js";
-import { splitSentences as engineSentences } from "../../../eoreader6/packages/engine/perceiver/text/spans.js";
+import { lineIndex, outlineOfIndex } from "../../../eoreader7/native/legacy-ported/packages/engine/perceiver/text/segments.js";
+import { splitSentences as engineSentences } from "../../../eoreader7/native/legacy-ported/packages/engine/perceiver/text/spans.js";
 import {
   extractSurfaces,
   discoverReferents,
   namesCorefer,
   diaNorm,
-} from "../../../eoreader6/packages/engine/perceiver/text/surfaces.js";
+} from "../../../eoreader7/native/legacy-ported/packages/engine/perceiver/text/surfaces.js";
 
 import { makeChecks, verify, scoreFamilies } from "./checks.mjs";
 import { readCorpus, CORPUS } from "./fetch.mjs";

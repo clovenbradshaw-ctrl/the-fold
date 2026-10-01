@@ -46,8 +46,8 @@ import { makeGrid } from "../grid.js";
 
 import * as operators from "../../eoreader7/native/kernel/cube.js";
 import * as taskLog from "../../eoreader7/native/kernel/task-log.js";
-import * as nul from "../../eoreader7/legacy-eoreader6.1/nul/index.js";
-import { bindLinks } from "../../eoreader7/legacy-eoreader6.1/packages/engine/emergence/binding.js";
+import * as nul from "../../eoreader7/native/legacy-ported/nul/index.js";
+import { bindLinks } from "../../eoreader7/native/legacy-ported/packages/engine/emergence/binding.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..");

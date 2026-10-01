@@ -52,8 +52,8 @@ const SIBLINGS = resolve(ROOT, "..");
 /** Where each mount lives in the sibling layout, relative to the dist root. */
 export const MOUNT_TARGETS = Object.freeze({
   "/engine-v7/": "eoreader7/native/",
-  "/engine/": "eoreader7/legacy-eoreader6.1/packages/engine/",
-  "/nul/": "eoreader7/legacy-eoreader6.1/nul/",
+  "/engine/": "eoreader7/native/legacy-ported/packages/engine/",
+  "/nul/": "eoreader7/native/legacy-ported/nul/",
   "/node_modules/": "node_modules/",
   "/priors-data/": "the-fold/priors-data/",
 });
@@ -312,7 +312,7 @@ export async function build(opts) {
 
   // 2. the engine trees, whole minus tests/evals/docs — another repo's bytes
   const e7 = join(SIBLINGS, "eoreader7");
-  for (const [sub, keep] of [["native", null], ["legacy-eoreader6.1/packages/engine", null], ["legacy-eoreader6.1/nul", null]]) {
+  for (const [sub, keep] of [["native", null]]) {
     const src = join(e7, sub);
     if (!existsSync(src)) throw new Error(`engine tree missing: ${src} — clone eoreader7 beside this repo (./fold does)`);
     copyTree(src, join(out, "eoreader7", sub));

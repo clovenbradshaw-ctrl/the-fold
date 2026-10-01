@@ -19,7 +19,7 @@ import { declaredReferents, scoutDefinition, deltaOps, extractDeclaration } from
 import { makeBuildLog } from "./build-log.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const NUL = readFileSync(join(HERE, "..", "eoreader7", "legacy-eoreader6.1", "nul", "index.js"), "utf8");
+const NUL = readFileSync(join(HERE, "..", "eoreader7", "native", "legacy-ported", "nul", "index.js"), "utf8");
 const SUFFIXES = enginePriors.INFLECTIONAL_SUFFIXES;
 const buildLog = makeBuildLog(taskLog);
 

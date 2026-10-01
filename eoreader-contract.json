@@ -13,22 +13,6 @@
       ]
     },
     "nodeImports": {
-      "explore-worker.mjs": {
-        "module": "../eoreader7/legacy-eoreader6.1/packages/host/index.js",
-        "exports": [
-          "createSession",
-          "admitChunked",
-          "sessionTerrains",
-          "sessionKinds",
-          "kindsNullArm"
-        ]
-      },
-      "explore-server.mjs": {
-        "module": "../eoreader7/legacy-eoreader6.1/packages/host/index.js",
-        "exports": [
-          "foldExtract"
-        ]
-      },
       "serve.mjs": {
         "dynamicModule": "packages/engine/holon/task-log.js",
         "role": "validates append-only build records against the engine task vocabulary"

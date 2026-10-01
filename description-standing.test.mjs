@@ -49,7 +49,7 @@ test("no population to compare against is UNKNOWN — absence of a null is not a
 });
 
 // ── against the real book, real organs, no fixtures ─────────────────────
-const LP = "/Users/mlacy/Documents/3.0/live_priors";
+const LP = new URL("../live_priors", import.meta.url).pathname; // sibling checkout
 const BOOK = `${LP}/01-literature-books/gutenberg/pg345_Dracula.txt`;
 const haveBook = fs.existsSync(BOOK);
 

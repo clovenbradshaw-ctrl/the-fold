@@ -28,7 +28,7 @@
 // The numbers below are this run's; the driver re-runs unchanged.
 
 import { makeApertureMeter } from "../aperture.js";
-import { createTierStack, foldThrough } from "../../eoreader7/legacy-eoreader6.1/packages/engine/emergence/tiers.js";
+import { createTierStack, foldThrough } from "../../eoreader7/native/legacy-ported/packages/engine/emergence/tiers.js";
 import { SIGN, kairosSign } from "../kairos.js";
 import { writeFileSync } from "node:fs";
 

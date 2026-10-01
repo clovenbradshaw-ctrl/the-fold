@@ -91,7 +91,7 @@ let smolGen = null;
 async function smolMouth() {
   if (!smolGen) {
     const { pipeline } = await import("@huggingface/transformers");
-    smolGen = await pipeline("text-generation", "/Users/mlacy/Documents/models/SmolLM2-360M-Instruct", { dtype: "q4", device: "cpu" });
+    smolGen = await pipeline("text-generation", (process.env.SMOL_MODEL_DIR ?? (() => { throw new Error("set SMOL_MODEL_DIR to a local SmolLM2-360M-Instruct directory"); })()), { dtype: "q4", device: "cpu" });
   }
   return async (messages, { temperature = 0 } = {}) => {
     const out = await smolGen(messages, { max_new_tokens: maxNew, do_sample: false, temperature, return_full_text: false });

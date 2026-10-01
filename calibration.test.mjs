@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { placeCoverage, rememberCoverage, chooseCut, MIN_HISTORY } from "./calibration.js";
 import { discriminating } from "./layers.js";
-const nul = await import("../eoreader7/legacy-eoreader6.1/nul/index.js");
+const nul = await import("../eoreader7/native/legacy-ported/nul/index.js");
 
 const ordinary = [0.6, 0.55, 0.7, 0.63, 0.58, 0.72, 0.61, 0.66, 0.59, 0.68, 0.64, 0.57];
 

@@ -19,11 +19,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import * as nul from "../eoreader6/nul/index.js";
-import { bindLinks } from "../eoreader6/packages/engine/emergence/binding.js";
+import * as nul from "../eoreader7/native/legacy-ported/nul/index.js";
+import { bindLinks } from "../eoreader7/native/legacy-ported/packages/engine/emergence/binding.js";
 import { delimitedRows } from "./tables.js";
-import { reduce as audioReduce } from "../eoreader6/packages/engine/perceiver/audio/reduce.js";
-import { reduce as viaMaterial } from "../eoreader6/packages/engine/perceiver/audio/material.js";
+import { reduce as audioReduce } from "../eoreader7/native/adapters/audio/reduce.js";
 import {
   admit,
   arrivalsFrom,
@@ -432,11 +431,6 @@ function synthWav({ sampleRate = 8000, spans }) {
   return new Uint8Array(buf);
 }
 
-test("the pure audio organ and the engine's own module are the same function", () => {
-  // The browser imports reduce.js because material.js's ffmpeg import cannot
-  // load in a page; this pins that the split did not fork the organ.
-  assert.equal(audioReduce, viaMaterial);
-});
 
 test("wavSamples round-trips a synthesized PCM WAV exactly", () => {
   const bytes = synthWav({ spans: [{ level: 100, seconds: 0.01 }, { level: -200, seconds: 0.01 }] });

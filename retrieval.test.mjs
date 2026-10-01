@@ -174,7 +174,7 @@ test("encode-then-recall never retrieves a record from itself (causality, inheri
 // Never blended — precedence only, and the II.23 control below is BUILT TO
 // FAIL: a poisoned prior must never override the material's own measurement.
 
-const PRIOR_PATH = "/Users/mlacy/Documents/3.0/live_priors/derived-priors/need-priors/need-prior-eng-narrative.json";
+const PRIOR_PATH = new URL("../live_priors/derived-priors/need-priors/need-prior-eng-narrative.json", import.meta.url).pathname;
 const realPrior = fs.existsSync(PRIOR_PATH) ? JSON.parse(fs.readFileSync(PRIOR_PATH, "utf8")) : null;
 
 test("with no own tallies, the corpus rung engages and its basis NAMES the giver", { skip: !organs }, () => {

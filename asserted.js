@@ -3,5 +3,4 @@
 // only the surface); this file only forwards it so a stale importer keeps
 // resolving. New code imports the seam, ../eoreader7/native/organs/index.js,
 // never this file.
-// Handle: Dignaga — after the Buddhist logician: a word designates by excluding its contraries, and a verb is a hypothesis carrying its own counted support. Amendment XVII.
 export * from "../eoreader7/native/organs/asserted.js";

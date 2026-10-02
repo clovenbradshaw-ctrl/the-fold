@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   auditEnforcementMap,
@@ -17,8 +18,8 @@ import {
   diffFailures,
   referencedBy,
   scanResultsDir,
-} from "./solon.js";
-import { checkAppendOnly, heartbeatVerdict, verifyWatcher } from "./ashby.js";
+} from "../eoreader7/native/organs/solon.js";
+import { checkAppendOnly, heartbeatVerdict, verifyWatcher } from "../eoreader7/native/organs/ashby.js";
 
 // PLANTED-CONTROL — the marker Ashby requires to exist here: the regulator's
 // own controls can fail, or the regulator is a wish, not a wall.
@@ -217,10 +218,15 @@ test("ashby: a missing control marker is a wish, not a wall", () => {
 
 // ── the keeper loop itself, pinned without a clock ────────────────────
 
+// The keeper is a library that keeps whatever root it is handed; the marker
+// Ashby looks for lives in THIS repo's tests, so this repo is the root.
+const ROOT = path.dirname(fileURLToPath(import.meta.url));
+
 function testKeeper({ onSweep, nowMs = 1000 }) {
   const events = [];
   let t = nowMs;
   const k = createKeeper({
+    root: ROOT,
     now: () => t,
     append: (line) => events.push(JSON.parse(line)),
     readLog: () => events.map((e) => JSON.stringify(e)),

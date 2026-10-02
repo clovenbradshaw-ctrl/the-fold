@@ -23,7 +23,7 @@ import { readFileSync } from "node:fs";
 import { runHolonicTask, CHAT_SYSTEM_PROMPT, FLAT_EXECUTE_SYSTEM_PROMPT, EXECUTE_SYSTEM_PROMPT } from "./holon.js";
 import { organs as productOrgans } from "../eoreader7/native/eval/the-fold/lib/product-assay.mjs";
 import { makeCastResolver, makeReferentIndex } from "./cast.js";
-import { makeActivationRetrieval, mentionBook as presenceBook } from "./activation-retrieval.js";
+import { makeActivationRetrieval, mentionBook as presenceBook } from "./activation-wiring.js";
 import { admitPassages } from "./read-on-arrival.js";
 import { readingIndexFromLog, mentionBookFromLog, stepChunks } from "./reading-log.js";
 import { makeAdmission } from "./admission.js";

@@ -90,7 +90,7 @@ import { recordOutcome, recordContradiction } from "../eoreader7/native/kernel/e
 import { createHabits, learnHabit, recallHabit, applyHabit, concedeHabit, HABIT_RUNG } from "../eoreader7/native/kernel/habit.js";
 import { NEGATION_WORDS } from "../eoreader7/native/adapters/text/priors.js";
 import { tokenize } from "../eoreader7/native/organs/source.js";
-import { makeGary } from "./gary.js";
+import { makeGary } from "../eoreader7/native/organs/index.js";
 import { strikeAddresses, apparatusMentions } from "./firewall.js";
 
 export const JUDGE_RUNG = "judge";

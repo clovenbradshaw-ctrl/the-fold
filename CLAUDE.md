@@ -8910,3 +8910,25 @@ under you mid-investigation, so pin `tabId` on every call and re-read
 silently, with nothing on the record or the surface saying the engine
 declined and why. Disclosing the handoff is small, real, unattempted work —
 left out because `app.js` was under concurrent edit.
+
+## The archons live below the surface (moved 2026-09-28) — pointer
+
+This repo holds no archon organ, carrier or archon content. The organs
+(aletheia, ashby, clippy, elenchus, gary, kairos, kondo, muninn, nagarjuna,
+panini, parmenides, and — moved the same day, once their surface dependencies
+were injected — huginn, logos, solon, passage-comparison, activation-retrieval)
+are `eoreader7/native/organs/`, reached through the one seam
+`../eoreader7/native/organs/index.js` (colliding names prefixed by the organ:
+`GARY_SEVERITY`, `NAGARJUNA_RULES`, …). What an organ needs from this surface
+is handed to it: `activation-wiring.js` binds activation-retrieval to
+dialogue.js/resolutions.js, `holon.js` binds passage-comparison to arithmetic.js
+and quoting.js, and `solon-run.mjs` hands Solon this repo (root, ENFORCEMENT,
+results roots, a port probe; `--daemon` runs the keeper). The eighteen historical-figure
+carriers are `eoreader7/native/archons/carriers/`; the archons' sayings and
+voices are data in `live_priors/derived-priors/archon-voices/` (the rotating
+chat-hero quote table, dead since the hero was deleted, moved there). Do not
+add an archon file, or an archon's words, to this repo: an archon is an organ
+(eoreader7) or a prior (live_priors), and this repo is the surface that calls
+them. Every `POLICIES.md` / `CLAUDE.md` passage above that says
+`gary.js`, `kondo.js`, `muninn.js`, … describes where the file WAS; read it at
+the path above.

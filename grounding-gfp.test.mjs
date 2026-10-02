@@ -9,7 +9,7 @@ import * as nativeTaskLog from "../eoreader7/native/kernel/task-log.js";
 import { cellOf, GRAINS } from "../eoreader7/native/kernel/cube.js";
 import { makeHyperlexicon } from "./hyperlexicon.js";
 import { makeGfpGround, englishSlots, positionalSlots } from "./grounding-gfp.js";
-import { makeParmenides } from "./parmenides.js";
+import { makeParmenides } from "../eoreader7/native/organs/parmenides.js";
 import { groundOf } from "./ground-ladder.js";
 
 const TASKLOG = { createTaskLog: nativeTaskLog.createTaskLog, append: nativeTaskLog.append, projectTasks: nativeTaskLog.projectTasks, ENTRY_KINDS: nativeTaskLog.ENTRY_KINDS, OPERATOR_BASIS: nativeTaskLog.OPERATOR_BASIS, GRAINS, cellOf };

@@ -3,7 +3,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as math from "mathjs";
-import { checkPassageComparison, referentsOf } from "./passage-comparison.js";
+import { makePassageComparison } from "../eoreader7/native/organs/passage-comparison.js";
+import { COMPARATIVE_WORDS, checkComparison } from "./arithmetic.js";
+import { unquoted } from "./quoting.js";
+
+// The organ imports no surface: this file binds it to the real arithmetic door
+// and quote-stripper, exactly as holon.js does.
+const { checkPassageComparison, referentsOf } = makePassageComparison({ COMPARATIVE_WORDS, checkComparison, unquoted });
 
 const P = [
   { text: "The Vellmar bridge reopened to traffic on 4 March 2031 after a two-year closure." },

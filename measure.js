@@ -3,5 +3,4 @@
 // only the surface); this file only forwards it so a stale importer keeps
 // resolving. New code imports the seam, ../eoreader7/native/organs/index.js,
 // never this file.
-// Handle: Fisher — after Ronald Fisher's permutation test: a figure is a placement against a null built by shuffling, or it is refused. Amendment XVII.
 export * from "../eoreader7/native/organs/measure.js";

@@ -7,7 +7,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { SIGN, arrivalPattern, kairosSign, kairosCorrespond, kairosDecision } from "./kairos.js";
+import { SIGN, arrivalPattern, kairosSign, kairosCorrespond, kairosDecision } from "../eoreader7/native/organs/kairos.js";
 import { makeApertureMeter, exchangeHeldGround, exchangeSurprise } from "./aperture.js";
 import { huntSettled } from "./metacognition.js";
 

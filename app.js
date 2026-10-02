@@ -135,7 +135,7 @@ import { FoldMatrix, localStorageStorage, MatrixError } from "./matrix-client.js
 import { parseShareLink, stripShareFragment, SERVER_SEES, MAGIC_KEY_WARNING, deviceContent, deviceLine, fallbackMouth, renderConversation } from "./matrix.js";
 import { createWatch } from "./heimdall-client.js";
 import { mintInvite, recordCode, CODES_TYPE as HEIMDALL_CODES_TYPE } from "./heimdall-invite.js";
-import { JOB_KINDS, CANDIDATE_KINDS, candidateOf, roomCandidateOf, roomCandidatesFrom, emptyEvidence, huginnObserve, huginnPrioritize, huginnHopAfter, huginnDecision } from "./huginn.js";
+import { JOB_KINDS, CANDIDATE_KINDS, candidateOf, roomCandidateOf, roomCandidatesFrom, emptyEvidence, huginnObserve, huginnPrioritize, huginnHopAfter, huginnDecision } from "../eoreader7/native/organs/index.js";
 
 // The local vault (P242): what's encrypted at rest — same posture as the
 // Matrix import above, one cipher (matrix.js's) reused, never restated.
@@ -167,7 +167,7 @@ import { reduce as audioReduce } from "../eoreader7/native/adapters/audio/reduce
 // (derivation.js), so a derived fact always names who licensed it.
 import { createDeclarationLog, proposeCandidate as proposeDeclaration, promote as promoteDeclaration, foldDeclarations } from "/engine-v7/interpretation/declarations.js";
 import { renderCrown, assertCrownShippable } from "./crown.js";
-import { checkOracleMode, oracleRefusalText, hasCheckableClaim } from "./gary.js";
+import { checkOracleMode, oracleRefusalText, hasCheckableClaim } from "../eoreader7/native/organs/index.js";
 import { compose, coverageLine } from "./compose.js";
 import { selectContent } from "./selector.js";
 import { formatReference, CITATION_STYLES, DEFAULT_CITATION_STYLE } from "./citation-style.js";
@@ -271,14 +271,14 @@ import {
 // a contraction of the raw present, registered on the ledger, drawn
 // nowhere (aperture.js's regime block says why).
 import { makeApertureMeter, presentWindow, regimeAfter } from "./aperture.js";
-import { kairosSign, SIGN as KAIROS_SIGN } from "./kairos.js";
+import { kairosSign, SIGN as KAIROS_SIGN } from "../eoreader7/native/organs/index.js";
 import { createRetrievalIndex, encodeRecord as encodeRecallRecord, recallCandidates, recordCitation } from "./retrieval.js";
-import { muninnRecall } from "./muninn.js";
+import { muninnRecall } from "../eoreader7/native/organs/index.js";
 // KONDO (the register's tidy-prompt archon) and the Way he asks about
 // sameness: a line carried twice is Parmenides's verdict, never a string
 // comparison of Kondo's own (II.7).
-import { makeKondo, kondoDecision, wordsOf as kondoWords } from "./kondo.js";
-import { makeParmenides } from "./parmenides.js";
+import { makeKondo, kondoDecision, wordsOf as kondoWords } from "../eoreader7/native/organs/index.js";
+import { makeParmenides } from "../eoreader7/native/organs/index.js";
 import { tokens as memoryTokens, codeOf as memoryCodeOf, recall as memoryRecall, encodeFrame as memoryEncodeFrame } from "/engine-v7/memory/activation.js";
 
 // The reading engine's own segment organ, served from /engine (see serve.mjs).
@@ -401,7 +401,7 @@ import { declaredSlotShape } from "./web-claim.js";
 import { cellOf, GRAINS, TERRAIN_BY_DOMAIN, isCurrentOperator } from "/engine-v7/kernel/cube.js";
 // The measurement organ the three resolutions' cuts spend (resolutions.js, P171): the kernel's own dmdWindow, never a count.
 import { dmdWindow } from "/engine-v7/kernel/activation.js";
-import { mentionBook, makeActivationRetrieval } from "./activation-retrieval.js";
+import { mentionBook, makeActivationRetrieval } from "./activation-wiring.js";
 // The typed-note ledger (hyperlexicon.js, P57): the notes a turn's own
 // relation reading admits, corroborated across turns by the same cell the
 // cube derives. `adaptTaskLog` reconciles native's ordinal GRAINS with the
@@ -1645,8 +1645,8 @@ import {
   tokenize,
 } from "./source.js";
 import { makeAdmission, properNamesIn } from "./admission.js";
-import { makeAletheia } from "./aletheia.js";
-import { questionCycle, ledgerLint as lintNotesInLog, functionalConflicts } from "./logos.js";
+import { makeAletheia } from "../eoreader7/native/organs/index.js";
+import { questionCycle, ledgerLint as lintNotesInLog, functionalConflicts } from "../eoreader7/native/organs/index.js";
 import { sourceOfWitness } from "../eoreader7/native/organs/index.js";
 // The discourse-admission gate (admission.js): should a whole ATTACHED
 // SOURCE even be treated as material for THIS question, before retrieve()

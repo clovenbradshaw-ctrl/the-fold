@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { verifyWatcher } from "./ashby.js";
+import { verifyWatcher } from "../eoreader7/native/organs/ashby.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -46,7 +46,7 @@ test("ashby: the real solon.test.mjs carries the required control marker (contro
 });
 
 test("ashby: the real ashby.js reads only what it is handed (no fs, no clock)", () => {
-  const body = fs.readFileSync(path.join(HERE, "ashby.js"), "utf8");
+  const body = fs.readFileSync(path.join(HERE, "..", "eoreader7", "native", "organs", "ashby.js"), "utf8");
   assert.ok(!/\bimport .*from "node:fs"/.test(body), "ashby.js must not import fs");
   assert.ok(!/\bimport .*from "node:http"/.test(body), "ashby.js must not import http");
 });

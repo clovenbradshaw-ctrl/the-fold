@@ -8,7 +8,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { foldReading, readingIndexFromLog, mentionBookFromLog, stepChunks } from "./reading-log.js";
-import { activate } from "./activation-retrieval.js";
+import { activate } from "./activation-wiring.js";
 import { referentsOf } from "./dialogue.js";
 import { chunkSource } from "./source.js";
 import { createRecursiveReader } from "../eoreader7/native/kernel/index.js";

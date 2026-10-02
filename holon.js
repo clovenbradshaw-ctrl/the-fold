@@ -53,8 +53,9 @@ import { ownedRows, ownedLine, referentsOf, bindAnaphora, addressedBy, absenceOf
 import { fromOutcomes, fromPremises, learnedFacts, learnedGuard, recallFor, repeatsKnownFalse } from "./learned.js";
 import { isAboutConversation, isTranscriptPassage, recallTurns, transcriptLine, lastOwnTurn } from "./transcript.js";
 import { refKey } from "./dialogue.js";
-import { checkComparison } from "./arithmetic.js";
-import { checkPassageComparison } from "./passage-comparison.js";
+import { COMPARATIVE_WORDS, checkComparison } from "./arithmetic.js";
+import { unquoted } from "./quoting.js";
+import { makePassageComparison } from "../eoreader7/native/organs/index.js";
 import { answerBeforeTheModel } from "./answerable.js";
 import { recruit, strainOf, substituted, identitySwapped } from "./strain.js";
 import { placeCoverage } from "./calibration.js";
@@ -73,11 +74,11 @@ import { buildFactBlock, dedupeSourceText } from "./fact-block.js";
 // KONDO'S CUT (P232): the duplication she reports, removed by this builder
 // before the prompt is sent. She names owners and never cuts; the cut is the
 // builder's own.
-import { tidyMaterial, makeKondo, TIDY_PAIRS, TIDY_NOTES_PAIR } from "./kondo.js";
+import { tidyMaterial, makeKondo, TIDY_PAIRS, TIDY_NOTES_PAIR } from "../eoreader7/native/organs/index.js";
 // GARY (gary.js) keeps the door: the archon in charge of what the mouth is
 // handed. Kondo counts what a prompt carries twice; Gary holds every rule
 // about what may be carried at all, and hands the bag over.
-import { makeGary, garyDecision, oracleRefusalText } from "./gary.js";
+import { makeGary, garyDecision, oracleRefusalText } from "../eoreader7/native/organs/index.js";
 import { applyQuotes, quoteFindings, quoteOpens, verifyQuotes } from "./quotes.js";
 import { LINK_CHECKS_PER_PART, extractLinkAtoms, linkFindings, stripDeadLinks, urlInMaterial, verifyLinks } from "./links.js";
 import { composeShipment } from "./composition-gate.js";
@@ -85,6 +86,10 @@ import { parseSegments } from "./artifact.js";
 import { admitPassages } from "./read-on-arrival.js";
 import { asksAboutMaterial, materialView, abbreviate, aboutBlock } from "./about.js";
 import { interpretAsk } from "./about-call.js";
+
+// The passage-comparison organ (eoreader7) imports no surface: the arithmetic
+// door and the quote-stripper it needs are handed in here, once.
+const { checkPassageComparison } = makePassageComparison({ COMPARATIVE_WORDS, checkComparison, unquoted });
 
 // A relation claim carries end1/label/end2 (the SVO it read) but no `sentence`.
 // Every consumer keyed on `claim.sentence` — the witness's `settledBy`/

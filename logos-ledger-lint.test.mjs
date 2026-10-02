@@ -4,7 +4,7 @@
 // register as the one-value authority, and this turn's own fold kept apart.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ledgerLint, LEDGER_LINT_STRICTNESS } from "./logos.js";
+import { ledgerLint, LEDGER_LINT_STRICTNESS } from "../eoreader7/native/organs/logos.js";
 import { answerRecord, answerRecordLine, answerRecordProse, bareLogic } from "./answer-record.js";
 import { makeHyperlexicon } from "./hyperlexicon.js";
 import { adaptTaskLog } from "./consequence.js";

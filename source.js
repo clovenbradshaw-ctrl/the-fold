@@ -3,7 +3,6 @@
 // only the surface); this file only forwards it so a stale importer keeps
 // resolving. New code imports the seam, ../eoreader7/native/organs/index.js,
 // never this file.
-// Handle: Nadim — after Ibn al-Nadim's Fihrist, an addressed catalogue of every known work; retrieval by where it sits, never by judgment of what it says. Amendment XVII.
 //
 // ONE name is wrapped rather than forwarded, and this is deliberate:
 // retrieve()'s shape-cue tie-fallback (shape-fallback.js) is a the-fold

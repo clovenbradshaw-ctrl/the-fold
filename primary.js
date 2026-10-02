@@ -3,5 +3,4 @@
 // only the surface); this file only forwards it so a stale importer keeps
 // resolving. New code imports the seam, ../eoreader7/native/organs/index.js,
 // never this file.
-// Handle: Sima — after Sima Qian, the Han court historian who set aside the received account to consult the archive himself. Amendment XVII.
 export * from "../eoreader7/native/organs/primary.js";

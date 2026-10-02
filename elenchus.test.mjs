@@ -7,7 +7,7 @@
 // PLANTED-CONTROL.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ELENCHUS_BANK, elenchusRow, questionFor, gateCrown } from "./elenchus.js";
+import { ELENCHUS_BANK, elenchusRow, questionFor, gateCrown } from "../eoreader7/native/organs/elenchus.js";
 import { renderCrown, assertCrownShippable } from "./crown.js";
 import { mergeTestimony } from "../eoreader7/native/organs/index.js";
 

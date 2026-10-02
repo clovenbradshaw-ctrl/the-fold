@@ -3,5 +3,4 @@
 // only the surface); this file only forwards it so a stale importer keeps
 // resolving. New code imports the seam, ../eoreader7/native/organs/index.js,
 // never this file.
-// Handle: Zhengming — after Confucius's rectification of names: a name answers to its referent, not to its string. Amendment XVII.
 export * from "../eoreader7/native/organs/cast.js";

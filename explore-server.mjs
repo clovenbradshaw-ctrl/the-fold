@@ -45,6 +45,7 @@ import {
   feedText,
   looksLikeChallenge,
   parseSearchResults,
+  searchRequest, SEARCH_FACES,
   foldWebHistory,
   normalizeUrl,
   archiveUrlFrom,
@@ -586,11 +587,12 @@ function importOpencodeEntries(normalized) {
 }
 
 /** Fetch with the declared byte cap enforced on the stream, not after it. */
-async function fetchCapped(url, { timeoutMs = WEB_FETCH_TIMEOUT_MS, maxBytes = WEB_FETCH_MAX_BYTES } = {}) {
+async function fetchCapped(url, { timeoutMs = WEB_FETCH_TIMEOUT_MS, maxBytes = WEB_FETCH_MAX_BYTES, init = null } = {}) {
   const res = await fetch(url, {
     redirect: "follow",
     signal: AbortSignal.timeout(timeoutMs),
-    headers: { "user-agent": WEB_UA, accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8" },
+    ...(init ?? {}),
+    headers: init?.headers ?? { "user-agent": WEB_UA, accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8" },
   });
   const chunks = [];
   let total = 0;
@@ -684,16 +686,14 @@ async function verifySnapshot(archiveUrl) {
 // chase (/api/ranke) runs the SAME search the omnibox runs — one
 // implementation, never a second endpoint list to drift.
 async function searchWeb(query) {
-  const endpoints = [
-    `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
-    `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`,
-  ];
+  // lite by POST first: the GET faces answered a burst with the bot-challenge page on every try that connected (measured 2026-10-01); organs/web.js searchRequest is the one description
+  const endpoints = SEARCH_FACES.map((face) => searchRequest(query, face));
   let blocked = false;
   let results = null;
   let failure = null;
   for (const ep of endpoints) {
     try {
-      const { res: r, buf } = await fetchCapped(ep);
+      const { res: r, buf } = await fetchCapped(ep.url, { init: ep.init });
       const parsed = parseSearchResults(buf.toString("utf8"));
       if (parsed.blocked) {
         blocked = true;

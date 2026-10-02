@@ -8910,3 +8910,25 @@ under you mid-investigation, so pin `tabId` on every call and re-read
 silently, with nothing on the record or the surface saying the engine
 declined and why. Disclosing the handoff is small, real, unattempted work —
 left out because `app.js` was under concurrent edit.
+
+## Popper on every surface (added 2026-09-27) — pointer
+
+POLICIES.md **P263** is the law. Every answer now carries a short line saying
+what would prove it wrong. `eoreader7/native/organs/falsifiers.js` (Popper's
+second face; `blindspot.js` is his first) derives that line from the ground
+tier each sentence earned. It is mechanical and the model never writes it.
+
+Where it shows up:
+- **eoreader7 proxy.** Every response carries `reading.falsifiers`.
+  `gatedPopper` wraps `gatedReading` once. For plain-text clients the ⟂ line
+  is inline in the answer text.
+- **The chat page.** `app.js::drawPopper`, fed by the verdicts the marks draw.
+- **The `fold:` routes** on explore-server.
+- **The TUI.**
+
+A surface that draws the line itself sends `fold_popper_inline: false`.
+Both proxies strip the ⟂ line from resent history, so it never reaches a
+model as prompt text.
+
+Do not re-derive: the line is a sibling of `.body` so the marks toggle never
+hides it, and an answer with nothing checkable gets no line.

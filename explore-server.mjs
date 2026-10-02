@@ -123,6 +123,7 @@ import {
   ollamaChatResponse,
   ollamaChatStreamLines,
 } from "./proxy-api.js";
+import { popperInline } from "../eoreader7/native/organs/falsifiers.js";
 import { OLLAMA as PROXY_OLLAMA_URL, offeredOllamaModels, runProxyTurn } from "./proxy-runner.mjs";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -3170,7 +3171,7 @@ function mergeRelatingLedger(left, nominations) {
       const body = await readJsonBody(req);
       const parsed = parseProxyRequest(body);
       if (parsed.error) return send(res, 400, { error: parsed.error });
-      const { model, task, chatHistory, discourse, droppedRoles, stream, grounded } = parsed;
+      const { model, task, chatHistory, discourse, droppedRoles, stream, grounded, popperInline: wantPopper } = parsed;
       const openai = p === "/v1/chat/completions";
       const id = `foldchat-${crypto.randomBytes(8).toString("hex")}`;
       const createdAt = new Date().toISOString();
@@ -3191,7 +3192,12 @@ function mergeRelatingLedger(left, nominations) {
         channels: turn.channels,
         planMode: turn.planMode,
         parts: turn.parts,
+        falsifiers: turn.falsifiers ?? null,
       };
+      // Popper (2026-09-27): a plain-text client reads content alone, so the
+      // "what would prove this wrong" line rides there, set apart and marked.
+      const popperText = wantPopper ? popperInline(turn.falsifiers) : "";
+      if (popperText) turn.text = `${turn.text}\n\n${popperText}`;
       record("proxy-chat", {
         via: openai ? "openai" : "ollama",
         model,

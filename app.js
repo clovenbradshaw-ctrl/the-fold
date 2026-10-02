@@ -153,6 +153,10 @@ import { makeCapacityRunner, landAct, perSourceReadings, mergeTestimony, landCon
 // The pathos organs come from the one seam (native/organs/index.js); the
 // composition that makes them mandatory is this repo's pathos-turn.js.
 import { pathosOf, reGroundCondition, reGround, landReGround } from "../eoreader7/native/organs/index.js";
+// Popper's second face (2026-09-27): what would prove an answer wrong,
+// derived from the ground each sentence earned — the same organ the engine
+// proxy runs for every other surface (native/organs/falsifiers.js).
+import { falsifiersFor } from "../eoreader7/native/organs/index.js";
 import { makeArcState, observeArc, arcReading, voiceCueFor as arcCueFor } from "./arcs.js";
 import { pathosTurn } from "./pathos-turn.js";
 // The measuring door (P19), routed from the chat since 2026-09-05: the organ
@@ -10431,6 +10435,10 @@ async function er7Turn(question) {
   if (state.grounded) {
     renderAnswer(body, answer, [], [], [], claims, question, question);
     renderGrounding(node, { answer, offered: [], findings: [], relations: [{ claims }], quotes: [], quoteCorrections: [], question });
+    // The engine's own Popper line wins when it sent one: it also knows the
+    // things this page cannot see (the unchecked gate, a computed answer, the
+    // void's own settler). renderAnswer's local line stands otherwise.
+    if (out.reading && "falsifiers" in out.reading) drawPopper(body, out.reading.falsifiers);
   } else {
     renderAnswer(body, answer, [], [], [], [], question, question);
   }
@@ -14919,6 +14927,57 @@ window.addEventListener("fold:live-thinking", (e) => paintMessageThinking((e.det
  * inside a sandboxed frame with scripts and same-origin access withheld —
  * model output is content, not code this app has agreed to run.
  */
+// The ground rows taggedProse computes while drawing one answer, keyed by
+// sentence — collected so Popper's line reads the SAME verdicts the marks
+// draw, never a second derivation that could disagree with them.
+let popperGround = null;
+
+/**
+ * POPPER ON THE CHAT SURFACE (2026-09-27, user direction: "wire this in so
+ * it shows up on all surfaces"). One quiet line under an answer: what would
+ * prove it wrong, derived mechanically from each sentence's ground
+ * (native/organs/falsifiers.js — never authored by the model). The summary is
+ * the headline; opening it lists each checkable sentence's own falsifier.
+ * A sibling of the answer body, so the marks toggle (scoped to .msg .body)
+ * never hides it: this is a finding, not a drawing. `null` removes the line
+ * (an answer that asserts nothing checkable gets no lecture).
+ */
+function drawPopper(body, falsifiers) {
+  const msg = body?.closest?.(".msg");
+  if (!msg) return;
+  msg.querySelector(":scope > .popper")?.remove();
+  if (!falsifiers?.headline) return;
+  const box = document.createElement("details");
+  box.className = "popper";
+  const sum = document.createElement("summary");
+  const mark = document.createElement("span");
+  mark.className = "popper-mark";
+  mark.textContent = "⟂";
+  mark.setAttribute("aria-hidden", "true");
+  const lead = document.createElement("strong");
+  lead.textContent = "What would prove this wrong: ";
+  sum.append(mark, " ", lead, falsifiers.headline);
+  box.append(sum);
+  const lines = falsifiers.lines ?? [];
+  if (lines.length || falsifiers.whatWouldSettle) {
+    const ul = document.createElement("ul");
+    for (const l of lines) {
+      const li = document.createElement("li");
+      const q = document.createElement("q");
+      q.textContent = l.sentence.length > 140 ? `${l.sentence.slice(0, 139)}…` : l.sentence;
+      li.append(q, ` — ${l.falsifier}`);
+      ul.append(li);
+    }
+    if (falsifiers.whatWouldSettle) {
+      const li = document.createElement("li");
+      li.textContent = `What would settle the open part: ${falsifiers.whatWouldSettle}`;
+      ul.append(li);
+    }
+    box.append(ul);
+  }
+  body.after(box);
+}
+
 function renderAnswer(body, answer, offered = [], attributions = [], findings = [], relationClaims = [], instruction = null, task = null) {
   // The operator's own words for this turn — what the widget router reads.
   // Flat (single-part) turns pass only `instruction`; holonic turns pass a
@@ -14928,6 +14987,7 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
   // Every sentence of the whole answer classified onto its ground once;
   // each rendered chunk then draws the sentences it contains.
   const classified = classifySentences(answer, attributions, findings, relationClaims);
+  popperGround = new Map();
   // One chip per RUN of sentences standing on the same address — a verbatim
   // stretch attributed sentence-by-sentence to one passage drew fourteen
   // identical chips through the prose (measured live; the reader called it
@@ -15018,6 +15078,20 @@ function renderAnswer(body, answer, offered = [], attributions = [], findings = 
     const hasMarks = Boolean(body.querySelector(".ground-chip, .sent[data-ground='model'], .sent.claims, .edge-badge"));
     gt.hidden = !state.grounded || !hasMarks;
   }
+  // Popper: computed from the verdicts the marks above were drawn from. A
+  // build turn's prose is the model explaining its own artifact (see the
+  // build-turn note above), so it gets no line, the same as its chips.
+  try {
+    drawPopper(body, buildTurn ? null : falsifiersFor({
+      rows: classified.map((e) => {
+        const g = popperGround?.get(e.text) ?? null;
+        return { sentence: e.text, tier: g?.tier ?? "self", addresses: g?.addresses ?? [], detail: g?.detail ?? null, edges: e.edges ?? [] };
+      }),
+      isCheckable: (s) => extractAtoms(s).length > 0,
+      checkingOff: !state.grounded,
+    }));
+  } catch (err) { console.warn("[popper] could not draw (answer unaffected):", err?.message ?? err); }
+  popperGround = null;
   // A tally of the turn's epistemic state — how much of what was just said
   // stands on the material, how much on the model, how much stands on
   // nothing — used to be drawn into the "thinking" box here (one reading of
@@ -15864,6 +15938,7 @@ function taggedProse(text, offered, classified = [], marks = []) {
         ?? groundOf(entry.text, { ...state.lastGround, claims: sentenceClaims, witness: wrow, leadingNames: true });
       sent.dataset.groundTier = g.tier;
       tier = g.tier;
+      popperGround?.set(entry.text, g);
       // The action: open the real bytes when we already have a real
       // address, search for them when we don't. `groundHunt` only ever
       // searches `liveChunks()` — the ATTACHED pool — so on an answer built

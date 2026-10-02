@@ -30,6 +30,8 @@ import { splitSentences as engineSentences } from "../eoreader7/native/adapters/
 import { extractSurfaces, discoverReferents, namesCorefer, diaNorm } from "../eoreader7/native/adapters/text/surfaces.js";
 import { discoverRelationVocab, extractRelations } from "../eoreader7/native/adapters/text/relations.js";
 import { answerRecord, answerRecordProse, bareLogic } from "./answer-record.js";
+import { falsifiersFor, classifySentences } from "../eoreader7/native/organs/index.js";
+import { extractAtoms } from "./grounding.js";
 
 // Overridable so a Node test or a non-default Ollama install is not stuck
 // on localhost:11434 — every other Ollama call site in this repo (app.js,
@@ -167,8 +169,30 @@ export async function runProxyTurn({ model, task, chatHistory = [], discourse = 
     witness,
     voids,
   });
+  // POPPER (2026-09-27): what would prove this answer wrong, from the same
+  // verdicts the record carries — a sentence the relation tier bound names
+  // its address, one it contradicted says so, one the witness placed names
+  // the passage, anything else is the model's own words and says nothing
+  // here would notice. Mechanical; the model never writes it.
+  let falsifiers = null;
+  try {
+    const relClaims = (result.sections ?? []).flatMap((s) => s?.relations?.claims ?? []);
+    const stated = new Map(witness.filter((w) => w?.witness === "states" || w?.verdict === "states").map((w) => [w.sentence, w]));
+    const rows = classifySentences(result.output ?? "", [], [], relClaims).map((e) => {
+      const edges = e.edges ?? [];
+      const against = edges.filter((c) => c.verdict === "contradicted");
+      const bound = edges.filter((c) => c.verdict === "bound");
+      if (against.length) return { sentence: e.text, tier: "contested", addresses: against.flatMap((c) => c.refs ?? []), detail: "the material read here contradicts it", edges };
+      if (bound.length) return { sentence: e.text, tier: "bound", addresses: bound.flatMap((c) => c.refs ?? []), edges };
+      const w = stated.get(e.text);
+      if (w) return { sentence: e.text, tier: "witnessed", addresses: w.span?.ref ? [w.span.ref] : [], edges };
+      return { sentence: e.text, tier: "self", addresses: [], edges };
+    });
+    falsifiers = falsifiersFor({ rows, isCheckable: (t) => extractAtoms(t).length > 0, checkingOff: !grounded });
+  } catch { falsifiers = null; }
   return {
     text: result.output,
+    falsifiers,
     refs: result.refs,
     unsupported: result.unsupported,
     unbacked: result.unbacked,

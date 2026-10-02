@@ -128,6 +128,10 @@ export async function er7ChatCompletion({ model, history = [], task, sessionId, 
     // lands, so nothing unchecked is left standing as the answer.
     stream: Boolean(onDelta),
     discloseThinking,
+    // This page draws Popper's "what would prove this wrong" line itself,
+    // from reading.falsifiers (app.js::drawPopper) — so it must not also
+    // arrive inside the answer text, where it would reach history.
+    fold_popper_inline: false,
     // The person's own web switch, carried as PER-REQUEST consent: the engine's
     // fact gate may run its declared web check only when the caller says so.
     ...(web ? { web: true } : {}),

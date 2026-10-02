@@ -8910,3 +8910,31 @@ under you mid-investigation, so pin `tabId` on every call and re-read
 silently, with nothing on the record or the surface saying the engine
 declined and why. Disclosing the handoff is small, real, unattempted work —
 left out because `app.js` was under concurrent edit.
+
+## The identity routes: the possessive wired, the alias refused (added 2026-10-01) — pointer
+
+POLICIES.md **P263** is the law here; eoreader7 **S137** is the organ's account; `eoreader7/native/eval/the-fold/results/possessive-audit-RESULTS.md` and `alias-precision-RESULTS.md` carry every number, each regenerated from a committed record by a test. The ask: "wire in what works and figure out the possessives and alias stuff, signal Chomsky and Sullivan."
+
+**What the page does now.** A name asked with the possessive mark ("Anna's") reaches what the bare name reaches, and a person the material names only with the mark is reachable by the bare name. `app.js` declares `MATERIAL_LANGUAGE = "eng"`, builds the fold with `terminalEncliticFold` (`organs/identity-routes.js`, through the seam) and hands it as `surfaceFold` to `castFor` and `referentIndexFor`. It reads the last token of a name only, and it is consulted only when the name as written resolved to nothing: 0 of 21,886 audited queries changed an answer the index gave by an exact match, and 97.1% of possessive-form queries went from nothing to the bare name's referents. A language the page has not declared, or the registry has no prior for, is a typed gap and the index is byte-identical.
+
+**What it does not do.** A declared "X (Y)" is NOT folded into any index: it is an alias 18.0% of the time out of sample, 43.5% on 23 admits with the distinctness walls. `identity-routes-wiring.test.mjs` fails if `app.js` references the alias organ, and says what to do (re-run the audit, change the test in the same commit). The relation reader's own index and `holographIndex`'s replica of `resolve()` do not carry the route.
+
+**Two things not to re-derive.** `nameFold` reaches the engine's sameness test one token at a time, so a rule about where in a name a mark stands needs the whole-name seam (`surfaceFold`) — folding every token joined a title to the name inside it 75.6% wrong. And the page cannot be booted in a checkout like this one for reasons that predate this change: the organs seam re-exports `solon.js`, `hard-read.js` and `ingest.js` statically, they import `node:*`, and a browser refuses the whole graph (on `main` too). P263 lists what was run instead.
+
+**Amended 2026-10-01.** The seam breakage named in the last paragraph is fixed — see the next section.
+
+## The page's native imports link in a browser (added 2026-10-01) — pointer
+
+POLICIES.md **P264** is the law; eoreader7 **S138** is the organ side. The page enters the native tree through the organs seam, through this repo's forwarding shims and by direct `/engine-v7` imports — and `solon.js`, `hard-read.js` and `ingest.js` had come back through the seam, fifteen `node:` imports, so no browser could link `index.html` (on `main` too; found while wiring P263). The seam no longer re-exports them. Two guards read the real resolver in a child process with `process` removed: eoreader7's `conformance/seam-browser-safe.test.mjs` (the seam) and this repo's `page-native-browser-safe.test.mjs`, which derives the 44 native modules the page enters from `page-graph.mjs` and hands them to the same harness (`../eoreader7/native/conformance/lib/seam-reach.mjs`). A page that needs a server-side organ calls an `/api` route; it never imports the organ, and a shim never forwards one.
+
+**Two things not to re-derive.** `page-graph.mjs` stops at the mount ("governed by its own tests"), so since the walk was written (2026-08-16) nothing asked whether what the page enters on the other side links. And the harness leaves `Buffer` in place on purpose: node's lazy `fetch` reads it, and a browser has `fetch`. The page still has not been driven through a model turn here (no model server, vendored packages absent).
+
+**Amended 2026-10-01 (P265).** The typed rule this section describes is replaced: `app.js` no longer builds the fold with `terminalEncliticFold` — see the next section.
+
+## The page's possessive fold is learned (added 2026-10-01) — pointer
+
+POLICIES.md **P265** is the law; eoreader7 **S139** is the organ, the audit and the prior. The one-off — an English object saying what an enclitic is — is out of the page. `app.js` declares `MATERIAL_LANGUAGE`, fetches `/engine-v7/priors/name-forms-eng.json` as a data-gated `PRIOR_LOADS` entry and builds the fold with `learnedNameFold`; `castFor` and `referentIndexFor` are handed one stable function (`encliticFold`) that is the identity until the prior arrives, so a missing prior is the index as it was, said once in the console. `identity-routes-wiring.test.mjs` fails if the typed route's names come back into `app.js`. The static build ships the prior (`deploy/build-site.mjs` skips `native/priors`, 36 MB, and now copies `name-forms-*.json`); the fetch goes through the `/engine-v7/` mount because only that one is rewritten for a static host.
+
+**Measured.** On the same 55 documents and 21,886 queries as P263, the learned route answers 21,880 as the typed route did; the six that differ are an apostrophe the typed rule stripped from a Chatino word and from two extraction artifacts. Equivalent, not better.
+
+**Two things not to re-derive.** The earlier claim that the page "boots" in a real Chromium (P264, S138) did not show `app.js` ran: a preview shim in `index.html` removes the banner regardless, and `app.js:94` imports `katex.mjs`, which this checkout lacks, so the module graph never evaluated. It evaluates here only with stand-ins for `katex`, web-llm (with the roster's catalog entries), and the two legacy modules — P265 lists them and says the behaviour with them is not the behaviour with the real packages. And the neighbouring prior fetches use the `/eoreader7/native/` alias, which the static build does not rewrite, so they 404 on a static host and are data-gated off.
